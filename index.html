@@ -192,7 +192,7 @@ select.linkbtn { font-size: 12px; padding: 3px 6px; }
 select.linkbtn option { background: var(--ink); color: var(--chalk); }
 .pauseIntel { margin: 0 0 14px; max-width: 34em; display: flex; flex-direction: column; gap: 4px; color: var(--chalk); line-height: 1.4; }
 .startNote { display: block; margin-top: 5px; font-size: 11px; color: var(--dim); }
-.startNote[hidden] { display: none; }
+.startNote[hidden], .fsRow[hidden] { display: none; }
 .linkbtn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .big { font-family: var(--display); font-weight: 700; font-size: clamp(36px, 10vw, 56px); line-height: 1; margin: 0; }
 .row { display: flex; flex-wrap: wrap; gap: 24px; }
@@ -273,6 +273,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <button class="btn" id="play" type="button">Launch</button>
     <div class="ctrl"><div><span>Start at</span> <select class="linkbtn" id="startWave" aria-label="Start at wave"></select> <span class="startNote" id="startNote" hidden>Practice run: doesn't count toward Best</span></div></div>
     <div class="ctrl" id="titleSound"><div><span>Sound</span> </div></div>
+    <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
     <div class="ctrl"><div><span>Look</span> <button class="linkbtn lookBtn" data-look="neon" type="button">Neon</button> <button class="linkbtn lookBtn" data-look="cabinet" type="button">Cabinet</button> <button class="linkbtn lookBtn" data-look="bone" type="button">Bone</button> <button class="linkbtn lookBtn" data-look="blueprint" type="button">Blueprint</button> <button class="linkbtn lookBtn" data-look="blueprint2" type="button">Blueprint 2</button></div></div>
   </div>
 </section>
@@ -297,6 +298,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <div class="btnrow"><button class="btn" id="resume" type="button">Resume</button><button class="btn ghost menuBtn" type="button">Main menu</button></div>
     <div class="ctrl"><div><span>Touch sides</span> <button class="linkbtn swapBtn" type="button">Move on left</button></div></div>
     <div class="ctrl" id="pauseSound"><div><span>Sound</span> </div></div>
+    <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
   </div>
 </section>
 
@@ -4741,6 +4743,22 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     try { localStorage.setItem('ricochet.swap', swapSides ? '1' : '0'); } catch (e) {}
   }
   document.querySelectorAll('.swapBtn').forEach(b => b.addEventListener('click', () => { setSwap(!swapSides); b.blur(); }));
+  // Full screen: the Fullscreen API where the browser allows it (Android, iPad, desktop). iPhone Safari doesn't, so
+  // there the button explains Add to Home Screen instead. Hidden when already running from the home screen.
+  const fsRoot = document.documentElement, canFs = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+  const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const syncFs = () => document.querySelectorAll('.fsBtn').forEach(b => { b.textContent = isFs() ? 'Exit full screen' : 'Full screen'; });
+  const fsHint = () => document.querySelectorAll('.fsHint').forEach(h => { h.hidden = !h.hidden; });
+  if (navigator.standalone || matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) document.querySelectorAll('.fsRow').forEach(r => { r.hidden = true; });
+  document.querySelectorAll('.fsBtn').forEach(b => b.addEventListener('click', () => {
+    b.blur();
+    if (!canFs) { fsHint(); return; }
+    try {
+      const r = isFs() ? (document.exitFullscreen || document.webkitExitFullscreen).call(document) : (fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen).call(fsRoot);
+      if (r && r.catch) r.catch(fsHint);
+    } catch (e) { fsHint(); }
+  }));
+  document.addEventListener('fullscreenchange', syncFs); document.addEventListener('webkitfullscreenchange', syncFs);
   let laidOut = false; // set once start() has fitted the arena
   function setLook(l) {
     look = l;
