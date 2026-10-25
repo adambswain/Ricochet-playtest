@@ -765,9 +765,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (!side && rg.parentNode !== $('hud')) { $('hud').appendChild(rg); $('meter').prepend(ch); }
     return side;
   }
+  // The size layout() last saw (the canvas's real CSS size and the safe area). A home-screen app on iOS can start or
+  // rotate with stale sizes and no resize event, so this is polled and layout() reruns whenever it changes.
+  let laidSize = '';
+  const sizeKey = () => { const s = $('safe').getBoundingClientRect(); return [cvs.clientWidth, cvs.clientHeight, s.left, s.top, s.right, s.bottom].map(Math.round).join(); };
   function layout() {
     DPR = Math.min(2, window.devicePixelRatio || 1);
-    cvs.width = Math.round(innerWidth * DPR); cvs.height = Math.round(innerHeight * DPR);
+    cvs.width = Math.round((cvs.clientWidth || innerWidth) * DPR); cvs.height = Math.round((cvs.clientHeight || innerHeight) * DPR);
+    laidSize = sizeKey();
     const s = $('safe').getBoundingClientRect(), side = arrangeHud();
     const y0 = side ? s.top + 8 : $('hud').getBoundingClientRect().bottom + 10;
     const y1 = side ? s.bottom - 8 : $('meter').getBoundingClientRect().top - 10;
@@ -4886,6 +4891,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   addEventListener('blur', () => { setPaused(true); for (const k in keys) keys[k] = false; mouseRight = false; mouseLeft.down = mouseLeft.threw = false; spaceThrew = false; });
   document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); else if (AC && AC.state !== 'running') AC.resume().catch(() => {}); });
   addEventListener('resize', layout);
+  addEventListener('orientationchange', () => { layout(); setTimeout(layout, 300); });
+  if (window.visualViewport) visualViewport.addEventListener('resize', layout);
+  setInterval(() => { if (laidOut && sizeKey() !== laidSize) layout(); }, 400);
 
   /* ---------- boot ---------- */
   let last = performance.now();
