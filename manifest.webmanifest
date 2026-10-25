@@ -1,0 +1,2 @@
+{ "name": "Ricochet", "short_name": "Ricochet", "start_url": "./", "display": "fullscreen", "background_color": "#120d1c", "theme_color": "#120d1c",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }] }
