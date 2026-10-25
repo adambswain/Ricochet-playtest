@@ -419,7 +419,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     12: 'Blinkers teleport. The ghost shows where',
     13: 'Coin Rush: sweep up every coin for a jackpot',
     15: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts',
-    18: 'Brute Wall: they advance in a line',
+    18: 'Invasion: you\'re held to the bottom strip. Break the formation before it lands. Bunkers bounce your ball',
+    19: 'A Brute Wall marches in partway through this wave',
     20: 'The Carrier: break through its docked fighters and hit the glowing throat at the back',
     40: 'The Hive: dig to the royal cell before workers patch the comb. Smash thrown comb for chain. Hit the queen while her brood glows',
     23: 'Swarm Storm',
@@ -427,9 +428,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     28: 'Crusher: brick walls close in. Break them to push them back',
   };
   // Set pieces at 5, 13, 18, 23 and 28, then every ten waves from 35 in turn (bigger each lap).
-  const SET_PIECES = ['bonus', 'coins', 'wall', 'storm', 'titans', 'crusher'];
-  const SET_AT = { 5: 'bonus', 13: 'coins', 18: 'wall', 23: 'storm', 26: 'titans', 28: 'crusher' }; // the first lap sits between the bosses
-  const SET_NAMES = { bonus: 'Pinball', coins: 'Coin Rush', wall: 'Brute Wall', storm: 'Swarm Storm', titans: 'Titans', crusher: 'Crusher' };
+  const SET_PIECES = ['bonus', 'coins', 'invaders', 'storm', 'titans', 'crusher'];
+  const SET_AT = { 5: 'bonus', 13: 'coins', 18: 'invaders', 23: 'storm', 26: 'titans', 28: 'crusher' }; // the first lap sits between the bosses
+  const SET_NAMES = { bonus: 'Pinball', coins: 'Coin Rush', invaders: 'Invasion', storm: 'Swarm Storm', titans: 'Titans', crusher: 'Crusher' };
   const setPiece = n => SET_AT[n] || (n > 30 && n % 10 === 5 ? SET_PIECES[((n - 35) / 10) % SET_PIECES.length] : null);
   const monolithIntro = () => G && G.asteroidWave === 14 ? 16 : 14; // the first normal wave with Monoliths
   const introFor = n => n === monolithIntro() ? 'Monoliths turn to stone now and then: a wall to bounce off, not to hit'
@@ -450,6 +451,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     monolith: { r: 3.6, hp: 5, spd: 8,   pts: 60 },
     titan:    { r: 8.5, hp: 14, spd: 4.2, pts: 400 }, // Titans set piece: huge, slow, cracks into two brutes
     rock:     { r: 7.5, hp: 3, spd: 0,   pts: 20 },  // Asteroid Field: size 3 / 2 / 1 set on spawn
+    invader:  { r: 2.6, hp: 1, spd: 0,   pts: 15 },  // Invasion: moved by the formation (updateInvaders)
     saucer:   { r: 3.4, hp: 2, spd: 0,   pts: 200 },
     egg:      { r: 1.9, hp: 1, spd: 0,   pts: 30 },   // the queen's: hatches into bees unless smashed
     wax:      { r: 2.6, hp: 1, spd: 0,   pts: 25 },   // a cell of thrown honeycomb (moved by its chunk, in updateHive)
@@ -559,6 +561,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
   }
   const sfx = {
+    march(k) { const f = [98, 87.3, 77.8, 73.4][k % 4]; voice({ type: 'square', f, f2: f * 0.97, dur: 0.09, vol: 0.16, filter: 'lowpass', ff: 420, q: 1.2 }); voice({ f, dur: 0.1, vol: 0.22 }); },
+    invShot(x) { if (gate('invShot', 80)) voice({ type: 'square', f: 900, f2: 300, dur: 0.08, vol: 0.04, filter: 'lowpass', ff: 2500, pan: panOf(x) }); },
     rockBoom(size) {
       const [ff, ff2, dur, vol] = [[0, 0, 0, 0], [2400, 450, 0.2, 0.26], [1500, 260, 0.34, 0.32], [1000, 140, 0.55, 0.4]][size];
       voice({ noise: true, filter: 'lowpass', ff, ff2, q: 0.7, dur, vol });
@@ -705,7 +709,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // the siren's pitch and warble: the big saucer low and slow, the small one high and fast
     if (saucer) { const f = sau.big ? 380 + 70 * Math.sin(now * Math.PI * 2 * 3.5) : 820 + 140 * Math.sin(now * Math.PI * 2 * 8); hums.saucer.o.frequency.setTargetAtTime(f, now, 0.01); hums.saucer.o2.frequency.setTargetAtTime(f * 1.003, now, 0.01); } // the siren's warble
     heartbeatTick();
-    if (inField()) { MUSIC.nextT = 0; return; } // the heartbeat is the music here
+    if (inField() || inInvasion()) { MUSIC.nextT = 0; return; } // the heartbeat (or the march) is the music here
     musicTick();
   }
 
@@ -2673,7 +2677,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       player: { x: AW / 2, y: AH * 0.6, hull: 3, inv: 0, fx: 0, fy: -1, shield: 0, mvx: 0, mvy: 0 },
       balls: [Object.assign(makeBall(), { x: AW / 2, y: AH * 0.6 })],
       enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [],
-      shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, table: null, asteroidWave: ASTEROID_WAVES[Math.floor(Math.random() * ASTEROID_WAVES.length)], result: null, boss: null, bombs: [],
+      shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, table: null, asteroidWave: ASTEROID_WAVES[Math.floor(Math.random() * ASTEROID_WAVES.length)], inv: null, result: null, boss: null, bombs: [],
       pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [],
       arenaTarget: ARENA_START, layoutPending: null, lastLayout: null,
       shake: 0, freeze: 0, dying: 0, banner: null, time: 0, pulling: false,
@@ -2761,10 +2765,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       setupTable(cycle);
     } else if (sp === 'coins') {
       setupCoins(cycle);
-    } else if (sp === 'wall') {
-      add('drifter', 4 + cycle * 3); add('dasher', cycle * 2); shuffle();
-      G.wallCount = Math.min(11, 8 + cycle);
-      q.push('wall');
+    } else if (sp === 'invaders') {
+      setupInvaders(cycle);
     } else if (sp === 'titans') {
       add('drifter', 10 + cycle * 4); add('dasher', cycle * 2); shuffle(); // a ring of fodder to plow through
       add('titan', 3 + cycle);                                            // the queue pops from the end: titans arrive first
@@ -2780,9 +2782,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       // MIX_PACE per wave, a breather that meets the extra balls rather than outrunning them.
       const m = mixWave(n);
       const warden = n >= 11 && !sp && (n - 11) % 6 === 0, total = Math.min(34, 3 + m * 2), f = c => warden ? Math.round(c * 0.65) : c;
+      const wall = n >= 19 && n % 10 === 9 && !warden && !sp; // a Brute Wall marches in partway through, in place of the loose brutes
       const tank = c => m >= 9 ? Math.round(c * 0.75) : c; // later waves: a quarter fewer heavies, more fodder to plow through
       const fast = c => m >= 9 ? Math.round(c * 0.6) : c;  // and fewer of the fast killers; their places go to drifters
-      const brutes = m >= 2 ? tank(Math.min(6, Math.floor(m / 2))) : 0;
+      const brutes = wall ? 0 : m >= 2 ? tank(Math.min(6, Math.floor(m / 2))) : 0;
+      G.wallCount = wall ? Math.min(10, 7 + Math.floor((n - 19) / 20)) : 0;
       const dashers = m >= 3 ? fast(Math.min(8, Math.floor((m - 1) / 2))) : 0;
       const turrets = m >= 6 && !sp ? Math.min(3, Math.floor((m - 4) / 2)) : 0; // Crusher: walls are buried in bricks
       const splitters = m >= 4 ? Math.min(6, 1 + Math.floor((m - 4) / 2)) : 0;
@@ -2791,10 +2795,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const blinkers = n >= 12 ? Math.max(1, fast(Math.min(4, 1 + Math.floor((m - 11) / 2)))) : 0; // introduced at wave 12 either way
       const swarms = m >= 7 && !warden ? (m >= 14 ? 2 : 1) : 0; // groups of SWARM_SIZE, outside the total
       const monoliths = n >= 14 ? Math.min(3, Math.max(1, tank(1 + Math.floor((m - 9) / 3)))) : 0;
-      const drifters = Math.max(2, total - brutes - dashers - splitters - turrets - magnets - bulwarks - blinkers - monoliths) + (m >= 9 ? 4 : 0);
+      const drifters = Math.max(2, total - brutes - G.wallCount - dashers - splitters - turrets - magnets - bulwarks - blinkers - monoliths) + (m >= 9 ? 4 : 0);
       add('drifter', f(drifters)); add('brute', f(brutes)); add('dasher', f(dashers)); add('splitter', f(splitters)); add('magnet', f(magnets));
       add('bulwark', f(bulwarks)); add('blinker', f(blinkers)); add('monolith', f(monoliths)); add('swarm', swarms);
       shuffle();
+      if (wall) q.splice(Math.floor(q.length / 2), 0, 'wall');
       if (warden) q.unshift('warden'); // miniboss arrives last, after its escorts
       add('turret', f(turrets));
       if (sp === 'crusher') setupCrusher(cycle);
@@ -2802,7 +2807,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.spawnQueue = q; G.spawnTimer = 0.2;
   }
 
-  // Brute Wall: a line of brutes on the wall farthest from the player, marching straight across.
+  // Brute Wall (part of some normal waves): a line of brutes on the wall farthest from the player, marching straight across.
   function spawnWall() {
     const p = G.player, n = G.wallCount || 8;
     const far = [p.y, AW - p.x, AH - p.y, p.x]; // distance to top, right, bottom, left
@@ -2814,6 +2819,120 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const y = side === 0 ? m : side === 2 ? AH - m : 6 + f * (AH - 12);
       G.tele.push({ x, y, type: 'brute', t: 1.0, march });
     }
+  }
+
+  // Invasion (wave 18, a set piece): an homage to the 1978 arcade invaders (the sprites and sounds are our own). A
+  // formation of INV_ROWS rows marches side to side in steps, dropping at each edge and speeding up as it thins out;
+  // a four-note bass march keeps time with it in place of the music. You're held to a strip along the bottom, under a
+  // row of bunkers. Bunkers bounce the ball (and charge it) and crumble a block at a time, from both sides. The lowest
+  // invader in a column fires slow shots (INV_SHOTS at most); a mystery ship crosses the top now and then. An invader
+  // that reaches your strip blows up and costs a hull point. The last few drop twice as far, so they come to you.
+  const INV_ROWS = 5, INV_GAP_X = 9, INV_GAP_Y = 7.5, INV_PASS = 24, INV_DROP = 5, INV_STRIP = 16, INV_SHOTS = 3, INV_SHOT_SPEED = 30;
+  const INV_PTS = [40, 25, 25, 15, 15], INV_BLK = 2.1, INV_GREEN = 'rgb(118, 236, 132)', INV_UFO_PTS = [150, 300, 500, 1000];
+  // three kinds of invader, two frames each ('#' is a pixel)
+  const INV_SPRITES = [
+    [['...##...', '..####..', '.#.##.#.', '########', '..#..#..', '.#.##.#.', '#......#', '.#....#.'],
+     ['...##...', '..####..', '.#.##.#.', '########', '.#.##.#.', '#......#', '.#....#.', '#......#']],
+    [['...#...#...', '....#.#....', '..#######..', '.##.###.##.', '###########', '..#.#.#.#..', '.#.......#.', '#.........#'],
+     ['...#...#...', '#...#.#...#', '#.#######.#', '###.###.###', '###########', '..#.#.#.#..', '..#.....#..', '.#.......#.']],
+    [['....####....', '..########..', '.##########.', '###..##..###', '############', '..##....##..', '.##.####.##.', '##........##'],
+     ['....####....', '..########..', '.##########.', '###..##..###', '############', '...##..##...', '..##.##.##..', '...#....#...']]];
+  const invKind = row => row === 0 ? 0 : row < 3 ? 1 : 2;
+  const invColor = k => [ECOL.swarm, ECOL.drifter, ECOL.brute][k];
+  const stripTop = () => AH - INV_STRIP;
+  function setupInvaders(cycle) {
+    const cols = clamp(Math.floor(AW * 0.62 / INV_GAP_X), 5, 11), x0 = AW / 2 - (cols - 1) * INV_GAP_X / 2;
+    const bunkerTop = stripTop() - 16, y0 = Math.max(12, bunkerTop - INV_ROWS * INV_GAP_Y - 72); // tall arenas start lower, about the same march away
+    // a pass across takes INV_PASS steps whatever the arena's width
+    G.inv = { dir: 1, stepT: 1, step: Math.max(1.5, (AW - 4 - (cols - 1) * INV_GAP_X - 6) / INV_PASS), frame: 0, k: 0, total: cols * INV_ROWS, fireT: 2.5, ufoT: rand(12, 16), bunkers: [] };
+    for (let r = 0; r < INV_ROWS; r++) for (let c = 0; c < cols; c++) {
+      const e = makeEnemy('invader', x0 + c * INV_GAP_X, y0 + r * INV_GAP_Y);
+      Object.assign(e, { hp: 1 + cycle, maxHp: 1 + cycle, kind: invKind(r), pts: INV_PTS[r], col: c, spawnT: 0.25 + (INV_ROWS - 1 - r) * 0.12 });
+      G.enemies.push(e);
+    }
+    // bunkers: blocks in an arch, spread along the strip
+    const nb = cols >= 9 ? 4 : 3, shape = ['..######..', '.########.', '##########', '##########', '###....###', '##......##'];
+    for (let i = 0; i < nb; i++) {
+      const cx = AW * (i + 0.5) / nb, bx = cx - shape[0].length * INV_BLK / 2;
+      shape.forEach((row, ry) => [...row].forEach((ch, rx) => {
+        if (ch === '#') G.inv.bunkers.push({ x0: bx + rx * INV_BLK, y0: bunkerTop + ry * INV_BLK, x1: bx + (rx + 1) * INV_BLK, y1: bunkerTop + (ry + 1) * INV_BLK, hp: 2 });
+      }));
+    }
+    const p = G.player; p.y = AH - INV_STRIP / 2; ring(p.x, p.y, PLAYER_R, PLAYER_R + 8, 0.4, INV_GREEN, 0.8);
+  }
+  const inInvasion = () => G && G.inv && !G.attract && mode === 'play' && G.between === null && G.enemies.some(e => e.type === 'invader');
+  function chipBunker(c) {
+    c.hp--; burst((c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2, c.hp > 0 ? 2 : 5, INV_GREEN, 18, 0.35, 0.25);
+  }
+  // a ball against the bunkers: bounce off one block and chip it ('bounce' when it came off one)
+  function bunkerHit(o, r) {
+    for (const c of G.inv.bunkers) {
+      if (c.hp <= 0) continue;
+      const h = hitRect(o.x, o.y, r, c);
+      if (!h) continue;
+      o.x += h.nx * h.depth; o.y += h.ny * h.depth;
+      const dot = o.vx * h.nx + o.vy * h.ny;
+      if (dot >= 0) continue;
+      o.vx -= 2 * dot * h.nx; o.vy -= 2 * dot * h.ny; chipBunker(c); sfx.brick(o.b || 0);
+      return 'bounce';
+    }
+    return '';
+  }
+  function updateInvaders(dt) {
+    const V = G.inv, p = G.player, es = G.enemies, inv = es.filter(e => e.type === 'invader' && !e.gone);
+    if (G.between !== null || !inv.length || inv.some(e => e.spawnT > 0)) return;
+    const left = inv.length, few = left <= 3;
+    V.stepT -= dt;
+    if (V.stepT <= 0) { // one step of the march
+      V.stepT = 0.045 + 0.22 * Math.pow(left / V.total, 1.3);
+      const minX = Math.min(...inv.map(e => e.x - e.r)), maxX = Math.max(...inv.map(e => e.x + e.r));
+      if (V.dir > 0 ? maxX + V.step > AW - 2 : minX - V.step < 2) { V.dir = -V.dir; for (const e of inv) e.y += INV_DROP * (few ? 2 : 1); }
+      else for (const e of inv) e.x += V.step * V.dir;
+      V.frame ^= 1; sfx.march(V.k++);
+      for (const e of inv) {
+        for (const c of V.bunkers) if (c.hp > 0 && e.x + e.r > c.x0 && e.x - e.r < c.x1 && e.y + e.r > c.y0 && e.y - e.r < c.y1) { c.hp = 0; chipBunker(c); } // they eat through the bunkers
+        if (e.y + e.r > stripTop()) { // landed: it blows up, and it costs you
+          e.gone = true; burst(e.x, e.y, 16, invColor(e.kind), 40, 0.7, 0.5); ring(e.x, e.y, 1, 14, 0.4, COL.threat, 1.2); shake(2); sfx.rockBoom(2);
+          float(e.x, e.y - 6, 'Landed', COL.threat, 3);
+          if (p.inv <= 0) damagePlayer();
+        }
+      }
+    }
+    // the lowest invader in a column fires: often the column over you
+    V.fireT -= dt;
+    if (V.fireT <= 0 && G.bullets.filter(b => b.inv).length < INV_SHOTS) {
+      V.fireT = rand(0.8, 1.6) * (few ? 0.7 : 1);
+      const low = {};
+      for (const e of inv) if (!low[e.col] || e.y > low[e.col].y) low[e.col] = e;
+      const shooters = Object.values(low);
+      const e = Math.random() < 0.5 ? shooters.reduce((a, b) => Math.abs(b.x - p.x) < Math.abs(a.x - p.x) ? b : a) : shooters[Math.floor(Math.random() * shooters.length)];
+      G.bullets.push({ x: e.x, y: e.y + e.r + 1, vx: 0, vy: INV_SHOT_SPEED, r: BULLET_R, inv: true }); sfx.invShot(e.x);
+    }
+    // the mystery ship
+    V.ufoT -= dt;
+    if (V.ufoT <= 0 && left > 4 && !es.some(e => e.type === 'saucer')) {
+      V.ufoT = rand(14, 20);
+      const side = Math.random() < 0.5, u = makeEnemy('saucer', side ? -8 : AW + 8, 6);
+      Object.assign(u, { big: true, mystery: true, r: 3.6, hp: 1, maxHp: 1, pts: INV_UFO_PTS[Math.floor(Math.random() * INV_UFO_PTS.length)], y0: 6, vx: side ? 22 : -22, fire: 99, spawnT: 0 });
+      es.push(u);
+    }
+  }
+  function finishInvaders() {
+    const V = G.inv; if (!V) return;
+    for (const c of V.bunkers) if (c.hp > 0) burst((c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2, 2, INV_GREEN, 20, 0.5, 0.3);
+    G.inv = null;
+  }
+  function drawInvasion() {
+    const V = G.inv; if (!V) return;
+    const y = stripTop();
+    ctx.globalAlpha = 0.35; ctx.strokeStyle = INV_GREEN; ctx.lineWidth = 0.3; ctx.setLineDash([1.5, 1.5]); // the line they mustn't cross, and you can't
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(AW, y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalAlpha = 0.06; ctx.fillStyle = INV_GREEN; ctx.fillRect(0, y, AW, AH - y); ctx.globalAlpha = 1;
+    for (const c of V.bunkers) {
+      if (c.hp <= 0) continue;
+      ctx.globalAlpha = c.hp > 1 ? 0.9 : 0.5; ctx.fillStyle = INV_GREEN; ctx.fillRect(c.x0, c.y0, c.x1 - c.x0 + 0.02, c.y1 - c.y0 + 0.02);
+    }
+    ctx.globalAlpha = 1;
   }
 
   // Asteroid Field: an homage to the 1979 arcade game. Exactly one per run, on one of ASTEROID_WAVES picked at random when
@@ -2900,8 +3019,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const next = G.wave + 1;
         G.between = G.wave === 0 ? 0.9 : 1.8; // waves with something to read wait long enough to read it (set with the banner below)
         G.arenaTarget = arenaFor(next);
-        crumbleBricks();
-        if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = setPiece(next) === 'crusher' || setPiece(next) === 'bonus' || setPiece(next) === 'coins' || bossFor(next) ? null : layoutFor(next); }
+        crumbleBricks(); finishInvaders();
+        if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = setPiece(next) === 'crusher' || setPiece(next) === 'bonus' || setPiece(next) === 'coins' || setPiece(next) === 'invaders' || bossFor(next) ? null : layoutFor(next); }
         if (G.wave > 0 && !G.skipBonus) {
           const bonus = 100 * G.wave;
           G.score += bonus;
@@ -2988,7 +3107,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.table) { const T = tableRect(); p.y = AH * TB.rail; p.x = clamp(p.x, T.x0 + T.w * 0.16, T.x0 + T.w * 0.84); p.fx = 0; p.fy = -1; } // on the rail
-    else { pushOut(p, PLAYER_R); keepIn(p, PLAYER_R); }
+    else { pushOut(p, PLAYER_R); keepIn(p, PLAYER_R); if (G.inv) p.y = Math.max(p.y, stripTop() + PLAYER_R + 0.5); } // Invasion: held to the strip
     if (p.px !== undefined && dt > 0) { const k = Math.min(1, dt * 12); p.mvx += ((p.x - p.px) / dt - p.mvx) * k; p.mvy += ((p.y - p.py) / dt - p.mvy) * k; }
     p.px = p.x; p.py = p.y;
     if (inputType === 'mouse' && aim) {
@@ -3226,6 +3345,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.flashes.push({ x: e.x, y: e.y, r: e.r * 1.35, t: 0, max: 0.09 });
     gridImpulse(e.x, e.y, 12 + e.r + b * 0.6, 45 + b * 6);
     // each type goes out its own way: swarms pop like bubbles, brutes cave in, splitters crack along their seam
+    if (e.type === 'invader') {
+      const c = invColor(e.kind); burst(e.x, e.y, 8, c, 30, 0.5, 0.3); burst(e.x, e.y, 4 + b, heat(b), 40, 0.5, 0.3); ring(e.x, e.y, 0.5, e.r + 3, 0.2, c, 0.5);
+      shake(0.3); sfx.kill(b, e.x); return;
+    }
     if (e.type === 'wax') { // honeycomb snaps; breaking the core cell shatters the rest of the chunk (in updateHive)
       burst(e.x, e.y, 8, GOLD(), 30, 0.5, 0.3); ring(e.x, e.y, 0.5, WAX_S + 2, 0.2, GOLD(), 0.5); sfx.brick(b); shake(0.3);
       if (e.core) e.grp.shatter = src;
@@ -3409,6 +3532,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           if (dot < 0) { x.vx -= 2 * dot * h.nx; x.vy -= 2 * dot * h.ny; bounced = true; }
         }
         if (G.crush && brickHit(x, r, x.b) === 'bounce') bounced = true;
+        if (G.inv && bunkerHit(x, r) === 'bounce') bounced = true;
         if (G.bonus && bumperHit(x, r)) bounced = true;
         if (G.coins) coinHit(x, r);
         if (G.bombs.length) ballBombs(x, r, x.b);
@@ -3564,6 +3688,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
       if (G.table) { tableCollide(ball, r); if (ball.state !== 'live') break; }
       if (G.crush && brickHit(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
+      if (G.inv && bunkerHit(ball, r) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.bonus && bumperHit(ball, r)) chargeBounce(ball);
       if (G.coins) coinHit(ball, r);
       if (G.bombs.length) ballBombs(ball, r, ball.b);
@@ -3663,7 +3788,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (e.hatchT <= 0) { e.gone = true; spawnBees(e.x, e.y, 4); }
         continue;
       }
-      if (e.type === 'wax') continue; // its chunk moves it
+      if (e.type === 'wax' || e.type === 'invader') continue; // its chunk (or the formation) moves it
+      if (e.mystery) { e.x += e.vx * dt; if (e.x < -10 || e.x > AW + 10) e.gone = true; continue; } // the mystery ship: straight across, no shots
 
       if (e.type === 'rock') { // straight lines, wrapping round the edges like the original
         e.x += e.vx * dt; e.y += e.vy * dt; e.rot += e.spin * dt;
@@ -3790,7 +3916,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // keep enemies from stacking into one blob
     for (let i = 0; i < es.length; i++) for (let j = i + 1; j < es.length; j++) {
       const a = es[i], b = es[j], dx = b.x - a.x, dy = b.y - a.y, min = a.r + b.r, d2 = dx * dx + dy * dy;
-      if (a.type === 'rock' || b.type === 'rock' || a.type === 'saucer' || b.type === 'saucer' || a.type === 'wax' || b.type === 'wax') continue;
+      if (a.type === 'rock' || b.type === 'rock' || a.type === 'saucer' || b.type === 'saucer' || a.type === 'wax' || b.type === 'wax' || a.type === 'invader' || b.type === 'invader') continue;
       if (d2 > 0 && d2 < min * min) {
         const d = Math.sqrt(d2), push = (min - d) / 2, nx = dx / d, ny = dy / d;
         const at = a.type === 'turret' || a.type === 'titan' || isStone(a), bt = b.type === 'turret' || b.type === 'titan' || isStone(b); // walls and titans don't get shoved
@@ -3823,6 +3949,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       let dead = b.x < b.r || b.x > AW - b.r || b.y < b.r || b.y > AH - b.r;
       if (!dead) for (const o of G.obstacles) if (!o.dying && hitObs(b.x, b.y, b.r, o)) { dead = true; break; }
       if (!dead && G.crush) nearBricks(b.x, b.y, (side, c, k) => (dead = !!hitRect(b.x, b.y, b.r, brickRect(side, c, k))));
+      if (!dead && G.inv) for (const c of G.inv.bunkers) if (c.hp > 0 && hitRect(b.x, b.y, b.r, c)) { chipBunker(c); dead = true; break; }
       if (dead) { burst(b.x, b.y, 4, COL.threat, 12, 0.4, 0.2); G.bullets.splice(i, 1); continue; }
       if (p.inv <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < PLAYER_R * 0.9 + b.r) {
         G.bullets.splice(i, 1);
@@ -3860,6 +3987,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     processShocks();
     const ws = G.powers.warp > 0 ? WARP_SCALE : 1;
     updateBonus(dt); updateCoins(dt); updateTable(dt);
+    if (G.inv) updateInvaders(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
     updateBullets(dt * ws);
@@ -4082,6 +4210,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!G) return;
 
     drawBricks();
+    drawInvasion();
     drawBumpers();
     drawCoins();
     drawTable();
@@ -4231,6 +4360,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (e.type === 'dasher' && e.st === 'wind' && Math.floor(G.time * 20) % 2) stroke = COL.chalk;
       const grow = e.spawnT > 0 ? 1 - e.spawnT / 0.25 : 1;
       ctx.save(); ctx.translate(e.x, e.y); ctx.scale(grow, grow);
+      if (e.type === 'invader') { // pixels, two frames stepping with the march
+        const spr = INV_SPRITES[e.kind][G.inv ? G.inv.frame : 0], px = 0.62, w = spr[0].length * px, h = spr.length * px;
+        ctx.fillStyle = e.flash > 0 ? COL.chalk : invColor(e.kind); ctx.beginPath();
+        spr.forEach((row, yy) => { for (let xx = 0; xx < row.length; xx++) if (row[xx] === '#') ctx.rect(-w / 2 + xx * px, -h / 2 + yy * px, px + 0.03, px + 0.03); });
+        ctx.fill(); ctx.restore(); continue;
+      }
       if (e.type === 'wax') { // a cell of thrown honeycomb, drawn like the hive's own; the core glows brighter
         const s2 = WAX_S * 0.95, gold = GOLD();
         ctx.rotate(e.grp.rot); hexPath(0, 0, s2); ctx.fillStyle = COL.ink; ctx.fill();
