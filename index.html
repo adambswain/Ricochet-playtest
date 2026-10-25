@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+<script>window.RICOCHET_DEBUG = true;</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -10,7 +11,7 @@
 <meta name="theme-color" content="#120d1c">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon.png">
-<style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; }</style>
+<style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
 <title>Ricochet</title>
@@ -298,6 +299,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <div class="btnrow"><button class="btn" id="resume" type="button">Resume</button><button class="btn ghost menuBtn" type="button">Main menu</button></div>
     <div class="ctrl"><div><span>Touch sides</span> <button class="linkbtn swapBtn" type="button">Move on left</button></div></div>
     <div class="ctrl" id="pauseSound"><div><span>Sound</span> </div></div>
+    <p class="startNote" id="dbg" hidden></p>
     <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
   </div>
 </section>
@@ -757,9 +759,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   /* ---------- layout ---------- */
   // A phone held sideways gets the HUD in side columns (CSS body.side): the hull group moves to the right column and the
   // charge meter to the left, and back again when it's turned upright.
-  const SIDE_Q = matchMedia('(orientation: landscape) and (max-height: 520px)');
+  // The visible screen: the visual viewport where there is one (a home-screen app on iOS can keep a stale layout
+  // viewport after rotating, but the visual one is what's actually on the glass).
+  const screenSize = () => { const vv = window.visualViewport; return { w: Math.round(vv ? vv.width : innerWidth), h: Math.round(vv ? vv.height : innerHeight) }; };
+  const isSide = () => { const { w, h } = screenSize(); return w > h && h <= 520; };
   function arrangeHud() {
-    const side = SIDE_Q.matches, rg = $('rgroup'), ch = $('charge');
+    const side = isSide(), rg = $('rgroup'), ch = $('charge');
     document.body.classList.toggle('side', side);
     if (side && rg.parentNode !== $('meter')) { $('meter').prepend(rg); $('hud').appendChild(ch); }
     else if (!side && rg.parentNode !== $('hud')) { $('hud').appendChild(rg); $('meter').prepend(ch); }
@@ -768,15 +773,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The size layout() last saw (the canvas's real CSS size and the safe area). A home-screen app on iOS can start or
   // rotate with stale sizes and no resize event, so this is polled and layout() reruns whenever it changes.
   let laidSize = '';
-  const sizeKey = () => { const s = $('safe').getBoundingClientRect(); return [cvs.clientWidth, cvs.clientHeight, s.left, s.top, s.right, s.bottom].map(Math.round).join(); };
+  const sizeKey = () => { const s = $('safe').getBoundingClientRect(), v = screenSize(); return [v.w, v.h, innerWidth, innerHeight, s.left, s.top, s.right, s.bottom].map(Math.round).join(); };
   function layout() {
     DPR = Math.min(2, window.devicePixelRatio || 1);
-    cvs.width = Math.round((cvs.clientWidth || innerWidth) * DPR); cvs.height = Math.round((cvs.clientHeight || innerHeight) * DPR);
+    const scr = screenSize();
+    cvs.style.width = scr.w + 'px'; cvs.style.height = scr.h + 'px'; // pinned to the visible screen, not 100% of a possibly stale viewport
+    cvs.width = Math.round(scr.w * DPR); cvs.height = Math.round(scr.h * DPR);
     laidSize = sizeKey();
     const s = $('safe').getBoundingClientRect(), side = arrangeHud();
-    const y0 = side ? s.top + 8 : $('hud').getBoundingClientRect().bottom + 10;
-    const y1 = side ? s.bottom - 8 : $('meter').getBoundingClientRect().top - 10;
-    const x0 = side ? $('hud').getBoundingClientRect().right + 4 : s.left + 10, x1 = side ? $('meter').getBoundingClientRect().left - 4 : s.right - 10;
+    const y0 = Math.max(0, side ? s.top + 8 : $('hud').getBoundingClientRect().bottom + 10);
+    const y1 = Math.min(scr.h - 8, side ? s.bottom - 8 : $('meter').getBoundingClientRect().top - 10);
+    const x0 = Math.max(0, side ? $('hud').getBoundingClientRect().right + 4 : s.left + 10), x1 = Math.min(scr.w - 4, side ? $('meter').getBoundingClientRect().left - 4 : s.right - 10);
     const w = Math.max(120, Math.min(x1 - x0, 1400)), h = Math.max(120, Math.min(y1 - y0, 900));
     AX = (x0 + x1) / 2 - w / 2; AY = (y0 + y1) / 2 - h / 2; BW = w; BH = h;
     computeArena();
@@ -2727,8 +2734,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     $('pauseIntelWave').textContent = li.wave === G.wave ? `Wave ${li.wave}` : `From wave ${li.wave}`;
     $('pauseIntelText').textContent = li.text;
   }
+  // Playtest builds: the screen measurements on the pause screen, to diagnose layout trouble on a real phone.
+  function showDebug() {
+    if (!window.RICOCHET_DEBUG) return;
+    const vv = window.visualViewport, s = $('safe').getBoundingClientRect(), r = n => Math.round(n);
+    $('dbg').hidden = false;
+    $('dbg').textContent = `inner ${innerWidth}×${innerHeight} · vv ${vv ? `${r(vv.width)}×${r(vv.height)} @${vv.scale.toFixed(2)} +${r(vv.offsetLeft)},${r(vv.offsetTop)}` : '-'} · screen ${screen.width}×${screen.height} · ` +
+      `safe ${r(s.left)},${r(s.top)}–${r(s.right)},${r(s.bottom)} · canvas ${cvs.clientWidth}×${cvs.clientHeight} · arena ${r(AX)},${r(AY)} ${r(BW)}×${r(BH)} · side ${document.body.classList.contains('side')} · ` +
+      `landscape ${matchMedia('(orientation: landscape)').matches} · scroll ${r(scrollX)},${r(scrollY)} · standalone ${!!navigator.standalone}`;
+  }
   function setPaused(p) {
-    if (p && mode === 'play') { mode = 'paused'; showIntel(); $('ov-pause').hidden = false; ptrs.clear(); touchMove = touchAct = null; }
+    if (p && mode === 'play') { mode = 'paused'; showIntel(); $('ov-pause').hidden = false; ptrs.clear(); touchMove = touchAct = null; showDebug(); }
     else if (!p && mode === 'paused') { mode = 'play'; $('ov-pause').hidden = true; }
   }
 
@@ -4893,7 +4909,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   addEventListener('resize', layout);
   addEventListener('orientationchange', () => { layout(); setTimeout(layout, 300); });
   if (window.visualViewport) visualViewport.addEventListener('resize', layout);
-  setInterval(() => { if (laidOut && sizeKey() !== laidSize) layout(); }, 400);
+  setInterval(() => { if (laidOut && (sizeKey() !== laidSize || isSide() !== document.body.classList.contains('side'))) layout(); }, 400);
 
   /* ---------- boot ---------- */
   let last = performance.now();
