@@ -2825,8 +2825,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // formation of INV_ROWS rows marches side to side in steps, dropping at each edge and speeding up as it thins out;
   // a four-note bass march keeps time with it in place of the music. You're held to a strip along the bottom, under a
   // row of bunkers. Bunkers bounce the ball (and charge it) and crumble a block at a time, from both sides. The lowest
-  // invader in a column fires slow shots (INV_SHOTS at most); a mystery ship crosses the top now and then. An invader
-  // that reaches your strip blows up and costs a hull point. The last few drop twice as far, so they come to you.
+  // invader in a column fires slow shots (INV_SHOTS at most); a mystery ship crosses the top now and then. If one
+  // reaches your strip, the invasion has landed: every invader left blows up, it costs one hull point (once, however
+  // many were left) and the wave ends without its clear bonus.
   const INV_ROWS = 5, INV_GAP_X = 9, INV_GAP_Y = 7.5, INV_PASS = 24, INV_DROP = 5, INV_STRIP = 16, INV_SHOTS = 3, INV_SHOT_SPEED = 30;
   const INV_PTS = [40, 25, 25, 15, 15], INV_BLK = 2.1, INV_GREEN = 'rgb(118, 236, 132)', INV_UFO_PTS = [150, 300, 500, 1000];
   // three kinds of invader, two frames each ('#' is a pixel)
@@ -2886,16 +2887,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (V.stepT <= 0) { // one step of the march
       V.stepT = 0.045 + 0.22 * Math.pow(left / V.total, 1.3);
       const minX = Math.min(...inv.map(e => e.x - e.r)), maxX = Math.max(...inv.map(e => e.x + e.r));
-      if (V.dir > 0 ? maxX + V.step > AW - 2 : minX - V.step < 2) { V.dir = -V.dir; for (const e of inv) e.y += INV_DROP * (few ? 2 : 1); }
+      if (V.dir > 0 ? maxX + V.step > AW - 2 : minX - V.step < 2) { V.dir = -V.dir; for (const e of inv) e.y += INV_DROP; }
       else for (const e of inv) e.x += V.step * V.dir;
       V.frame ^= 1; sfx.march(V.k++);
-      for (const e of inv) {
-        for (const c of V.bunkers) if (c.hp > 0 && e.x + e.r > c.x0 && e.x - e.r < c.x1 && e.y + e.r > c.y0 && e.y - e.r < c.y1) { c.hp = 0; chipBunker(c); } // they eat through the bunkers
-        if (e.y + e.r > stripTop()) { // landed: it blows up, and it costs you
-          e.gone = true; burst(e.x, e.y, 16, invColor(e.kind), 40, 0.7, 0.5); ring(e.x, e.y, 1, 14, 0.4, COL.threat, 1.2); shake(2); sfx.rockBoom(2);
-          float(e.x, e.y - 6, 'Landed', COL.threat, 3);
-          if (p.inv <= 0) damagePlayer();
-        }
+      for (const e of inv) for (const c of V.bunkers) if (c.hp > 0 && e.x + e.r > c.x0 && e.x - e.r < c.x1 && e.y + e.r > c.y0 && e.y - e.r < c.y1) { c.hp = 0; chipBunker(c); } // they eat through the bunkers
+      if (inv.some(e => e.y + e.r > stripTop())) { // they've landed: all of them go up, and it costs you once
+        for (const e of inv) { e.gone = true; burst(e.x, e.y, 14, invColor(e.kind), 40, 0.7, 0.5); ring(e.x, e.y, 1, 10, 0.4, COL.threat, 1); }
+        G.result = { text: 'Invaded', sub: 'They landed: no clear bonus', t: 2.6, max: 2.6 }; G.skipBonus = true;
+        shake(3); sfx.rockBoom(3);
+        if (p.inv <= 0) damagePlayer();
+        return;
       }
     }
     // the lowest invader in a column fires: often the column over you
