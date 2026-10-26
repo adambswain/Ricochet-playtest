@@ -419,7 +419,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     12: 'Blinkers teleport. The ghost shows where',
     13: 'Coin Rush: sweep up every coin for a jackpot',
     15: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts',
-    18: 'Invasion: you\'re held to the bottom strip. Break the formation before it lands. Bunkers bounce your ball',
+    18: 'Invasion: break the formation before it lands. The top rows are tougher: charge your ball off the walls and bunkers to punch through',
     19: 'A Brute Wall marches in partway through this wave',
     20: 'The Carrier: break through its docked fighters and hit the glowing throat at the back',
     40: 'The Hive: dig to the royal cell before workers patch the comb. Smash thrown comb for chain. Hit the queen while her brood glows',
@@ -2823,14 +2823,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   // Invasion (wave 18, a set piece): an homage to the 1978 arcade invaders (the sprites and sounds are our own). A
   // formation of INV_ROWS rows marches side to side in steps, dropping at each edge and speeding up as it thins out;
-  // a four-note bass march keeps time with it in place of the music. You're held to a strip along the bottom, under a
-  // row of bunkers. Bunkers bounce the ball (and charge it) and crumble a block at a time, from both sides. The lowest
-  // invader in a column fires slow shots (INV_SHOTS at most); a mystery ship crosses the top now and then. If one
-  // reaches your strip, the invasion has landed: every invader left blows up, it costs one hull point (once, however
+  // a four-note bass march keeps time with it in place of the music. They get tougher toward the top (INV_HP by row),
+  // so a fresh throw chips at the bottom rows and a ball charged off the walls and bunkers punches through the top.
+  // Bunkers stand above the ground line; they bounce the ball (and charge it) and crumble a block at a time, from both
+  // sides. The lowest invader in a column fires slow shots (INV_SHOTS at most); a mystery ship crosses the top now and
+  // then. If one reaches the ground line, the invasion has landed: every invader left blows up, it costs one hull point (once, however
   // many were left) and the wave ends without its clear bonus. Invaders drop power-ups like any enemy, and the
   // mystery ship always drops one.
   const INV_ROWS = 5, INV_GAP_X = 9, INV_GAP_Y = 7.5, INV_PASS = 24, INV_DROP = 5, INV_STRIP = 16, INV_SHOTS = 3, INV_SHOT_SPEED = 30;
-  const INV_PTS = [40, 25, 25, 15, 15], INV_BLK = 2.1, INV_GREEN = 'rgb(118, 236, 132)', INV_UFO_PTS = [150, 300, 500, 1000];
+  const INV_PTS = [60, 35, 35, 15, 15], INV_HP = [6, 4, 4, 2, 2], INV_BLK = 2.1, INV_GREEN = 'rgb(118, 236, 132)', INV_UFO_PTS = [150, 300, 500, 1000];
   // three kinds of invader, two frames each ('#' is a pixel)
   const INV_SPRITES = [
     [['...##...', '..####..', '.#.##.#.', '########', '..#..#..', '.#.##.#.', '#......#', '.#....#.'],
@@ -2849,7 +2850,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.inv = { dir: 1, stepT: 1, step: Math.max(1.5, (AW - 4 - (cols - 1) * INV_GAP_X - 6) / INV_PASS), frame: 0, k: 0, total: cols * INV_ROWS, fireT: 2.5, ufoT: rand(12, 16), bunkers: [] };
     for (let r = 0; r < INV_ROWS; r++) for (let c = 0; c < cols; c++) {
       const e = makeEnemy('invader', x0 + c * INV_GAP_X, y0 + r * INV_GAP_Y);
-      Object.assign(e, { hp: 1 + cycle, maxHp: 1 + cycle, kind: invKind(r), pts: INV_PTS[r], col: c, spawnT: 0.25 + (INV_ROWS - 1 - r) * 0.12 });
+      Object.assign(e, { hp: INV_HP[r] + cycle * 2, maxHp: INV_HP[r] + cycle * 2, kind: invKind(r), pts: INV_PTS[r], col: c, spawnT: 0.25 + (INV_ROWS - 1 - r) * 0.12 });
       G.enemies.push(e);
     }
     // bunkers: blocks in an arch, spread along the strip
@@ -2927,7 +2928,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function drawInvasion() {
     const V = G.inv; if (!V) return;
     const y = stripTop();
-    ctx.globalAlpha = 0.35; ctx.strokeStyle = INV_GREEN; ctx.lineWidth = 0.3; ctx.setLineDash([1.5, 1.5]); // the line they mustn't cross, and you can't
+    ctx.globalAlpha = 0.35; ctx.strokeStyle = INV_GREEN; ctx.lineWidth = 0.3; ctx.setLineDash([1.5, 1.5]); // the ground line: they mustn't reach it
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(AW, y); ctx.stroke(); ctx.setLineDash([]);
     ctx.globalAlpha = 0.06; ctx.fillStyle = INV_GREEN; ctx.fillRect(0, y, AW, AH - y); ctx.globalAlpha = 1;
     for (const c of V.bunkers) {
@@ -3109,7 +3110,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.table) { const T = tableRect(); p.y = AH * TB.rail; p.x = clamp(p.x, T.x0 + T.w * 0.16, T.x0 + T.w * 0.84); p.fx = 0; p.fy = -1; } // on the rail
-    else { pushOut(p, PLAYER_R); keepIn(p, PLAYER_R); if (G.inv) p.y = Math.max(p.y, stripTop() + PLAYER_R + 0.5); } // Invasion: held to the strip
+    else { pushOut(p, PLAYER_R); keepIn(p, PLAYER_R); }
     if (p.px !== undefined && dt > 0) { const k = Math.min(1, dt * 12); p.mvx += ((p.x - p.px) / dt - p.mvx) * k; p.mvy += ((p.y - p.py) / dt - p.mvy) * k; }
     p.px = p.x; p.py = p.y;
     if (inputType === 'mouse' && aim) {
@@ -4368,9 +4369,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.save(); ctx.translate(e.x, e.y); ctx.scale(grow, grow);
       if (e.type === 'invader') { // pixels, two frames stepping with the march
         const spr = INV_SPRITES[e.kind][G.inv ? G.inv.frame : 0], px = 0.62, w = spr[0].length * px, h = spr.length * px;
-        ctx.fillStyle = e.flash > 0 ? COL.chalk : invColor(e.kind); ctx.beginPath();
+        ctx.fillStyle = e.flash > 0 ? COL.chalk : invColor(e.kind); ctx.globalAlpha = e.flash > 0 ? 1 : 0.45 + 0.55 * e.hp / e.maxHp; ctx.beginPath(); // fades as it's worn down
         spr.forEach((row, yy) => { for (let xx = 0; xx < row.length; xx++) if (row[xx] === '#') ctx.rect(-w / 2 + xx * px, -h / 2 + yy * px, px + 0.03, px + 0.03); });
-        ctx.fill(); ctx.restore(); continue;
+        ctx.fill(); ctx.globalAlpha = 1;
+        if (pierce) { // killable: the target-lock corners, as on any enemy
+          const d = w / 2 + 0.6, dy = h / 2 + 0.6, L = 0.9;
+          ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.9; ctx.strokeStyle = heat(liveB); ctx.lineWidth = 0.35; ctx.lineCap = 'square'; ctx.beginPath();
+          for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { ctx.moveTo(sx * d, sy * (dy - L)); ctx.lineTo(sx * d, sy * dy); ctx.lineTo(sx * (d - L), sy * dy); }
+          ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+        }
+        ctx.restore(); continue;
       }
       if (e.type === 'wax') { // a cell of thrown honeycomb, drawn like the hive's own; the core glows brighter
         const s2 = WAX_S * 0.95, gold = GOLD();
