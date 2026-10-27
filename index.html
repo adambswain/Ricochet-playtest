@@ -181,6 +181,12 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; t
 .rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--dim); }
 .rules li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: baseline; }
 .rules b { font-family: var(--display); font-weight: 700; font-size: 13px; color: var(--chalk); letter-spacing: 0.06em; }
+.rules em { font-style: normal; color: var(--chalk); }
+#ov-powers { z-index: 5; background: var(--ink); } /* opaque: the screen it opened from stays hidden behind it */
+.powers { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; font-size: 13px; line-height: 1.5; color: var(--dim); }
+.powers li { display: grid; grid-template-columns: 54px 1fr; gap: 12px; align-items: center; }
+.powers canvas { position: static; inset: auto; width: 54px; height: 32px; } /* not the game's full-screen canvas rule */
+.powers strong { display: block; color: var(--chalk); font-family: var(--display); font-weight: 700; letter-spacing: 0.06em; }
 .ctrl { display: grid; gap: 4px; font-size: 12px; color: var(--dim); border-top: 1px solid var(--line); padding-top: 14px; }
 .ctrl span { color: var(--chalk); }
 .btn { align-self: flex-start; font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink); background: var(--gold); border: 0; border-radius: 3px; padding: 12px 26px; cursor: pointer; }
@@ -255,21 +261,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 <section class="ov" id="ov-title">
   <div class="panel">
     <h1 class="logo">RICOCHET</h1>
-    <p class="tag">You get one ball. Every wall bounce makes it faster and harder-hitting. You can't throw again until you catch it.</p>
+    <p class="tag">Start with one ball. Each bounce adds 1 damage, at 15 it becomes unstable. Kill enemies to delay overload. Catch it to throw it again.</p>
     <ul class="rules">
-      <li><b>+1</b><span>Each wall bounce adds 1 damage. An enemy's number lights up in the ball's colour when the ball can kill it: those die on contact, and the ball punches straight through them.</span></li>
-      <li><b>↶</b><span>Hold pull to bend the ball toward you. It keeps its speed, so a charged ball curves wider. Stand behind a crowd and drag the ball through it.</span></li>
-      <li><b>×</b><span>Every kill raises your score multiplier, and kills in the same throw raise it faster. Getting hit or overloading resets it.</span></li>
-      <li><b>◇</b><span>The ball is only caught while you're pulling; otherwise it flies straight through your ship. Catch it at 10 or more bounces and it bursts around you, bigger the hotter it is; catch it while it's about to overload and it's defused with the biggest blast. Chain 10 kills in one throw to gain a shield that blocks one hit.</span></li>
-      <li><b>⁂</b><span>Beating a boss wins a wingman: a smaller ball, with no halo, that follows every throw. Pull bends it but can't catch it; it comes home when you catch yours. It never overloads on its own, however hot: when your ball overloads, every wingman goes up with it, then they wait at home until your ball is back in hand. If it's home while your ball is out, starting a pull sends it back out at your aim.</span></li>
-      <li><b>◆</b><span>Hit the capsules with the ball to power up; each icon is a different power. The more charge the ball has, the longer or stronger the power-up.</span></li>
-      <li><b>+1</b><span>Score milestones repair one hull point, up to your hull's cap (3 to start; beating the Serpent raises it). The next milestone is shown under your hull.</span></li>
-      <li><b>15</b><span>At 15 bounces it starts to overload: after 2 seconds at full speed (every kill resets the countdown), its next bounce blows it. It explodes, your multiplier resets, and the ball is out of play until it drifts back to you. Fly over to grab it sooner.</span></li>
+      <li><b>+1</b><span>Each bounce off a wall or obstacle adds 1 damage to your ball. Enemy health is written at its center. Enemies with no number have 1 health.</span></li>
+      <li><b>↶</b><span>Hold pull to bend the ball toward you.</span></li>
+      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.</span></li>
+      <li><b>◇</b><span>Pull the ball until it reaches your ship to catch it. Catching it with 10 or more charges blasts enemies around you. The higher the charge, the bigger the blast.</span></li>
+      <li><b>⁂</b><span>Bosses grant rewards: a wingman or extra Hull.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.</span></li>
+      <li><b>◆</b><span>Enemies may drop Capsules. Capsules are marked with different icons, each granting a unique power-up. Hit a Capsule with your ball to collect it. The more charge the ball has, the longer and/or stronger the power-up. <button class="linkbtn powersBtn" type="button">See the power-ups</button></span></li>
+      <li><b>♥</b><span>Score milestones repair one Hull point, up to your Hull's cap (3 to start). The next milestone is displayed under your Hull.</span></li>
+      <li><b>15</b><span>At 15 bounces, your ball enters overload. After 2 seconds, the next bounce causes it to explode, killing enemies around the blast and resetting your multiplier. Each kill resets the 2-second timer. After overloading, the ball is out of play until you pick it up.</span></li>
     </ul>
     <div class="ctrl">
-      <div><span>Keyboard</span> · WASD or arrows to fly. Click or Space: press to throw at the cursor, hold to pull</div>
-      <div><span>Touch</span> · one thumb anywhere on the left half flies, the other on the right half holds to pull and swipes to throw <button class="linkbtn swapBtn" type="button">Move on left</button></div>
-      <div class="sideTip"><span>Tip</span> · turn your phone sideways: your thumbs rest beside the arena instead of over it</div>
+      <div><span>Keyboard</span> · WASD or arrows to fly. Mouse click or Space: press to throw, hold to pull</div>
+      <div><span>Mobile</span> · one thumb anywhere on the left half flies, the other on the right half holds to pull and swipes to throw. Landscape orientation is strongly recommended. <button class="linkbtn swapBtn" type="button">Move on left</button></div>
     </div>
     <button class="btn" id="play" type="button">Launch</button>
     <div class="ctrl"><div><span>Start at</span> <select class="linkbtn" id="startWave" aria-label="Start at wave"></select> <span class="startNote" id="startNote" hidden>Practice run: doesn't count toward Best</span></div></div>
@@ -292,12 +297,22 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   </div>
 </section>
 
+<section class="ov" id="ov-powers" hidden>
+  <div class="panel">
+    <p class="big">Power-ups</p>
+    <p class="tag">Hit a capsule with your ball to collect it. Every power lasts 3.3 seconds, plus half a second for each point of charge the ball had when it hit the capsule (10.8 seconds at full charge).</p>
+    <ul class="powers" id="powersList"></ul>
+    <div class="btnrow"><button class="btn" id="powersBack" type="button">Back</button></div>
+  </div>
+</section>
+
 <section class="ov" id="ov-pause" hidden>
   <div class="panel">
     <p class="big">Paused</p>
     <p class="pauseIntel" id="pauseIntel" hidden><span class="lbl" id="pauseIntelWave"></span><span id="pauseIntelText"></span></p>
     <div class="btnrow"><button class="btn" id="resume" type="button">Resume</button><button class="btn ghost menuBtn" type="button">Main menu</button></div>
     <div class="ctrl"><div><span>Touch sides</span> <button class="linkbtn swapBtn" type="button">Move on left</button></div></div>
+    <div class="ctrl"><div><span>Capsules</span> <button class="linkbtn powersBtn" type="button">See the power-ups</button></div></div>
     <div class="ctrl" id="pauseSound"><div><span>Sound</span> </div></div>
     <p class="startNote" id="dbg" hidden></p>
     <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
@@ -341,14 +356,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const PICK_TYPES = Object.keys(PICK);
   // Each power's icon, centred on the origin in a box 2s across, in the current fill and stroke colours:
   // three balls, a blast ring, a bolt, double chevrons, an hourglass, one big ball.
-  function drawPowerIcon(type, s) {
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath();
-    if (type === 'multi') { for (const [x, y] of [[0, -0.48], [-0.52, 0.42], [0.52, 0.42]]) { ctx.moveTo(x * s + 0.36 * s, y * s); ctx.arc(x * s, y * s, 0.36 * s, 0, Math.PI * 2); } ctx.fill(); }
-    else if (type === 'shock') { ctx.arc(0, 0, 0.3 * s, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.lineWidth = 0.18 * s; ctx.arc(0, 0, 0.8 * s, 0, Math.PI * 2); ctx.stroke(); }
-    else if (type === 'bolt') { [[0.3, -1], [-0.5, 0.12], [-0.02, 0.12], [-0.3, 1], [0.5, -0.12], [0.02, -0.12]].forEach(([x, y], i) => i ? ctx.lineTo(x * s, y * s) : ctx.moveTo(x * s, y * s)); ctx.closePath(); ctx.fill(); }
-    else if (type === 'over') { ctx.lineWidth = 0.24 * s; for (const y of [-0.38, 0.32]) { ctx.moveTo(-0.62 * s, (y + 0.42) * s); ctx.lineTo(0, (y - 0.12) * s); ctx.lineTo(0.62 * s, (y + 0.42) * s); } ctx.stroke(); }
-    else if (type === 'warp') { ctx.moveTo(-0.62 * s, -0.9 * s); ctx.lineTo(0.62 * s, -0.9 * s); ctx.lineTo(0, -0.04 * s); ctx.closePath(); ctx.moveTo(-0.62 * s, 0.9 * s); ctx.lineTo(0.62 * s, 0.9 * s); ctx.lineTo(0, 0.04 * s); ctx.closePath(); ctx.fill(); }
-    else { ctx.arc(0, 0, 0.88 * s, 0, Math.PI * 2); ctx.fill(); }
+  function drawPowerIcon(type, s, c = ctx) {
+    c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath();
+    if (type === 'multi') { for (const [x, y] of [[0, -0.48], [-0.52, 0.42], [0.52, 0.42]]) { c.moveTo(x * s + 0.36 * s, y * s); c.arc(x * s, y * s, 0.36 * s, 0, Math.PI * 2); } c.fill(); }
+    else if (type === 'shock') { c.arc(0, 0, 0.3 * s, 0, Math.PI * 2); c.fill(); c.beginPath(); c.lineWidth = 0.18 * s; c.arc(0, 0, 0.8 * s, 0, Math.PI * 2); c.stroke(); }
+    else if (type === 'bolt') { [[0.3, -1], [-0.5, 0.12], [-0.02, 0.12], [-0.3, 1], [0.5, -0.12], [0.02, -0.12]].forEach(([x, y], i) => i ? c.lineTo(x * s, y * s) : c.moveTo(x * s, y * s)); c.closePath(); c.fill(); }
+    else if (type === 'over') { c.lineWidth = 0.24 * s; for (const y of [-0.38, 0.32]) { c.moveTo(-0.62 * s, (y + 0.42) * s); c.lineTo(0, (y - 0.12) * s); c.lineTo(0.62 * s, (y + 0.42) * s); } c.stroke(); }
+    else if (type === 'warp') { c.moveTo(-0.62 * s, -0.9 * s); c.lineTo(0.62 * s, -0.9 * s); c.lineTo(0, -0.04 * s); c.closePath(); c.moveTo(-0.62 * s, 0.9 * s); c.lineTo(0.62 * s, 0.9 * s); c.lineTo(0, 0.04 * s); c.closePath(); c.fill(); }
+    else { c.arc(0, 0, 0.88 * s, 0, Math.PI * 2); c.fill(); }
   }
   readLook();
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -5184,6 +5199,36 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (r && r.catch) r.catch(fsHint);
     } catch (e) { fsHint(); }
   }));
+  // The power-ups page: each capsule as it looks in play (drawn by the game's own icon code), its name and what it does.
+  const POWER_TEXT = {
+    multi: 'Two more balls split off the one that hit it. They bounce, charge, kill and bend with your pull like yours, never overload, and vanish when it ends.',
+    shock: 'Every enemy a ball hits bursts in a blast. The hotter the ball, the bigger and harder the blast.',
+    bolt: 'Every kill arcs lightning to a nearby enemy, up to 3 jumps in a row.',
+    over: 'Each bounce adds 2 charge instead of 1, and the ball can’t overload.',
+    warp: 'Enemies, their shots and bosses move at 40% speed. Your ship and balls don’t slow down.',
+    big: 'Your balls hit as if nearly twice as big. Catching is unchanged.',
+  };
+  function showPowers(on) {
+    $('ov-powers').hidden = !on;
+    if (!on) return;
+    const list = $('powersList'); list.textContent = '';
+    for (const k of PICK_TYPES) {
+      const li = document.createElement('li'), cv = document.createElement('canvas'), dpr = Math.min(3, window.devicePixelRatio || 1);
+      cv.width = 54 * dpr; cv.height = 32 * dpr;
+      const c = cv.getContext('2d'), info = PICK[k], w = 9, h = 5.2, sc = 5.2 * dpr;
+      c.setTransform(sc, 0, 0, sc, cv.width / 2, cv.height / 2);
+      c.beginPath(); c.arc(-w / 2 + h / 2, 0, h / 2, Math.PI / 2, Math.PI * 1.5); c.arc(w / 2 - h / 2, 0, h / 2, -Math.PI / 2, Math.PI / 2); c.closePath();
+      c.fillStyle = COL.ink; c.fill(); c.globalAlpha = 0.22; c.fillStyle = info.color; c.fill(); c.globalAlpha = 1;
+      c.strokeStyle = info.color; c.lineWidth = 0.5; c.stroke();
+      c.fillStyle = COL.chalk; c.strokeStyle = COL.chalk; drawPowerIcon(k, h * 0.34, c);
+      const t = document.createElement('span'), nm = document.createElement('strong');
+      nm.textContent = info.name; nm.style.color = info.color; t.append(nm, POWER_TEXT[k]);
+      li.append(cv, t); list.append(li);
+    }
+    $('powersBack').focus({ preventScroll: true });
+  }
+  document.querySelectorAll('.powersBtn').forEach(b => b.addEventListener('click', () => { b.blur(); showPowers(true); }));
+  $('powersBack').addEventListener('click', () => showPowers(false));
   document.addEventListener('fullscreenchange', syncFs); document.addEventListener('webkitfullscreenchange', syncFs);
   let laidOut = false; // set once start() has fitted the arena
   function setLook(l) {
@@ -5203,6 +5248,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (KEYMAP[e.code]) { keys[KEYMAP[e.code]] = true; e.preventDefault(); }
     if (e.repeat) return;
     if (e.code === 'Space' && mode === 'play') spaceThrew = throwAtAim();
+    if (e.code === 'Escape' && !$('ov-powers').hidden) { showPowers(false); return; }
     if (e.code === 'Escape' || e.code === 'KeyP') setPaused(mode === 'play');
     if (e.code === 'KeyM') { toggleMute(); keyNotice(muted ? 'Sound off · M to turn on' : 'Sound on'); }
     if (e.code === 'KeyN') { toggleMusic(); keyNotice(musicOn ? 'Music on' : 'Music off · N to turn on'); }
