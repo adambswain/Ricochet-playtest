@@ -688,6 +688,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       voice({ f: 920, dur: 0.18, vol: 0.03, wet: 0.3 });
     },
     blink() { voice({ f: 600, f2: 2000, dur: 0.13, vol: 0.06, wet: 0.35 }); },
+    klaxon(k) { const f = k % 2 ? 520 : 660; voice({ type: 'square', f, f2: f * 0.98, dur: 0.38, vol: 0.05, filter: 'lowpass', ff: 1800, atk: 0.02 }); voice({ type: 'sawtooth', f: f / 2, dur: 0.38, vol: 0.03, filter: 'lowpass', ff: 700, atk: 0.02 }); },
     boss() {
       [55, 82.4, 110].forEach(f => voice({ type: 'sawtooth', f, filter: 'lowpass', ff: 300, ff2: 900, atk: 0.15, dur: 1.3, vol: 0.07, wet: 0.3 }));
       voice({ noise: true, filter: 'lowpass', ff: 300, ff2: 1200, atk: 0.4, dur: 1.0, vol: 0.12 });
@@ -915,9 +916,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const BOSS_NAMES = { core: 'The Core', maw: 'The Carrier', serpent: 'The Serpent', hive: 'The Hive' };
   const RAM_AIM = 1.2, RAM_LOCK = 0.35, RAM_SPEED = 110, RAM_STUN = 2.4;
   const CORE_R = 16, CORE_SPEED = 9, BOMB_R = 3.6, BOMB_SPEED = 16, BOMB_RETURN = 90, BOMB_FUSE = 10, BOMB_FUSE_BLAST = 14, BOMB_MAX = 4;
-  // Bosses announce themselves: for BOSS_ENTER seconds a warning shows where they'll land (the Core picks the spot
-  // farthest from you) and nothing touches them; on landing anything in the way is shoved clear, unharmed.
-  const BOSS_ENTER = 2.2;
+  // Bosses announce themselves: for BOSS_ENTER seconds the arena goes to red alert (a klaxon, a red wash, the edges and
+  // corner lights strobing, hazard bars along the top and bottom) while each boss makes its own entrance: searchlights
+  // hunt for the Core's landing spot, the Carrier's bay lights chase as it lowers in, the Hive builds itself cell by
+  // cell, the Serpent's cracks spread. In the last BOSS_DROP seconds the Core and the Carrier drop in. Nothing touches
+  // them until they land; then a flash, a beat of slow motion and their name card. Anything in the way is shoved clear.
+  const BOSS_ENTER = 3, BOSS_DROP = 0.4;
   // The Serpent: a huge armoured serpent that never stays in the arena. Each pass it bursts in through one wall
   // (glowing cracks mark the spot first), sweeps across in a wave and dives out through another, then a few small
   // enemies come while it's gone. Its body never hurts you: it's a solid obstacle the ball bounces off (+1 charge).
@@ -1545,7 +1549,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (p.inv <= 0 && Math.hypot(p.x - bm.x, p.y - bm.y) < PLAYER_R + BOMB_R) { fuseBomb(i); }
     }
     if (!B) return;
-    if (B.enter > 0) { B.enter -= dt; if (B.enter <= 0) bossArrive(B); return; }
+    if (B.enter > 0) {
+      B.enter -= dt; B.alarmT = (B.alarmT || 0) - dt;
+      if (B.alarmT <= 0) { B.alarmT = 0.5; B.alarmK = (B.alarmK || 0) + 1; sfx.klaxon(B.alarmK); }
+      shake(0.15 + 0.5 * (1 - B.enter / BOSS_ENTER)); // a rumble that builds
+      if (B.enter <= 0) { // it's here
+        G.screenFlash = 0.35; G.slowT = Math.max(G.slowT, 0.35);
+        G.bossCard = { text: BOSS_NAMES[B.kind].toUpperCase(), t: 1.8, max: 1.8 };
+        bossArrive(B);
+      }
+      return;
+    }
     B.t += dt; B.flash -= dt;
     const frac = bossHp(B) / B.maxHp;
     B.phase = frac < 0.33 ? 3 : frac < 0.66 ? 2 : 1;
@@ -1660,8 +1674,69 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   // Where the boss is about to land: a pulsing hazard outline that firms up as it arrives.
+  // Red alert, for every boss: a red wash, the arena's edge and corner lights strobing, hazard bars top and bottom.
+  function drawRedAlert(k) {
+    const pulse = 0.5 + 0.5 * Math.sin(G.time * Math.PI * 4), fadeIn = Math.min(1, k * 5), c = COL.threat;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (0.03 + 0.07 * pulse) * fadeIn; ctx.fillStyle = c; ctx.fillRect(0, 0, AW, AH);
+    ctx.strokeStyle = c;
+    for (const [w, a] of [[4, 0.18], [1.6, 0.4], [0.5, 1]]) { ctx.globalAlpha = a * (0.35 + 0.65 * pulse) * fadeIn; ctx.lineWidth = w; ctx.strokeRect(0.3, 0.3, AW - 0.6, AH - 0.6); }
+    const L = Math.min(AW, AH) * 0.12;
+    [[0, 0, 1, 1], [AW, 0, -1, 1], [AW, AH, -1, -1], [0, AH, 1, -1]].forEach(([x, y, sx, sy], i) => { // corner lights, flashing in turn
+      const on = Math.floor(G.time * 6) % 4 === i || pulse > 0.85;
+      ctx.globalAlpha = (on ? 1 : 0.35) * fadeIn; ctx.strokeStyle = on ? COL.chalk : c; ctx.lineWidth = on ? 1.4 : 0.8;
+      ctx.beginPath(); ctx.moveTo(x + sx * L, y + sy * 0.7); ctx.lineTo(x + sx * 0.7, y + sy * 0.7); ctx.lineTo(x + sx * 0.7, y + sy * L); ctx.stroke();
+      if (on) { ctx.globalAlpha = 0.35 * fadeIn; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + sx * 1.5, y + sy * 1.5, 2.6, 0, Math.PI * 2); ctx.fill(); }
+    });
+    ctx.globalCompositeOperation = 'source-over';
+    const h = 3.2, show = Math.min(1, k * 6, (1 - k) * 12 + 0.4); // hazard bars, scrolling
+    for (const y0 of [0, AH - h]) {
+      ctx.save(); ctx.beginPath(); ctx.rect(0, y0, AW, h); ctx.clip();
+      ctx.globalAlpha = 0.18 * show; ctx.fillStyle = c; ctx.fillRect(0, y0, AW, h);
+      ctx.globalAlpha = 0.6 * show; const off = (G.time * 14) % 7 * (y0 ? -1 : 1);
+      for (let x = -14 + off; x < AW + 7; x += 7) { ctx.beginPath(); ctx.moveTo(x, y0 + h); ctx.lineTo(x + 3.5, y0 + h); ctx.lineTo(x + 3.5 + h, y0); ctx.lineTo(x + h, y0); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
   function drawBossWarning(B) {
     const k = 1 - B.enter / BOSS_ENTER, blink = 0.45 + 0.4 * Math.abs(Math.sin(G.time * (6 + k * 10)));
+    if (B.kind === 'core') { // searchlights from the corners hunt for the landing spot, then lock on it
+      const lock = Math.max(0, (k - 0.7) / 0.3);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.threat;
+      [[0, 0], [AW, 0], [0, AH], [AW, AH]].forEach(([sx, sy], i) => {
+        const dx = B.x - sx, dy = B.y - sy, dist = Math.hypot(dx, dy), a = Math.atan2(dy, dx) + (1 - lock) * 0.5 * Math.sin(G.time * (1.6 + i * 0.3) + i * 1.9);
+        const w = 0.05 + 0.04 * (1 - lock), L = dist * 1.08;
+        ctx.globalAlpha = (0.07 + 0.1 * k) * (lock >= 1 && Math.floor(G.time * 12) % 2 ? 1.8 : 1);
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(a - w) * L, sy + Math.sin(a - w) * L); ctx.lineTo(sx + Math.cos(a + w) * L, sy + Math.sin(a + w) * L); ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 0.08 + 0.12 * k; ctx.beginPath(); ctx.arc(sx + Math.cos(a) * dist, sy + Math.sin(a) * dist, B.r * 0.2 * (1 + (1 - lock)), 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.restore();
+    }
+    if (B.kind === 'hive') { // the comb builds itself, outside in, the royal cell last
+      const gold = GOLD(), reveal = k * (HIVE_RINGS + 1.3);
+      for (const c of B.cells) {
+        const on = clamp(reveal - (HIVE_RINGS - c.d), 0, 1);
+        if (!on) continue;
+        const sz = HIVE_CELL * 0.95 * (0.5 + 0.5 * on);
+        hexPath(c.x, c.y, sz); ctx.globalAlpha = 0.85 * on; ctx.fillStyle = COL.ink; ctx.fill();
+        ctx.globalAlpha = on; ctx.strokeStyle = on < 1 ? COL.chalk : c.d === 0 ? COL.threat : gold; ctx.lineWidth = on < 1 ? 0.8 : 0.45; ctx.stroke();
+        if (on < 1) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.5 * (1 - on); ctx.fillStyle = gold; ctx.fill(); ctx.globalCompositeOperation = 'source-over'; }
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
+    if (B.kind === 'maw') { // the bay's lights chase round its outline as it lowers in
+      const x0 = B.bx - B.W / 2, pts = [];
+      for (let y = 0; y <= B.D; y += 3.5) pts.push([x0, y]);
+      for (let x = x0; x <= x0 + B.W; x += 3.5) pts.push([x, B.D]);
+      for (let y = B.D; y >= 0; y -= 3.5) pts.push([x0 + B.W, y]);
+      pts.forEach(([x, y], i) => {
+        const on = ((i - G.time * 18) % 6 + 6) % 6 < 1.2;
+        ctx.globalAlpha = on ? 1 : 0.3; ctx.fillStyle = on ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(x, y, on ? 0.8 : 0.5, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    }
     ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.6; ctx.setLineDash([2, 1.4]); ctx.lineDashOffset = -G.time * 8;
     ctx.globalAlpha = blink;
     if (B.kind === 'core') {
@@ -1890,7 +1965,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function drawBoss() {
     const B = G.boss;
-    if (B && B.enter > 0) { if (B.kind === 'serpent') drawSerpentCracks(B, 1 - B.enter / BOSS_ENTER); else drawBossWarning(B); return; }
+    if (B && B.enter > 0) {
+      const k = 1 - B.enter / BOSS_ENTER;
+      drawRedAlert(k);
+      if (B.kind === 'serpent') { drawSerpentCracks(B, k); return; }
+      drawBossWarning(B);
+      if (B.enter > BOSS_DROP || B.kind === 'hive') return;
+      const d = B.enter / BOSS_DROP; // 1 → 0: it drops in from above (the Core falls toward you, the Carrier lowers from the top)
+      ctx.save();
+      if (B.kind === 'core') { const sc = 1 + 1.8 * d * d; ctx.translate(B.x, B.y); ctx.scale(sc, sc); ctx.translate(-B.x, -B.y); }
+      else ctx.translate(0, -B.D * d * d);
+      B.enter = 0; drawBoss(); B.enter = d * BOSS_DROP; // the boss as it will look, just not solid yet
+      ctx.restore();
+      return;
+    }
     for (const bm of G.bombs) { // bombs, with the fuse blast zone growing over the last stretch
       if (bm.ret) {
         const c = heat(bm.b), sp = Math.hypot(bm.vx, bm.vy) || 1;
@@ -3200,6 +3288,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let i = G.floats.length - 1; i >= 0; i--) { const f = G.floats[i]; f.t += dt; f.y -= 7 * dt; if (f.t >= f.max) G.floats.splice(i, 1); }
     if (G.banner) { G.banner.t -= dt; if (G.banner.t <= 0) G.banner = null; }
     if (G.result) { G.result.t -= dt; if (G.result.t <= 0) G.result = null; }
+    if (G.bossCard) { G.bossCard.t -= dt; if (G.bossCard.t <= 0) G.bossCard = null; }
   }
 
   /* ---------- player ---------- */
@@ -4893,6 +4982,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.fillStyle = ECOL.target; ctx.font = `700 ${Math.min(10, AW / 9)}px ${FONT}`; ctx.fillText(G.result.text, AW / 2, ry);
       ctx.fillStyle = COL.chalk; ctx.font = `600 ${Math.min(4, AW / 24)}px ${FONT}`; ctx.fillText(G.result.sub, AW / 2, ry + 8);
       ctx.globalAlpha = 1;
+    }
+    if (G.bossCard && !G.attract) { // the boss's name slams in as it lands, then fades
+      const C = G.bossCard, e = C.max - C.t, sc = e < 0.14 ? 2 - e / 0.14 : 1, sz = Math.min(13, AW / 9);
+      ctx.save(); ctx.translate(AW / 2, AH * 0.22); ctx.scale(sc, sc); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `800 ${sz}px ${FONT}`;
+      const a = Math.min(1, C.t / 0.5);
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.5 * a; ctx.fillStyle = COL.threat;
+      for (const [ox, oy] of [[-0.6, 0], [0.6, 0], [0, -0.6], [0, 0.6]]) ctx.fillText(C.text, ox, oy);
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = a; ctx.fillStyle = COL.chalk; ctx.fillText(C.text, 0, 0);
+      ctx.restore(); ctx.globalAlpha = 1;
     }
 
     // active power-ups, top-left of the arena: each one's icon and a bar that drains with its time (blinking near the end)
