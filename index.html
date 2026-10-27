@@ -1553,6 +1553,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       B.enter -= dt; B.alarmT = (B.alarmT || 0) - dt;
       if (B.alarmT <= 0) { B.alarmT = 0.5; B.alarmK = (B.alarmK || 0) + 1; sfx.klaxon(B.alarmK); }
       shake(0.15 + 0.5 * (1 - B.enter / BOSS_ENTER)); // a rumble that builds
+      if (B.kind === 'maw' && Math.random() < dt * 30) { // grit shaken off its underside as it slides in
+        const y = B.D - (B.D + 8) * Math.pow(B.enter / BOSS_ENTER, 2.2);
+        burst(B.bx + rand(-0.5, 0.5) * B.W, y, 2, COL.dim, 14, 0.6, 0.35);
+      }
       if (B.enter <= 0) { // it's here
         G.screenFlash = 0.35; G.slowT = Math.max(G.slowT, 0.35);
         G.bossCard = { text: BOSS_NAMES[B.kind].toUpperCase(), t: 1.8, max: 1.8 };
@@ -1703,7 +1707,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const k = 1 - B.enter / BOSS_ENTER, blink = 0.45 + 0.4 * Math.abs(Math.sin(G.time * (6 + k * 10)));
     if (B.kind === 'core') { // searchlights from the corners hunt for the landing spot, then lock on it
       const lock = Math.max(0, (k - 0.7) / 0.3);
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.threat;
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.threat;
       [[0, 0], [AW, 0], [0, AH], [AW, AH]].forEach(([sx, sy], i) => {
         const dx = B.x - sx, dy = B.y - sy, dist = Math.hypot(dx, dy), a = Math.atan2(dy, dx) + (1 - lock) * 0.5 * Math.sin(G.time * (1.6 + i * 0.3) + i * 1.9);
         const w = 0.05 + 0.04 * (1 - lock), L = dist * 1.08;
@@ -1723,39 +1727,40 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.globalAlpha = on; ctx.strokeStyle = on < 1 ? COL.chalk : c.d === 0 ? COL.threat : gold; ctx.lineWidth = on < 1 ? 0.8 : 0.45; ctx.stroke();
         if (on < 1) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.5 * (1 - on); ctx.fillStyle = gold; ctx.fill(); ctx.globalCompositeOperation = 'source-over'; }
       }
+      // the builders (just for show): a bee flies in from off-screen to each cell as it appears, and a cloud of them
+      // circles the comb, closing in and vanishing into it as it lands
+      const bee = (x, y, a, sz) => {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.globalAlpha = 1; ctx.fillStyle = gold;
+        ctx.beginPath(); ctx.ellipse(0, 0, sz * 1.3, sz * 0.75, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = COL.ink; ctx.fillRect(-sz * 0.3, -sz * 0.75, sz * 0.25, sz * 1.5);
+        const f = 0.6 + 0.4 * Math.sin(G.time * 70 + x); ctx.globalAlpha = 0.55; ctx.fillStyle = COL.chalk;
+        for (const sy of [-1, 1]) { ctx.beginPath(); ctx.ellipse(-sz * 0.15, sy * sz * 0.9 * f, sz * 0.75, sz * 0.38, 0, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+      };
+      const span = HIVE_RINGS + 1.3, far = Math.max(AW, AH) * 0.75;
+      B.cells.forEach((c, i) => {
+        const tR = (HIVE_RINGS - c.d) / span, u = (k - (tR - 0.22)) / 0.22;
+        if (u <= 0 || u >= 1) return;
+        const a0 = i * 2.39996, sx = B.cx + Math.cos(a0) * far, sy = B.cy + Math.sin(a0) * far, e = 1 - Math.pow(1 - u, 2);
+        const px = -(c.y - sy), py = c.x - sx, pl = Math.hypot(px, py) || 1, wob = Math.sin(u * Math.PI) * 8 * Math.sin(i * 1.7);
+        const x = sx + (c.x - sx) * e + px / pl * wob, y = sy + (c.y - sy) * e + py / pl * wob;
+        bee(x, y, Math.atan2(c.y - sy, c.x - sx), 1.5);
+      });
+      const swarm = Math.min(1, k * 4), closeIn = k > 0.85 ? 1 - (k - 0.85) / 0.15 : 1;
+      for (let j = 0; j < 14; j++) {
+        const dir = j % 2 ? 1 : -1, a = G.time * (1.1 + (j % 5) * 0.2) * dir + j * 0.45, rr = B.r * (1.15 + 0.25 * Math.sin(G.time * 2 + j)) * closeIn;
+        if (rr < 2) continue;
+        ctx.globalAlpha = swarm; bee(B.cx + Math.cos(a) * rr, B.cy + Math.sin(a) * rr * 0.85, a + dir * Math.PI / 2, 1.4);
+      }
       ctx.globalAlpha = 1;
       return;
     }
-    if (B.kind === 'maw') { // the bay's lights chase round its outline as it lowers in
-      const x0 = B.bx - B.W / 2, pts = [];
-      for (let y = 0; y <= B.D; y += 3.5) pts.push([x0, y]);
-      for (let x = x0; x <= x0 + B.W; x += 3.5) pts.push([x, B.D]);
-      for (let y = B.D; y >= 0; y -= 3.5) pts.push([x0 + B.W, y]);
-      pts.forEach(([x, y], i) => {
-        const on = ((i - G.time * 18) % 6 + 6) % 6 < 1.2;
-        ctx.globalAlpha = on ? 1 : 0.3; ctx.fillStyle = on ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(x, y, on ? 0.8 : 0.5, 0, Math.PI * 2); ctx.fill();
-      });
+    if (B.kind === 'core') { // its shadow on the landing spot, darkening and tightening as it falls
+      const sr = B.r * (2.2 - 1.2 * k);
+      ctx.fillStyle = '#000';
+      for (const [f, al] of [[1.25, 0.25], [1, 0.45], [0.7, 0.6]]) { ctx.globalAlpha = al * (0.2 + 0.8 * k); ctx.beginPath(); ctx.arc(B.x, B.y, sr * f, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalAlpha = 1;
     }
-    ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.6; ctx.setLineDash([2, 1.4]); ctx.lineDashOffset = -G.time * 8;
-    ctx.globalAlpha = blink;
-    if (B.kind === 'core') {
-      ctx.beginPath(); ctx.arc(B.x, B.y, B.r, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]); ctx.globalAlpha = 0.5 * (1 - k) + 0.2; ctx.lineWidth = 0.4;
-      ctx.beginPath(); ctx.arc(B.x, B.y, B.r * (1 + 2 * (1 - k)), 0, Math.PI * 2); ctx.stroke(); // closing in on the spot
-      ctx.globalAlpha = 0.08 + 0.12 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(B.x, B.y, B.r, 0, Math.PI * 2); ctx.fill();
-    } else if (B.kind === 'hive') {
-      hexPath(B.x, B.y, B.r * 1.05); ctx.stroke();
-      ctx.setLineDash([]); ctx.globalAlpha = 0.08 + 0.12 * k; ctx.fillStyle = COL.threat; ctx.fill();
-    } else {
-      const x0 = B.bx - B.W / 2;
-      ctx.strokeRect(x0, 0, B.W, B.D);
-      ctx.setLineDash([]); ctx.save(); ctx.beginPath(); ctx.rect(x0, 0, B.W, B.D * k); ctx.clip(); // hazard stripes fill down as it descends
-      ctx.globalAlpha = 0.12 + 0.1 * blink; ctx.fillStyle = COL.threat;
-      for (let x = x0 - B.D; x < x0 + B.W; x += 6) { ctx.beginPath(); ctx.moveTo(x, B.D); ctx.lineTo(x + 3, B.D); ctx.lineTo(x + 3 + B.D, 0); ctx.lineTo(x + B.D, 0); ctx.closePath(); ctx.fill(); }
-      ctx.restore();
-    }
-    ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
   }
   // Glowing cracks on the wall where the Serpent is about to burst through.
   function drawSerpentCracks(B, k) {
@@ -1769,7 +1774,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (let q = 1; q <= 3; q++) { cx += inx * L / 3 + tx * (q % 2 ? 2.2 : -2.2) * (1 + Math.abs(j) * 0.3) + tx * j * 1.4; cy += iny * L / 3 + ty * (q % 2 ? 2.2 : -2.2) * (1 + Math.abs(j) * 0.3) + ty * j * 1.4; ctx.lineTo(cx, cy); }
       ctx.stroke();
     }
-    ctx.globalAlpha = 0.25 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(x, y, 11 + 14 * k, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
   function drawSerpent(B) {
@@ -1970,12 +1974,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       drawRedAlert(k);
       if (B.kind === 'serpent') { drawSerpentCracks(B, k); return; }
       drawBossWarning(B);
-      if (B.enter > BOSS_DROP || B.kind === 'hive') return;
-      const d = B.enter / BOSS_DROP; // 1 → 0: it drops in from above (the Core falls toward you, the Carrier lowers from the top)
+      if (B.kind === 'hive' || (B.kind === 'core' && B.enter > BOSS_DROP)) return;
+      const e0 = B.enter;
       ctx.save();
-      if (B.kind === 'core') { const sc = 1 + 1.8 * d * d; ctx.translate(B.x, B.y); ctx.scale(sc, sc); ctx.translate(-B.x, -B.y); }
-      else ctx.translate(0, -B.D * d * d);
-      B.enter = 0; drawBoss(); B.enter = d * BOSS_DROP; // the boss as it will look, just not solid yet
+      if (B.kind === 'core') { const d = B.enter / BOSS_DROP, sc = 1 + 1.8 * d * d; ctx.translate(B.x, B.y); ctx.scale(sc, sc); ctx.translate(-B.x, -B.y); } // falls in toward you
+      else { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.D + 8) * Math.pow(1 - k, 2.2)); } // the Carrier slides down out of the top over the whole warning
+      B.enter = 0; drawBoss(); B.enter = e0; // the boss as it will look, just not solid yet
       ctx.restore();
       return;
     }
@@ -4985,11 +4989,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (G.bossCard && !G.attract) { // the boss's name slams in as it lands, then fades
       const C = G.bossCard, e = C.max - C.t, sc = e < 0.14 ? 2 - e / 0.14 : 1, sz = Math.min(13, AW / 9);
-      ctx.save(); ctx.translate(AW / 2, AH * 0.22); ctx.scale(sc, sc); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `800 ${sz}px ${FONT}`;
+      ctx.save(); ctx.translate(AW / 2, AH * 0.22); ctx.scale(sc, sc); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 ${sz}px ${FONT}`;
       const a = Math.min(1, C.t / 0.5);
-      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.5 * a; ctx.fillStyle = COL.threat;
-      for (const [ox, oy] of [[-0.6, 0], [0.6, 0], [0, -0.6], [0, 0.6]]) ctx.fillText(C.text, ox, oy);
-      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = a; ctx.fillStyle = COL.chalk; ctx.fillText(C.text, 0, 0);
+      ctx.globalAlpha = a; ctx.lineJoin = 'round'; ctx.strokeStyle = COL.ink; ctx.lineWidth = sz * 0.16; ctx.strokeText(C.text, 0, 0); // a dark outline keeps it legible over anything
+      ctx.shadowColor = COL.threat; ctx.shadowBlur = 16; ctx.fillStyle = COL.chalk; ctx.fillText(C.text, 0, 0); ctx.shadowBlur = 0;
       ctx.restore(); ctx.globalAlpha = 1;
     }
 
