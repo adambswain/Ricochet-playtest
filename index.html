@@ -5237,13 +5237,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }));
   // The power-ups page: each capsule as it looks in play (drawn by the game's own icon code), its name and what it does.
   const POWER_TEXT = {
-    multi: 'Two more balls split off the one that hit it. They bounce, charge, kill and bend with your pull like yours, never overload, and vanish when it ends.',
-    shock: 'Every enemy a ball hits bursts in a blast. The hotter the ball, the bigger and harder the blast.',
-    bolt: 'Every kill arcs lightning to a nearby enemy, up to 3 jumps in a row.',
-    over: 'Each bounce adds 2 charge instead of 1, and the ball can’t overload.',
-    warp: 'Enemies, their shots and bosses move at 40% speed. Your ship and balls don’t slow down.',
-    big: 'Your balls hit as if nearly twice as big. Catching is unchanged.',
+    multi: 'Grants two extra balls that never overload',
+    shock: 'Grants your ball AOE damage on hit',
+    bolt: 'Each kill arcs to a nearby enemy, up to 3 jumps',
+    over: '+2 charges per bounce, and the ball never overloads',
+    warp: 'Enemies and their projectiles move at 40% speed',
+    big: 'Your ball doubles in size',
   };
+
   function showPowers(on) {
     $('ov-powers').hidden = !on;
     if (!on) return;
