@@ -417,7 +417,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     10: 'The Core: hit its bombs with the ball to send them back into it. Don\'t touch it',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
-    13: 'Coin Rush: sweep up every coin for a jackpot',
+    13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
     15: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts',
     18: 'Invasion: break the formation before it lands. The top rows are tougher: charge your ball off the walls and bunkers to punch through',
     19: 'A Brute Wall marches in partway through this wave',
@@ -2400,13 +2400,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The arena is packed with coins and a clock. Only balls collect them (Multiball ghosts too), vacuuming up a lane
   // COIN_PICK wide as they pass; steering with the pull is the whole skill. Every coin scores; collect them all for a
   // jackpot. As the field thins, the stragglers swell and glow so they can be found. Overload is off; nothing can hurt you.
+  // Three times a round a giant coin drifts down from the top. The ball bounces off it (and charges) and deals its
+  // damage (1 + charge) to it; it takes GIANT_FALL seconds to cross the arena, whatever its height; every hit knocks loose a spray of coins, more for a harder hit. Break it before it falls
+  // out the bottom for GIANT_PTS × the breaking hit's damage, and a fountain of coins.
   const COIN_TIME = 30, COIN_R = 1.5, COIN_PICK = 2.4, COIN_GAP = 8, COIN_PTS = 10, COIN_JACKPOT = 10000;
+  const GIANT_R = 6.5, GIANT_HP = 24, GIANT_FALL = 11, GIANT_AT = [3, 11, 19], GIANT_PTS = 250, GIANT_HIT_PTS = 15;
   function setupCoins(cycle) {
     const top = 9; // clear of the round's header
     const coins = [], cols = Math.floor((AW - 8) / COIN_GAP) + 1, rows = Math.floor((AH - top - 4) / COIN_GAP) + 1;
     const ox = (AW - (cols - 1) * COIN_GAP) / 2, oy = top + (AH - top - (rows - 1) * COIN_GAP) / 2;
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) coins.push({ x: ox + i * COIN_GAP, y: oy + j * COIN_GAP, spin: (i + j) * 0.5 });
-    G.coins = { time: COIN_TIME, cycle, coins, total: coins.length, got: 0, done: false, streak: 0, streakT: 0, sx: 0, sy: 0, chimeT: 0 };
+    G.coins = { time: COIN_TIME, cycle, coins, total: coins.length, got: 0, done: false, streak: 0, streakT: 0, sx: 0, sy: 0, chimeT: 0,
+                giant: null, giants: 0, broke: 0 };
   }
   function coinHit(o, r) {
     const C = G.coins; if (!C || C.done) return;
@@ -2431,9 +2436,59 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       G.freeze = Math.max(G.freeze, 0.1); shake(2.5); sfx.repair(); sfx.collect();
     }
   }
+  // Coins knocked loose from a giant fly out and slow to a stop where they land.
+  function sprayCoins(x, y, n, sp) {
+    const C = G.coins;
+    for (let k = 0; k < n; k++) {
+      const a = rand(0, Math.PI * 2), v = sp * rand(0.5, 1.1);
+      C.coins.push({ x: x + Math.cos(a) * GIANT_R * 0.6, y: y + Math.sin(a) * GIANT_R * 0.6, spin: rand(0, 6), vx: Math.cos(a) * v, vy: Math.sin(a) * v });
+    }
+    C.total += n;
+  }
+  // Ball (or extra) against the giant coin: bounce off and hit it. Returns true on a hit (the caller adds the charge).
+  function giantHit(o, r) {
+    const C = G.coins, g = C && C.giant; if (!g || C.done) return false;
+    const dx = o.x - g.x, dy = o.y - g.y, d = Math.hypot(dx, dy) || 1e-6;
+    if (d >= GIANT_R + r) return false;
+    const nx = dx / d, ny = dy / d, dot = o.vx * nx + o.vy * ny;
+    o.x = g.x + nx * (GIANT_R + r + 0.05); o.y = g.y + ny * (GIANT_R + r + 0.05);
+    if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
+    if (g.cd > 0) return dot < 0;
+    const b = o.b || 0, dmg = 1 + b, mul = C.cycle + 1;
+    g.cd = 0.08; g.flash = 0.12; g.hp -= dmg;
+    const pts = GIANT_HIT_PTS * dmg * mul; G.score += pts; C.streak += pts; C.streakT = 0.6; C.sx = g.x; C.sy = g.y - GIANT_R;
+    sprayCoins(g.x, g.y, Math.min(10, 2 + Math.floor(dmg / 2)), 30 + dmg * 2);
+    ring(g.x, g.y, GIANT_R, GIANT_R + 4 + dmg * 0.4, 0.25, heat(b), 0.8); gridImpulse(g.x, g.y, 16, 50 + dmg * 4); shake(0.4 + dmg * 0.05); sfx.clank();
+    if (g.hp <= 0) { // broken: paid by the breaking hit's damage
+      const v = GIANT_PTS * dmg * mul; G.score += v; C.broke++;
+      sprayCoins(g.x, g.y, 24, 55);
+      for (let k = 0; k < 3; k++) ring(g.x, g.y, 2, GIANT_R + 10 + k * 9, 0.45 + k * 0.1, k % 2 ? COL.chalk : ECOL.target, 1.2);
+      burst(g.x, g.y, 50, ECOL.target, 70, 0.9, 0.7); burst(g.x, g.y, 20, heat(b), 60, 0.7, 0.5);
+      float(g.x, g.y - GIANT_R - 4, `Giant coin +${v.toLocaleString()}`, ECOL.target, 4.4);
+      float(g.x, g.y - GIANT_R + 1, `${dmg} damage × ${GIANT_PTS * mul}`, COL.chalk, 2.6);
+      G.freeze = Math.max(G.freeze, 0.08); shake(2.5); sfx.repair(); sfx.collect();
+      C.giant = null;
+    }
+    return true;
+  }
   function updateCoins(dt) {
     const C = G.coins; if (!C) return;
     C.chimeT -= dt; C.streakT -= dt;
+    for (const c of C.coins) if (c.vx !== undefined) { // loose coins slow to a stop
+      const k = Math.exp(-3 * dt); c.vx *= k; c.vy *= k; c.x += c.vx * dt; c.y += c.vy * dt;
+      if (c.x < 3 || c.x > AW - 3) { c.x = clamp(c.x, 3, AW - 3); c.vx = -c.vx; }
+      if (c.y < 3 || c.y > AH - 3) { c.y = clamp(c.y, 3, AH - 3); c.vy = -c.vy; }
+    }
+    const g = C.giant;
+    if (g && !C.done) { // the giant drifts down with a slow sway, and is gone if it reaches the bottom
+      g.t += dt; g.cd -= dt; g.flash -= dt;
+      g.y += (AH + GIANT_R * 2) / GIANT_FALL * dt; g.x = clamp(g.x0 + Math.sin(g.t * 0.9) * AW * 0.08, GIANT_R + 2, AW - GIANT_R - 2);
+      if (g.y - GIANT_R > AH) { C.giant = null; float(g.x, AH - 8, 'Got away', COL.dim, 3); sfx.lost(); }
+    } else if (!C.done && C.giants < GIANT_AT.length && COIN_TIME - C.time >= GIANT_AT[C.giants]) {
+      const x0 = rand(AW * 0.25, AW * 0.75);
+      C.giant = { x: x0, x0, y: -GIANT_R, t: 0, hp: GIANT_HP * (C.cycle + 1), max: GIANT_HP * (C.cycle + 1), cd: 0, flash: 0 };
+      C.giants++; sfx.collect();
+    }
     if (C.streakT <= 0 && C.streak) { float(C.sx, C.sy - 6, `+${C.streak}`, ECOL.target, 3.2); C.streak = 0; } // the run's total, once it ends
     if (C.done) return;
     C.time -= dt;
@@ -2441,7 +2496,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function finishCoins() {
     const C = G.coins; if (!C) return;
-    G.result = { text: `${C.got}/${C.total} coins`, sub: C.jackpot ? 'Jackpot!' : 'Get them all for the jackpot', t: 2.6, max: 2.6 };
+    const giants = C.broke ? ` · Giant coins ${C.broke}/${C.giants}` : '';
+    G.result = { text: `${C.got}/${C.total} coins`, sub: (C.jackpot ? 'Jackpot!' : 'Get them all for the jackpot') + giants, t: 2.6, max: 2.6 };
     for (const ball of liveBalls()) if (ball.b > WARN - 2) { ball.b = WARN - 2; const sp = ballSpeed(ball.b), l = Math.hypot(ball.vx, ball.vy) || 1; ball.vx = ball.vx / l * sp; ball.vy = ball.vy / l * sp; }
     sfx.repair();
     G.coins = null;
@@ -2457,6 +2513,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.moveTo(c.x + w, c.y); ctx.ellipse(c.x, c.y, w, COIN_R * swell, 0, 0, Math.PI * 2);
     }
     ctx.fill(); ctx.globalAlpha = 1;
+    const g = C.giant;
+    if (g) { // the giant coin: a spinning disc with a rim, a star, its health round the edge and cracks as it takes damage
+      const sq = 0.35 + 0.65 * Math.abs(Math.cos(G.time * 1.6)), k = g.hp / g.max, c = ECOL.target;
+      ctx.save(); ctx.translate(g.x, g.y);
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25; ctx.fillStyle = c;
+      ctx.beginPath(); ctx.arc(0, 0, GIANT_R * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+      ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.6; ctx.globalAlpha = 0.7; // health, draining round the outside
+      ctx.beginPath(); ctx.arc(0, 0, GIANT_R + 1.6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.scale(sq, 1);
+      ctx.beginPath(); ctx.arc(0, 0, GIANT_R, 0, Math.PI * 2); ctx.fillStyle = g.flash > 0 ? COL.chalk : c; ctx.fill();
+      ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.arc(0, 0, GIANT_R * 0.8, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = COL.ink; ctx.beginPath(); // a star stamped in the middle
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = GIANT_R * (i % 2 ? 0.22 : 0.5); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+      ctx.closePath(); ctx.fill();
+      if (k < 0.7) { ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.moveTo(-GIANT_R * 0.7, -GIANT_R * 0.3); ctx.lineTo(-GIANT_R * 0.2, 0); ctx.lineTo(-GIANT_R * 0.35, GIANT_R * 0.5); if (k < 0.35) { ctx.moveTo(GIANT_R * 0.75, GIANT_R * 0.1); ctx.lineTo(GIANT_R * 0.25, -GIANT_R * 0.2); ctx.lineTo(GIANT_R * 0.4, -GIANT_R * 0.65); } ctx.stroke(); } // cracks
+      ctx.restore();
+    }
     if (C.streak && C.streakT > 0) { // the running total rides with the ball
       ctx.fillStyle = ECOL.target; ctx.font = `700 3px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(`+${C.streak}`, C.sx, C.sy - 6);
@@ -3551,7 +3624,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (G.crush && brickHit(x, r, x.b) === 'bounce') bounced = true;
         if (G.inv && bunkerHit(x, r) === 'bounce') bounced = true;
         if (G.bonus && bumperHit(x, r)) bounced = true;
-        if (G.coins) coinHit(x, r);
+        if (G.coins) { coinHit(x, r); if (giantHit(x, r)) bounced = true; }
         if (G.bombs.length) ballBombs(x, r, x.b);
         if (G.boss && ballBoss(x, r, x.b) === 'bounce') bounced = true;
         if (bounced) {
@@ -3707,7 +3780,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (G.crush && brickHit(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.inv && bunkerHit(ball, r) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.bonus && bumperHit(ball, r)) chargeBounce(ball);
-      if (G.coins) coinHit(ball, r);
+      if (G.coins) { coinHit(ball, r); if (giantHit(ball, r)) { chargeBounce(ball); if (ball.state !== 'live') break; } }
       if (G.bombs.length) ballBombs(ball, r, ball.b);
       if (G.boss && ballBoss(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
 
