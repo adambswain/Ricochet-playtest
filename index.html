@@ -384,7 +384,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const powerTime = b => 3.3 + 0.5 * b;
   const WARD_LAYERS = 2, WARD_CD = 4, WARD_FORM = 1.2; // Warden shields: layers, seconds to reform after popping, blink-in time
   const SWARM_SIZE = 8, WARD_R = 16, BLINK_WARN = 0.6;
-  const BIG_SCALE = 1.8; // Big Ball: hit size only; the catch distance stays the same so catching feels unchanged
+  const BIG_SCALE = 2; // Big Ball: hit size only; the catch distance stays the same so catching feels unchanged
   const bigK = () => G.powers.big > 0 ? BIG_SCALE : 1;
   const BOLT_RANGE = 30, BOLT_HOPS = 3, WARP_SCALE = 0.4;
   // Hull repairs at score milestones (up to the hull's cap; one earned at full hull is lost).
@@ -2574,11 +2574,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // damage (1 + charge) to it; it takes GIANT_FALL seconds to cross the arena, whatever its height; every hit knocks loose a spray of coins, more for a harder hit. Break it before it falls
   // out the bottom for GIANT_PTS × the breaking hit's damage, and a fountain of coins.
   // The coins come in a designed layout, picked at random each visit: target rings, curving lanes, a spiral or
-  // clusters - shapes to sweep with a curved pull - about half as many as a full grid, each worth double.
-  const COIN_TIME = 30, COIN_R = 1.5, COIN_PICK = 2.4, COIN_STEP = 4.6, COIN_PTS = 20, COIN_JACKPOT = 10000;
+  // clusters - shapes to sweep with a curved pull. Big coins, a wide pick-up reach, each worth 25.
+  const COIN_TIME = 30, COIN_R = 2.2, COIN_PICK = 3.6, COIN_STEP = 6, COIN_PTS = 25, COIN_JACKPOT = 10000;
   const COIN_LAYOUTS = ['rings', 'lanes', 'spiral', 'clusters'];
   const GIANT_R = 6.5, GIANT_HP = 24, GIANT_FALL = 11, GIANT_AT = [3, 11, 19], GIANT_PTS = 250, GIANT_HIT_PTS = 15;
-  // Coin positions for a layout, kept inside the arena (clear of the round's header) and never closer than 3 units.
+  // Coin positions for a layout, kept inside the arena (clear of the round's header) and never closer than 4.5 units.
   function coinLayout(kind) {
     const top = 9, m = 5, W = AW, H = AH, cx = W / 2, cy = (top + H - m) / 2, wide = W >= H, pts = [];
     const add = (x, y) => { if (x > m && x < W - m && y > top && y < H - m) pts.push([x, y]); };
@@ -2593,18 +2593,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         for (let u = m; u < L - m; u += COIN_STEP * 0.9) { const v = c0 + amp * Math.sin(u / L * Math.PI * 4 + i * 1.3); wide ? add(u, v) : add(v, u); }
       }
     } else if (kind === 'spiral') { // one spiral from the middle, stretched to the arena's shape
-      const Rx = W / 2 - m - 1, Ry = (H - top - m) / 2 - 1, R = Math.min(Rx, Ry), sx = Rx / R, sy = Ry / R, gap = 8;
+      const Rx = W / 2 - m - 1, Ry = (H - top - m) / 2 - 1, R = Math.min(Rx, Ry), sx = Rx / R, sy = Ry / R, gap = 10;
       for (let t = 0.6; ; ) { const r = gap * t / (Math.PI * 2); if (r > R) break; add(cx + Math.cos(t) * r * sx, cy + Math.sin(t) * r * sy); t += COIN_STEP / Math.max(r, 2.5); }
     } else { // clusters: hex-packed clumps scattered over the arena
-      const n = Math.round(W * (H - top) / 2600) + 4, rc = 9, centres = [];
+      const n = Math.round(W * (H - top) / 3000) + 4, rc = 11, centres = [];
       for (let k = 0; k < n * 30 && centres.length < n; k++) {
         const x = rand(m + rc, W - m - rc), y = rand(top + rc, H - m - rc);
         if (centres.every(([a, b]) => Math.hypot(a - x, b - y) > rc * 2.6)) centres.push([x, y]);
       }
-      for (const [x, y] of centres) for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) { const px = x + (i + (j % 2 ? 0.5 : 0)) * 3.6, py = y + j * 3.1; if (Math.hypot(px - x, py - y) <= rc) add(px, py); }
+      for (const [x, y] of centres) for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) { const px = x + (i + (j % 2 ? 0.5 : 0)) * 5, py = y + j * 4.3; if (Math.hypot(px - x, py - y) <= rc) add(px, py); }
     }
     const out = [];
-    for (const [x, y] of pts) if (out.every(([a, b]) => Math.abs(a - x) > 3 || Math.abs(b - y) > 3 || Math.hypot(a - x, b - y) > 3)) out.push([x, y]);
+    for (const [x, y] of pts) if (out.every(([a, b]) => Math.abs(a - x) > 4.5 || Math.abs(b - y) > 4.5 || Math.hypot(a - x, b - y) > 4.5)) out.push([x, y]);
     return out;
   }
   function setupCoins(cycle) {
