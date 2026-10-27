@@ -257,7 +257,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <h1 class="logo">RICOCHET</h1>
     <p class="tag">You get one ball. Every wall bounce makes it faster and harder-hitting. You can't throw again until you catch it.</p>
     <ul class="rules">
-      <li><b>+1</b><span>Each wall bounce adds 1 damage. Enemies outlined in the ball's colour die on contact; the ball punches straight through them.</span></li>
+      <li><b>+1</b><span>Each wall bounce adds 1 damage. An enemy's number lights up in the ball's colour when the ball can kill it: those die on contact, and the ball punches straight through them.</span></li>
       <li><b>↶</b><span>Hold pull to bend the ball toward you. It keeps its speed, so a charged ball curves wider. Stand behind a crowd and drag the ball through it.</span></li>
       <li><b>×</b><span>Every kill raises your score multiplier, and kills in the same throw raise it faster. Getting hit or overloading resets it.</span></li>
       <li><b>◇</b><span>The ball is only caught while you're pulling; otherwise it flies straight through your ship. Catch it at 10 or more bounces and it bursts around you, bigger the hotter it is; catch it while it's about to overload and it's defused with the biggest blast. Chain 10 kills in one throw to gain a shield that blocks one hit.</span></li>
@@ -1812,6 +1812,41 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.restore();
   }
   const hexPath = (x, y, s) => { ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; ctx.lineTo(x + Math.cos(a) * s, y + Math.sin(a) * s); } ctx.closePath(); };
+  // Solid replacements for dashed lines. A pen ring draws itself round a spot as a countdown (k: 0 → 1), with a
+  // crosshair; a pulse line is a hairline with bright pulses running from its start to its end; tick rings are a few
+  // sight marks round a circle; a field ring is a thin edge with a soft band inside it.
+  function penRing(x, y, r, k, col, a = 0.8, w = 0.35, cross = true) {
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = w;
+    ctx.globalAlpha = a * 0.2; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); // where it will close
+    const e = -Math.PI / 2 + Math.PI * 2 * clamp(k, 0, 1);
+    ctx.globalAlpha = a; ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, e); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x + Math.cos(e) * r, y + Math.sin(e) * r, w * 1.5, 0, Math.PI * 2); ctx.fill(); // the pen
+    if (cross) { const c = Math.min(1.6, r * 0.4); ctx.globalAlpha = a * 0.7; ctx.beginPath(); ctx.moveTo(x - c, y); ctx.lineTo(x + c, y); ctx.moveTo(x, y - c); ctx.lineTo(x, y + c); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  function pulseLine(x0, y0, x1, y1, col, a = 0.5, w = 0.3, ups = 30) {
+    const L = Math.hypot(x1 - x0, y1 - y0);
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.globalAlpha = a * 0.45;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    if (L > 2) {
+      const seg = Math.min(3, L * 0.3) / L, ux = x1 - x0, uy = y1 - y0;
+      ctx.globalAlpha = a; ctx.lineWidth = w * 1.8; ctx.lineCap = 'round'; ctx.beginPath();
+      for (let q = 0; q < 2; q++) { const t = ((G.time * ups) / L + q * 0.5) % 1, t2 = Math.min(1, t + seg); ctx.moveTo(x0 + ux * t, y0 + uy * t); ctx.lineTo(x0 + ux * t2, y0 + uy * t2); }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function tickRing(x, y, r, n, len, col, a = 0.6, w = 0.3, rot = 0) {
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.globalAlpha = a; ctx.beginPath();
+    for (let i = 0; i < n; i++) { const q = rot + i * Math.PI * 2 / n; ctx.moveTo(x + Math.cos(q) * (r - len), y + Math.sin(q) * (r - len)); ctx.lineTo(x + Math.cos(q) * r, y + Math.sin(q) * r); }
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  function fieldRing(x, y, r, col, a = 0.35) {
+    ctx.strokeStyle = col;
+    ctx.globalAlpha = a * 0.3; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, Math.max(0.1, r - 0.9), 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = a; ctx.lineWidth = 0.25; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
   function drawHive(B) {
     const gold = GOLD();
     for (const g of B.combs) { // a faint streak behind each thrown chunk
@@ -1822,9 +1857,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (B.st === 'comb') {
       for (const e of G.enemies) if (e.mend) { // a worker's thread to the hole it's rebuilding, and the cell to come
-        ctx.globalAlpha = 0.5; ctx.strokeStyle = gold; ctx.lineWidth = 0.25; ctx.setLineDash([1, 1]);
-        ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.mend.x, e.mend.y); ctx.stroke();
-        hexPath(e.mend.x, e.mend.y, HIVE_CELL * 0.95); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+        pulseLine(e.x, e.y, e.mend.x, e.mend.y, gold, 0.6, 0.25, 20);
+        hexPath(e.mend.x, e.mend.y, HIVE_CELL * 0.95); ctx.strokeStyle = gold; ctx.lineWidth = 0.25; ctx.globalAlpha = 0.25 + 0.2 * Math.sin(G.time * 8); ctx.stroke(); ctx.globalAlpha = 1;
       }
       ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.12 + 0.05 * Math.sin(B.t * 2); ctx.fillStyle = gold; // the hive's warm glow
       ctx.beginPath(); ctx.arc(B.cx, B.cy, B.r * 1.05, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
@@ -1863,8 +1897,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const glow = (fn, col, a) => { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a; ctx.fillStyle = col; ctx.strokeStyle = col; fn(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; };
     if (B.mode === 'aim') { // the sting's line
       const cx = Math.cos(B.aimA), cy = Math.sin(B.aimA), locked = B.modeT <= 0.3;
-      ctx.globalAlpha = locked ? 0.8 : 0.4; ctx.strokeStyle = threat; ctx.lineWidth = locked ? 1.2 : 0.5; ctx.setLineDash(locked ? [] : [2, 2]);
-      ctx.beginPath(); ctx.moveTo(B.x, B.y); ctx.lineTo(B.x + cx * 60, B.y + cy * 60); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      if (locked) { ctx.globalAlpha = 0.8; ctx.strokeStyle = threat; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(B.x, B.y); ctx.lineTo(B.x + cx * 60, B.y + cy * 60); ctx.stroke(); ctx.globalAlpha = 1; }
+      else pulseLine(B.x, B.y, B.x + cx * 60, B.y + cy * 60, threat, 0.55, 0.45, 60);
     }
     ctx.save(); ctx.translate(B.x + (B.mode === 'aim' ? rand(-0.4, 0.4) : 0), B.y); ctx.rotate(face); ctx.scale(sc, sc);
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -1997,9 +2031,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const left = BOMB_FUSE - bm.t;
       if (left < 1.6) {
         const k = 1 - left / 1.6;
-        ctx.globalAlpha = 0.15 + k * 0.35; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.setLineDash([1.2, 1.2]);
-        ctx.beginPath(); ctx.arc(bm.x, bm.y, BOMB_FUSE_BLAST * k, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
+        fieldRing(bm.x, bm.y, BOMB_FUSE_BLAST * k, COL.threat, 0.25 + k * 0.5);
       }
       ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(bm.x, bm.y, BOMB_R, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.45; ctx.stroke();
@@ -2018,9 +2050,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.translate(rand(-0.5, 0.5) * k, rand(-0.5, 0.5) * k);
         const cx = Math.cos(B.ramA), cy = Math.sin(B.ramA);
         const L = Math.min(cx > 0 ? (AW - B.x) / cx : cx < 0 ? -B.x / cx : 1e9, cy > 0 ? (AH - B.y) / cy : cy < 0 ? -B.y / cy : 1e9);
-        ctx.globalAlpha = locked ? 0.9 : 0.35 + 0.3 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = locked ? B.r * 0.5 : 0.5;
-        ctx.setLineDash(locked ? [] : [2, 2]);
-        ctx.beginPath(); ctx.moveTo(cx * B.r, cy * B.r); ctx.lineTo(cx * L, cy * L); ctx.stroke(); ctx.setLineDash([]);
+        if (locked) { ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.threat; ctx.lineWidth = B.r * 0.5; ctx.beginPath(); ctx.moveTo(cx * B.r, cy * B.r); ctx.lineTo(cx * L, cy * L); ctx.stroke(); }
+        else pulseLine(cx * B.r, cy * B.r, cx * L, cy * L, COL.threat, 0.4 + 0.4 * k, 0.5, 70);
         if (locked) { ctx.globalAlpha = 0.15; ctx.lineWidth = B.r * 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(cx * L, cy * L); ctx.stroke(); }
         ctx.globalAlpha = 1;
       }
@@ -2087,7 +2118,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // racks: docked fighters (dashers waiting to launch) and the empty racks they'll be docked into
     for (const br of B.bricks) {
       const [cx, cy] = mawShip(B, br), r = MAW_SHIP_R;
-      ctx.strokeStyle = COL.line; ctx.lineWidth = 0.3; ctx.setLineDash([1, 1]); ctx.beginPath(); ctx.arc(cx, cy, r * 0.95, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); // the clamp
+      tickRing(cx, cy, r * 0.95, 4, 1, COL.line, 0.9, 0.35, Math.PI / 4); // the clamp: four jaws
       if (!br.alive) continue;
       const sc = 1 - (br.born || 0) / 0.4 * 0.6, lit = br.pick && Math.floor(B.t * 12) % 2;
       ctx.save(); ctx.translate(cx, cy - r * 0.12); ctx.scale(sc, sc); // nudged up to centre the triangle in its rack
@@ -2248,8 +2279,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const on = bm.litT > 0 && (B.jackT <= 0 || Math.floor(B.jackT * 12) % 2); // lit ones blink together during a jackpot
       ctx.fillStyle = hit ? COL.chalk : COL.ink; ctx.beginPath(); ctx.arc(x, y, BUMP_R, 0, Math.PI * 2); ctx.fill();
       if (!on && !hit) { // unlit: a dark socket with a dashed rim, so the ones still needed stand out as gaps
-        ctx.globalAlpha = 0.5; ctx.strokeStyle = c; ctx.lineWidth = 0.4; ctx.setLineDash([1.2, 0.9]); ctx.stroke(); ctx.setLineDash([]);
-        ctx.beginPath(); ctx.arc(x, y, BUMP_R * 0.18, 0, Math.PI * 2); ctx.fillStyle = c; ctx.fill(); ctx.globalAlpha = 1;
+        ctx.globalAlpha = 0.3; ctx.strokeStyle = c; ctx.lineWidth = 0.35; ctx.stroke(); tickRing(x, y, BUMP_R, 8, 0.9, c, 0.6, 0.35);
+        ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(x, y, BUMP_R * 0.18, 0, Math.PI * 2); ctx.fillStyle = c; ctx.fill(); ctx.globalAlpha = 1;
         continue;
       }
       ctx.globalAlpha = hit ? 0.7 : 0.5; ctx.fillStyle = c; ctx.fill(); ctx.globalAlpha = 1;
@@ -2405,7 +2436,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // playfield
     ctx.save(); inner(); ctx.closePath(); ctx.clip();
     ctx.fillStyle = COL.block; ctx.globalAlpha = 0.45; ctx.fillRect(R.x0, 0, R.w, AH); ctx.globalAlpha = 1;
-    ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.3; ctx.setLineDash([1.2, 1.4]); ctx.globalAlpha = 0.35; // decorative guides: an inner orbit, and the inlanes
+    ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.2; ctx.globalAlpha = 0.25; // decorative guides: an inner orbit, and the inlanes
     const g = 0.065 * R.w;
     ctx.beginPath(); ctx.moveTo(R.x0 + g, Y(0.6)); ctx.lineTo(R.x0 + g, top + cr); ctx.arc(R.x0 + cr, top + cr, cr - g, Math.PI, Math.PI * 1.5);
     ctx.lineTo(R.x0 + R.w - cr, top + g); ctx.arc(R.x0 + R.w - cr, top + cr, cr - g, -Math.PI / 2, 0); ctx.lineTo(R.x0 + R.w - g, Y(0.6)); ctx.stroke();
@@ -2471,7 +2502,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     TB.bumpers.forEach(([fx, fy], i) => {
       const x = X(fx), y = Y(fy), k = Math.max(0, T.hits[i]) / 0.18, sc = 1 + 0.12 * k;
       if (k > 0 || show) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = show ? 0.25 : 0.55 * k; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, bR * 1.75, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
-      ctx.strokeStyle = c; ctx.lineWidth = k > 0 ? 0.6 : 0.35; ctx.globalAlpha = k > 0 ? 1 : 0.7; ctx.setLineDash(k > 0 ? [] : [1.1, 0.9]); ctx.lineDashOffset = -G.time * 3;
+      ctx.strokeStyle = c; ctx.lineWidth = k > 0 ? 0.6 : 0.35; ctx.globalAlpha = k > 0 ? 1 : 0.4;
       ctx.beginPath(); ctx.arc(x, y, bR * 1.55, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
       ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(x, y, bR * sc, 0, Math.PI * 2); ctx.fill();
       glowLine(() => { ctx.beginPath(); ctx.arc(x, y, bR * sc, 0, Math.PI * 2); }, 0.9, k > 0 ? c : COL.chalk);
@@ -2504,8 +2535,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // the apron and the rail the ship rides
     ctx.fillStyle = COL.block; ctx.beginPath(); ctx.moveTo(R.x0, AH); ctx.lineTo(R.x0, Y(0.985)); ctx.lineTo(R.x0 + R.w, Y(0.985)); ctx.lineTo(R.x0 + R.w, AH); ctx.closePath(); ctx.fill();
     glowLine(() => { ctx.beginPath(); ctx.moveTo(R.x0, Y(0.985)); ctx.lineTo(R.x0 + R.w, Y(0.985)); }, 0.45, c, 0.8);
-    ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.4; ctx.setLineDash([1, 1.5]);
-    ctx.beginPath(); ctx.moveTo(X(0.16), Y(TB.rail)); ctx.lineTo(X(0.84), Y(TB.rail)); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.2; ctx.globalAlpha = 0.3;
+    ctx.beginPath(); ctx.moveTo(X(0.16), Y(TB.rail)); ctx.lineTo(X(0.84), Y(TB.rail)); ctx.stroke(); ctx.globalAlpha = 1;
     // the header panel, built into the top of the cabinet: time, the title and the lanes, targets
     const hh = top, x0 = R.x0 + cw * 0.75, x1 = R.x0 + R.w - cw * 0.75, x2 = R.x0 + cw * 1.15, x3 = R.x0 + R.w - cw * 1.15;
     const panel = () => { ctx.beginPath(); ctx.moveTo(x0, 0.4); ctx.lineTo(x1, 0.4); ctx.lineTo(x3, hh - 0.6); ctx.lineTo(x2, hh - 0.6); ctx.closePath(); };
@@ -3135,8 +3166,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function drawInvasion() {
     const V = G.inv; if (!V) return;
     const y = stripTop();
-    ctx.globalAlpha = 0.35; ctx.strokeStyle = INV_GREEN; ctx.lineWidth = 0.3; ctx.setLineDash([1.5, 1.5]); // the ground line: they mustn't reach it
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(AW, y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalAlpha = 0.45; ctx.strokeStyle = INV_GREEN; ctx.lineWidth = 0.25; // the ground line: they mustn't reach it
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(AW, y); ctx.stroke();
     ctx.globalAlpha = 0.06; ctx.fillStyle = INV_GREEN; ctx.fillRect(0, y, AW, AH - y); ctx.globalAlpha = 1;
     for (const c of V.bunkers) {
       if (c.hp <= 0) continue;
@@ -4428,7 +4459,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.fillStyle = vg; ctx.fillRect(0, 0, AW, AH);
     }
     // neon wall, with brighter corner brackets in the looks that have them
-    if (G && fieldOpen()) { ctx.globalAlpha = 0.3; ctx.setLineDash([1.5, 2.5]); }
+    if (G && fieldOpen()) ctx.globalAlpha = 0.15; // no walls in the Asteroid Field: just a faint edge
     ctx.strokeStyle = COL.wall; ctx.lineWidth = CORNERS ? 0.5 : 0.7; ctx.strokeRect(0, 0, AW, AH);
     ctx.setLineDash([]); ctx.globalAlpha = 1;
     if (RULER && !VEC) { // drafting rule: an inner hairline and ticks along every wall, long ones every 20 units
@@ -4484,11 +4515,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
     // spawn telegraphs
     for (const t of G.tele) {
-      const k = t.t / 0.8, r = ENEMY[t.type].r + k * 5;
-      ctx.globalAlpha = 0.35 + 0.4 * (1 - k);
-      ctx.strokeStyle = ECOL[t.type] || COL.lilac; ctx.lineWidth = 0.35; ctx.setLineDash([1, 1]);
-      ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
+      const k = t.t / 0.8; // a ring draws itself round the spot; when it closes, the enemy arrives
+      penRing(t.x, t.y, ENEMY[t.type].r + 2.5, 1 - k, ECOL[t.type] || COL.lilac, 0.45 + 0.45 * (1 - k));
     }
     ctx.globalAlpha = 1;
 
@@ -4527,9 +4555,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // Warden auras and links to the enemies they protect
     for (const w of G.enemies) {
       if (w.type !== 'warden') continue;
-      ctx.globalAlpha = 0.35; ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.25; ctx.setLineDash([1.5, 1.5]); ctx.lineDashOffset = -G.time * 4;
-      ctx.beginPath(); ctx.arc(w.x, w.y, WARD_R, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]); ctx.lineDashOffset = 0;
+      fieldRing(w.x, w.y, WARD_R, ECOL.warden, 0.4);
       for (const e of G.enemies) {
         if (!e.near || Math.hypot(e.x - w.x, e.y - w.y) >= WARD_R + e.r) continue;
         ctx.globalAlpha = 0.25; ctx.lineWidth = 0.2;
@@ -4550,10 +4576,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const e of G.enemies) {
       if (e.type !== 'blinker' || e.st !== 'blink') continue;
       const k = 1 - e.stT / BLINK_WARN;
-      ctx.globalAlpha = 0.25 + k * 0.6; ctx.strokeStyle = ECOL.blinker; ctx.lineWidth = 0.35; ctx.setLineDash([1, 1]);
-      ctx.beginPath(); ctx.arc(e.tx, e.ty, e.r * (1.8 - k * 0.8), 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = 0.2 + k * 0.3; ctx.lineWidth = 0.2;
-      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.tx, e.ty); ctx.stroke(); ctx.setLineDash([]);
+      penRing(e.tx, e.ty, e.r * 1.5, k, ECOL.blinker, 0.35 + k * 0.55);
+      pulseLine(e.x, e.y, e.tx, e.ty, ECOL.blinker, 0.25 + k * 0.35, 0.2, 40);
     }
     ctx.globalAlpha = 1;
 
@@ -4567,9 +4591,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.beginPath(); ctx.arc(e.x, e.y, MAGNET_FIELD_R * k, 0, Math.PI * 2); ctx.stroke();
       } else {
         const fade = Math.min(1, e.stT / 0.4);
-        ctx.globalAlpha = 0.35 * fade; ctx.strokeStyle = COL.lilac; ctx.lineWidth = 0.25; ctx.setLineDash([1, 2]); ctx.lineDashOffset = G.time * 6;
-        ctx.beginPath(); ctx.arc(e.x, e.y, MAGNET_FIELD_R, 0, Math.PI * 2); ctx.stroke();
-        ctx.setLineDash([]); ctx.lineDashOffset = 0;
+        fieldRing(e.x, e.y, MAGNET_FIELD_R, COL.lilac, 0.35 * fade);
         ctx.globalAlpha = 0.6 * fade; ctx.lineWidth = 0.35; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         for (let i = 0; i < 6; i++) { // chevrons on the rim pointing in: it pulls the ball toward itself
           const a = i * Math.PI / 3 + G.time * 0.3 + e.seed, rr = MAGNET_FIELD_R - 1.5 - ((G.time * 4 + i) % 3), cx = Math.cos(a), cy = Math.sin(a), tx = -cy, ty = cx;
@@ -4597,20 +4619,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const pierce = !shielded && 1 + liveB >= e.hp;
       const col = e.bee || e.type === 'egg' ? GOLD() : ECOL[e.type] || COL.lilac;
       let stroke = col;
+      if (VEC && pierce) stroke = heat(liveB); // the vector look has no numbers: a killable rock or saucer takes the ball's colour
       if (e.type === 'dasher' && e.st === 'wind' && Math.floor(G.time * 20) % 2) stroke = COL.chalk;
       const grow = e.spawnT > 0 ? 1 - e.spawnT / 0.25 : 1;
       ctx.save(); ctx.translate(e.x, e.y); ctx.scale(grow, grow);
       if (e.type === 'invader') { // pixels, two frames stepping with the march
         const spr = INV_SPRITES[e.kind][G.inv ? G.inv.frame : 0], px = 0.62, w = spr[0].length * px, h = spr.length * px;
-        ctx.fillStyle = e.flash > 0 ? COL.chalk : invColor(e.kind); ctx.globalAlpha = e.flash > 0 ? 1 : 0.45 + 0.55 * e.hp / e.maxHp; ctx.beginPath(); // fades as it's worn down
+        ctx.fillStyle = e.flash > 0 ? COL.chalk : pierce && e.hp > 1 ? heat(liveB) : invColor(e.kind); ctx.globalAlpha = e.flash > 0 ? 1 : 0.45 + 0.55 * e.hp / e.maxHp; ctx.beginPath(); // fades as it's worn down; in the ball's colour once it can punch through
         spr.forEach((row, yy) => { for (let xx = 0; xx < row.length; xx++) if (row[xx] === '#') ctx.rect(-w / 2 + xx * px, -h / 2 + yy * px, px + 0.03, px + 0.03); });
         ctx.fill(); ctx.globalAlpha = 1;
-        if (pierce) { // killable: the target-lock corners, as on any enemy
-          const d = w / 2 + 0.6, dy = h / 2 + 0.6, L = 0.9;
-          ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.9; ctx.strokeStyle = heat(liveB); ctx.lineWidth = 0.35; ctx.lineCap = 'square'; ctx.beginPath();
-          for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { ctx.moveTo(sx * d, sy * (dy - L)); ctx.lineTo(sx * d, sy * dy); ctx.lineTo(sx * (d - L), sy * dy); }
-          ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-        }
         ctx.restore(); continue;
       }
       if (e.type === 'wax') { // a cell of thrown honeycomb, drawn like the hive's own; the core glows brighter
@@ -4641,7 +4658,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.globalAlpha = 1; ctx.restore(); continue;
       }
       if (e.type === 'monolith' && e.st === 'warn' && Math.floor(G.time * 14) % 2) { // the block it's about to become
-        const s = e.r * 1.25; ctx.strokeStyle = ECOL.monolith; ctx.lineWidth = 0.4; ctx.setLineDash([1, 0.8]); ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.setLineDash([]);
+        const s = e.r * 1.25; ctx.strokeStyle = ECOL.monolith; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.75; ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.globalAlpha = 1;
       }
       ctx.save(); squash(e);
       // body: dark core tinted with the enemy's colour, then a heavy outline
@@ -4650,22 +4667,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (!VEC || e.flash > 0) { ctx.globalAlpha = e.flash > 0 ? 0.9 : 0.16; ctx.fillStyle = e.flash > 0 ? COL.chalk : col; ctx.fill(); ctx.globalAlpha = 1; } // vector: hollow outlines
       strokeEnemy(e, stroke);
       enemyDetail(e, col);
-      // killable: target-lock corners in the ball's colour. Corners, not a full rim, so a crowd of killable enemies
-      // doesn't fill the screen with the ball's colour and hide the ball itself
-      if (pierce) {
-        const d = e.r * 1.3 + 0.7 + 0.25 * Math.sin(G.time * 10 + e.seed), L = Math.max(0.9, e.r * 0.45);
-        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.9; ctx.strokeStyle = heat(liveB); ctx.lineWidth = 0.45; ctx.lineCap = 'square';
-        ctx.beginPath();
-        for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { ctx.moveTo(sx * d, sy * (d - L)); ctx.lineTo(sx * d, sy * d); ctx.lineTo(sx * (d - L), sy * d); }
-        ctx.stroke();
-        ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-      }
       ctx.restore();
-      if (e.hp > 1 && !VEC) { // the vector look has no numbers, like the original (the killable corners still tell you)
-        ctx.fillStyle = COL.chalk; ctx.font = `700 ${e.r * 0.85}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      // its health; the number lights up in the ball's colour once the ball can punch straight through it (a one-hit
+      // enemy needs no number: anything kills it). The vector look has no numbers, like the original: its outline
+      // takes the ball's colour instead.
+      if (e.hp > 1 && !VEC) {
+        ctx.font = `700 ${e.r * 0.85}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         let tx = 0, ty = e.r * 0.05;
         if (e.type === 'turret') { const n = wallNormal(e); tx += Math.cos(n) * e.r * 0.45; ty += Math.sin(n) * e.r * 0.45; ctx.font = `700 ${e.r * 0.7}px ${FONT}`; }
-        ctx.fillText(e.hp, tx, ty);
+        if (pierce) { ctx.shadowColor = heat(liveB); ctx.shadowBlur = 6 * DPR; ctx.fillStyle = heat(liveB); ctx.fillText(e.hp, tx, ty); ctx.shadowBlur = 0; }
+        else { ctx.fillStyle = COL.chalk; ctx.fillText(e.hp, tx, ty); }
       }
       ctx.restore();
     }
@@ -4724,8 +4735,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const x of G.extras) {
       const c = heat(x.b), r = ballR(x.b) * bigK();
       if (G.pulling && G.player.hull > 0) { // a faint tether: the pull bends these too
-        ctx.globalAlpha = 0.2; ctx.strokeStyle = PICK.multi.color; ctx.lineWidth = 0.25; ctx.setLineDash([0.6, 1.4]);
-        ctx.beginPath(); ctx.moveTo(G.player.x, G.player.y); ctx.lineTo(x.x, x.y); ctx.stroke(); ctx.setLineDash([]);
+        pulseLine(x.x, x.y, G.player.x, G.player.y, PICK.multi.color, 0.3, 0.2, 40);
       }
       ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = c; ctx.lineCap = 'butt';
       for (let i = 1; i < x.trail.length; i++) {
@@ -4736,8 +4746,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 0.75; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x.x, x.y, r, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(x.x, x.y, r * 0.45, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = PICK.multi.color; ctx.lineWidth = 0.3; ctx.setLineDash([0.8, 0.6]); ctx.lineDashOffset = -G.time * 6;
-      ctx.beginPath(); ctx.arc(x.x, x.y, r + 0.9, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.lineDashOffset = 0;
+      tickRing(x.x, x.y, r + 1.3, 6, 0.8, PICK.multi.color, 0.9, 0.3, G.time * 3);
     }
 
     // kill flashes
@@ -4789,10 +4798,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
     // tether while pulling, to your ball only: it guides the catch (wingmen can't be caught)
     if (!G.attract && p.hull > 0 && G.pulling) for (const ball of G.balls.filter(o => !o.wing && (o.state === 'live' || (o.state === 'ember' && o.emberT > EMBER_WAIT)))) {
-      ctx.globalAlpha = 0.45 + Math.sin(G.time * 14) * 0.15; ctx.strokeStyle = ball.state === 'ember' ? COL.chalk : heat(ball.b); ctx.lineWidth = 0.35; ctx.setLineDash([1.5, 1.2]);
-      ctx.lineDashOffset = -G.time * 12;
-      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(ball.x, ball.y); ctx.stroke();
-      ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
+      pulseLine(ball.x, ball.y, p.x, p.y, ball.state === 'ember' ? COL.chalk : heat(ball.b), 0.7, 0.35, 45); // pulses run home along it
     }
 
     // player + catch ring (solid while pulling)
@@ -4804,8 +4810,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       // the ring only lights up while pulling, the only time it catches; a ball near the dim ring just flies through
       const zoneA = grab ? 0.75 + Math.sin(G.time * 10) * 0.2 : 0.18;
       ctx.globalAlpha = zoneA; ctx.strokeStyle = ball.state === 'live' ? bc : COL.chalk; ctx.lineWidth = grab ? 0.7 : 0.35;
-      if (!grab) ctx.setLineDash([1.2, 1.2]);
-      ctx.beginPath(); ctx.arc(p.x, p.y, shieldR, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      if (grab) { ctx.beginPath(); ctx.arc(p.x, p.y, shieldR, 0, Math.PI * 2); ctx.stroke(); }
+      else tickRing(p.x, p.y, shieldR + 0.6, 4, 1.2, ball.state === 'live' ? bc : COL.chalk, 0.5, 0.35, Math.PI / 4); // sight marks, not a dashed circle
 
       if (p.shield > 0 && !(p.shield < 0.8 && Math.floor(G.time * 12) % 2)) {
         const c = `rgb(${HEAT[0].join(',')})`, sr = PLAYER_R + 1.6 + Math.sin(G.time * 6) * 0.15;
@@ -4855,9 +4861,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (next && inputType === 'mouse' && aim) {
         const ball = next, dx = aim.x - ball.x, dy = aim.y - ball.y, l = Math.min(Math.hypot(dx, dy), 18);
         if (l > 1) {
-          ctx.globalAlpha = 0.35; ctx.strokeStyle = heat(0); ctx.lineWidth = 0.3; ctx.setLineDash([1, 1.4]);
-          ctx.beginPath(); ctx.moveTo(ball.x, ball.y); ctx.lineTo(ball.x + p.fx * l, ball.y + p.fy * l); ctx.stroke();
-          ctx.setLineDash([]); ctx.globalAlpha = 1;
+          pulseLine(ball.x, ball.y, ball.x + p.fx * l, ball.y + p.fy * l, heat(0), 0.5, 0.3, 25);
         }
       }
     }
@@ -4869,8 +4873,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     // an overloaded ball is tethered to you by a faint line, so it never reads as one of them
     if (!G.attract && p.hull > 0 && !G.pulling) for (const ball of G.balls) if (ball.state === 'ember') {
-      ctx.globalAlpha = 0.22; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3; ctx.setLineDash([1, 1.6]);
-      ctx.beginPath(); ctx.moveTo(ball.x, ball.y); ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      pulseLine(ball.x, ball.y, p.x, p.y, COL.chalk, 0.3, 0.25, 15);
     }
     // balls
     for (const ball of G.balls) {
