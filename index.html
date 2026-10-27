@@ -261,7 +261,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       <li><b>↶</b><span>Hold pull to bend the ball toward you. It keeps its speed, so a charged ball curves wider. Stand behind a crowd and drag the ball through it.</span></li>
       <li><b>×</b><span>Every kill raises your score multiplier, and kills in the same throw raise it faster. Getting hit or overloading resets it.</span></li>
       <li><b>◇</b><span>The ball is only caught while you're pulling; otherwise it flies straight through your ship. Catch it after 8 or more bounces, or chain 10 kills in one throw, to gain a shield that blocks one hit.</span></li>
-      <li><b>⁂</b><span>Beating a boss wins a wingman: a smaller ball, with no halo, that follows every throw. Pull bends it but can't catch it; it comes home when you catch yours, and its overloads don't cost your multiplier. If it's home while your ball is out, starting a pull sends it back out at your aim.</span></li>
+      <li><b>⁂</b><span>Beating a boss wins a wingman: a smaller ball, with no halo, that follows every throw. Pull bends it but can't catch it; it comes home when you catch yours. It never overloads on its own, however hot: when your ball overloads, every wingman goes up with it, then they wait at home until your ball is back in hand. If it's home while your ball is out, starting a pull sends it back out at your aim.</span></li>
       <li><b>◆</b><span>Hit the capsules with the ball to power up; each icon is a different power. The more charge the ball has, the longer or stronger the power-up.</span></li>
       <li><b>+1</b><span>Score milestones repair one hull point, up to your hull's cap (3 to start; beating the Serpent raises it). The next milestone is shown under your hull.</span></li>
       <li><b>15</b><span>At 15 bounces it starts to overload: after 2 seconds at full speed (every kill resets the countdown), its next bounce blows it. It explodes, your multiplier resets, and the ball is out of play until it drifts back to you. Fly over to grab it sooner.</span></li>
@@ -3395,6 +3395,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ball.state = ball.wing ? 'return' : 'ember'; ball.emberT = 0; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.vx *= 0.25; ball.vy *= 0.25;
     G.freeze = Math.max(G.freeze, 0.12);
     shake(3.6); sfx.overload();
+    if (!ball.wing) for (const o of G.balls) { // your ball takes every wingman with it, whatever their charge
+      if (o.wing && o.state === 'live') overload(o);
+      else if (o.wing && o.state === 'queued') o.state = 'held';
+    }
   }
 
   function catchBall(ball) {
@@ -3697,7 +3701,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateBalls(dt) {
     // pulling needs your ball out of your hands; then it bends every ball out and hurries overloaded ones home
     const pulling = pullHeld() && !anyHeld() && G.balls.some(o => o.state === 'live' || o.state === 'ember');
-    if (pulling && !G.pulling) { sfx.pull(); throwWings(); }
+    if (pulling && !G.pulling) { sfx.pull(); if (G.balls[0].state !== 'ember') throwWings(); } // after an overload the wingmen wait for your ball
     if (!pulling) for (const o of G.balls) o.noPull = false;
     G.pulling = pulling;
     G.balls.forEach((ball, i) => updateBall(ball, dt, pulling, i)); // a ball in hand sits in its own slot
@@ -3764,7 +3768,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ball.noCatch -= dt;
     // topped out, a ball lights a FUSE_TIME countdown and keeps playing at full speed; once it runs out the ball is
     // primed and its next bounce overloads it (chargeBounce). Kills refill it. Overdrive and bonus rounds never overload.
-    if (ball.b >= MAX_CHARGE && !safeRound() && !(G.powers.over > 0)) {
+    // Wingmen never light a fuse of their own: they go up when your ball does (overload).
+    if (ball.b >= MAX_CHARGE && !ball.wing && !safeRound() && !(G.powers.over > 0)) {
       if (!ball.lit) { ball.lit = true; ball.fuse = FUSE_TIME; ball.beep = 0; }
       ball.fuse = Math.max(0, ball.fuse - dt); ball.beep -= dt;
       if (ball.beep <= 0) { ball.beep = 0.07 + 0.28 * ball.fuse / FUSE_TIME; sfx.fuse(1 - ball.fuse / FUSE_TIME, ball.x); }
