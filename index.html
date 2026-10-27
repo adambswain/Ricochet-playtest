@@ -2184,6 +2184,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const bounce = (nx, ny, rest = 1) => { const dot = ball.vx * nx + ball.vy * ny; if (dot >= 0) return false; ball.vx -= 2 * dot * nx; ball.vy -= 2 * dot * ny; chargeBounce(ball); return true; };
     if (ball.x < R.x0 + r) { ball.x = R.x0 + r; bounce(1, 0); } else if (ball.x > R.x0 + R.w - r) { ball.x = R.x0 + R.w - r; bounce(-1, 0); }
     if (ball.state !== 'live') return;
+    // Hard containment under the top wall and inside the rounded corners: a fast ball can slip through the thin arch
+    // segments, and outside them the segment test would only push it further out, into a dead pocket above the arch.
+    const top = TB.top * R.h, cr = TB.arch * R.w, cy = top + cr;
+    if (ball.y < top + r) { ball.y = top + r; bounce(0, 1); }
+    for (const cx of [R.x0 + cr, R.x0 + R.w - cr]) {
+      if (ball.y >= cy || (cx < R.x0 + R.w / 2 ? ball.x >= cx : ball.x <= cx)) continue;
+      const dx = ball.x - cx, dy = ball.y - cy, d = Math.hypot(dx, dy) || 1e-6;
+      if (d > cr - r) { const nx = dx / d, ny = dy / d; ball.x = cx + nx * (cr - r); ball.y = cy + ny * (cr - r); bounce(-nx, -ny); }
+    }
+    if (ball.state !== 'live') return;
     for (const [ax, ay, bx, by, kind, idx] of tableSegs()) { // walls, lane guides and slingshots
       const ex = bx - ax, ey = by - ay, l2 = ex * ex + ey * ey, t = clamp(((ball.x - ax) * ex + (ball.y - ay) * ey) / l2, 0, 1);
       const qx = ax + ex * t, qy = ay + ey * t, dx = ball.x - qx, dy = ball.y - qy, d = Math.hypot(dx, dy);
