@@ -3547,18 +3547,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
   }
 
-  // A hot catch: a blast round the ship in the ball's colour (an overload's is red), sized by the charge. Its kills
-  // score at that charge and go on the throw's chain, so a hot catch in a crowd can finish a combo; it also clears
-  // enemy shots and hurts a boss it reaches.
+  // A hot catch: a blast round the ship in the ball's colour (an overload's is red), sized by the charge. It hits
+  // everything in reach with the ball's damage (1 + charge), like a strike: what that kills scores at that charge and
+  // goes on the throw's chain, so a hot catch in a crowd can finish a combo; tougher enemies are chipped, a Warden's
+  // shield loses a layer, enemy shots inside it are cleared and a boss it reaches takes the same damage.
   function catchBlast(ball, b, defused) {
     const p = G.player, c = heat(b);
     const rad = BLAST_R * (defused ? CATCH_BLAST[CATCH_BLAST.length - 1] : CATCH_BLAST[Math.min(b, MAX_CHARGE - 1) - CATCH_BLAST_AT]);
+    const dmg = 1 + b;
     for (let i = G.enemies.length - 1; i >= 0; i--) {
       const e = G.enemies[i];
-      if (!isStone(e) && Math.hypot(e.x - p.x, e.y - p.y) < rad + e.r) kill(i, b, 0, ball);
+      if (isStone(e) || Math.hypot(e.x - p.x, e.y - p.y) >= rad + e.r) continue;
+      if (isImmune(e)) { if (e.wl > 0) popShield(e); continue; }
+      if (e.hp <= dmg) kill(i, b, 0, ball);
+      else { e.hp -= dmg; e.flash = 0.12; e.hitCd = 0.12; }
     }
     for (let i = G.bullets.length - 1; i >= 0; i--) if (Math.hypot(G.bullets[i].x - p.x, G.bullets[i].y - p.y) < rad) G.bullets.splice(i, 1);
-    blastBoss(p.x, p.y, rad, defused ? 4 : 2);
+    blastBoss(p.x, p.y, rad, dmg);
     ring(p.x, p.y, PLAYER_R, rad, 0.4, c, 1.2); ring(p.x, p.y, PLAYER_R, rad * 0.7, 0.3, COL.chalk, 0.7);
     burst(p.x, p.y, 24 + b * 2, c, 50 + b * 3, 0.7, 0.5);
     gridImpulse(p.x, p.y, rad * 1.4, 120 + b * 6); shake(1 + b * 0.08);
@@ -4833,26 +4838,33 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (thrust > 0.1 && Math.random() < 0.7) { ctx.beginPath(); ctx.moveTo(-R0 * 0.55, R0 * 0.3); ctx.lineTo(-R0 * (0.95 + thrust * 0.6), 0); ctx.lineTo(-R0 * 0.55, -R0 * 0.3); ctx.stroke(); }
         ctx.restore(); ctx.globalAlpha = 1;
       } else {
-      // engine flame: always a pilot light, longer and brighter with speed
-      const fl = R0 * (0.35 + thrust * 1.5) * flick, fx0 = -R0 * 0.5;
-      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.45 + thrust * 0.5) * blink;
-      ctx.fillStyle = `rgb(${HEAT[1].join(',')})`;
-      ctx.beginPath(); ctx.moveTo(fx0, R0 * 0.32); ctx.lineTo(fx0 - fl, 0); ctx.lineTo(fx0, -R0 * 0.32); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = COL.chalk;
-      ctx.beginPath(); ctx.moveTo(fx0, R0 * 0.14); ctx.lineTo(fx0 - fl * 0.55, 0); ctx.lineTo(fx0, -R0 * 0.14); ctx.closePath(); ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-      // hull
-      ctx.globalAlpha = blink;
-      ctx.beginPath();
-      ctx.moveTo(R0 * 1.35, 0); ctx.lineTo(-R0 * 0.2, R0 * 0.42); ctx.lineTo(-R0 * 0.95, R0 * 1.0); ctx.lineTo(-R0 * 0.5, 0);
-      ctx.lineTo(-R0 * 0.95, -R0 * 1.0); ctx.lineTo(-R0 * 0.2, -R0 * 0.42); ctx.closePath();
-      ctx.fillStyle = grab ? heat(hot.b) : COL.ink; ctx.fill();
-      ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.55; ctx.lineJoin = 'round'; ctx.stroke();
-      // cockpit and wing accents
-      ctx.strokeStyle = `rgb(${HEAT[0].join(',')})`; ctx.lineWidth = 0.3; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(R0 * 0.85, 0); ctx.lineTo(R0 * 0.25, 0);
-      ctx.moveTo(-R0 * 0.3, R0 * 0.5); ctx.lineTo(-R0 * 0.75, R0 * 0.85);
-      ctx.moveTo(-R0 * 0.3, -R0 * 0.5); ctx.lineTo(-R0 * 0.75, -R0 * 0.85); ctx.stroke();
+      // The interceptor: a fork-nosed fuselage that cradles the ball, swept wings with panel lines, a cockpit, and two
+      // engine pods whose flames lengthen with speed. It banks (narrows) when sliding sideways.
+      const lat = (Math.cos(a) * (p.mvy || 0) - Math.sin(a) * (p.mvx || 0)) / PLAYER_SPEED;
+      ctx.scale(1.15, 1.15 * (1 - 0.2 * Math.min(1, Math.abs(lat)))); // drawn a touch bigger than its hitbox, for presence
+      const cool = `rgb(${HEAT[0].join(',')})`, gold = `rgb(${HEAT[1].join(',')})`, fl = R0 * (0.25 + thrust * 1.1) * flick;
+      ctx.globalCompositeOperation = 'lighter';
+      for (const sy of [-1, 1]) { // the pods' flames: a pilot light, longer and brighter with speed
+        const y = sy * R0 * 0.62, x0 = -R0 * 0.95;
+        ctx.globalAlpha = (0.45 + thrust * 0.5) * blink; ctx.fillStyle = gold;
+        ctx.beginPath(); ctx.moveTo(x0, y - R0 * 0.13); ctx.lineTo(x0 - fl, y); ctx.lineTo(x0, y + R0 * 0.13); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.moveTo(x0, y - R0 * 0.06); ctx.lineTo(x0 - fl * 0.55, y); ctx.lineTo(x0, y + R0 * 0.06); ctx.closePath(); ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = blink;
+      const body = grab ? heat(hot.b) : COL.ink;
+      ctx.strokeStyle = COL.chalk; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      for (const sy of [-1, 1]) { // swept wings, under the fuselage
+        ctx.beginPath(); ctx.moveTo(R0 * 0.3, sy * R0 * 0.32); ctx.lineTo(-R0 * 0.6, sy * R0 * 1.05); ctx.lineTo(-R0 * 0.92, sy * R0 * 1.02); ctx.lineTo(-R0 * 0.5, sy * R0 * 0.28); ctx.closePath();
+        ctx.fillStyle = body; ctx.fill(); ctx.lineWidth = 0.4; ctx.stroke();
+        ctx.globalAlpha = 0.5 * blink; ctx.lineWidth = 0.2; ctx.beginPath(); ctx.moveTo(-R0 * 0.05, sy * R0 * 0.42); ctx.lineTo(-R0 * 0.62, sy * R0 * 0.92); ctx.stroke(); ctx.globalAlpha = blink; // a panel line
+        ctx.beginPath(); ctx.rect(-R0 * 0.98, sy * R0 * 0.62 - R0 * 0.15, R0 * 0.62, R0 * 0.3); // the engine pod
+        ctx.fillStyle = body; ctx.fill(); ctx.lineWidth = 0.35; ctx.stroke();
+      }
+      ctx.beginPath(); // the fuselage, its nose forked into a cradle for the ball
+      for (const [x, y] of [[1.45, -0.38], [1.05, -0.15], [0.95, 0], [1.05, 0.15], [1.45, 0.38], [0.55, 0.36], [-0.55, 0.3], [-0.82, 0.12], [-0.82, -0.12], [-0.55, -0.3], [0.55, -0.36]]) ctx.lineTo(R0 * x, R0 * y);
+      ctx.closePath(); ctx.fillStyle = body; ctx.fill(); ctx.lineWidth = 0.5; ctx.stroke();
+      ctx.globalAlpha = 0.45 * blink; ctx.lineWidth = 0.2; ctx.beginPath(); ctx.moveTo(-R0 * 0.1, 0); ctx.lineTo(-R0 * 0.75, 0); ctx.stroke(); // the spine
+      ctx.globalAlpha = 0.85 * blink; ctx.fillStyle = cool; ctx.beginPath(); ctx.ellipse(R0 * 0.28, 0, R0 * 0.3, R0 * 0.14, 0, 0, Math.PI * 2); ctx.fill(); // the cockpit
       ctx.restore();
       ctx.globalAlpha = 1;
       }
