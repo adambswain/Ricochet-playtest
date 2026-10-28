@@ -1463,12 +1463,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       float(p.x, p.y - 8, 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
       for (const e of G.enemies) if (e.bee || e.type === 'egg' || e.type === 'wax') e.gone = true; // the swarm dies with its queen
     } else if (B.kind === 'serpent') { // the Serpent's reward: one more hull slot, and the hull repaired to full
-      const p = G.player; G.hullMax = Math.min(HULL_MAX + 2, (G.hullMax || HULL_MAX) + 1); p.hull = G.hullMax;
-      float(p.x, p.y - 8, 'Hull +1 slot · repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
+      const p = G.player, more = (G.hullMax || HULL_MAX) < HULL_MAX + 2; G.hullMax = Math.min(HULL_MAX + 2, (G.hullMax || HULL_MAX) + 1); p.hull = G.hullMax;
+      float(p.x, p.y - 8, more ? 'Hull +1 slot · repaired' : 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
     } else if (G.balls.length < BALLS_MAX) { // the wreck drops another ball (a wingman): fly over to grab it
       const nb = Object.assign(makeBall(), { state: 'ember', fresh: true, wing: true, x: clamp(B.x, 6, AW - 6), y: clamp(B.y, 6, AH - 6), vx: 0, vy: 0 });
       G.balls.push(nb);
       float(nb.x, nb.y - 7, G.balls.length === 2 ? 'Second ball' : 'Third ball', heat(0), 4.4); // the next wave's banner says what to do
+    }
+    if (loopOf(G.wave) > 0 && B.kind !== 'hive' && B.kind !== 'serpent') { // later loops: every boss repairs you to full (those two already do)
+      const p = G.player; p.hull = G.hullMax || HULL_MAX;
+      float(p.x, p.y - 8, 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
     }
     for (const bm of G.bombs) burst(bm.x, bm.y, 8, COL.threat, 20, 0.5, 0.3);
     G.bombs = []; G.boss = null;
