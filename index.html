@@ -2184,7 +2184,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       shapePath(look); ctx.fillStyle = COL.ink; ctx.fill();
       ctx.globalAlpha = br.flash > 0 || lit ? 0.9 : 0.16; ctx.fillStyle = br.flash > 0 || lit ? COL.chalk : ECOL.dasher; ctx.fill(); ctx.globalAlpha = 1;
       strokeEnemy(look, lit ? COL.chalk : ECOL.dasher); enemyDetail(look, ECOL.dasher);
-      ctx.fillStyle = COL.chalk; ctx.font = `700 ${r * 0.85}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; if (br.hp > 1) ctx.fillText(br.hp, 0, r * 0.05);
+      ctx.fillStyle = COL.chalk; ctx.font = `700 ${r * 0.85}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; if (br.hp > 1) ctx.fillText(br.hp, 0, r * 0.35); // ahead of the notch (it docks nose down)
       ctx.restore();
     }
 
@@ -3977,7 +3977,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // slot: where a ball in hand sits (0 on the nose, then the wingtips)
   // A ball in hand sits on the ship: yours on the nose, wingmen on the wingtips.
   function seat(ball, slot) {
-    const p = G.player, a = Math.atan2(p.fy, p.fx) + [0, 2.4, -2.4][slot % 3], d = slot ? PLAYER_R + 0.6 : PLAYER_R + BALL_R0 + 0.3;
+    const p = G.player, a = Math.atan2(p.fy, p.fx) + [0, 1.25, -1.25][slot % 3], d = slot ? PLAYER_R + 1.4 : PLAYER_R + BALL_R0 + 0.3; // wingmen fly escort either side of the nose, clear of the wings
     ball.x = p.x + Math.cos(a) * d; ball.y = p.y + Math.sin(a) * d;
   }
   function updateBall(ball, dt, pulling, slot) {
@@ -4392,6 +4392,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   /* ---------- render ---------- */
+  // where a drifter's eye sits: pushed toward you (or straight ahead when there's no you to look at)
+  const drifterLook = e => {
+    const p = G && G.player, a = p && !G.attract ? Math.atan2(p.y - e.y, p.x - e.x) : Math.atan2(e.vy || 1, e.vx || 0), k = e.r * 0.22;
+    return [Math.cos(a) * k, Math.sin(a) * k];
+  };
   const dasherAngle = e => e.st === 'walk' ? Math.atan2(e.vy, e.vx) : Math.atan2(e.dy, e.dx);
   const wallNormal = e => [Math.PI / 2, Math.PI, -Math.PI / 2, 0][e.side];
   // Outline of an enemy around the origin, scaled by k (k > 1 draws the killable rim just outside it).
@@ -4407,12 +4412,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Outline an enemy (its path already built). Looks with drafting lines tell the types apart by line style:
   // dashed (splits), phantom (teleports), centre line (magnet), dotted (swarm), heavy (dasher), double (brute,
   // Warden) and section hatching (the armoured bulwark and wall turrets).
-  const LINE_DASH = { splitter: [1.2, 0.7], mini: [0.8, 0.5], blinker: [1.6, 0.4, 0.3, 0.4, 0.3, 0.4], magnet: [1.8, 0.5, 0.35, 0.5], swarm: [0.25, 0.45] };
+  const LINE_DASH = { splitter: [1.2, 0.7], blinker: [1.6, 0.4, 0.3, 0.4, 0.3, 0.4], magnet: [1.8, 0.5, 0.35, 0.5], swarm: [0.25, 0.45] };
   function strokeEnemy(e, stroke) {
     ctx.strokeStyle = stroke; ctx.lineWidth = 0.55;
     const dash = LINES && LINE_DASH[e.type];
     if (dash) { ctx.setLineDash(dash); ctx.stroke(); ctx.setLineDash([]); return; }
-    if (LINES && e.type === 'dasher') ctx.lineWidth = 0.9;
+    if (LINES && e.type === 'dasher') ctx.lineWidth = 0.65;
     ctx.stroke();
     if (!LINES) return;
     if (e.type === 'brute' || e.type === 'titan' || e.type === 'warden') { shapePath(e, 0.7); ctx.lineWidth = 0.3; ctx.stroke(); }
@@ -4422,6 +4427,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.stroke(); ctx.restore();
     }
   }
+  const DASHER_PTS = [[1.45, 0], [-0.8, 0.85], [-0.15, 0], [-0.8, -0.85]];
   function shapePath(e, k = 1) {
     const r = e.r * k;
     ctx.beginPath();
@@ -4429,9 +4435,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const s = e.r * 0.86 + (k - 1) * e.r, a = e.rot * 0.4;
       for (let i = 0; i < 4; i++) { const t = a + Math.PI / 4 + i * Math.PI / 2; ctx.lineTo(Math.cos(t) * s * Math.SQRT2, Math.sin(t) * s * Math.SQRT2); }
       ctx.closePath();
-    } else if (e.type === 'dasher') {
-      const a = dasherAngle(e);
-      for (let i = 0; i < 3; i++) { const t = a + i * Math.PI * 2 / 3; const rr = i === 0 ? r * 1.25 : r; ctx.lineTo(Math.cos(t) * rr, Math.sin(t) * rr); }
+    } else if (e.type === 'dasher') { // a spearhead: long nose, swept barbs, a notch at the back for the engine
+      const a = dasherAngle(e), cx = Math.cos(a), cy = Math.sin(a);
+      for (const [x, y] of DASHER_PTS) ctx.lineTo((cx * x - cy * y) * r, (cy * x + cx * y) * r);
+      ctx.closePath();
+    } else if (e.type === 'mini') { // a burr of spikes, spinning fast
+      for (let i = 0; i < 12; i++) { const t = e.rot * 3 + i * Math.PI / 6, rr = i % 2 ? r * 0.62 : r * 1.3; ctx.lineTo(Math.cos(t) * rr, Math.sin(t) * rr); }
       ctx.closePath();
     } else if (e.bee || e.type === 'egg') { // a bee is a little oval along its flight; an egg is a pale oval
       ctx.ellipse(0, 0, r * (e.bee ? 1.3 : 0.85), r * (e.bee ? 0.8 : 1.1), e.bee ? Math.atan2(e.vy, e.vx) : 0, 0, Math.PI * 2);
@@ -4491,8 +4500,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     } else if (e.type === 'egg') { // it glows and wobbles as it gets close to hatching
       const k = 1 - clamp(e.hatchT / EGG_HATCH, 0, 1);
       ctx.globalAlpha = 0.3 + 0.6 * k * (0.5 + 0.5 * Math.sin(G.time * (6 + 20 * k))); ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.45, e.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-    } else if (e.type === 'drifter' || e.type === 'mini') {
-      ctx.beginPath(); ctx.arc(0, 0, e.r * (0.42 + Math.sin(t * 4) * 0.06), 0, Math.PI * 2); ctx.stroke();
+    } else if (e.type === 'drifter') { // an eye that follows you, and blinks now and then
+      const [ox, oy] = drifterLook(e), shut = (t % 4.3) < 0.14 ? 0.12 : 1;
+      ctx.save(); ctx.translate(ox, oy); ctx.scale(1, shut);
+      ctx.globalAlpha = 0.85; ctx.lineWidth = 0.3; ctx.beginPath(); ctx.arc(0, 0, e.r * 0.42, 0, Math.PI * 2); ctx.stroke();
+      if (e.hp <= 1) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(ox * 0.6, oy * 0.6, e.r * 0.18, 0, Math.PI * 2); ctx.fill(); } // with health showing, the number is the pupil
+      ctx.restore();
+    } else if (e.type === 'mini') { // a hot little core, flickering
+      ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 17); ctx.beginPath(); ctx.arc(0, 0, e.r * 0.3, 0, Math.PI * 2); ctx.fill();
     } else if (e.type === 'brute' || e.type === 'titan') {
       const s = e.r * 0.36, a = -e.rot * 0.9; // spins inside the raised plate without crossing its edge
       ctx.beginPath();
@@ -4502,7 +4517,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       // core brightens as the lunge approaches, solid while winding up and dashing
       const ready = e.st === 'walk' ? clamp(1 - e.stT / 1.2, 0, 1) : 1;
       ctx.globalAlpha = 0.35 + ready * 0.65 * (e.st === 'walk' ? 0.6 + 0.4 * Math.sin(t * (6 + ready * 20)) : 1);
-      ctx.beginPath(); ctx.arc(0, 0, e.r * 0.32, 0, Math.PI * 2); ctx.fill();
+      const da = dasherAngle(e); ctx.beginPath(); ctx.arc(Math.cos(da) * e.r * 0.3, Math.sin(da) * e.r * 0.3, e.r * 0.28, 0, Math.PI * 2); ctx.fill();
     } else if (e.type === 'splitter') {
       const ax = Math.cos(e.rot), ay = Math.sin(e.rot), nx = -ay, ny = ax, dmg = 1 - e.hp / (e.maxHp || e.hp);
       ctx.beginPath(); ctx.moveTo(ax * e.r * 0.55, ay * e.r * 0.55); ctx.lineTo(-ax * e.r * 0.55, -ay * e.r * 0.55); ctx.stroke(); // seam
@@ -4566,11 +4581,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         dot(cx * band - cy * off * band, cy * band + cx * off * band, r * 0.05);
       }
       ctx.fill();
-    } else if (e.type === 'dasher') { // a spine to the nose and two engine ticks at the back
-      const a = dasherAngle(e), cx = Math.cos(a), cy = Math.sin(a);
-      ctx.globalAlpha = 0.6; ctx.lineWidth = 0.25; ctx.beginPath(); ctx.moveTo(cx * r * 0.5, cy * r * 0.5); ctx.lineTo(cx * r * 1.1, cy * r * 1.1);
-      for (const sg of [-1, 1]) { const q = a + sg * Math.PI * 2 / 3; ctx.moveTo(Math.cos(q) * r * 0.62, Math.sin(q) * r * 0.62); ctx.lineTo(Math.cos(q) * r * 0.92 - cx * r * 0.25, Math.sin(q) * r * 0.92 - cy * r * 0.25); }
-      ctx.stroke();
+    } else if (e.type === 'dasher') { // a spine to the nose, and an engine in the notch that pulses, then roars as it lunges
+      const a = dasherAngle(e), cx = Math.cos(a), cy = Math.sin(a), nx = -cy, ny = cx;
+      ctx.globalAlpha = 0.6; ctx.lineWidth = 0.25; ctx.beginPath(); ctx.moveTo(cx * r * 0.55, cy * r * 0.55); ctx.lineTo(cx * r * 1.3, cy * r * 1.3); ctx.stroke();
+      const ready = e.st === 'walk' ? clamp(1 - e.stT / 1.2, 0, 1) : 1;
+      const L = r * (e.st === 'dash' ? 1.3 : e.st === 'wind' ? 0.9 + 0.35 * Math.random() : 0.5 + 0.3 * ready + 0.15 * Math.sin(t * 14)), bx = -cx * r * 0.22, by = -cy * r * 0.22, w = r * 0.24;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.55; ctx.beginPath(); ctx.moveTo(bx + nx * w, by + ny * w); ctx.lineTo(bx - cx * L, by - cy * L); ctx.lineTo(bx - nx * w, by - ny * w); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 0.8; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.moveTo(bx + nx * w * 0.45, by + ny * w * 0.45); ctx.lineTo(bx - cx * L * 0.55, by - cy * L * 0.55); ctx.lineTo(bx - nx * w * 0.45, by - ny * w * 0.45); ctx.closePath(); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = col;
     } else if (e.type === 'magnet') { // pole caps at both tips, and a field arc either side
       ctx.globalAlpha = 0.85; ctx.beginPath();
       for (const sy of [-1, 1]) { ctx.moveTo(0, sy * r * 1.2); ctx.lineTo(r * 0.24, sy * r * 0.92); ctx.lineTo(-r * 0.24, sy * r * 0.92); ctx.closePath(); }
@@ -4869,6 +4888,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (e.hp > 1 && !VEC) {
         ctx.font = `700 ${e.r * 0.85}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         let tx = 0, ty = e.r * 0.05;
+        if (e.type === 'drifter') { const [ox, oy] = drifterLook(e); tx += ox; ty += oy; }
+        if (e.type === 'dasher') { const a = dasherAngle(e); tx += Math.cos(a) * e.r * 0.3; ty += Math.sin(a) * e.r * 0.3; } // in the body, ahead of the notch
         if (e.type === 'turret') { const n = wallNormal(e); tx += Math.cos(n) * e.r * 0.45; ty += Math.sin(n) * e.r * 0.45; ctx.font = `700 ${e.r * 0.7}px ${FONT}`; }
         if (pierce) { ctx.shadowColor = heat(liveB); ctx.shadowBlur = 6 * DPR; ctx.fillStyle = heat(liveB); ctx.fillText(e.hp, tx, ty); ctx.shadowBlur = 0; }
         else { ctx.fillStyle = COL.chalk; ctx.fillText(e.hp, tx, ty); }
@@ -5031,9 +5052,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       // The interceptor: a fork-nosed fuselage that cradles the ball, swept wings with panel lines, a cockpit, and two
       // engine pods whose flames lengthen with speed. It banks (narrows) when sliding sideways.
       const lat = (Math.cos(a) * (p.mvy || 0) - Math.sin(a) * (p.mvx || 0)) / PLAYER_SPEED;
-      ctx.scale(1.15, 1.15 * (1 - 0.2 * Math.min(1, Math.abs(lat)))); // drawn a touch bigger than its hitbox, for presence
+      ctx.scale(1.22, 1.22 * (1 - 0.2 * Math.min(1, Math.abs(lat)))); // drawn a touch bigger than its hitbox, for presence
       const cool = `rgb(${HEAT[0].join(',')})`, gold = `rgb(${HEAT[1].join(',')})`, fl = R0 * (0.25 + thrust * 1.1) * flick;
       ctx.globalCompositeOperation = 'lighter';
+      const glow = ctx.createRadialGradient(-R0 * 0.2, 0, 0, -R0 * 0.2, 0, R0 * 2.1); // a soft pool of engine light under the ship
+      glow.addColorStop(0, `rgba(${HEAT[0].join(',')},${0.32 + thrust * 0.12})`); glow.addColorStop(1, `rgba(${HEAT[0].join(',')},0)`);
+      ctx.globalAlpha = blink; ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(-R0 * 0.2, 0, R0 * 2.1, 0, Math.PI * 2); ctx.fill();
       for (const sy of [-1, 1]) { // the pods' flames: a pilot light, longer and brighter with speed
         const y = sy * R0 * 0.62, x0 = -R0 * 0.95;
         ctx.globalAlpha = (0.45 + thrust * 0.5) * blink; ctx.fillStyle = gold;
@@ -5041,18 +5065,19 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.moveTo(x0, y - R0 * 0.06); ctx.lineTo(x0 - fl * 0.55, y); ctx.lineTo(x0, y + R0 * 0.06); ctx.closePath(); ctx.fill();
       }
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = blink;
-      const body = grab ? heat(hot.b) : COL.ink;
+      const body = grab ? heat(hot.b) : COL.ink, tint = grab ? null : cool;
+      const hull = () => { ctx.fillStyle = body; ctx.fill(); if (tint) { ctx.globalAlpha = 0.28 * blink; ctx.fillStyle = tint; ctx.fill(); ctx.globalAlpha = blink; } }; // dark, tinted with the ship's own colour
       ctx.strokeStyle = COL.chalk; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
       for (const sy of [-1, 1]) { // swept wings, under the fuselage
         ctx.beginPath(); ctx.moveTo(R0 * 0.3, sy * R0 * 0.32); ctx.lineTo(-R0 * 0.6, sy * R0 * 1.05); ctx.lineTo(-R0 * 0.92, sy * R0 * 1.02); ctx.lineTo(-R0 * 0.5, sy * R0 * 0.28); ctx.closePath();
-        ctx.fillStyle = body; ctx.fill(); ctx.lineWidth = 0.4; ctx.stroke();
+        hull(); ctx.lineWidth = 0.5; ctx.stroke();
         ctx.globalAlpha = 0.5 * blink; ctx.lineWidth = 0.2; ctx.beginPath(); ctx.moveTo(-R0 * 0.05, sy * R0 * 0.42); ctx.lineTo(-R0 * 0.62, sy * R0 * 0.92); ctx.stroke(); ctx.globalAlpha = blink; // a panel line
         ctx.beginPath(); ctx.rect(-R0 * 0.98, sy * R0 * 0.62 - R0 * 0.15, R0 * 0.62, R0 * 0.3); // the engine pod
-        ctx.fillStyle = body; ctx.fill(); ctx.lineWidth = 0.35; ctx.stroke();
+        hull(); ctx.lineWidth = 0.42; ctx.stroke();
       }
       ctx.beginPath(); // the fuselage, its nose forked into a cradle for the ball
       for (const [x, y] of [[1.45, -0.38], [1.05, -0.15], [0.95, 0], [1.05, 0.15], [1.45, 0.38], [0.55, 0.36], [-0.55, 0.3], [-0.82, 0.12], [-0.82, -0.12], [-0.55, -0.3], [0.55, -0.36]]) ctx.lineTo(R0 * x, R0 * y);
-      ctx.closePath(); ctx.fillStyle = body; ctx.fill(); ctx.lineWidth = 0.5; ctx.stroke();
+      ctx.closePath(); hull(); ctx.lineWidth = 0.6; ctx.stroke();
       ctx.globalAlpha = 0.45 * blink; ctx.lineWidth = 0.2; ctx.beginPath(); ctx.moveTo(-R0 * 0.1, 0); ctx.lineTo(-R0 * 0.75, 0); ctx.stroke(); // the spine
       ctx.globalAlpha = 0.85 * blink; ctx.fillStyle = cool; ctx.beginPath(); ctx.ellipse(R0 * 0.28, 0, R0 * 0.3, R0 * 0.14, 0, 0, Math.PI * 2); ctx.fill(); // the cockpit
       ctx.restore();
