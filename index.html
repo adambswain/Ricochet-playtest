@@ -182,7 +182,22 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; t
 .rules li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: baseline; }
 .rules b { font-family: var(--display); font-weight: 700; font-size: 13px; color: var(--chalk); letter-spacing: 0.06em; }
 .rules em { font-style: normal; color: var(--chalk); }
-#ov-powers { z-index: 5; background: var(--ink); } /* opaque: the screen it opened from stays hidden behind it */
+#ov-powers, .page { z-index: 5; background: var(--ink); } /* opaque: the screen it opened from stays hidden behind it */
+/* The title: the game plays itself behind a lighter veil; the logo, tagline and Launch lead, with How to play and
+   Power-ups as two pages, and the settings tucked into a compact block at the bottom. */
+#ov-title { background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--ink) 35%, transparent), color-mix(in srgb, var(--ink) 80%, transparent)); }
+:root .panel.title { max-width: 40rem; align-items: center; text-align: center; gap: 16px; border: 0; padding: 0; background: none; } /* no box: the game shows through */
+.panel.title .logo { font-size: clamp(44px, min(14vw, 19vh), 128px); white-space: nowrap; filter: drop-shadow(0 4px 0 color-mix(in srgb, var(--ink) 80%, transparent)); }
+@media (max-height: 520px) { .panel.title { gap: 10px; } .panel.title .tag { font-size: 13px; } .btn.launch { padding: 10px 40px; } }
+.panel.title .tag { max-width: 28rem; text-shadow: 0 1px 6px var(--ink), 0 0 2px var(--ink); }
+.btn.launch { align-self: center; font-size: 22px; padding: 14px 44px; }
+.hint { margin: -4px 0 0; font-size: 12px; color: var(--dim); text-shadow: 0 0 4px var(--ink); }
+.hintTouch { display: none; }
+@media (pointer: coarse) { .hintKeys { display: none; } .hintTouch { display: inline; } }
+.links { display: flex; gap: 10px; justify-content: center; }
+.linkbtn.big2 { font-size: 13px; padding: 6px 14px; margin: 0; background: color-mix(in srgb, var(--ink) 70%, transparent); }
+.settings { align-self: stretch; max-width: 30rem; width: 100%; margin-inline: auto; box-sizing: border-box; text-align: left; display: grid; gap: 8px; margin-top: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 4px; background: color-mix(in srgb, var(--ink) 75%, transparent); }
+.settings .ctrl { border-top: 0; padding-top: 0; }
 .powers { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; font-size: 13px; line-height: 1.5; color: var(--dim); }
 .powers li { display: grid; grid-template-columns: 54px 1fr; gap: 12px; align-items: center; }
 .powers canvas { position: static; inset: auto; width: 54px; height: 32px; } /* not the game's full-screen canvas rule */
@@ -259,8 +274,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 </footer>
 
 <section class="ov" id="ov-title">
-  <div class="panel">
+  <div class="panel title">
     <h1 class="logo">RICOCHET</h1>
+    <p class="tag">Start with one ball. Each bounce adds 1 damage, at 15 it becomes unstable. Kill enemies to delay overload. Catch it to throw it again.</p>
+    <button class="btn launch" id="play" type="button">Launch</button>
+    <p class="hint"><span class="hintKeys">WASD to fly · click or Space to throw · hold to pull</span><span class="hintTouch">Left thumb flies · right thumb holds to pull and swipes to throw</span></p>
+    <div class="links"><button class="linkbtn big2" id="howBtn" type="button">How to play</button><button class="linkbtn big2 powersBtn" type="button">Power-ups</button></div>
+    <div class="settings">
+    <div class="ctrl"><div><span>Start at</span> <select class="linkbtn" id="startWave" aria-label="Start at wave"></select> <span class="startNote" id="startNote" hidden>Practice run: doesn't count toward Best</span></div></div>
+    <div class="ctrl" id="titleSound"><div><span>Sound</span> </div></div>
+    <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
+    <div class="ctrl"><div><span>Look</span> <button class="linkbtn lookBtn" data-look="neon" type="button">Neon</button> <button class="linkbtn lookBtn" data-look="cabinet" type="button">Cabinet</button> <button class="linkbtn lookBtn" data-look="bone" type="button">Bone</button> <button class="linkbtn lookBtn" data-look="blueprint" type="button">Blueprint</button> <button class="linkbtn lookBtn" data-look="blueprint2" type="button">Blueprint 2</button></div></div>
+    </div>
+  </div>
+</section>
+<section class="ov page" id="ov-how" hidden>
+  <div class="panel">
+    <p class="big">How to play</p>
     <p class="tag">Start with one ball. Each bounce adds 1 damage, at 15 it becomes unstable. Kill enemies to delay overload. Catch it to throw it again.</p>
     <ul class="rules">
       <li><b>+1</b><span>Each bounce off a wall or obstacle adds 1 damage to your ball. Enemy health is written at its center. Enemies with no number have 1 health.</span></li>
@@ -276,11 +306,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       <div><span>Keyboard</span> · WASD or arrows to fly. Mouse click or Space: press to throw, hold to pull</div>
       <div><span>Mobile</span> · one thumb anywhere on the left half flies, the other on the right half holds to pull and swipes to throw. Landscape orientation is strongly recommended. <button class="linkbtn swapBtn" type="button">Move on left</button></div>
     </div>
-    <button class="btn" id="play" type="button">Launch</button>
-    <div class="ctrl"><div><span>Start at</span> <select class="linkbtn" id="startWave" aria-label="Start at wave"></select> <span class="startNote" id="startNote" hidden>Practice run: doesn't count toward Best</span></div></div>
-    <div class="ctrl" id="titleSound"><div><span>Sound</span> </div></div>
-    <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
-    <div class="ctrl"><div><span>Look</span> <button class="linkbtn lookBtn" data-look="neon" type="button">Neon</button> <button class="linkbtn lookBtn" data-look="cabinet" type="button">Cabinet</button> <button class="linkbtn lookBtn" data-look="bone" type="button">Bone</button> <button class="linkbtn lookBtn" data-look="blueprint" type="button">Blueprint</button> <button class="linkbtn lookBtn" data-look="blueprint2" type="button">Blueprint 2</button></div></div>
+    <div class="btnrow"><button class="btn" id="howBack" type="button">Back</button></div>
   </div>
 </section>
 
@@ -5296,6 +5322,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     $('powersBack').focus({ preventScroll: true });
   }
   document.querySelectorAll('.powersBtn').forEach(b => b.addEventListener('click', () => { b.blur(); showPowers(true); }));
+  const showHow = on => { $('ov-how').hidden = !on; if (on) { $('ov-how').scrollTop = 0; $('howBack').focus({ preventScroll: true }); } else $('play').focus({ preventScroll: true }); };
+  $('howBtn').addEventListener('click', () => showHow(true));
+  $('howBack').addEventListener('click', () => showHow(false));
   $('powersBack').addEventListener('click', () => showPowers(false));
   document.addEventListener('fullscreenchange', syncFs); document.addEventListener('webkitfullscreenchange', syncFs);
   let laidOut = false; // set once start() has fitted the arena
@@ -5317,6 +5346,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (e.repeat) return;
     if (e.code === 'Space' && mode === 'play') spaceThrew = throwAtAim();
     if (e.code === 'Escape' && !$('ov-powers').hidden) { showPowers(false); return; }
+    if (e.code === 'Escape' && !$('ov-how').hidden) { showHow(false); return; }
     if (e.code === 'Escape' || e.code === 'KeyP') setPaused(mode === 'play');
     if (e.code === 'KeyM') { toggleMute(); keyNotice(muted ? 'Sound off · M to turn on' : 'Sound on'); }
     if (e.code === 'KeyN') { toggleMusic(); keyNotice(musicOn ? 'Music on' : 'Music off · N to turn on'); }
