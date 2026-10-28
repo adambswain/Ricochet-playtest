@@ -2408,7 +2408,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // back to him. When he dies he swells, his eyes go to X's, and he bursts.
   // Draw something solid into a buffer, then lay the finished picture down at opacity a: overlapping parts don't show
   // through each other the way they would if every shape were faded on its own.
-  let fadeBuf = null;
+  let fadeBuf = null, trailBuf = null;
   function faded(a, fn) {
     const main = ctx;
     if (!fadeBuf) fadeBuf = document.createElement('canvas');
@@ -5376,6 +5376,32 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function restorePalette(saved) {
     Object.assign(COL, saved.COL); Object.assign(ECOL, saved.ECOL); PICK_TYPES.forEach((k, i) => { PICK[k].color = saved.PICK[i]; });
   }
+  // A trail as one continuous ribbon: each point gets a left and right edge from the direction through it (mitred at
+  // corners, so a bounce bends the ribbon instead of breaking it into blocks), and each section is a quad sharing its
+  // edges with the next. width(k) and rgb(k) (its final colour, already faded) run from the tail (k near 0) to the head
+  // (k = 1). It's drawn into the trail layer (see the ball trails in drawScene), where overlaps keep the brighter value,
+  // so a sharp bounce that folds the ribbon over itself doesn't double up, and each quad is outlined in its own colour to
+  // close the hairline seams between them.
+  function trailRibbon(tr, width, rgb) {
+    const n = tr.length; if (n < 2) return;
+    const L = [], R = [];
+    for (let i = 0; i < n; i++) {
+      const a = tr[Math.max(0, i - 1)], b = tr[Math.min(n - 1, i + 1)];
+      let tx = b.x - a.x, ty = b.y - a.y, l = Math.hypot(tx, ty);
+      if (l < 1e-6) { const q = L[i - 1] && R[i - 1]; L.push(q ? L[i - 1] : [tr[i].x, tr[i].y]); R.push(q ? R[i - 1] : [tr[i].x, tr[i].y]); continue; }
+      tx /= l; ty /= l;
+      let m = 1; // stretch the edge at a corner so the ribbon keeps its width round the bend (capped for hairpins)
+      if (i > 0 && i < n - 1) { const sx = tr[i].x - a.x, sy = tr[i].y - a.y, sl = Math.hypot(sx, sy); if (sl > 1e-6) m = 1 / Math.max(0.45, Math.abs((sx * tx + sy * ty) / sl)); }
+      const hw = width((i + 1) / n) / 2 * m;
+      L.push([tr[i].x - ty * hw, tr[i].y + tx * hw]); R.push([tr[i].x + ty * hw, tr[i].y - tx * hw]);
+    }
+    ctx.lineWidth = 0.3; ctx.lineJoin = 'round';
+    for (let i = 1; i < n; i++) {
+      const c = rgb((i + 1) / n); if (c[0] + c[1] + c[2] < 3) continue;
+      ctx.fillStyle = ctx.strokeStyle = `rgb(${c.map(v => Math.round(Math.min(255, v))).join(',')})`;
+      ctx.beginPath(); ctx.moveTo(...L[i - 1]); ctx.lineTo(...L[i]); ctx.lineTo(...R[i]); ctx.lineTo(...R[i - 1]); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }
   function render() {
     VEC = !!(G && !G.attract && G.lastAsteroids === G.wave);
     const saved = VEC && vectorPalette();
@@ -5723,30 +5749,28 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
 
-    // ball trails
-    for (const ball of G.balls) {
-    const bc = heat(ball.b);
-    if (ball.state === 'live' && ball.trail.length > 1) {
-      const tr = ball.trail, n = tr.length, w = ballR(ball.b) * bigK() * 1.3 * (1 + ball.b * 0.04), a0 = 0.35 + ball.b * 0.025;
-      ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = bc; ctx.lineCap = 'butt'; // round caps overlap and bead under additive blending
-      for (let i = 1; i < n; i++) {
-        const k = i / n;
-        ctx.globalAlpha = k * a0; ctx.lineWidth = w * (0.4 + k * 0.6);
-        ctx.beginPath(); ctx.moveTo(tr[i - 1].x, tr[i - 1].y); ctx.lineTo(tr[i].x, tr[i].y); ctx.stroke();
-      }
-      if (ball.b >= WARN) { // white-hot core, fading in toward the ball
-        const heatIn = (ball.b - WARN + 1) / (MAX_CHARGE - WARN + 1);
-        ctx.strokeStyle = COL.chalk;
-        for (let i = 1; i < n; i++) {
-          const k = Math.max(0, (i / n - 0.35) / 0.65);
-          if (k <= 0) continue;
-          ctx.globalAlpha = k * k * 0.45 * heatIn; ctx.lineWidth = w * 0.3 * k;
-          ctx.beginPath(); ctx.moveTo(tr[i - 1].x, tr[i - 1].y); ctx.lineTo(tr[i].x, tr[i].y); ctx.stroke();
+    // ball trails: drawn into their own layer (opaque black, overlaps keep the brighter value), then added onto the scene
+    if (G.balls.some(b => b.state === 'live' && b.trail.length > 1)) {
+      const main = ctx;
+      if (!trailBuf) trailBuf = document.createElement('canvas');
+      if (trailBuf.width !== cvs.width || trailBuf.height !== cvs.height) { trailBuf.width = cvs.width; trailBuf.height = cvs.height; }
+      const tb = trailBuf.getContext('2d');
+      tb.setTransform(1, 0, 0, 1, 0, 0); tb.globalCompositeOperation = 'source-over'; tb.fillStyle = '#000'; tb.fillRect(0, 0, trailBuf.width, trailBuf.height);
+      tb.setTransform(main.getTransform()); tb.globalCompositeOperation = 'lighten';
+      ctx = tb;
+      try {
+        for (const ball of G.balls) {
+          if (ball.state !== 'live' || ball.trail.length < 2) continue;
+          const tr = ball.trail, w = ballR(ball.b) * bigK() * 1.3 * (1 + ball.b * 0.04), a0 = 0.35 + ball.b * 0.025;
+          const c = heat(ball.b).match(/\d+/g).map(Number), glow = k => c.map(v => v * k * a0);
+          trailRibbon(tr, k => w * (0.4 + k * 0.6), glow);
+          if (ball.b >= WARN) { // white-hot core, fading in toward the ball: the glow with white added on top
+            const heatIn = (ball.b - WARN + 1) / (MAX_CHARGE - WARN + 1), kk = k => Math.max(0, (k - 0.35) / 0.65), wh = hex(COL.chalk);
+            trailRibbon(tr, k => w * 0.3 * kk(k), k => glow(k).map((v, i) => v + wh[i] * kk(k) * kk(k) * 0.45 * heatIn));
+          }
         }
-      }
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1;
-    }
+      } finally { ctx = main; }
+      main.save(); main.setTransform(1, 0, 0, 1, 0, 0); main.globalCompositeOperation = 'lighter'; main.drawImage(trailBuf, 0, 0); main.restore();
     }
 
     // tether while pulling, to your ball only: it guides the catch (wingmen can't be caught)
