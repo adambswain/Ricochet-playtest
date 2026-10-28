@@ -109,6 +109,7 @@
   --display: "Saira Stencil One", "Arial Narrow", sans-serif; --mono: "Saira Condensed", "Arial Narrow", sans-serif;
   --arena-font: "Saira Condensed", "Arial Narrow", sans-serif;
   --corners: 0; --bloom: 0.3; --lines: 1; --ruler: 1;
+  --alert: 0.4; /* crisp lines, little glow: a boss alert is a frame and a few stripes, not a wash */
 }
 /* the new looks drop the tracked-out monospace micro-labels for labels in the look's own type */
 :root[data-look] .lbl { font-family: var(--display); font-size: 12px; letter-spacing: 0.03em; font-weight: 700; }
@@ -365,7 +366,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const tok = n => css.getPropertyValue(n).trim();
   const hex = h => { const v = parseInt(h.slice(1), 16); return [v >> 16 & 255, v >> 8 & 255, v & 255]; };
   const COL = {}, ECOL = {}, HEAT = [];
-  let FONT = '', CORNERS = true, BLOOM = 0.9, LINES = false, RULER = false;
+  let FONT = '', CORNERS = true, BLOOM = 0.9, LINES = false, RULER = false, ALERT = 1;
   let VEC = false; // the Asteroid Field's vector-monitor look is on this frame
   // Read the current look's tokens into the colour tables (again whenever the look changes).
   function readLook() {
@@ -377,6 +378,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   HEAT.splice(0, 3, hex(tok('--cool')), hex(tok('--gold')), hex(tok('--hot')));
   FONT = tok('--arena-font') || tok('--display'); CORNERS = tok('--corners') !== '0';
   BLOOM = parseFloat(tok('--bloom')) || 0; LINES = tok('--lines') === '1'; RULER = tok('--ruler') === '1';
+  ALERT = parseFloat(tok('--alert')) || 1; // how hard a boss alert washes the arena
   }
   const PICK = {
     multi: { letter: 'M', name: 'Multiball', tok: '--p-multi' },
@@ -1741,18 +1743,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function drawRedAlert(k) {
     const pulse = flashK ? 0.5 + 0.5 * Math.sin(G.time * Math.PI * 4) : 0.5, fadeIn = Math.min(1, k * 5), c = COL.threat; // steady with reduced flashes
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = (0.03 + 0.07 * pulse) * fadeIn; ctx.fillStyle = c; ctx.fillRect(0, 0, AW, AH);
+    ctx.globalAlpha = (0.03 + 0.07 * pulse) * fadeIn * ALERT * ALERT; ctx.fillStyle = c; ctx.fillRect(0, 0, AW, AH); // the wash fades fastest
     ctx.strokeStyle = c;
-    for (const [w, a] of [[4, 0.18], [1.6, 0.4], [0.5, 1]]) { ctx.globalAlpha = a * (0.35 + 0.65 * pulse) * fadeIn; ctx.lineWidth = w; ctx.strokeRect(0.3, 0.3, AW - 0.6, AH - 0.6); }
+    for (const [w, a] of [[4, 0.18 * ALERT], [1.6, 0.4 * ALERT], [0.5, 1]]) { ctx.globalAlpha = a * (0.35 + 0.65 * pulse) * fadeIn; ctx.lineWidth = w; ctx.strokeRect(0.3, 0.3, AW - 0.6, AH - 0.6); }
     const L = Math.min(AW, AH) * 0.12;
     [[0, 0, 1, 1], [AW, 0, -1, 1], [AW, AH, -1, -1], [0, AH, 1, -1]].forEach(([x, y, sx, sy], i) => { // corner lights, flashing in turn
       const on = flashK ? Math.floor(G.time * 6) % 4 === i || pulse > 0.85 : true;
       ctx.globalAlpha = (on ? 1 : 0.35) * fadeIn; ctx.strokeStyle = on ? COL.chalk : c; ctx.lineWidth = on ? 1.4 : 0.8;
       ctx.beginPath(); ctx.moveTo(x + sx * L, y + sy * 0.7); ctx.lineTo(x + sx * 0.7, y + sy * 0.7); ctx.lineTo(x + sx * 0.7, y + sy * L); ctx.stroke();
-      if (on) { ctx.globalAlpha = 0.35 * fadeIn; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + sx * 1.5, y + sy * 1.5, 2.6, 0, Math.PI * 2); ctx.fill(); }
+      if (on) { ctx.globalAlpha = 0.35 * fadeIn * ALERT; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + sx * 1.5, y + sy * 1.5, 2.6, 0, Math.PI * 2); ctx.fill(); }
     });
     ctx.globalCompositeOperation = 'source-over';
-    const h = 3.2, show = Math.min(1, k * 6, (1 - k) * 12 + 0.4); // hazard bars, scrolling
+    const h = 3.2 * (0.6 + 0.4 * ALERT), show = Math.min(1, k * 6, (1 - k) * 12 + 0.4) * (0.5 + 0.5 * ALERT); // hazard bars, scrolling
     for (const y0 of [0, AH - h]) {
       ctx.save(); ctx.beginPath(); ctx.rect(0, y0, AW, h); ctx.clip();
       ctx.globalAlpha = 0.18 * show; ctx.fillStyle = c; ctx.fillRect(0, y0, AW, h);
@@ -1770,9 +1772,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       [[0, 0], [AW, 0], [0, AH], [AW, AH]].forEach(([sx, sy], i) => {
         const dx = B.x - sx, dy = B.y - sy, dist = Math.hypot(dx, dy), a = Math.atan2(dy, dx) + (1 - lock) * 0.5 * Math.sin(G.time * (1.6 + i * 0.3) + i * 1.9);
         const w = 0.05 + 0.04 * (1 - lock), L = dist * 1.08;
-        ctx.globalAlpha = (0.07 + 0.1 * k) * (lock >= 1 && Math.floor(G.time * 12) % 2 ? 1.8 : 1);
+        ctx.globalAlpha = (0.07 + 0.1 * k) * (lock >= 1 && Math.floor(G.time * 12) % 2 ? 1.8 : 1) * (0.5 + 0.5 * ALERT);
         ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(a - w) * L, sy + Math.sin(a - w) * L); ctx.lineTo(sx + Math.cos(a + w) * L, sy + Math.sin(a + w) * L); ctx.closePath(); ctx.fill();
-        ctx.globalAlpha = 0.08 + 0.12 * k; ctx.beginPath(); ctx.arc(sx + Math.cos(a) * dist, sy + Math.sin(a) * dist, B.r * 0.2 * (1 + (1 - lock)), 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = (0.08 + 0.12 * k) * (0.5 + 0.5 * ALERT); ctx.beginPath(); ctx.arc(sx + Math.cos(a) * dist, sy + Math.sin(a) * dist, B.r * 0.2 * (1 + (1 - lock)), 0, Math.PI * 2); ctx.fill();
       });
       ctx.restore();
     }
@@ -4520,11 +4522,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const da = dasherAngle(e); ctx.beginPath(); ctx.arc(Math.cos(da) * e.r * 0.3, Math.sin(da) * e.r * 0.3, e.r * 0.28, 0, Math.PI * 2); ctx.fill();
     } else if (e.type === 'splitter') {
       const ax = Math.cos(e.rot), ay = Math.sin(e.rot), nx = -ay, ny = ax, dmg = 1 - e.hp / (e.maxHp || e.hp);
-      ctx.beginPath(); ctx.moveTo(ax * e.r * 0.55, ay * e.r * 0.55); ctx.lineTo(-ax * e.r * 0.55, -ay * e.r * 0.55); ctx.stroke(); // seam
-      if (dmg > 0) { // cracks branch off the seam, more and longer as it's hurt
+      ctx.beginPath(); for (const sg of [-1, 1]) { ctx.moveTo(sg * ax * e.r * 0.55, sg * ay * e.r * 0.55); ctx.lineTo(sg * ax * e.r * 0.32, sg * ay * e.r * 0.32); } ctx.stroke(); // seam, broken where the number sits
+      if (dmg > 0) { // cracks branch off the ends of the seam toward the rim, more and longer as it's hurt (clear of the number)
         ctx.globalAlpha = 1; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3;
         ctx.beginPath();
-        for (const [f, side, len] of [[0.25, 1, 0.5], [-0.3, -1, 0.45], [0.05, -1, 0.35], [-0.1, 1, 0.4]].slice(0, 1 + Math.floor(dmg * 4))) {
+        for (const [f, side, len] of [[0.45, 1, 0.5], [-0.5, -1, 0.45], [0.5, -1, 0.38], [-0.42, 1, 0.42]].slice(0, 1 + Math.floor(dmg * 4))) {
           const sx = ax * e.r * f, sy = ay * e.r * f, l = e.r * len * Math.min(1, dmg * 1.6);
           ctx.moveTo(sx, sy); ctx.lineTo(sx + (nx * side + ax * 0.3) * l * 0.6, sy + (ny * side + ay * 0.3) * l * 0.6);
           ctx.lineTo(sx + (nx * side - ax * 0.2) * l, sy + (ny * side - ay * 0.2) * l);
