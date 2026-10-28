@@ -412,6 +412,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const BALL_START_K = 1.1, BALL_TOP = (66 + 6.5 * MAX_CHARGE) * SPEED_K;
   const BALL_BASE = 66 * SPEED_K * BALL_START_K, BALL_STEP = (BALL_TOP - BALL_BASE) / MAX_CHARGE, BALL_R0 = 1.9, BALL_RSTEP = 0.13;
   const PLAYER_R = 2.6, CATCH_PAD = 2.6, PLAYER_SPEED = 76, NO_CATCH = 0.28;
+  // The ship, in units of PLAYER_R with the nose along +x (half outlines, mirrored): hull, canopy, and the canopy's ball
+  // lights [x, y, radius] (yours, then the two wingmen). Drawn SHIP_K times its hitbox scale.
+  const SHIP_K = 1.1;
+  const SHIP_HULL = [[2.0, 0], [1.4, 0.2], [0.95, 0.5], [0.35, 0.66], [-0.45, 1.38], [-0.32, 1.52], [-0.72, 1.5], [-0.9, 1.3], [-0.68, 0.86], [-0.85, 0.74], [-1.22, 0.7], [-1.22, 0.26], [-0.95, 0.22], [-0.95, 0]];
+  const SHIP_CANOPY = [[1.35, 0], [0.95, 0.38], [0.2, 0.6], [-0.55, 0.56], [-0.75, 0.34], [-0.75, 0]];
+  const SHIP_LIGHTS = [[0.62, 0, 0.36], [-0.3, 0.3, 0.22], [-0.3, -0.3, 0.22]];
   const PULL_TURN = 3.2 * SPEED_K * BALL_START_K; // radians per second the ball turns toward the ship while pulling
   const BLAST_R = 26, MULT_MAX = 10, CHAIN_STEP = 0.1; // each kill adds CHAIN_STEP × its place in this throw's chain
   // Power-up capsules: dropped by kills, collected only by the ball; charge sets duration (and shockwave size).
@@ -3561,7 +3567,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       x: p.x + dx * (PLAYER_R + BALL_R0 + 0.4), y: p.y + dy * (PLAYER_R + BALL_R0 + 0.4),
       vx: dx * BALL_BASE, vy: dy * BALL_BASE,
     });
-    keepIn(ball, BALL_R0);
+    keepIn(ball, BALL_R0); launched(ball);
     sfx.throw();
     G.balls.forEach((o, k) => { // wingmen follow down the same line, one after another
       if (!o.wing || o.state === 'live') return;
@@ -3650,7 +3656,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   function catchBall(ball) {
     const b = ball.b, p = G.player, defused = ball.b >= MAX_CHARGE && ball.lit;
-    ball.state = 'held'; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.trail = [];
+    docked(ball); ball.state = 'held'; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.trail = [];
     recallWings();
     for (const s of ptrs.values()) s.noTap = true; // releasing the pull finger must not throw
     if (touchAct) {
@@ -3978,6 +3984,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const EMBER_WAIT = 0.8, EMBER_HOME = 55, EMBER_PULL = 95; // an overloaded (or newly dropped) ball waits this long, then homes in (faster while pulling)
   // slot: where a ball in hand sits (0 on the nose, then the wingtips)
   // A ball in hand sits on the ship: yours on the nose, wingmen on the wingtips.
+  // A ball coming home to the ship: remember where from, so it streaks into its cockpit light (drawn with the ship).
+  function shipLight(i) { // where a ball's cockpit light is, in the arena
+    const p = G.player, a = Math.atan2(p.fy, p.fx), [x, y] = SHIP_LIGHTS[i] || SHIP_LIGHTS[0], k = PLAYER_R * SHIP_K;
+    return [p.x + (Math.cos(a) * x - Math.sin(a) * y) * k, p.y + (Math.sin(a) * x + Math.cos(a) * y) * k];
+  }
+  function docked(ball) { ball.dockT = G.time; ball.dfx = ball.x; ball.dfy = ball.y; }
+  // ...and one leaving it: a flash where it launches.
+  function launched(ball) { ring(ball.x, ball.y, 0.4, 3.6, 0.18, heat(0), 0.45); burst(ball.x, ball.y, 4, heat(0), 16, 0.4, 0.18); }
   function seat(ball, slot) {
     const p = G.player, a = Math.atan2(p.fy, p.fx) + [0, 1.25, -1.25][slot % 3], d = slot ? PLAYER_R + 1.4 : PLAYER_R + BALL_R0 + 0.3; // wingmen fly escort either side of the nose, clear of the wings
     ball.x = p.x + Math.cos(a) * d; ball.y = p.y + Math.sin(a) * d;
@@ -3989,12 +4003,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (ball.launchT > 0) { seat(ball, slot); return; }
       const dx = Math.cos(ball.la), dy = Math.sin(ball.la);
       Object.assign(ball, { state: 'live', noCatch: 1e9, x: p.x + dx * (PLAYER_R + BALL_R0 + 0.4), y: p.y + dy * (PLAYER_R + BALL_R0 + 0.4), vx: dx * BALL_BASE, vy: dy * BALL_BASE });
-      keepIn(ball, BALL_R0); sfx.throw();
+      keepIn(ball, BALL_R0); launched(ball); sfx.throw();
       return;
     }
     if (ball.state === 'return') { // a wingman flying home, through everything
       const dx = p.x - ball.x, dy = p.y - ball.y, d = Math.hypot(dx, dy);
-      if (d < PLAYER_R + 2 || p.hull <= 0) { ball.state = 'held'; return; }
+      if (d < PLAYER_R + 2 || p.hull <= 0) { docked(ball); ball.state = 'held'; return; }
       const sp = Math.min(WING_HOME, d / dt); ball.x += dx / d * sp * dt; ball.y += dy / d * sp * dt;
       return;
     }
@@ -4027,7 +4041,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         return true;
       });
       if (Math.hypot(ball.x - p.x, ball.y - p.y) < PLAYER_R + BALL_R0 + 1.2 + (ball.fresh ? 2 : 0)) {
-        ball.state = 'held'; sfx.pickup();
+        docked(ball); ball.state = 'held'; sfx.pickup();
         if (!ball.wing) recallWings(); // your ball back in hand calls the wingmen home ring(p.x, p.y, PLAYER_R, PLAYER_R + 5, 0.3, COL.chalk, 0.4);
         if (ball.fresh) { ball.fresh = false; ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, heat(0), 1); sfx.repair(); float(p.x, p.y - 7, `${G.balls.length} balls`, heat(0), 3.4); }
       }
@@ -5051,46 +5065,63 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (thrust > 0.1 && Math.random() < 0.7) { ctx.beginPath(); ctx.moveTo(-R0 * 0.55, R0 * 0.3); ctx.lineTo(-R0 * (0.95 + thrust * 0.6), 0); ctx.lineTo(-R0 * 0.55, -R0 * 0.3); ctx.stroke(); }
         ctx.restore(); ctx.globalAlpha = 1;
       } else {
-      // The interceptor: a fork-nosed fuselage that cradles the ball, swept wings with panel lines, a cockpit, and two
-      // engine pods whose flames lengthen with speed. It banks (narrows) when sliding sideways.
+      // The fighter: a sharp nose, swept wings with tip fins, twin engine nacelles, and a big canopy that carries your
+      // balls. Each ball docked in it is a lit light (yours at the front, the wingmen behind); one that's out leaves an
+      // empty socket, and a wingman you don't have yet is plain glass. It banks (narrows) when sliding sideways.
       const lat = (Math.cos(a) * (p.mvy || 0) - Math.sin(a) * (p.mvx || 0)) / PLAYER_SPEED;
-      ctx.scale(1.22, 1.22 * (1 - 0.2 * Math.min(1, Math.abs(lat)))); // drawn a touch bigger than its hitbox, for presence
-      const cool = `rgb(${HEAT[0].join(',')})`, gold = `rgb(${HEAT[1].join(',')})`, fl = R0 * (0.25 + thrust * 1.1) * flick;
+      ctx.scale(SHIP_K, SHIP_K * (1 - 0.2 * Math.min(1, Math.abs(lat))));
+      const cool = `rgb(${HEAT[0].join(',')})`, gold = `rgb(${HEAT[1].join(',')})`, fl = R0 * (0.3 + thrust * 1.1) * flick;
       ctx.globalCompositeOperation = 'lighter';
-      const glow = ctx.createRadialGradient(-R0 * 0.2, 0, 0, -R0 * 0.2, 0, R0 * 2.1); // a soft pool of engine light under the ship
+      const glow = ctx.createRadialGradient(-R0 * 0.2, 0, 0, -R0 * 0.2, 0, R0 * 2.3); // a soft pool of engine light under the ship
       glow.addColorStop(0, `rgba(${HEAT[0].join(',')},${0.32 + thrust * 0.12})`); glow.addColorStop(1, `rgba(${HEAT[0].join(',')},0)`);
-      ctx.globalAlpha = blink; ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(-R0 * 0.2, 0, R0 * 2.1, 0, Math.PI * 2); ctx.fill();
-      for (const sy of [-1, 1]) { // the pods' flames: a pilot light, longer and brighter with speed
-        const y = sy * R0 * 0.62, x0 = -R0 * 0.95;
+      ctx.globalAlpha = blink; ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(-R0 * 0.2, 0, R0 * 2.3, 0, Math.PI * 2); ctx.fill();
+      for (const sy of [-1, 1]) { // the nacelles' flames: a pilot light, longer and brighter with speed
+        const y = sy * R0 * 0.48, x0 = -R0 * 1.22, w = R0 * 0.14;
         ctx.globalAlpha = (0.45 + thrust * 0.5) * blink; ctx.fillStyle = gold;
-        ctx.beginPath(); ctx.moveTo(x0, y - R0 * 0.13); ctx.lineTo(x0 - fl, y); ctx.lineTo(x0, y + R0 * 0.13); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.moveTo(x0, y - R0 * 0.06); ctx.lineTo(x0 - fl * 0.55, y); ctx.lineTo(x0, y + R0 * 0.06); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x0, y - w); ctx.lineTo(x0 - fl, y); ctx.lineTo(x0, y + w); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.moveTo(x0, y - w * 0.45); ctx.lineTo(x0 - fl * 0.55, y); ctx.lineTo(x0, y + w * 0.45); ctx.closePath(); ctx.fill();
       }
-      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = blink;
-      const body = grab ? heat(hot.b) : COL.ink, tint = grab ? null : cool;
-      const hull = () => { ctx.fillStyle = body; ctx.fill(); if (tint) { ctx.globalAlpha = 0.28 * blink; ctx.fillStyle = tint; ctx.fill(); ctx.globalAlpha = blink; } }; // dark, tinted with the ship's own colour
-      ctx.strokeStyle = COL.chalk; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      for (const sy of [-1, 1]) { // swept wings, under the fuselage
-        ctx.beginPath(); ctx.moveTo(R0 * 0.3, sy * R0 * 0.32); ctx.lineTo(-R0 * 0.6, sy * R0 * 1.05); ctx.lineTo(-R0 * 0.92, sy * R0 * 1.02); ctx.lineTo(-R0 * 0.5, sy * R0 * 0.28); ctx.closePath();
-        hull(); ctx.lineWidth = 0.5; ctx.stroke();
-        ctx.globalAlpha = 0.5 * blink; ctx.lineWidth = 0.2; ctx.beginPath(); ctx.moveTo(-R0 * 0.05, sy * R0 * 0.42); ctx.lineTo(-R0 * 0.62, sy * R0 * 0.92); ctx.stroke(); ctx.globalAlpha = blink; // a panel line
-        ctx.beginPath(); ctx.rect(-R0 * 0.98, sy * R0 * 0.62 - R0 * 0.15, R0 * 0.62, R0 * 0.3); // the engine pod
-        hull(); ctx.lineWidth = 0.42; ctx.stroke();
-      }
-      ctx.beginPath(); // the fuselage, its nose forked into a cradle for the ball
-      for (const [x, y] of [[1.45, -0.38], [1.05, -0.15], [0.95, 0], [1.05, 0.15], [1.45, 0.38], [0.55, 0.36], [-0.55, 0.3], [-0.82, 0.12], [-0.82, -0.12], [-0.55, -0.3], [0.55, -0.36]]) ctx.lineTo(R0 * x, R0 * y);
-      ctx.closePath(); hull(); ctx.lineWidth = 0.6; ctx.stroke();
-      ctx.globalAlpha = 0.45 * blink; ctx.lineWidth = 0.2; ctx.beginPath(); ctx.moveTo(-R0 * 0.1, 0); ctx.lineTo(-R0 * 0.75, 0); ctx.stroke(); // the spine
-      ctx.globalAlpha = 0.85 * blink; ctx.fillStyle = cool; ctx.beginPath(); ctx.ellipse(R0 * 0.28, 0, R0 * 0.3, R0 * 0.14, 0, 0, Math.PI * 2); ctx.fill(); // the cockpit
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = blink; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      const ink = hex(COL.ink), body = grab ? heat(hot.b) : `rgb(${ink.map((c, i) => Math.round(c * 0.72 + HEAT[0][i] * 0.28)).join(',')})`; // dark, tinted with the ship's own colour
+      const path = pts => { ctx.beginPath(); pts.forEach(([x, y]) => ctx.lineTo(R0 * x, R0 * y)); pts.slice().reverse().forEach(([x, y]) => ctx.lineTo(R0 * x, -R0 * y)); ctx.closePath(); };
+      path(SHIP_HULL); ctx.fillStyle = body; ctx.fill(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.6; ctx.stroke();
+      ctx.globalAlpha = 0.5 * blink; ctx.lineWidth = 0.2; ctx.beginPath();
+      for (const sy of [-1, 1]) { ctx.moveTo(-R0 * 0.05, sy * R0 * 0.78); ctx.lineTo(-R0 * 0.62, sy * R0 * 1.3); ctx.moveTo(-R0 * 0.9, sy * R0 * 0.72); ctx.lineTo(-R0 * 0.9, sy * R0 * 0.26); } // wing panels, nacelle seams
+      ctx.stroke();
+      path(SHIP_CANOPY); ctx.globalAlpha = blink; ctx.fillStyle = COL.ink; ctx.fill(); ctx.globalAlpha = 0.85 * blink; ctx.lineWidth = 0.32; ctx.stroke();
+      SHIP_LIGHTS.forEach(([lx, ly, lr], i) => {
+        const o = G.balls[i], on = o && (o.state === 'held' || o.state === 'queued'), x = R0 * lx, y = R0 * ly;
+        const pop = on && o.dockT !== undefined ? clamp(1 - (G.time - o.dockT) / 0.3, 0, 1) : 0, r = R0 * lr * (1 + 0.5 * pop);
+        ctx.globalAlpha = blink;
+        if (on) {
+          ctx.globalCompositeOperation = 'lighter';
+          const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.3); g.addColorStop(0, `rgba(${HEAT[0].join(',')},${0.5 + 0.4 * pop})`); g.addColorStop(1, `rgba(${HEAT[0].join(',')},0)`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 2.3, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+          ctx.fillStyle = cool; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(x, y, r * (0.45 + 0.3 * pop), 0, Math.PI * 2); ctx.fill();
+        } else if (o) { // out: an empty socket
+          ctx.globalAlpha = 0.6 * blink; ctx.strokeStyle = cool; ctx.lineWidth = 0.22; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+        }
+      });
       ctx.restore();
       ctx.globalAlpha = 1;
+      // a ball coming home streaks into its light
+      ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      G.balls.forEach((o, i) => {
+        const k = o.dockT !== undefined ? (G.time - o.dockT) / 0.14 : 2;
+        if (k >= 1 || (o.state !== 'held' && o.state !== 'queued')) return;
+        const [tx, ty] = shipLight(i), lx = t => o.dfx + (tx - o.dfx) * t, ly = t => o.dfy + (ty - o.dfy) * t, t0 = Math.max(0, k - 0.5);
+        ctx.globalAlpha = 0.9; ctx.strokeStyle = cool; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(lx(t0), ly(t0)); ctx.lineTo(lx(k), ly(k)); ctx.stroke();
+        ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.45; ctx.stroke();
+      });
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
       }
 
       const next = G.balls.find(o => o.state === 'held'); // the ball the next throw sends
       if (next && inputType === 'mouse' && aim) {
-        const ball = next, dx = aim.x - ball.x, dy = aim.y - ball.y, l = Math.min(Math.hypot(dx, dy), 18);
-        if (l > 1) {
-          pulseLine(ball.x, ball.y, ball.x + p.fx * l, ball.y + p.fy * l, heat(0), 0.5, 0.3, 25);
+        const nose = PLAYER_R * SHIP_K * (VEC ? 1.3 : 2.05), nx = p.x + p.fx * nose, ny = p.y + p.fy * nose, dx = aim.x - nx, dy = aim.y - ny, l = Math.min(Math.hypot(dx, dy), 18);
+        if (l > 1) { // from the nose, toward your aim
+          pulseLine(nx, ny, nx + p.fx * l, ny + p.fy * l, heat(0), 0.5, 0.3, 25);
         }
       }
     }
@@ -5106,7 +5137,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     // balls
     for (const ball of G.balls) {
-      if (p.hull <= 0 && ball.state === 'held') continue;
+      if ((p.hull <= 0 && ball.state === 'held') || (!VEC && (ball.state === 'held' || ball.state === 'queued'))) continue; // docked: shown as its cockpit light
       const bc = heat(ball.b), r = (ball.state === 'live' ? ballR(ball.b) * bigK() : BALL_R0) * (ball.wing ? WING_SCALE : 1); // wingmen a size down, so yours stands out
       let fill = bc;
       const warned = ball.state === 'live' && ball.b >= WARN && !safeRound();
