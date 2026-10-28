@@ -196,6 +196,8 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; t
 @media (pointer: coarse) { .hintKeys { display: none; } .hintTouch { display: inline; } }
 .links { display: flex; gap: 10px; justify-content: center; }
 .linkbtn.big2 { font-size: 13px; padding: 6px 14px; margin: 0; background: color-mix(in srgb, var(--ink) 70%, transparent); }
+.links.left { justify-content: flex-start; }
+#ov-settings .linkbtn + .linkbtn { margin-left: 6px; }
 .settings { align-self: stretch; max-width: 30rem; width: 100%; margin-inline: auto; box-sizing: border-box; text-align: left; display: grid; gap: 8px; margin-top: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 4px; background: color-mix(in srgb, var(--ink) 75%, transparent); }
 .settings .ctrl { border-top: 0; padding-top: 0; }
 .powers { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; font-size: 13px; line-height: 1.5; color: var(--dim); }
@@ -279,13 +281,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <p class="tag">Start with one ball. Each bounce adds 1 damage, at 15 it becomes unstable. Kill enemies to delay overload. Catch it to throw it again.</p>
     <button class="btn launch" id="play" type="button">Launch</button>
     <p class="hint"><span class="hintKeys">WASD to fly · click or Space to throw · hold to pull</span><span class="hintTouch">Left thumb flies · right thumb holds to pull and swipes to throw</span></p>
-    <div class="links"><button class="linkbtn big2" id="howBtn" type="button">How to play</button><button class="linkbtn big2 powersBtn" type="button">Power-ups</button></div>
-    <div class="settings">
-    <div class="ctrl"><div><span>Start at</span> <select class="linkbtn" id="startWave" aria-label="Start at wave"></select> <span class="startNote" id="startNote" hidden>Practice run: doesn't count toward Best</span></div></div>
+    <div class="links"><button class="linkbtn big2" id="howBtn" type="button">How to play</button><button class="linkbtn big2 powersBtn" type="button">Power-ups</button><button class="linkbtn big2 setBtn" type="button" aria-label="Settings">⚙ Settings</button></div>
+  </div>
+</section>
+<section class="ov page" id="ov-settings" hidden>
+  <div class="panel">
+    <p class="big">Settings</p>
+    <div class="ctrl" id="startRow"><div><span>Start at</span> <select class="linkbtn" id="startWave" aria-label="Start at wave"></select> <span class="startNote" id="startNote" hidden>Practice run: doesn't count toward Best</span></div></div>
     <div class="ctrl" id="titleSound"><div><span>Sound</span> </div></div>
+    <div class="ctrl"><div><span>Screen shake</span> <button class="linkbtn shakeBtn" data-v="1" type="button">Full</button><button class="linkbtn shakeBtn" data-v="0.4" type="button">Reduced</button><button class="linkbtn shakeBtn" data-v="0" type="button">Off</button></div></div>
+    <div class="ctrl"><div><span>Flashes</span> <button class="linkbtn flashBtn" data-v="1" type="button">Full</button><button class="linkbtn flashBtn" data-v="0" type="button">Reduced</button> <span class="startNote">Reduced: no full-screen flashes and no strobing lights</span></div></div>
+    <div class="ctrl"><div><span>Touch controls</span> <button class="linkbtn swapBtn" type="button">Move on left</button></div></div>
     <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
     <div class="ctrl"><div><span>Look</span> <button class="linkbtn lookBtn" data-look="neon" type="button">Neon</button> <button class="linkbtn lookBtn" data-look="cabinet" type="button">Cabinet</button> <button class="linkbtn lookBtn" data-look="bone" type="button">Bone</button> <button class="linkbtn lookBtn" data-look="blueprint" type="button">Blueprint</button> <button class="linkbtn lookBtn" data-look="blueprint2" type="button">Blueprint 2</button></div></div>
-    </div>
+    <div class="btnrow"><button class="btn" id="setBack" type="button">Back</button></div>
   </div>
 </section>
 <section class="ov page" id="ov-how" hidden>
@@ -337,11 +346,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <p class="big">Paused</p>
     <p class="pauseIntel" id="pauseIntel" hidden><span class="lbl" id="pauseIntelWave"></span><span id="pauseIntelText"></span></p>
     <div class="btnrow"><button class="btn" id="resume" type="button">Resume</button><button class="btn ghost menuBtn" type="button">Main menu</button></div>
-    <div class="ctrl"><div><span>Touch sides</span> <button class="linkbtn swapBtn" type="button">Move on left</button></div></div>
-    <div class="ctrl"><div><span>Capsules</span> <button class="linkbtn powersBtn" type="button">See the power-ups</button></div></div>
+    <div class="links left"><button class="linkbtn big2 setBtn" type="button">⚙ Settings</button><button class="linkbtn big2 powersBtn" type="button">Power-ups</button></div>
     <div class="ctrl" id="pauseSound"><div><span>Sound</span> </div></div>
     <p class="startNote" id="dbg" hidden></p>
-    <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
   </div>
 </section>
 
@@ -510,6 +517,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const keys = {};
   const ptrs = new Map();
 
+  // accessibility settings: screen-shake strength (1, 0.4, 0) and flashes (1 full, 0 reduced: no full-screen flashes,
+  // no strobing alert lights)
+  let shakeK = 1, flashK = 1;
+  try { const sk = localStorage.getItem('ricochet.shake'), fk = localStorage.getItem('ricochet.flash'); if (sk !== null) shakeK = +sk; if (fk !== null) flashK = +fk; } catch (e) {}
   try { best = +localStorage.getItem('ricochet.best') || 0; muted = localStorage.getItem('ricochet.muted') === '1'; swapSides = localStorage.getItem('ricochet.swap') === '1'; touchHint = localStorage.getItem('ricochet.touchHint') !== 'done'; musicOn = localStorage.getItem('ricochet.music') !== '0'; } catch (e) {}
 
   /* ---------- audio ---------- */
@@ -1728,14 +1739,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Where the boss is about to land: a pulsing hazard outline that firms up as it arrives.
   // Red alert, for every boss: a red wash, the arena's edge and corner lights strobing, hazard bars top and bottom.
   function drawRedAlert(k) {
-    const pulse = 0.5 + 0.5 * Math.sin(G.time * Math.PI * 4), fadeIn = Math.min(1, k * 5), c = COL.threat;
+    const pulse = flashK ? 0.5 + 0.5 * Math.sin(G.time * Math.PI * 4) : 0.5, fadeIn = Math.min(1, k * 5), c = COL.threat; // steady with reduced flashes
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = (0.03 + 0.07 * pulse) * fadeIn; ctx.fillStyle = c; ctx.fillRect(0, 0, AW, AH);
     ctx.strokeStyle = c;
     for (const [w, a] of [[4, 0.18], [1.6, 0.4], [0.5, 1]]) { ctx.globalAlpha = a * (0.35 + 0.65 * pulse) * fadeIn; ctx.lineWidth = w; ctx.strokeRect(0.3, 0.3, AW - 0.6, AH - 0.6); }
     const L = Math.min(AW, AH) * 0.12;
     [[0, 0, 1, 1], [AW, 0, -1, 1], [AW, AH, -1, -1], [0, AH, 1, -1]].forEach(([x, y, sx, sy], i) => { // corner lights, flashing in turn
-      const on = Math.floor(G.time * 6) % 4 === i || pulse > 0.85;
+      const on = flashK ? Math.floor(G.time * 6) % 4 === i || pulse > 0.85 : true;
       ctx.globalAlpha = (on ? 1 : 0.35) * fadeIn; ctx.strokeStyle = on ? COL.chalk : c; ctx.lineWidth = on ? 1.4 : 0.8;
       ctx.beginPath(); ctx.moveTo(x + sx * L, y + sy * 0.7); ctx.lineTo(x + sx * 0.7, y + sy * 0.7); ctx.lineTo(x + sx * 0.7, y + sy * L); ctx.stroke();
       if (on) { ctx.globalAlpha = 0.35 * fadeIn; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + sx * 1.5, y + sy * 1.5, 2.6, 0, Math.PI * 2); ctx.fill(); }
@@ -4561,7 +4572,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = VEC ? VEC_FADE : COL.ink; ctx.fillRect(0, 0, cvs.width, cvs.height); // in the vector look, the last frames linger
     let sx = 0, sy = 0;
-    if (G && G.shake > 0.01) { const s = G.shake * (reduced ? 0.25 : 1); sx = rand(-s, s); sy = rand(-s, s); }
+    if (G && G.shake > 0.01) { const s = G.shake * (reduced ? 0.25 : 1) * shakeK; sx = rand(-s, s); sy = rand(-s, s); }
     ctx.setTransform(DPR * U, 0, 0, DPR * U, DPR * (AX + sx * U), DPR * (AY + sy * U));
 
     if (!VEC) {
@@ -5191,7 +5202,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   function drawFlash() { // the chain milestone's white flash
-    if (!G || !(G.screenFlash > 0)) return;
+    if (!G || !(G.screenFlash > 0) || !flashK) return; // Flashes: Reduced turns these off
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = Math.min(0.35, G.screenFlash) * 0.6; ctx.fillStyle = COL.chalk; ctx.fillRect(0, 0, cvs.width, cvs.height);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
@@ -5215,7 +5226,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateHud() {
     // the Music/Sound buttons are never on screen during play (a throw aimed high could click them): they sit on the
     // title screen, and move into the pause menu while paused
-    const home = mode === 'paused' ? $('pauseSound').firstElementChild : $('titleSound').firstElementChild;
+    const home = mode === 'paused' && $('ov-settings').hidden ? $('pauseSound').firstElementChild : $('titleSound').firstElementChild;
     if ($('toggles').parentNode !== home) home.appendChild($('toggles'));
     const play = G && !G.attract;
     setText('score', play ? G.score.toLocaleString() : '0');
@@ -5322,6 +5333,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     $('powersBack').focus({ preventScroll: true });
   }
   document.querySelectorAll('.powersBtn').forEach(b => b.addEventListener('click', () => { b.blur(); showPowers(true); }));
+  // Settings: a page from the title's gear button or the pause screen. Start at only makes sense before a run.
+  const showSettings = on => {
+    $('ov-settings').hidden = !on;
+    if (on) { $('startRow').hidden = mode === 'paused'; $('ov-settings').scrollTop = 0; updateHud(); $('setBack').focus({ preventScroll: true }); }
+    else { updateHud(); (mode === 'paused' ? $('resume') : $('play')).focus({ preventScroll: true }); }
+  };
+  document.querySelectorAll('.setBtn').forEach(b => b.addEventListener('click', () => { b.blur(); showSettings(true); }));
+  $('setBack').addEventListener('click', () => showSettings(false));
+  const pickOpt = (cls, v) => document.querySelectorAll(cls).forEach(b => b.classList.toggle('on', +b.dataset.v === v));
+  const setShake = v => { shakeK = v; pickOpt('.shakeBtn', v); try { localStorage.setItem('ricochet.shake', String(v)); } catch (e) {} };
+  const setFlash = v => { flashK = v; pickOpt('.flashBtn', v); try { localStorage.setItem('ricochet.flash', String(v)); } catch (e) {} };
+  document.querySelectorAll('.shakeBtn').forEach(b => b.addEventListener('click', () => { setShake(+b.dataset.v); b.blur(); }));
+  document.querySelectorAll('.flashBtn').forEach(b => b.addEventListener('click', () => { setFlash(+b.dataset.v); b.blur(); }));
+  setShake(shakeK); setFlash(flashK);
   const showHow = on => { $('ov-how').hidden = !on; if (on) { $('ov-how').scrollTop = 0; $('howBack').focus({ preventScroll: true }); } else $('play').focus({ preventScroll: true }); };
   $('howBtn').addEventListener('click', () => showHow(true));
   $('howBack').addEventListener('click', () => showHow(false));
@@ -5347,6 +5372,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (e.code === 'Space' && mode === 'play') spaceThrew = throwAtAim();
     if (e.code === 'Escape' && !$('ov-powers').hidden) { showPowers(false); return; }
     if (e.code === 'Escape' && !$('ov-how').hidden) { showHow(false); return; }
+    if (e.code === 'Escape' && !$('ov-settings').hidden) { showSettings(false); return; }
     if (e.code === 'Escape' || e.code === 'KeyP') setPaused(mode === 'play');
     if (e.code === 'KeyM') { toggleMute(); keyNotice(muted ? 'Sound off · M to turn on' : 'Sound on'); }
     if (e.code === 'KeyN') { toggleMusic(); keyNotice(musicOn ? 'Music on' : 'Music off · N to turn on'); }
