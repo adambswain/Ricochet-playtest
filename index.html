@@ -509,6 +509,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     10: 'The Core: hit its bombs with the ball to send them back into it. Don\'t touch it',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
+    35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
     13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
     15: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts',
     18: 'Invasion: break the formation before it lands. The top rows are tougher: charge your ball off the walls and bunkers to punch through',
@@ -519,11 +520,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     26: 'Titans: huge and slow. Each one cracks open into two brutes',
     28: 'Crusher: brick walls close in. Break them to push them back',
   };
-  // Set pieces at 5, 13, 18, 23, 26 and 28, and Pinball again at 35, in every loop (bigger each time round).
-  const SET_PIECES = ['bonus', 'coins', 'invaders', 'storm', 'titans', 'crusher'];
-  const SET_AT = { 5: 'bonus', 13: 'coins', 18: 'invaders', 23: 'storm', 26: 'titans', 28: 'crusher' }; // the first lap sits between the bosses
-  const SET_NAMES = { bonus: 'Pinball', coins: 'Coin Rush', invaders: 'Invasion', storm: 'Swarm Storm', titans: 'Titans', crusher: 'Crusher' };
-  const setPiece = n => { const k = inLoop(n); return SET_AT[k] || (k > 30 && k % 10 === 5 ? SET_PIECES[((k - 35) / 10) % SET_PIECES.length] : null); };
+  // Set pieces, at the same waves in every loop (bigger each time round).
+  const SET_AT = { 5: 'bonus', 13: 'coins', 18: 'invaders', 23: 'storm', 26: 'titans', 28: 'crusher', 35: 'lucky' };
+  const SET_NAMES = { bonus: 'Pinball', coins: 'Coin Rush', invaders: 'Invasion', storm: 'Swarm Storm', titans: 'Titans', crusher: 'Crusher', lucky: 'Lucky Blocks' };
+  const setPiece = n => SET_AT[inLoop(n)] || null;
   const monolithIntro = () => G && G.asteroidWave === 14 ? 16 : 14; // the first normal wave with Monoliths
   const introFor = n => n === monolithIntro() ? 'Monoliths turn to stone now and then: a wall to bounce off, not to hit'
     : n > LOOP_LEN && !setPiece(n) && !bossFor(n) ? '' // later loops don't re-introduce enemies
@@ -689,6 +689,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (b >= 8) voice({ type: 'sawtooth', f: 85, f2: 38, filter: 'lowpass', ff: 420, dur: 0.4, vol: 0.12, pan, wet: 0.2 });
     },
     // chain: a bell note per kill in the throw, one scale step higher each time
+    bump() { if (gate('bump', 40)) { voice({ type: 'square', f: 196, f2: 150, filter: 'lowpass', ff: 1400, dur: 0.07, vol: 0.07 }); voice({ type: 'triangle', f: 98, dur: 0.06, vol: 0.08 }); } },
     coin(k) { // one coin: a bright ping that climbs the scale with the streak
       if (!gate('coin', 35)) return;
       const f = note(15 + Math.min(k, 16));
@@ -906,7 +907,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const dx = (AW - oW) / 2, dy = (AH - oH) / 2;
     const mv = o => { o.x += dx; o.y += dy; };
     mv(G.player); for (const o of G.balls) { mv(o); o.trail.forEach(mv); }
-    [G.enemies, G.tele, G.parts, G.rings, G.floats, G.bullets, G.shards, G.flashes, G.wallHits, G.pickups, G.extras, G.ghosts, G.coins ? G.coins.coins : []].forEach(list => list.forEach(mv));
+    [G.enemies, G.tele, G.parts, G.rings, G.floats, G.bullets, G.shards, G.flashes, G.wallHits, G.pickups, G.extras, G.ghosts, G.coins ? G.coins.coins : [], G.lucky ? G.lucky.blocks : [], G.lucky ? G.lucky.pops : []].forEach(list => list.forEach(mv));
     snapWall();
   }
   const arenaFor = n => bossFor(n) === 'maw' && BW > BH * 1.15 && BH > 480 ? MAW_ARENA : Math.min(ARENA_MAX, ARENA_START + ARENA_GROW * (n - 1));
@@ -2865,6 +2866,150 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
   }
 
+  /* ---------- lucky blocks ---------- */
+  // Rows of blocks float over the top of the arena. Plain bricks break in one hit. "!" blocks never break: every hit
+  // bumps the block and pops coins out of its top, one plus one per point of the ball's charge, scored on the spot,
+  // and the hit spends one of that charge. After LUCKY_HITS hits a "!" block is spent and goes dull (still solid). The
+  // ball always bounces off a block; walls, bricks and spent blocks charge it as usual, so the play is heating the ball
+  // up and cashing it in. LUCKY_POWER of the "!" blocks hide a power-up in their first hit. Empty every "!" block for
+  // the jackpot. Overload is off; nothing can hurt you.
+  const LUCKY_TIME = 30, LUCKY_BS = 6.4, LUCKY_HITS = 3, LUCKY_COIN = 10, LUCKY_JACKPOT = 5000, LUCKY_POWER = 2, LUCKY_POP_MAX = 220;
+  const LUCKY_RUNS = ['BB!BB', '!', 'B!B!B', '!!!', 'BBBB', 'B!!B', '!B!', 'B!B']; // runs of blocks laid along each row
+  const luckyRect = k => ({ x0: k.x - LUCKY_BS / 2, x1: k.x + LUCKY_BS / 2, y0: k.y - LUCKY_BS / 2, y1: k.y + LUCKY_BS / 2 });
+  function setupLucky(cycle) {
+    const S = LUCKY_BS, top = 12, m = 4, nc = Math.floor((AW - 2 * m) / S), bottom = AH * 0.56;
+    const rows = clamp(Math.floor((bottom - top) / (S * 3)) + 1, 2, 6), gap = (bottom - top - S) / (rows - 1);
+    const blocks = [];
+    for (let j = 0; j < rows; j++) {
+      const cells = [];
+      for (let c = Math.floor(Math.random() * 3); ; ) {
+        const run = LUCKY_RUNS[Math.floor(Math.random() * LUCKY_RUNS.length)];
+        if (c + run.length > nc) break;
+        for (let i = 0; i < run.length; i++) cells.push([c + i, run[i]]);
+        c += run.length + 2 + Math.floor(Math.random() * 3); // gaps the ball fits through
+      }
+      if (!cells.length) continue;
+      const f = cells[0][0], l = cells[cells.length - 1][0], shift = Math.floor((nc - (l - f + 1)) / 2) - f, x0 = (AW - nc * S) / 2;
+      for (const [c, t] of cells) blocks.push({ x: x0 + (c + shift + 0.5) * S, y: top + S / 2 + j * gap, kind: t === '!' ? 'lucky' : 'brick', left: LUCKY_HITS + cycle * 2, cd: 0, flash: 0, bump: 0 });
+    }
+    const lucky = blocks.filter(k => k.kind === 'lucky');
+    for (let i = 0; i < LUCKY_POWER && i < lucky.length; i++) lucky.splice(Math.floor(Math.random() * lucky.length), 1)[0].power = true;
+    G.lucky = { time: LUCKY_TIME, cycle, blocks, pops: [], coins: 0, lucky: blocks.filter(k => k.kind === 'lucky').length, spent: 0, done: false,
+                streak: 0, streakT: 0, streakN: 0, sx: 0, sy: 0 };
+  }
+  // Ball (or extra) against the blocks: bounce off the one it's deepest into, and hit it. True when the hit charges
+  // the ball (the caller adds it); a "!" block's hit spends a charge instead.
+  function luckyHit(o, r) {
+    const L = G.lucky; if (!L || L.done) return false;
+    let k = null, h = null;
+    for (const q of L.blocks) {
+      if (Math.abs(q.x - o.x) > LUCKY_BS / 2 + r || Math.abs(q.y - o.y) > LUCKY_BS / 2 + r) continue;
+      const hq = hitRect(o.x, o.y, r, luckyRect(q));
+      if (hq && (!h || hq.depth > h.depth)) { k = q; h = hq; }
+    }
+    if (!k) return false;
+    o.x += h.nx * h.depth; o.y += h.ny * h.depth;
+    const dot = o.vx * h.nx + o.vy * h.ny;
+    if (dot < 0) { o.vx -= 2 * dot * h.nx; o.vy -= 2 * dot * h.ny; }
+    if (k.cd > 0) return false;
+    const b = o.b || 0, mul = L.cycle + 1, kind = k.kind;
+    k.cd = 0.08; k.flash = 0.1; k.bump = 1;
+    if (k.kind === 'brick') { // smashed: a few points and a spray of rubble
+      L.blocks.splice(L.blocks.indexOf(k), 1);
+      G.score += 5 * mul;
+      burst(k.x, k.y, 12, COL.bricks[1], 30, 0.7, 0.35); burst(k.x, k.y, 5, COL.chalk, 22, 0.5, 0.25);
+      gridImpulse(k.x, k.y, 10, 30); sfx.brick(b);
+    } else if (k.kind === 'lucky') {
+      if (k.power) { // this one held a power-up
+        k.power = false;
+        spawnPickup(k.x, k.y - LUCKY_BS, o.vx !== undefined && o.state ? o : G.balls[0]);
+        float(k.x, k.y - LUCKY_BS - 3, 'Power-up!', COL.chalk, 3); sfx.collect();
+      } else { // coins: one, plus one per point of charge
+        const n = 1 + Math.floor(b), pts = n * LUCKY_COIN * mul;
+        for (let i = 0; i < Math.min(n, 18) && L.pops.length < LUCKY_POP_MAX; i++)
+          L.pops.push({ x: k.x + rand(-1.4, 1.4), y: k.y - LUCKY_BS / 2, vx: rand(-12, 12) * (1 + n * 0.04), vy: -rand(34, 48) - n * 1.2, t: 0, spin: rand(0, 6) });
+        G.score += pts; L.coins += n;
+        if (o.b > 0) { o.b--; const sp = ballSpeed(o.b), l = Math.hypot(o.vx, o.vy) || 1; o.vx = o.vx / l * sp; o.vy = o.vy / l * sp; } // cashing in cools the ball
+        if (L.streakT <= 0) L.streakN = 0;
+        L.streak += pts; L.streakT = 0.6; L.streakN++; L.sx = k.x; L.sy = k.y - LUCKY_BS;
+        sfx.coin(Math.min(16, L.streakN + Math.floor(n / 3)));
+      }
+      sfx.bump();
+      if (--k.left <= 0) { // spent: it goes dull
+        k.kind = 'used'; L.spent++;
+        ring(k.x, k.y, LUCKY_BS / 2, LUCKY_BS + 2, 0.3, ECOL.target, 0.8);
+        if (L.spent >= L.lucky) { // every "!" block emptied: jackpot, and the round ends
+          const jp = LUCKY_JACKPOT * mul;
+          G.score += jp; L.done = true; L.jackpot = true;
+          for (let i = 0; i < 3; i++) ring(k.x, k.y, 2, 30 + i * 12, 0.5 + i * 0.12, i % 2 ? COL.chalk : ECOL.target, 1.2);
+          burst(k.x, k.y, 60, ECOL.target, 70, 1, 0.8); gridImpulse(k.x, k.y, Math.max(AW, AH) * 0.6, 160);
+          float(k.x, k.y - 10, `Jackpot +${jp.toLocaleString()}`, ECOL.target, 5);
+          G.freeze = Math.max(G.freeze, 0.1); shake(2.5); sfx.repair(); sfx.collect();
+        }
+      }
+    } else sfx.bump(); // a spent block: just a thud
+    gridImpulse(k.x, k.y, 8, 20);
+    return kind !== 'lucky';
+  }
+  function updateLucky(dt) {
+    const L = G.lucky; if (!L) return;
+    for (const k of L.blocks) { k.cd -= dt; k.flash -= dt; k.bump = Math.max(0, k.bump - dt * 6); }
+    for (let i = L.pops.length - 1; i >= 0; i--) { // popped coins arc up out of the block and fade
+      const c = L.pops[i]; c.t += dt; c.vy += 120 * dt; c.x += c.vx * dt; c.y += c.vy * dt;
+      if (c.t > 0.7) L.pops.splice(i, 1);
+    }
+    L.streakT -= dt;
+    if (L.streakT <= 0 && L.streak) { float(L.sx, L.sy - 3, `+${L.streak}`, ECOL.target, 3.2); L.streak = 0; } // the run's total, once it ends
+    if (L.done) return;
+    L.time -= dt;
+    if (L.time <= 0) { L.time = 0; L.done = true; }
+  }
+  function finishLucky() {
+    const L = G.lucky; if (!L) return;
+    G.result = { text: `${L.coins.toLocaleString()} coins`, sub: L.jackpot ? 'Jackpot! Every block emptied' : `${L.spent}/${L.lucky} blocks emptied · empty them all for the jackpot`, t: 2.6, max: 2.6 };
+    for (const ball of liveBalls()) if (ball.b > WARN - 2) { ball.b = WARN - 2; const sp = ballSpeed(ball.b), l = Math.hypot(ball.vx, ball.vy) || 1; ball.vx = ball.vx / l * sp; ball.vy = ball.vy / l * sp; }
+    for (const k of L.blocks) burst(k.x, k.y, 6, k.kind === 'brick' ? COL.bricks[1] : ECOL.target, 20, 0.6, 0.3);
+    sfx.repair();
+    G.lucky = null;
+  }
+  function drawLucky() {
+    const L = G.lucky; if (!L) return;
+    const S = LUCKY_BS, h = S / 2, gold = ECOL.target, shine = 0.5 + 0.5 * Math.sin(G.time * 3);
+    ctx.lineJoin = 'round';
+    for (const k of L.blocks) {
+      const y = k.y - Math.sin((1 - k.bump) * Math.PI) * (k.bump > 0 ? 1.3 : 0), x0 = k.x - h, y0 = y - h; // a hit bumps the block up
+      ctx.globalAlpha = 1; ctx.fillStyle = COL.ink; ctx.fillRect(x0, y0, S, S);
+      if (k.kind === 'brick') { // a brick: mortar courses, offset row to row
+        ctx.fillStyle = COL.block; ctx.fillRect(x0, y0, S, S);
+        ctx.strokeStyle = COL.bricks[1]; ctx.lineWidth = 0.22; ctx.globalAlpha = 0.85; ctx.beginPath();
+        for (const f of [1 / 3, 2 / 3]) { ctx.moveTo(x0, y0 + S * f); ctx.lineTo(x0 + S, y0 + S * f); }
+        ctx.moveTo(k.x, y0); ctx.lineTo(k.x, y0 + S / 3); ctx.moveTo(x0 + S / 4, y0 + S / 3); ctx.lineTo(x0 + S / 4, y0 + S * 2 / 3);
+        ctx.moveTo(x0 + S * 3 / 4, y0 + S / 3); ctx.lineTo(x0 + S * 3 / 4, y0 + S * 2 / 3); ctx.moveTo(k.x, y0 + S * 2 / 3); ctx.lineTo(k.x, y0 + S);
+        ctx.stroke(); ctx.globalAlpha = 1;
+        ctx.strokeStyle = COL.blockEdge; ctx.lineWidth = 0.4; ctx.strokeRect(x0, y0, S, S);
+      } else {
+        const on = k.kind === 'lucky', c = on ? gold : COL.dim;
+        ctx.globalAlpha = on ? 0.22 + 0.1 * shine : 0.12; ctx.fillStyle = c; ctx.fillRect(x0, y0, S, S);
+        ctx.globalAlpha = on ? 1 : 0.6; ctx.strokeStyle = c; ctx.lineWidth = on ? 0.55 : 0.35; ctx.strokeRect(x0 + 0.2, y0 + 0.2, S - 0.4, S - 0.4);
+        ctx.fillStyle = c; ctx.beginPath(); // a rivet in each corner
+        for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const rx = k.x + dx * S * 0.32, ry = y + dy * S * 0.32; ctx.moveTo(rx + 0.32, ry); ctx.arc(rx, ry, 0.32, 0, Math.PI * 2); }
+        ctx.fill();
+        if (on) { // the "!": a tapered bar and a dot
+          ctx.globalAlpha = 1; ctx.fillStyle = shine > 0.85 ? COL.chalk : gold; ctx.beginPath();
+          ctx.moveTo(k.x - 0.75, y - h * 0.62); ctx.lineTo(k.x + 0.75, y - h * 0.62); ctx.lineTo(k.x + 0.4, y + h * 0.2); ctx.lineTo(k.x - 0.4, y + h * 0.2); ctx.closePath();
+          ctx.moveTo(k.x + 0.55, y + h * 0.5); ctx.arc(k.x, y + h * 0.5, 0.55, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      if (k.flash > 0) { ctx.globalAlpha = Math.min(1, k.flash * 8); ctx.fillStyle = COL.chalk; ctx.fillRect(x0, y0, S, S); }
+    }
+    ctx.globalAlpha = 1; ctx.fillStyle = gold; // popped coins: small spinning discs
+    for (const c of L.pops) {
+      ctx.globalAlpha = Math.min(1, (0.7 - c.t) * 4); const w = 1.25 * Math.max(0.25, Math.abs(Math.cos(G.time * 10 + c.spin)));
+      ctx.beginPath(); ctx.ellipse(c.x, c.y, w, 1.25, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   /* ---------- crusher ---------- */
   // Brick walls grow from the two long walls, squeezing the short side. Each wall is a row of columns; each column is
   // a stack of bricks from the wall inward. A new layer slides in at the wall every few seconds and pushes the stack in;
@@ -3029,6 +3174,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (h) { o.x += h.nx * h.depth; o.y += h.ny * h.depth; }
     }
     if (G.crush) pushOutBricks(o, r);
+    if (G.lucky) for (const k of G.lucky.blocks) { const h = hitRect(o.x, o.y, r, luckyRect(k)); if (h) { o.x += h.nx * h.depth; o.y += h.ny * h.depth; } }
     for (const e of G.enemies) if (e !== o && isStone(e)) pushOutStone(o, r, e);
     if (G.bonus) for (const bm of G.bonus.bumpers) {
       const [x, y] = bumperPos(bm), dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy) || 1e-6;
@@ -3089,7 +3235,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       player: { x: AW / 2, y: AH * 0.6, hull: 3, inv: 0, fx: 0, fy: -1, shield: 0, mvx: 0, mvy: 0 },
       balls: [Object.assign(makeBall(), { x: AW / 2, y: AH * 0.6 })],
       enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [],
-      shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, table: null, asteroidWave: ASTEROID_WAVES[Math.floor(Math.random() * ASTEROID_WAVES.length)], inv: null, result: null, boss: null, bombs: [],
+      shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, lucky: null, table: null, asteroidWave: ASTEROID_WAVES[Math.floor(Math.random() * ASTEROID_WAVES.length)], inv: null, result: null, boss: null, bombs: [],
       pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [],
       arenaTarget: ARENA_START, layoutPending: null, lastLayout: null,
       shake: 0, freeze: 0, dying: 0, banner: null, time: 0, pulling: false,
@@ -3195,13 +3341,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.wave = n; setLoopTint(loopOf(n));
     const q = [], add = (t, c) => { for (let i = 0; i < c; i++) q.push(t); };
     const shuffle = () => { for (let i = q.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [q[i], q[j]] = [q[j], q[i]]; } };
-    const sp = setPiece(n), cycle = (inLoop(n) > 30 ? 1 : 0) + loopOf(n); // how many times the set pieces have come round
+    const sp = setPiece(n), cycle = loopOf(n); // how many times the set pieces have come round
     if (bossFor(n)) {
       setupBoss(bossFor(n), bossCycle(n));
     } else if (sp === 'bonus') {
       setupTable(cycle);
     } else if (sp === 'coins') {
       setupCoins(cycle);
+    } else if (sp === 'lucky') {
+      setupLucky(cycle);
     } else if (sp === 'invaders') {
       setupInvaders(cycle);
     } else if (sp === 'titans') {
@@ -3454,17 +3602,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.between === null) {
-      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.table && !G.table.done) && !G.boss) {
+      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss) {
         if (inLoop(G.wave) === LOOP_LEN && G.winShown !== G.wave && !G.attract) { // the loop's finale is down
           if (!G.result) showWin(); // once its banner has had its moment
           return;
         }
-        finishBonus(); finishCoins(); finishTable();
+        finishBonus(); finishCoins(); finishLucky(); finishTable();
         const next = G.wave + 1;
         G.between = G.wave === 0 ? 0.9 : 1.8; // waves with something to read wait long enough to read it (set with the banner below)
         G.arenaTarget = arenaFor(next);
         crumbleBricks(); finishInvaders();
-        if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = setPiece(next) === 'crusher' || setPiece(next) === 'bonus' || setPiece(next) === 'coins' || setPiece(next) === 'invaders' || bossFor(next) ? null : layoutFor(next); }
+        if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
         if (G.wave > 0 && !G.skipBonus) {
           const bonus = 100 * G.wave;
           G.score += bonus;
@@ -3666,7 +3814,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   // overload is off during the bonus rounds and pinball: the ball tops out at full speed, with no overload warnings
-  const safeRound = () => !!(G && (G.bonus || G.coins || G.table));
+  const safeRound = () => !!(G && (G.bonus || G.coins || G.table || G.lucky));
   // wall: 'L' | 'R' | 'T' | 'B' for arena walls (lights the wall at the impact), omitted for blocks
   function chargeBounce(ball, wall) {
     if (G.powers.over > 0) ball.b = Math.min(MAX_CHARGE, ball.b + 2);
@@ -4013,6 +4161,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (G.inv && bunkerHit(x, r) === 'bounce') bounced = true;
         if (G.bonus && bumperHit(x, r)) bounced = true;
         if (G.coins) { coinHit(x, r); if (giantHit(x, r)) bounced = true; }
+        if (G.lucky && luckyHit(x, r)) bounced = true;
         if (G.bombs.length) ballBombs(x, r, x.b);
         if (G.boss && ballBoss(x, r, x.b) === 'bounce') bounced = true;
         if (bounced) {
@@ -4178,6 +4327,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (G.inv && bunkerHit(ball, r) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.bonus && bumperHit(ball, r)) chargeBounce(ball);
       if (G.coins) { coinHit(ball, r); if (giantHit(ball, r)) { chargeBounce(ball); if (ball.state !== 'live') break; } }
+      if (G.lucky && luckyHit(ball, r)) { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.bombs.length) ballBombs(ball, r, ball.b);
       if (G.boss && ballBoss(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
 
@@ -4478,7 +4628,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     processBolts();
     processShocks();
     const ws = (G.powers.warp > 0 ? WARP_SCALE : 1) * overdrive(G.wave); // Time Warp slows them; Overdrive (later loops) speeds them up
-    updateBonus(dt); updateCoins(dt); updateTable(dt);
+    updateBonus(dt); updateCoins(dt); updateLucky(dt); updateTable(dt);
     if (G.inv) updateInvaders(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
@@ -4796,6 +4946,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     drawInvasion();
     drawBumpers();
     drawCoins();
+    drawLucky();
     drawTable();
 
     // obstacles
@@ -5325,6 +5476,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.coins && !G.attract) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = ECOL.target;
       ctx.fillText(`COIN RUSH  ${Math.ceil(G.coins.time)}s   ${G.coins.got}/${G.coins.total}`, AW / 2, 5);
+    }
+    if (G.lucky && !G.attract) {
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = ECOL.target;
+      ctx.fillText(`LUCKY BLOCKS  ${Math.ceil(G.lucky.time)}s   ${G.lucky.coins} coins   ${G.lucky.spent}/${G.lucky.lucky} emptied`, AW / 2, 5);
     }
     if (G.bonus && !G.attract) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = ECOL.target;
