@@ -609,6 +609,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (b >= 8) voice({ type: 'sawtooth', f: 85, f2: 38, filter: 'lowpass', ff: 420, dur: 0.4, vol: 0.12, pan, wet: 0.2 });
     },
     // chain: a bell note per kill in the throw, one scale step higher each time
+    coin(k) { // one coin: a bright ping that climbs the scale with the streak
+      if (!gate('coin', 35)) return;
+      const f = note(15 + Math.min(k, 16));
+      voice({ type: 'triangle', f, dur: 0.12, vol: 0.07, wet: 0.25 }); voice({ f: f * 2, dur: 0.07, vol: 0.03 });
+    },
     chain(n) {
       const f = note(12 + Math.min(n, 14));
       voice({ f, dur: 0.55, vol: 0.11, wet: 0.45 });
@@ -2577,6 +2582,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // clusters - shapes to sweep with a curved pull. Big coins, a wide pick-up reach, each worth 25.
   const COIN_TIME = 30, COIN_R = 2.2, COIN_PICK = 3.6, COIN_STEP = 6, COIN_PTS = 25, COIN_JACKPOT = 10000;
   const COIN_LAYOUTS = ['rings', 'lanes', 'spiral', 'clusters'];
+  // The collect: coins within COIN_PULL of a ball slide toward it (a magnet); the ones it reaches fly into it, shrinking,
+  // with a ping that climbs the scale as the streak goes on and a pop at the ball.
+  const COIN_PULL = 13, COIN_FLY = 0.16;
   const GIANT_R = 6.5, GIANT_HP = 24, GIANT_FALL = 11, GIANT_AT = [3, 11, 19], GIANT_PTS = 250, GIANT_HIT_PTS = 15;
   // Coin positions for a layout, kept inside the arena (clear of the round's header) and never closer than 4.5 units.
   function coinLayout(kind) {
@@ -2610,7 +2618,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function setupCoins(cycle) {
     const kind = COIN_LAYOUTS[Math.floor(Math.random() * COIN_LAYOUTS.length)];
     const coins = coinLayout(kind).map(([x, y], i) => ({ x, y, spin: i * 0.37 }));
-    G.coins = { time: COIN_TIME, cycle, coins, total: coins.length, got: 0, done: false, kind, streak: 0, streakT: 0, sx: 0, sy: 0, chimeT: 0,
+    G.coins = { time: COIN_TIME, cycle, coins, total: coins.length, got: 0, done: false, kind, flying: [], streakN: 0, pop: 0, streak: 0, streakT: 0, sx: 0, sy: 0, chimeT: 0,
                 giant: null, giants: 0, broke: 0 };
   }
   function coinHit(o, r) {
@@ -2621,12 +2629,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const c = C.coins[i];
       if (Math.abs(c.x - o.x) > reach || Math.abs(c.y - o.y) > reach || Math.hypot(c.x - o.x, c.y - o.y) >= reach) continue;
       C.coins[i] = C.coins[C.coins.length - 1]; C.coins.pop(); n++; // order doesn't matter: swap-remove
-      G.parts.push({ x: c.x, y: c.y, vx: (o.x - c.x) * 8, vy: (o.y - c.y) * 8, size: 1.4, life: 0.12, max: 0, color: ECOL.target }); // sucked into the ball
+      C.flying.push({ x: c.x, y: c.y, spin: c.spin, o, t: 0 }); // it flies into the ball (drawn by drawCoins)
     }
     if (!n) return;
     const pts = COIN_PTS * (C.cycle + 1) * n;
-    C.got += n; G.score += pts; C.streak += pts; C.streakT = 0.6; C.sx = o.x; C.sy = o.y;
-    if (C.chimeT <= 0) { sfx.chain(Math.min(14, 2 + Math.floor(C.streak / (COIN_PTS * 15)))); C.chimeT = 0.05; } // a rising run of chimes, not a buzz
+    if (C.streakT <= 0) C.streakN = 0;
+    C.got += n; G.score += pts; C.streak += pts; C.streakT = 0.6; C.sx = o.x; C.sy = o.y; C.streakN += n; C.pop = 0.12;
+    sfx.coin(C.streakN);
+    ring(o.x, o.y, r, r + 2.5 + Math.min(n, 4), 0.16, ECOL.target, 0.6); // a pop at the ball (r: its radius)
+    if (C.chimeT <= 0 && C.streakN % 10 < n) { sfx.chain(Math.min(14, 2 + Math.floor(C.streakN / 10))); C.chimeT = 0.05; } // every tenth coin, a chord
     if (!C.coins.length) { // every coin: jackpot, and the round ends
       const jp = COIN_JACKPOT * (C.cycle + 1);
       G.score += jp; C.done = true; C.jackpot = true;
@@ -2674,6 +2685,19 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateCoins(dt) {
     const C = G.coins; if (!C) return;
     C.chimeT -= dt; C.streakT -= dt;
+    // the magnet: coins near a ball slide toward it, faster the closer they are
+    const pullers = liveBalls().concat(G.extras);
+    if (pullers.length && !C.done) for (const c of C.coins) for (const o of pullers) {
+      const dx = o.x - c.x, dy = o.y - c.y, d2 = dx * dx + dy * dy;
+      if (d2 > COIN_PULL * COIN_PULL || d2 < 1e-4) continue;
+      const d = Math.sqrt(d2), k = (1 - d / COIN_PULL) * 60 * dt; c.x += dx / d * Math.min(k, d); c.y += dy / d * Math.min(k, d);
+    }
+    for (let i = C.flying.length - 1; i >= 0; i--) { // collected coins fly into their ball
+      const f = C.flying[i]; f.t += dt;
+      const k = 1 - Math.exp(-28 * dt); f.x += (f.o.x - f.x) * k; f.y += (f.o.y - f.y) * k;
+      if (f.t >= COIN_FLY) C.flying.splice(i, 1);
+    }
+    C.pop = Math.max(0, C.pop - dt);
     for (const c of C.coins) if (c.vx !== undefined) { // loose coins slow to a stop
       const k = Math.exp(-3 * dt); c.vx *= k; c.vy *= k; c.x += c.vx * dt; c.y += c.vy * dt;
       if (c.x < 3 || c.x > AW - 3) { c.x = clamp(c.x, 3, AW - 3); c.vx = -c.vx; }
@@ -2719,6 +2743,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.globalAlpha = 0.5; ctx.fillStyle = COL.ink; ctx.beginPath();
     for (const c of C.coins) { const f = face(c); if (f < 0.55) continue; const w = R0 * 0.32 * f, h = R0 * 0.42; ctx.moveTo(c.x, c.y - h); ctx.lineTo(c.x + w, c.y); ctx.lineTo(c.x, c.y + h); ctx.lineTo(c.x - w, c.y); ctx.closePath(); }
     ctx.fill(); ctx.globalAlpha = 1;
+    for (const f of C.flying) { // shrinking and brightening as it goes in
+      const k = f.t / COIN_FLY, r = COIN_R * (1 - k * 0.8);
+      ctx.globalAlpha = 1 - k * 0.4; ctx.fillStyle = k > 0.5 ? COL.chalk : ECOL.target;
+      ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
     const g = C.giant;
     if (g) { // the giant coin: a spinning disc with a rim, a star, its health round the edge and cracks as it takes damage
       const sq = 0.35 + 0.65 * Math.abs(Math.cos(G.time * 1.6)), k = g.hp / g.max, c = ECOL.target;
@@ -2737,8 +2767,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.restore();
     }
     if (C.streak && C.streakT > 0) { // the running total rides with the ball
-      ctx.fillStyle = ECOL.target; ctx.font = `700 3px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(`+${C.streak}`, C.sx, C.sy - 6);
+      const sz = 3 + Math.min(1.6, C.streakN * 0.05) + C.pop * 6; // grows with the streak, bumps on each coin
+      ctx.fillStyle = ECOL.target; ctx.font = `700 ${sz}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(`+${C.streak}`, C.sx, C.sy - 6 - sz * 0.3);
     }
   }
 
