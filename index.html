@@ -3103,7 +3103,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G = newGame();
     G.wave = startAt - 1; G.arenaTarget = arenaShort; G.skipBonus = startAt > 1;
     G.winShown = G.wave; // starting just past a finale doesn't celebrate it
-    if (startAt > 15) G.hullMax = HULL_MAX + 1; // starting past the Serpent brings the hull slot it gives
+    if (startAt > 15) G.hullMax = HULL_MAX + (startAt > 30 ? 2 : 1); // starting past a Serpent brings the hull slots it gives (one at 15, one at 30)
     if (startAt > 1) G.continued = 1; // skipping ahead is practice: it doesn't count toward Best
     while (G.balls.length < ballsFor(startAt)) G.balls.push(Object.assign(makeBall(), { wing: true })); // starting later brings the wingmen earned by then
     mode = 'play';
