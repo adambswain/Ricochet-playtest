@@ -416,8 +416,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // up its body [x, y, radius] (yours at the front, then the two wingmen), big enough to touch and to break the
   // outline. Drawn SHIP_K times its hitbox scale.
   const SHIP_K = 1.1;
-  const SHIP_HULL = [[2.0, 0], [1.4, 0.2], [0.95, 0.5], [0.35, 0.66], [-0.45, 1.38], [-0.32, 1.52], [-0.72, 1.5], [-0.9, 1.3], [-0.68, 0.86], [-0.85, 0.74], [-1.22, 0.7], [-1.22, 0.26], [-0.95, 0.22], [-0.95, 0]];
-  const SHIP_LIGHTS = [[0.45, 0, 0.72], [-0.55, 0.58, 0.6], [-0.55, -0.58, 0.6]];
+  const SHIP_HULL = [[2.0, 0], [1.4, 0.2], [0.95, 0.5], [0.35, 0.66], [-0.45, 1.38], [-0.32, 1.52], [-0.72, 1.5], [-0.9, 1.3], // nose, wing, tip fin
+    [-0.72, 1.06], [-0.92, 0.94], [-1.08, 0.76], [-1.22, 0.62], [-1.22, 0.3], [-1.02, 0.2], [-1.0, 0]]; // the cradle round a rear socket, its engine at the back
+  const SHIP_LIGHTS = [[0.5, 0, 0.58], [-0.45, 0.47, 0.46], [-0.45, -0.47, 0.46]];
+  const SHIP_GROOVE = [[1.86, 0], [1.78, 0.04], [1.0, 0.17], [0.6, 0.17], [0.6, 0]];
+  // the front socket's frame: round behind the ball, drawn out to a point toward the nose
+  const SHIP_FRAME = (() => { const [x, , r] = SHIP_LIGHTS[0], R = r + 0.15, pts = [[x + R + 0.3, 0]]; for (let k = 0; k <= 8; k++) { const q = 0.75 + k / 8 * (Math.PI - 0.75); pts.push([x + Math.cos(q) * R, Math.sin(q) * R]); } return pts; })();
   const PULL_TURN = 3.2 * SPEED_K * BALL_START_K; // radians per second the ball turns toward the ship while pulling
   const BLAST_R = 26, MULT_MAX = 10, CHAIN_STEP = 0.1; // each kill adds CHAIN_STEP × its place in this throw's chain
   // Power-up capsules: dropped by kills, collected only by the ball; charge sets duration (and shockwave size).
@@ -5085,12 +5089,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const ink = hex(COL.ink), body = grab ? heat(hot.b) : `rgb(${ink.map((c, i) => Math.round(c * 0.72 + HEAT[0][i] * 0.28)).join(',')})`; // dark, tinted with the ship's own colour
       const path = pts => { ctx.beginPath(); pts.forEach(([x, y]) => ctx.lineTo(R0 * x, R0 * y)); pts.slice().reverse().forEach(([x, y]) => ctx.lineTo(R0 * x, -R0 * y)); ctx.closePath(); };
       path(SHIP_HULL); ctx.fillStyle = body; ctx.fill(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.6; ctx.stroke();
+      path(SHIP_FRAME); ctx.fillStyle = body; ctx.fill();
+      path(SHIP_GROOVE); ctx.fillStyle = COL.ink; ctx.fill(); // a dark panel from the nose tip into the front socket...
+      ctx.globalAlpha = 0.55 * blink; ctx.lineWidth = 0.2; ctx.beginPath(); // ...its edges the nose lines that point into it
+      for (const sy of [-1, 1]) SHIP_GROOVE.slice(1, 3).forEach(([x, y], k) => k ? ctx.lineTo(R0 * x, sy * R0 * y) : ctx.moveTo(R0 * x, sy * R0 * y));
+      ctx.stroke(); ctx.globalAlpha = blink;
+      path(SHIP_FRAME); ctx.lineWidth = 0.3; ctx.stroke();
       for (const i of [2, 1, 0]) { // rear first, so yours sits on top where they touch
         const o = G.balls[i], [lx, ly, lr] = SHIP_LIGHTS[i];
         if (!o) continue;
         const on = o.state === 'held' || o.state === 'queued', pop = on && o.dockT !== undefined ? clamp(1 - (G.time - o.dockT) / 0.3, 0, 1) : 0;
         ctx.globalAlpha = blink; ctx.fillStyle = on ? (pop > 0.5 ? COL.chalk : cool) : body;
-        ctx.beginPath(); ctx.arc(R0 * lx, R0 * ly, R0 * lr * (1 + 0.12 * pop), 0, Math.PI * 2); ctx.fill(); ctx.lineWidth = 0.6; ctx.stroke();
+        ctx.beginPath(); ctx.arc(R0 * lx, R0 * ly, R0 * lr * (1 + 0.12 * pop), 0, Math.PI * 2); ctx.fill(); ctx.lineWidth = 0.4; ctx.stroke();
         if (!on) { ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(R0 * lx, R0 * ly, R0 * lr * 0.62, 0, Math.PI * 2); ctx.fill(); } // empty: a dark well
       }
       ctx.restore();
