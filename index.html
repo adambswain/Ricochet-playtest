@@ -373,7 +373,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
-  const cvs = $('game'), ctx = cvs.getContext('2d');
+  const cvs = $('game'); let ctx = cvs.getContext('2d'); // let: a figure can be drawn to a buffer first (see faded)
   const LOOKS = ['neon', 'cabinet', 'bone', 'blueprint', 'blueprint2'];
   let look = 'neon';
   try { const l = localStorage.getItem('ricochet.look'); if (LOOKS.includes(l)) look = l; } catch (e) {}
@@ -2406,16 +2406,29 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // He looms in the background: drawn big and faint behind everything, a nerve of light running from each orb you pop
   // back to him. When he dies he swells, his eyes go to X's, and he bursts.
+  // Draw something solid into a buffer, then lay the finished picture down at opacity a: overlapping parts don't show
+  // through each other the way they would if every shape were faded on its own.
+  let fadeBuf = null;
+  function faded(a, fn) {
+    const main = ctx;
+    if (!fadeBuf) fadeBuf = document.createElement('canvas');
+    if (fadeBuf.width !== cvs.width || fadeBuf.height !== cvs.height) { fadeBuf.width = cvs.width; fadeBuf.height = cvs.height; }
+    const b = fadeBuf.getContext('2d');
+    b.setTransform(1, 0, 0, 1, 0, 0); b.clearRect(0, 0, fadeBuf.width, fadeBuf.height); b.setTransform(main.getTransform());
+    ctx = b;
+    try { fn(); } finally { ctx = main; }
+    main.save(); main.setTransform(1, 0, 0, 1, 0, 0); main.globalAlpha = a; main.drawImage(fadeBuf, 0, 0); main.restore();
+  }
   function drawGeodeBg() {
     const B = G.boss && G.boss.kind === 'geode' ? G.boss : null, gh = G.geoGhost;
     if (gh) {
       const k = (G.time - gh.t0) / 1.1;
       if (k >= 1) G.geoGhost = null;
-      else { ctx.save(); ctx.translate(gh.x, gh.y); ctx.scale(1 + k * 0.5, 1 + k * 0.5); ctx.translate(-gh.x, -gh.y); drawGeode(gh, 0.45 * (1 - k), geoScale(), 1); ctx.restore(); }
+      else faded(0.45 * (1 - k), () => { ctx.translate(gh.x, gh.y); ctx.scale(1 + k * 0.5, 1 + k * 0.5); ctx.translate(-gh.x, -gh.y); drawGeode(gh, 1, geoScale(), 1); });
     }
     if (!B) return;
     const fade = B.enter > 0 ? clamp(1 - B.enter / BOSS_ENTER, 0, 1) : 1;
-    drawGeode(B, 0.3 * fade, geoScale());
+    faded(0.3 * fade, () => drawGeode(B, 1, geoScale()));
     for (const l of B.links) { // a nerve back to him from the orb you popped
       ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1 - l.t / 0.35; ctx.strokeStyle = GEO_ORB_COL; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.quadraticCurveTo((l.x + B.x) / 2 + 8, (l.y + B.y) / 2 - 8, B.x, B.y); ctx.stroke();
@@ -2433,88 +2446,166 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.globalAlpha = 1;
   }
 
-  // The alien: a big bean of a body on four curling tentacles, a dome of a head with one big eye and two small ones
-  // (they follow you and blink), two antennae, and two arms, one of them holding the blaster on your side. He bobs and
-  // breathes; the blaster's muzzle glows and pulls in sparks as it charges, kicks back as it fires; a hit squashes him
-  // and screws his eyes shut; cracked open, he wobbles, dazed; summoning, he throws both arms up.
+  // The alien: a pear of a body (a round head over wide hips) on four curling tentacles, one big eye and two small ones
+  // under heavy smug lids, cyan irises that follow you, two antennae, a free arm and a blaster arm on your side. Drawn
+  // with a line hierarchy (a heavy silhouette, lighter inner lines, fine detail) and shaded for form: lit from the upper
+  // left (a gloss on the dome, a rim of light down the lit edge, a lighter belly), with whatever's behind him darker and
+  // soft shadows where his limbs meet his body. He bobs and breathes and blinks; he scowls and grits his teeth as he
+  // charges, the antennae glowing; a hit squashes him and screws his eyes shut; summoning, he throws his free arm up;
+  // dying, his eyes go to X's.
   function drawGeode(B, a0 = 1, sc = 1, dying = 0) {
-    const t = G.time, u = GEO_R / 10, skin = ECOL.blinker, p = G.player;
-    const daze = 0, up = B.summon;
+    const t = G.time, u = GEO_R / 10, skin = ECOL.blinker, iris = ECOL.splitter, p = G.player, up = B.summon;
     const bob = Math.sin(t * 1.7) * 0.6 - up * 0.6, sq = B.hurt, br = 1 + 0.035 * Math.sin(t * 2.2);
     const look = Math.atan2(p.y - B.y, p.x - B.x), lx = Math.cos(look), ly = Math.sin(look);
+    const S3 = hex(skin), I3 = hex(COL.ink), rgba = (c, a) => `rgba(${c.join(',')},${a})`;
+    const lid = `rgb(${I3.map((v, i) => Math.round(v * 0.6 + S3[i] * 0.4)).join(',')})`; // his skin, as an opaque colour (lids cover the eye)
+    const W1 = 0.8, W2 = 0.38, W3 = 0.2; // silhouette, inner line, detail
     ctx.save(); ctx.globalAlpha = a0;
-    ctx.translate(B.x, B.y + bob * sc); ctx.scale(sc, sc); ctx.rotate(Math.sin(t * 9) * 0.12 * daze);
+    ctx.translate(B.x, B.y + bob * sc); ctx.scale(sc, sc);
     ctx.scale(1 + 0.16 * sq, (1 - 0.13 * sq) * br);
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    const tube = (pts, w) => { // an outlined limb: a fat stroke in his colour, a dark core
-      ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
-      ctx.strokeStyle = skin; ctx.lineWidth = w; ctx.stroke(); ctx.strokeStyle = COL.ink; ctx.lineWidth = w - 0.75; ctx.stroke();
-      ctx.globalAlpha = 0.3 * a0; ctx.strokeStyle = skin; ctx.stroke(); ctx.globalAlpha = a0;
+    // a limb as a tapered shape along a path, w0 at the root to w1 at the tip
+    const taper = (pts, w0, w1) => {
+      const L = [], R = [];
+      pts.forEach(([x, y], i) => {
+        const [ax, ay] = pts[Math.max(0, i - 1)], [bx, by] = pts[Math.min(pts.length - 1, i + 1)], dx = bx - ax, dy = by - ay, d = Math.hypot(dx, dy) || 1;
+        const w = (w0 + (w1 - w0) * i / (pts.length - 1)) / 2, nx = -dy / d * w, ny = dx / d * w;
+        L.push([x + nx, y + ny]); R.push([x - nx, y - ny]);
+      });
+      ctx.beginPath(); ctx.moveTo(...L[0]); for (const q of L.slice(1)) ctx.lineTo(...q);
+      const [tx, ty] = pts[pts.length - 1]; ctx.arc(tx, ty, w1 / 2, Math.atan2(L[L.length - 1][1] - ty, L[L.length - 1][0] - tx), Math.atan2(R[R.length - 1][1] - ty, R[R.length - 1][0] - tx));
+      for (const q of R.reverse()) ctx.lineTo(...q); ctx.closePath();
     };
-    // tentacles, curling
+    const back = `rgb(${I3.map((v, i) => Math.round(v * 0.8 + S3[i] * 0.2)).join(',')})`; // limbs behind him sit in shadow
+    const limb = (pts, w0, w1, far) => { taper(pts, w0, w1); ctx.fillStyle = far ? back : lid; ctx.fill(); ctx.globalAlpha = (far ? 0.6 : 1) * a0; ctx.strokeStyle = skin; ctx.lineWidth = W1 * 0.8; ctx.stroke(); ctx.globalAlpha = a0; };
+    const soft = (x, y, rx, ry, a) => { // a soft shadow
+      ctx.save(); ctx.translate(x, y); ctx.scale(1, ry / rx);
+      const g2 = ctx.createRadialGradient(0, 0, 0, 0, 0, rx); g2.addColorStop(0, rgba(I3, a)); g2.addColorStop(1, rgba(I3, 0));
+      ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    };
+    // tentacles: tapered, curling at the tip, suckers along the inside
     [-4.6, -1.6, 1.6, 4.6].forEach((bx, i) => {
-      const pts = [], lean = bx < 0 ? -1 : 1;
-      for (let k = 0; k <= 6; k++) { const s2 = k / 6; pts.push([(bx + lean * s2 * 2.2 + Math.sin(t * 3.1 + i * 1.7 + s2 * 3.4) * 1.7 * s2) * u, (6.2 + s2 * 6.4 + Math.cos(t * 2.3 + i) * 0.4 * s2) * u]); }
-      tube(pts, 2.3 * u);
-      ctx.fillStyle = skin; ctx.beginPath(); const [ex, ey] = pts[pts.length - 1]; ctx.arc(ex, ey, 0.55 * u, 0, Math.PI * 2); ctx.fill();
+      const pts = [], lean = bx < 0 ? -1 : 1, N = 9;
+      for (let k = 0; k <= N; k++) {
+        const s2 = k / N, curl = Math.max(0, s2 - 0.7) / 0.3;
+        pts.push([(bx + lean * s2 * 2.2 + Math.sin(t * 3.1 + i * 1.7 + s2 * 3.4) * 1.7 * s2 - lean * curl * curl * 1.4) * u, (6.8 + s2 * 8.2 + Math.cos(t * 2.3 + i) * 0.4 * s2 - curl * curl * 1.2) * u]);
+      }
+      const far = Math.abs(bx) > 3; // the outer two are behind the inner two
+      limb(pts, 2.8 * u, 0.7 * u, far);
+      const [ex, ey] = pts[N]; ctx.globalAlpha = (far ? 0.6 : 1) * a0; ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(ex, ey, 0.6 * u, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = rgba(S3, 0.55 * a0); ctx.beginPath();
+      for (let k = 2; k < N - 1; k += 2) { const [x, y] = pts[k], r = (0.42 - k * 0.03) * u, off = -lean * (1.2 - k * 0.1) * u * 0.5; ctx.moveTo(x + off + r, y); ctx.arc(x + off, y, r, 0, Math.PI * 2); }
+      ctx.fill(); ctx.globalAlpha = a0;
     });
-    // the free arm: hangs and swings, or flung up to summon
+    soft(0, 9.2 * u, 7.5 * u, 2.2 * u, 0.5); // the body's shadow over the tops of the tentacles
+    // the free arm: hangs and swings, or flung up to summon; a three-fingered hand
     const free = -B.side, fa = up > 0 ? -Math.PI / 2 + free * (0.55 - 0.25 * Math.sin(t * 12) * up) : Math.PI / 2 - free * (0.55 + Math.sin(t * 1.5) * 0.22);
     const fsx = free * 6.4 * u, fsy = 0.4 * u, fex = fsx + Math.cos(fa) * 5 * u, fey = fsy + Math.sin(fa) * 5 * u;
-    tube([[fsx, fsy], [fsx + Math.cos(fa) * 2.6 * u + free * 0.6 * u, fsy + Math.sin(fa) * 2.6 * u], [fex, fey]], 2.5 * u);
-    ctx.fillStyle = skin; ctx.beginPath(); for (let k = -1; k <= 1; k++) { const fa2 = fa + k * 0.5; ctx.moveTo(fex + Math.cos(fa2) * 1.3 * u, fey + Math.sin(fa2) * 1.3 * u); ctx.arc(fex + Math.cos(fa2) * 0.9 * u, fey + Math.sin(fa2) * 0.9 * u, 0.42 * u, 0, Math.PI * 2); } ctx.fill();
-    // the body: a bean, a lighter belly, freckles on the dome
-    ctx.beginPath(); ctx.ellipse(0, 0.6 * u, 7.6 * u, 8.8 * u, 0, 0, Math.PI * 2);
-    ctx.fillStyle = COL.ink; ctx.fill(); ctx.globalAlpha = 0.3 * a0; ctx.fillStyle = B.flash > 0 ? COL.chalk : skin; ctx.fill(); ctx.globalAlpha = a0;
-    ctx.strokeStyle = B.flash > 0 ? COL.chalk : skin; ctx.lineWidth = 0.65; ctx.stroke();
-    ctx.globalAlpha = 0.18 * a0; ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse(0, 4.2 * u, 4.6 * u, 3.6 * u, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.45 * a0; ctx.beginPath(); for (const [fx, fy, fr] of [[-3.4, -6.4, 0.5], [3.8, -6, 0.42], [-5.2, -3.4, 0.36], [5.4, -2.8, 0.4], [1.6, -7.6, 0.32]]) { ctx.moveTo((fx + fr) * u, fy * u); ctx.arc(fx * u, fy * u, fr * u, 0, Math.PI * 2); } ctx.fill(); ctx.globalAlpha = a0;
-    // antennae, swaying a beat behind the bob, tips glowing when he charges or summons
+    limb([[fsx, fsy], [fsx + Math.cos(fa) * 2.6 * u + free * 0.6 * u, fsy + Math.sin(fa) * 2.6 * u], [fex, fey]], 3 * u, 1.9 * u, true);
+    { // the free hand: a palm and three stubby fingers, outlined as one shape (a fat outline pass, then the fill over it)
+      const spread = 0.42 + 0.25 * up, fingers = [-1, 0, 1].map(k => [Math.cos(k * spread) * (k ? 1.75 : 2.05) * u, Math.sin(k * spread) * (k ? 1.75 : 2.05) * u]), ow = 0.5;
+      ctx.save(); ctx.translate(fex, fey); ctx.rotate(fa);
+      for (const pass of [0, 1]) {
+        ctx.globalAlpha = (pass ? 1 : 0.6) * a0; ctx.fillStyle = ctx.strokeStyle = pass ? back : skin;
+        ctx.beginPath(); ctx.ellipse(0.3 * u, 0, 1.15 * u + (pass ? 0 : ow), 1 * u + (pass ? 0 : ow), 0, 0, Math.PI * 2); ctx.fill();
+        ctx.lineWidth = 0.72 * u + (pass ? 0 : ow * 2); ctx.beginPath(); for (const [x, y] of fingers) { ctx.moveTo(0.5 * u, 0); ctx.lineTo(x, y); } ctx.stroke();
+      }
+      ctx.globalAlpha = 0.6 * a0; ctx.strokeStyle = skin; ctx.lineWidth = W3; ctx.beginPath(); ctx.arc(0.1 * u, 0, 0.5 * u, -0.9, 0.9); ctx.stroke(); // a knuckle line
+      ctx.globalAlpha = a0; ctx.restore();
+    }
+    // the body
+    const body = (k = 1) => { // a pear: a rounder, narrower head over wide hips
+      const P = (x, y) => [x * u * k, (0.6 + (y - 0.6) * k) * u];
+      ctx.beginPath(); ctx.moveTo(...P(0, -8.3));
+      ctx.bezierCurveTo(...P(4.3, -8.3), ...P(6.5, -5.8), ...P(6.8, -2.6)); ctx.bezierCurveTo(...P(7.1, 0.4), ...P(8.4, 2.8), ...P(8, 5.8)); ctx.bezierCurveTo(...P(7.5, 9), ...P(3.8, 9.7), ...P(0, 9.7));
+      ctx.bezierCurveTo(...P(-3.8, 9.7), ...P(-7.5, 9), ...P(-8, 5.8)); ctx.bezierCurveTo(...P(-8.4, 2.8), ...P(-7.1, 0.4), ...P(-6.8, -2.6)); ctx.bezierCurveTo(...P(-6.5, -5.8), ...P(-4.3, -8.3), ...P(0, -8.3));
+      ctx.closePath();
+    };
+    body(); ctx.fillStyle = COL.ink; ctx.fill();
+    const g = ctx.createRadialGradient(-2.6 * u, -3.2 * u, 0.5 * u, -1 * u, 0, 10.5 * u); // lit from the upper left
+    g.addColorStop(0, rgba(S3, 0.55)); g.addColorStop(0.55, rgba(S3, 0.3)); g.addColorStop(1, rgba(S3, 0.1));
+    ctx.fillStyle = B.flash > 0 ? COL.chalk : g; ctx.fill();
+    ctx.save(); body(); ctx.clip();
+    ctx.fillStyle = rgba(S3, 0.16); ctx.beginPath(); ctx.ellipse(0.4 * u, 4.6 * u, 4.8 * u, 3.8 * u, 0, 0, Math.PI * 2); ctx.fill(); // the belly
+    ctx.fillStyle = rgba(S3, 0.42); ctx.beginPath(); // spots: a graded row over the dome and down each flank
+    for (const [x, y, r] of [[-2.2, -7.3, 0.42], [0, -7.7, 0.52], [2.2, -7.3, 0.42], [-6.1, -1.2, 0.46], [-6.6, 1.1, 0.36], [-6.5, 3.2, 0.26], [6.1, -1.2, 0.46], [6.6, 1.1, 0.36], [6.5, 3.2, 0.26]]) { ctx.moveTo((x + r) * u, y * u); ctx.arc(x * u, y * u, r * u, 0, Math.PI * 2); }
+    ctx.fill();
+    soft(-6.8 * u, 0.6 * u, 2.6 * u, 3 * u, 0.5); soft(6.8 * u, 0.6 * u, 2.6 * u, 3 * u, 0.5); // where the arms join
+    ctx.restore();
+    ctx.globalCompositeOperation = 'lighter'; // gloss on the dome and a rim of light down the lit edge
+    ctx.fillStyle = rgba([255, 255, 255], 0.22 * a0); ctx.beginPath(); ctx.ellipse(-3 * u, -5.6 * u, 2.2 * u, 1.1 * u, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.moveTo(-9 * u, -9 * u); ctx.lineTo(-1 * u, -9 * u); ctx.lineTo(-9 * u, 6 * u); ctx.closePath(); ctx.clip(); // the rim, down the lit upper-left edge
+    body(0.9); ctx.strokeStyle = rgba([255, 255, 255], 0.35 * a0); ctx.lineWidth = W2; ctx.stroke(); ctx.restore();
+    ctx.globalCompositeOperation = 'source-over';
+    body(); ctx.strokeStyle = B.flash > 0 ? COL.chalk : skin; ctx.lineWidth = W1; ctx.stroke();
+    // antennae: tapered stalks, a bulb with a glint; the bulbs glow when he charges or summons
     const glow = Math.max(B.chg, up);
     for (const sd of [-1, 1]) {
-      const sw = Math.sin(t * 2.3 + sd) * 0.9 * u, tx = sd * 4.8 * u + sw, ty = -12.6 * u + Math.cos(t * 1.7 - 0.8) * 0.4 * u;
-      ctx.beginPath(); ctx.moveTo(sd * 2.2 * u, -7.8 * u); ctx.quadraticCurveTo(sd * 2.4 * u, -11 * u, tx, ty); ctx.strokeStyle = skin; ctx.lineWidth = 0.55; ctx.stroke();
+      const sw = Math.sin(t * 2.3 + sd) * 0.9 * u, tx = sd * 4.8 * u + sw, ty = -12.6 * u + Math.cos(t * 1.7 - 0.8) * 0.4 * u, pts = [];
+      for (let k = 0; k <= 6; k++) { const s2 = k / 6, a = 1 - s2; pts.push([a * a * sd * 2.2 * u + 2 * a * s2 * sd * 2.4 * u + s2 * s2 * tx, a * a * -7.8 * u + 2 * a * s2 * -11 * u + s2 * s2 * ty]); }
+      taper(pts, 0.9 * u, 0.35 * u); ctx.fillStyle = skin; ctx.fill();
       if (glow > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = glow * 0.6 * a0; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(tx, ty, (1 + glow * 1.4) * u, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = a0; }
-      ctx.fillStyle = glow > 0.5 ? COL.chalk : skin; ctx.beginPath(); ctx.arc(tx, ty, 0.95 * u, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = glow > 0.5 ? COL.chalk : skin; ctx.beginPath(); ctx.arc(tx, ty, 1.05 * u, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = lid; ctx.lineWidth = W3; ctx.beginPath(); ctx.arc(tx, ty, 0.6 * u, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(tx - 0.35 * u, ty - 0.35 * u, 0.25 * u, 0, Math.PI * 2); ctx.fill();
     }
-    // eyes: one big, two small, following you; blinking, screwed shut when hit, spinning when dazed
+    // eyes: lidded, coloured irises that follow you, two glints; blinking, screwed shut when hit, X'd out when dying
     const shut = sq > 0.3 && !dying, blink = B.blinkT < 0 && !dying;
     for (const [ex, ey, er] of [[0, -3, 2.7], [-4.3, -5, 1.3], [4.3, -5, 1.3]]) {
       const X = ex * u, Y = ey * u, R = er * u;
       if (dying) { ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(X - R * 0.7, Y - R * 0.7); ctx.lineTo(X + R * 0.7, Y + R * 0.7); ctx.moveTo(X + R * 0.7, Y - R * 0.7); ctx.lineTo(X - R * 0.7, Y + R * 0.7); ctx.stroke(); continue; }
       if (shut) { ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.45; ctx.beginPath(); ctx.moveTo(X - R, Y - R * 0.5); ctx.lineTo(X + R * 0.3, Y); ctx.lineTo(X - R, Y + R * 0.5); ctx.moveTo(X + R, Y - R * 0.5); ctx.lineTo(X - R * 0.3, Y); ctx.lineTo(X + R, Y + R * 0.5); ctx.stroke(); continue; }
-      if (blink) { ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.45; ctx.beginPath(); ctx.moveTo(X - R, Y); ctx.quadraticCurveTo(X, Y + R * 0.5, X + R, Y); ctx.stroke(); continue; }
-      ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2); ctx.fill();
-      if (daze > 0) { ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.35; ctx.beginPath(); for (let k = 0; k < 14; k++) { const a = t * 9 + k * 0.7, rr = R * 0.75 * k / 14; k ? ctx.lineTo(X + Math.cos(a) * rr, Y + Math.sin(a) * rr) : ctx.moveTo(X, Y); } ctx.stroke(); continue; }
-      const pr = R * (er > 2 ? 0.5 : 0.55), off = R - pr - 0.15;
-      ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(X + lx * off, Y + ly * off, pr, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(X + lx * off - pr * 0.35, Y + ly * off - pr * 0.35, pr * 0.3, 0, Math.PI * 2); ctx.fill(); // a glint
+      ctx.save(); ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2); ctx.clip();
+      ctx.fillStyle = COL.chalk; ctx.fillRect(X - R, Y - R, R * 2, R * 2);
+      const off = R * 0.24, ix = X + lx * off, iy = Y + ly * off;
+      ctx.fillStyle = iris; ctx.beginPath(); ctx.arc(ix, iy, R * 0.7, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = COL.ink; ctx.lineWidth = W3; ctx.stroke();
+      ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(ix, iy, R * 0.38, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(ix - R * 0.22, iy - R * 0.24, R * 0.16, 0, Math.PI * 2); ctx.moveTo(ix + R * 0.3, iy + R * 0.18); ctx.arc(ix + R * 0.22, iy + R * 0.18, R * 0.08, 0, Math.PI * 2); ctx.fill();
+      const lidY = blink ? Y + R * 1.1 : Y - R * (B.chg > 0 ? 0.25 : 0.55), sag = blink ? 0 : R * 0.28; // a curved upper lid: smug; lower as he scowls; shut to blink
+      const lidPath = () => { ctx.beginPath(); ctx.moveTo(X - R * 1.05, Y - R * 1.05); ctx.lineTo(X + R * 1.05, Y - R * 1.05); ctx.lineTo(X + R * 1.05, lidY - sag * 0.4); ctx.quadraticCurveTo(X, lidY + sag, X - R * 1.05, lidY - sag * 0.4); ctx.closePath(); };
+      lidPath(); ctx.fillStyle = lid; ctx.fill();
+      ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.arc(X, Y, R + 0.05, 0, Math.PI * 2); ctx.clip();
+      ctx.strokeStyle = skin; ctx.lineWidth = W2; ctx.beginPath(); ctx.moveTo(X - R * 1.05, lidY - sag * 0.4); ctx.quadraticCurveTo(X, lidY + sag, X + R * 1.05, lidY - sag * 0.4); ctx.stroke(); // the lid's edge
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2); ctx.lineWidth = W2; ctx.stroke();
     }
-    if (B.chg > 0 && !shut) { ctx.strokeStyle = skin; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(-3.4 * u, -6.6 * u - B.chg * 0.5); ctx.lineTo(-0.8 * u, -5.6 * u); ctx.moveTo(3.4 * u, -6.6 * u - B.chg * 0.5); ctx.lineTo(0.8 * u, -5.6 * u); ctx.stroke(); } // a scowl as he charges
-    // mouth: a smug curve, gritted teeth while charging, an O when hit, a wobble when dazed
-    ctx.strokeStyle = skin; ctx.lineWidth = 0.5;
-    if (shut) { ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(0, 3.4 * u, 1.6 * u, 2 * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-    else if (B.chg > 0) { ctx.fillStyle = COL.chalk; ctx.fillRect(-2.4 * u, 2.6 * u, 4.8 * u, 1.5 * u); ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.25; ctx.beginPath(); for (let k = -1; k <= 1; k++) { ctx.moveTo(k * 1.2 * u, 2.6 * u); ctx.lineTo(k * 1.2 * u, 4.1 * u); } ctx.moveTo(-2.4 * u, 3.35 * u); ctx.lineTo(2.4 * u, 3.35 * u); ctx.stroke(); }
-    else if (daze > 0) { ctx.beginPath(); for (let k = 0; k <= 8; k++) { const x = (-2.6 + k * 0.65) * u, y = (3.4 + Math.sin(k * 1.6 + t * 10) * 0.4) * u; k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); }
-    else { ctx.beginPath(); ctx.moveTo(-2.8 * u, 2.8 * u); ctx.quadraticCurveTo(0.6 * u, 5 * u, 3 * u, 2.2 * u); ctx.stroke(); }
+    // mouth: a smug, tapered curve with a dimple; gritted teeth while charging; an O when hit
+    if (shut) { ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(0, 3.4 * u, 1.6 * u, 2 * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = skin; ctx.lineWidth = W2; ctx.stroke(); }
+    else if (B.chg > 0) { ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.ellipse(0, 3.3 * u, 2.6 * u, 0.9 * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = lid; ctx.lineWidth = W3; ctx.beginPath(); for (let k = -1; k <= 1; k++) { ctx.moveTo(k * 1.1 * u, 2.5 * u); ctx.lineTo(k * 1.1 * u, 4.1 * u); } ctx.moveTo(-2.5 * u, 3.3 * u); ctx.lineTo(2.5 * u, 3.3 * u); ctx.stroke(); ctx.strokeStyle = skin; ctx.lineWidth = W2; ctx.beginPath(); ctx.ellipse(0, 3.3 * u, 2.6 * u, 0.9 * u, 0, 0, Math.PI * 2); ctx.stroke(); }
+    else {
+      const pts = []; for (let k = 0; k <= 10; k++) { const s2 = k / 10, a = 1 - s2; pts.push([a * a * -2.8 * u + 2 * a * s2 * 0.6 * u + s2 * s2 * 3 * u, a * a * 2.8 * u + 2 * a * s2 * 5 * u + s2 * s2 * 2.2 * u]); }
+      ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.strokeStyle = skin; ctx.lineWidth = 0.75 * u; ctx.stroke();
+      ctx.strokeStyle = skin; ctx.lineWidth = W3; ctx.beginPath(); ctx.moveTo(2.7 * u, 1.6 * u); ctx.quadraticCurveTo(3.3 * u, 2 * u, 3.3 * u, 2.7 * u); ctx.stroke(); // the dimple
+    }
+    if (B.chg > 0 && !shut) { ctx.strokeStyle = skin; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(-3.4 * u, -6.6 * u - B.chg * 0.5); ctx.lineTo(-0.8 * u, -5.9 * u); ctx.moveTo(3.4 * u, -6.6 * u - B.chg * 0.5); ctx.lineTo(0.8 * u, -5.9 * u); ctx.stroke(); } // a scowl as he charges
     // the blaster arm, on your side of him, kicking back when it fires
     const gx = B.side * 6.8 * u, gy = 0.6 * u, ca = Math.cos(B.gunA), sa = Math.sin(B.gunA), kick = B.recoil * 1.3;
-    const hx = gx + ca * (5 * u - kick) + B.side * 1.2 * u, hy = gy + sa * (5 * u - kick) - Math.sin(t * 1.7) * 0.2; // held out clear of his body
-    tube([[gx, gy], [gx + B.side * 2.2 * u + ca * 1.4 * u, gy + sa * 1.4 * u + 0.6 * u], [hx, hy]], 2.5 * u);
+    const hx = gx + ca * (5 * u - kick) + B.side * 1.2 * u, hy = gy + sa * (5 * u - kick) - Math.sin(t * 1.7) * 0.2;
+    limb([[gx, gy], [gx + B.side * 2.2 * u + ca * 1.4 * u, gy + sa * 1.4 * u + 0.6 * u], [hx, hy]], 3 * u, 2 * u);
     ctx.save(); ctx.translate(hx, hy); ctx.rotate(B.gunA); ctx.scale(1.5, ca < 0 ? -1.5 : 1.5); // the gun, upright whichever way it points
-    ctx.beginPath(); ctx.moveTo(-1 * u, -1.1 * u); ctx.lineTo(4.6 * u, -1.1 * u); ctx.lineTo(4.6 * u, 1.1 * u); ctx.lineTo(1.2 * u, 1.1 * u); ctx.lineTo(0.6 * u, 2.6 * u); ctx.lineTo(-0.6 * u, 2.6 * u); ctx.lineTo(-0.3 * u, 1.1 * u); ctx.lineTo(-1 * u, 1.1 * u); ctx.closePath();
-    ctx.fillStyle = COL.ink; ctx.fill(); ctx.globalAlpha = 0.35 * a0; ctx.fillStyle = COL.threat; ctx.fillRect(1.4 * u, -0.35 * u, 3.2 * u, 0.7 * u); ctx.globalAlpha = a0; // a hot stripe down the barrel
-    ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.4; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0.4 * u, -1.1 * u); ctx.lineTo(1.4 * u, -2.1 * u); ctx.lineTo(3 * u, -2.1 * u); ctx.lineTo(3.4 * u, -1.1 * u); ctx.stroke(); // a fin
-    ctx.lineWidth = 0.3; ctx.beginPath(); for (const k of [1.9, 2.7, 3.5]) { ctx.moveTo(k * u, -0.6 * u); ctx.lineTo(k * u, 0.6 * u); } ctx.stroke(); // vents
-    ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.ellipse(4.9 * u, 0, 0.45 * u, 1.35 * u, 0, 0, Math.PI * 2); ctx.stroke(); // the muzzle ring
-    ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(-0.2 * u, 0.4 * u, 1.05 * u, 0, Math.PI * 2); ctx.fill(); // his hand on the grip
-    if ((B.chg > 0 || B.recoil > 0.5) && sc <= 1) { // charging: a growing glow at the muzzle, sparks drawn in; firing: a flash (not from the background, where the arena's aim ring does the job)
+    const rr = (x0, y0, x1, y1, r) => { ctx.moveTo(x0 + r, y0); ctx.arcTo(x1, y0, x1, y1, r); ctx.arcTo(x1, y1, x0, y1, r); ctx.arcTo(x0, y1, x0, y0, r); ctx.arcTo(x0, y0, x1, y0, r); ctx.closePath(); };
+    ctx.beginPath(); ctx.moveTo(-0.2 * u, 0.9 * u); ctx.lineTo(0.9 * u, 0.9 * u); ctx.lineTo(0.4 * u, 2.9 * u); ctx.lineTo(-0.8 * u, 2.7 * u); ctx.closePath(); // the grip, raked back
+    rr(-1.3 * u, -1.25 * u, 3 * u, 1.05 * u, 0.6 * u); // the body
+    rr(2.8 * u, -0.7 * u, 5.2 * u, 0.6 * u, 0.3 * u); // the barrel
+    ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = W2; ctx.stroke();
+    ctx.globalAlpha = 0.45 * a0; ctx.fillStyle = COL.threat; ctx.fillRect(3.1 * u, -0.22 * u, 1.9 * u, 0.32 * u); ctx.globalAlpha = a0; // a hot core down the barrel
+    ctx.strokeStyle = COL.chalk; ctx.lineWidth = W3; ctx.beginPath(); ctx.moveTo(-0.9 * u, -0.25 * u); ctx.lineTo(2.4 * u, -0.25 * u); for (const k of [1.2, 1.7, 2.2]) { ctx.moveTo(k * u, 0.15 * u); ctx.lineTo(k * u, 0.75 * u); } ctx.stroke(); // a panel line, vents
+    ctx.strokeStyle = COL.threat; ctx.lineWidth = W2 * 1.3; ctx.beginPath(); ctx.ellipse(5.25 * u, -0.05 * u, 0.35 * u, 0.95 * u, 0, 0, Math.PI * 2); ctx.stroke(); // the muzzle lens
+    ctx.beginPath(); ctx.moveTo(-1.4 * u, 0.9 * u); // his hand round the grip: the back of the hand, then two fingers curled over the front
+    ctx.bezierCurveTo(-1.9 * u, 1.6 * u, -1.7 * u, 2.6 * u, -0.9 * u, 3 * u); ctx.lineTo(0.1 * u, 2.95 * u);
+    ctx.bezierCurveTo(0.9 * u, 3 * u, 1.3 * u, 2.4 * u, 0.75 * u, 2.05 * u); ctx.bezierCurveTo(1.4 * u, 1.9 * u, 1.45 * u, 1.1 * u, 0.75 * u, 1 * u);
+    ctx.bezierCurveTo(0.2 * u, 0.85 * u, -0.6 * u, 0.75 * u, -1.4 * u, 0.9 * u); ctx.closePath();
+    ctx.fillStyle = lid; ctx.fill(); ctx.strokeStyle = skin; ctx.lineWidth = W2; ctx.stroke();
+    ctx.lineWidth = W3; ctx.beginPath(); ctx.moveTo(0.75 * u, 2.05 * u); ctx.quadraticCurveTo(0.1 * u, 2.05 * u, -0.2 * u, 1.8 * u); ctx.stroke(); // the crease between the fingers
+    ctx.beginPath(); ctx.moveTo(-1 * u, 0.85 * u); ctx.quadraticCurveTo(-0.2 * u, 0.1 * u, 0.9 * u, 0.15 * u); ctx.lineTo(0.95 * u, 0.55 * u); ctx.quadraticCurveTo(0, 0.6 * u, -0.6 * u, 1.05 * u); ctx.closePath(); // the thumb, along the side
+    ctx.fillStyle = lid; ctx.fill(); ctx.lineWidth = W2; ctx.stroke();
+    if ((B.chg > 0 || B.recoil > 0.5) && sc <= 1) {
       ctx.globalCompositeOperation = 'lighter';
       const gr = (0.8 + B.chg * 1.8 + B.recoil * 1.5) * u;
-      ctx.globalAlpha = (0.5 + 0.4 * B.chg) * a0; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(5.2 * u, 0, gr, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.9 * a0; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(5.2 * u, 0, gr * 0.45, 0, Math.PI * 2); ctx.fill();
-      if (B.chg > 0) { ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2 + t * 5, rr = (1 - (t * 2.5 + k / 6) % 1) * 5 * u; ctx.moveTo(5.2 * u + Math.cos(a) * rr + 0.3, Math.sin(a) * rr); ctx.arc(5.2 * u + Math.cos(a) * rr, Math.sin(a) * rr, 0.3, 0, Math.PI * 2); } ctx.fill(); }
+      ctx.globalAlpha = (0.5 + 0.4 * B.chg) * a0; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(5.4 * u, 0, gr, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.9 * a0; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(5.4 * u, 0, gr * 0.45, 0, Math.PI * 2); ctx.fill();
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = a0;
     }
     ctx.restore();
