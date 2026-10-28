@@ -509,7 +509,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     10: 'The Core: hit its bombs with the ball to send them back into it. Don\'t touch it',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
-    30: 'The Geode: smash its crystal shell, then hit the alien inside. Its walls can\'t hurt you, but its blaster can',
+    30: 'The Geode: his crystal walls can\'t hurt you, but his blaster can. Hit the pink orbs in his walls to hurt him',
     29: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
     13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
@@ -1178,12 +1178,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function bossArrive(B) {
     if (B.kind === 'serpent') return; // it bursts in through a wall on its own (the cracks were the warning)
     const p = G.player;
-    if (B.kind === 'geode') { // the ship is shoved clear of the shell
-      for (const sl of B.slots) sl.on = true;
-      const dx = p.x - B.x, dy = p.y - B.y, d = Math.hypot(dx, dy) || 1e-6, R = GEO_RINGS[1] + GEO_CRY + PLAYER_R + 2;
-      if (d < R) { p.x = B.x + dx / d * R; p.y = B.y + dy / d * R; keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); }
-      for (const o of G.balls) if (o.state === 'live' && Math.hypot(o.x - B.x, o.y - B.y) < R) { o.x = B.x + (o.x - B.x) / (Math.hypot(o.x - B.x, o.y - B.y) || 1) * R; }
-    } else if (B.kind === 'hive') {
+    if (B.kind === 'geode') geoWalls(B);
+    else if (B.kind === 'hive') {
       const dx = p.x - B.x, dy = p.y - B.y, d = Math.hypot(dx, dy);
       if (d < B.r + PLAYER_R + 2) { p.x = B.x; p.y = B.y + B.r + PLAYER_R + 4; keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); }
     } else if (B.kind === 'core') {
@@ -1495,7 +1491,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       float(p.x, p.y - 8, 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
     }
     if (B.kind === 'geode') { // he bursts; his walls and his shots go with him
-      crumbleSiege(); G.bullets = G.bullets.filter(q => !q.geo);
+      G.geoGhost = { ...B, t0: G.time, links: [] }; crumbleSiege(); G.bullets = G.bullets.filter(q => !q.geo);
       burst(B.x, B.y, 80, ECOL.blinker, 80, 1.1, 0.9); burst(B.x, B.y, 40, ECOL.splitter, 60, 0.9, 0.7); sfx.splat(15);
     }
     for (const bm of G.bombs) burst(bm.x, bm.y, 8, COL.threat, 20, 0.5, 0.3);
@@ -1588,7 +1584,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'maw') return ballMaw(B, o, r, b);
     if (B.kind === 'serpent') return ballSerpent(B, o, r, b);
     if (B.kind === 'hive') return ballHive(B, o, r, b);
-    if (B.kind === 'geode') return ballGeode(B, o, r, b);
     const dx = o.x - B.x, dy = o.y - B.y, d = Math.hypot(dx, dy) || 1e-6, nx = dx / d, ny = dy / d;
     if (d - r < B.r) {
       o.x = B.x + nx * (B.r + r + 0.05); o.y = B.y + ny * (B.r + r + 0.05);
@@ -1845,14 +1840,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function drawBossWarning(B) {
     const k = 1 - B.enter / BOSS_ENTER, blink = 0.45 + 0.4 * Math.abs(Math.sin(G.time * (6 + k * 10)));
-    if (B.kind === 'geode') { // crystals sprout outward from the middle, inner ring first, then he fades in inside them
-      const N = B.slots.length;
-      B.slots.forEach((sl, i) => { sl.on = k * 1.25 > (sl.ring * 0.45 + (i % 9) / 9 * 0.45); });
-      if (Math.random() < 0.3) { const sl = B.slots[Math.floor(Math.random() * N)]; if (sl.on) { const [x, y] = geoSlot(B, sl); burst(x, y, 1, ECOL.splitter, 10, 0.4, 0.3); } }
-      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 + 0.2 * k; ctx.fillStyle = ECOL.splitter; ctx.beginPath(); ctx.arc(B.x, B.y, 3 + k * GEO_R, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-      drawGeode(B, clamp((k - 0.45) / 0.5, 0, 1));
-      return;
-    }
+    if (B.kind === 'geode') return; // he fades in behind the arena (drawGeodeBg)
     if (B.kind === 'core') { // searchlights from the corners hunt for the landing spot, then lock on it
       const lock = Math.max(0, (k - 0.7) / 0.3);
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.threat;
@@ -2187,7 +2175,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!B) return;
     if (B.kind === 'maw') { drawMaw(B); return; }
     if (B.kind === 'hive') { drawHive(B); return; }
-    if (B.kind === 'geode') { drawGeode(B); return; }
+    if (B.kind === 'geode') { drawGeodeFg(B); return; }
     if (B.kind === 'serpent') { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); drawSerpent(B); ctx.restore(); return; } // it lives beyond the walls too: only show what's inside
     const col = B.flash > 0 ? COL.chalk : ECOL.warden;
     ctx.save(); ctx.translate(B.x, B.y);
@@ -2339,168 +2327,123 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
   }
   /* ---------- the Geode ---------- */
-  // Wave 30. A big alien sits in the middle of the arena inside a shell of crystals, in a loop of four states:
-  //  - shell: crystals can't hurt you and breaking them doesn't hurt him, but every crystal you break is gone; a hot
-  //    ball cracks the ones round its hit too (one more per 5 charge). He's sealed in (a ball that slips through bounces
-  //    off a shimmer). Enemies stream in.
-  //  - crack: the last crystal breaks, the shell bursts and he staggers, exposed: hit him (1 + charge a hit).
-  //  - lock: still exposed, he summons crystal walls that close in from every edge (siege walls, 'crystal' rules: they
-  //    can't hurt you, the ball always bounces and breaks one, and each crystal hit keeps a hot ball from overloading),
-  //    squeezing you toward him, and fires his blaster: a ring that grows as it flies and cracks the crystal it meets.
-  //  - rebuild: once you've broken GEO_BREAK crystals (or GEO_LOCK seconds have passed) the walls that are left fly in
-  //    and become his next shell, GEO_THIN crystals thinner for every crystal you broke: smash hard and it's thin.
-  const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 480, GEO_STAGGER = 1.6, GEO_LOCK = 14, GEO_BREAK = [65, 80, 95];
-  const GEO_GROW = [1.8, 1.5, 1.2], GEO_SHOT = [2.6, 2.0, 1.5], GEO_CHARGE = 0.75, GEO_SHOT_V = 30, GEO_THIN = 0.3, GEO_ESCORT = [6, 5, 4], GEO_CLEAR = 30;
+  // Wave 30. A huge alien looms in the background, drifting about behind the arena and running it. He walls you in with
+  // crystal from every side: every few seconds a new layer slides in at the walls and pushes them all in (siege walls,
+  // 'crystal' rules: they can't hurt you, the ball always bounces and breaks one, and each crystal hit keeps a hot ball
+  // from overloading; break them and the ones behind slide back out). Mixed into his walls are his orbs, fleshy cores
+  // that pulse like hearts: hitting one pops it and hurts him (GEO_ORB × the ball's damage), and he flinches. He aims his
+  // blaster down into the arena: a glowing ring marks where a shot will come from (never close to you), then a ring flies
+  // at you that grows as it goes and cracks the crystal it meets. Enemies drop into the open middle. Everything speeds up
+  // as he weakens.
+  const GEO_R = 9, GEO_HP = 480, GEO_ORB = 2, GEO_PUSH = [2.6, 2.1, 1.6], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.6, GEO_SHOT_V = 32;
+  const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 24, GEO_DEPTH = 0.3;
+  const geoScale = () => Math.min(AW, AH) / 38; // how big he looms
   function setupGeode(B, cycle) {
-    const slots = [];
-    GEO_RINGS.forEach((rr, ring) => { const n = Math.floor(Math.PI * 2 * rr / (GEO_CRY * 2.1)); for (let i = 0; i < n; i++) slots.push({ ring, a: (i + (ring % 2) * 0.5) / n * Math.PI * 2, on: true, flash: 0 }); });
-    Object.assign(B, { r: GEO_R, x: AW / 2, y: AH / 2, hp: Math.round(GEO_HP * (1 + cycle * 0.6)), st: 'shell', stT: 0, spin: 0, slots, fly: [], escT: 3,
-                       lockT: 0, shotT: 0, chg: 0, gunA: Math.PI / 2, side: 1, recoil: 0, hurt: 0, blinkT: 2.5, summon: 0, hitCd: 0, shield: 0 });
+    Object.assign(B, { r: GEO_R, x: AW / 2, y: AH * 0.48, hp: Math.round(GEO_HP * (1 + cycle * 0.6)), shotT: 2, chg: 0, gunA: Math.PI / 2, side: 1,
+                       recoil: 0, hurt: 0, blinkT: 2.5, summon: 0, escT: 3, links: [], aimX: AW / 2, aimY: AH / 2 });
   }
-  const geoExposed = B => B.st === 'crack' || B.st === 'lock' || B.st === 'rebuild';
-  const geoSlot = (B, sl) => { const a = sl.a + B.spin * (sl.ring % 2 ? -1 : 1), rr = GEO_RINGS[sl.ring]; return [B.x + Math.cos(a) * rr, B.y + Math.sin(a) * rr]; };
-  const geoMuzzle = B => { const sx = B.x + B.side * GEO_R * 0.8, sy = B.y + GEO_R * 0.06, L = GEO_R * 1.28 - B.recoil * 1.3; return [sx + Math.cos(B.gunA) * L, sy + Math.sin(B.gunA) * L]; };
-  function geoBreak(B, sl, b, scored) {
-    sl.on = false;
-    const [x, y] = geoSlot(B, sl);
-    if (G.shards.length < 260) for (let n = 0; n < 5; n++) { const a = rand(0, Math.PI * 2), sp = rand(18, 40); G.shards.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: rand(0, Math.PI), va: rand(-10, 10), size: rand(0.5, 1), t: 0, max: rand(0.3, 0.55), color: ECOL.splitter, lit: 1 }); }
-    if (scored) { G.score += Math.round(10 * (1 + b) * G.mult); sfx.crystal(b); }
+  function geoWalls(B) { // he arrives: the walls rise round you
+    const m = Math.min(Math.round(AW / SIEGE_CELL), Math.round(AH / SIEGE_CELL));
+    setupSiege('crystal', B.cycle, { depth: m * GEO_DEPTH, interval: GEO_PUSH[0], first: 1.6, layers: 3, orb: GEO_ORBS[0] });
   }
-  function geoCrack(B) {
-    B.st = 'crack'; B.stT = GEO_STAGGER; B.hurt = 1;
-    for (let i = 0; i < 3; i++) ring(B.x, B.y, GEO_R, GEO_RINGS[1] + 8 + i * 9, 0.4 + i * 0.12, i % 2 ? COL.chalk : ECOL.splitter, 1.2);
-    burst(B.x, B.y, 50, ECOL.splitter, 70, 1, 0.7); gridImpulse(B.x, B.y, 60, 200);
-    float(B.x, B.y - GEO_RINGS[1] - 5, 'Cracked open!', COL.chalk, 4);
-    G.freeze = Math.max(G.freeze, 0.12); shake(3); sfx.shatter();
+  // Where his blaster is, in the arena: his shoulder, out along his arm to the muzzle.
+  const geoMuzzle = B => { const k = geoScale(), sx = B.x + B.side * GEO_R * 0.8 * k, sy = B.y + GEO_R * 0.06 * k, L = (GEO_R * 1.28 - B.recoil * 1.3) * k; return [sx + Math.cos(B.gunA) * L, sy + Math.sin(B.gunA) * L]; };
+  // Where the next shot comes from: the muzzle, but never within GEO_NEAR of you, and inside the arena.
+  function geoShotFrom(B) {
+    const p = G.player; let [x, y] = geoMuzzle(B);
+    const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy);
+    if (d < GEO_NEAR) { const a = d > 0.01 ? Math.atan2(dy, dx) : Math.atan2(B.y - p.y, B.x - p.x); x = p.x + Math.cos(a) * GEO_NEAR; y = p.y + Math.sin(a) * GEO_NEAR; }
+    return [clamp(x, 4, AW - 4), clamp(y, 4, AH - 4)];
   }
-  function geoLock(B) {
-    B.st = 'lock'; B.lockT = 0; B.shotT = 1.4; B.summon = 1;
-    setupSiege('crystal', B.cycle, { interval: GEO_GROW[B.phase - 1], first: 1.1, rings: 3, maxRing: 99, keep: (x, y) => Math.hypot(x - B.x, y - B.y) > GEO_CLEAR });
-    ring(B.x, B.y, GEO_R, Math.max(AW, AH) * 0.6, 0.6, ECOL.splitter, 1.2); gridImpulse(B.x, B.y, Math.max(AW, AH) * 0.6, 160);
-    shake(2); sfx.crystalGrow(); sfx.boss();
-  }
-  // The walls that are left fly in and become the next shell, thinner the more of them you broke (inner ring first).
-  function geoRebuild(B) {
-    const S = G.siege, left = [];
-    if (S) for (let j = 0; j < S.ny; j++) for (let i = 0; i < S.nx; i++) if (S.cells[j * S.nx + i]) { const R0 = cellRect(S, i, j); left.push([(R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2]); }
-    const n = clamp(B.slots.length - Math.floor((S ? S.broken : 0) * GEO_THIN), 10, B.slots.length);
-    const order = B.slots.slice().sort((p, q) => p.ring - q.ring || Math.random() - 0.5).slice(0, n);
-    for (let i = left.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [left[i], left[j]] = [left[j], left[i]]; }
-    B.fly = order.map((sl, i) => ({ x0: left[i % Math.max(1, left.length)] ? left[i % left.length][0] : B.x, y0: left[i % Math.max(1, left.length)] ? left[i % left.length][1] : B.y, sl, t: 0, d: rand(0, 0.3) }));
-    for (const [x, y] of left.slice(n)) if (Math.random() < 0.15) burst(x, y, 2, ECOL.splitter, 14, 0.5, 0.3); // the rest dissolve
-    G.siege = null;
-    B.st = 'rebuild'; B.stT = 1.25; B.summon = 1;
-    float(B.x, B.y - GEO_RINGS[1] - 5, n < B.slots.length * 0.5 ? 'Thin shell!' : 'Shell rebuilt', COL.chalk, 3.2);
-    sfx.crystalGrow();
+  function geoOrbHit(x, y, dmg) {
+    const B = G.boss; if (!B || B.kind !== 'geode') return;
+    B.hurt = 1; B.links.push({ x, y, t: 0 });
+    burst(x, y, 22, GEO_ORB_COL, 45, 0.9, 0.5); ring(x, y, 1, 10, 0.3, GEO_ORB_COL, 1.2); gridImpulse(x, y, 14, 60); shake(0.8);
+    sfx.splat(dmg); damageBoss(Math.round(dmg * GEO_ORB), x, y);
   }
   function updateGeode(B, dt) {
-    const p = G.player;
-    B.spin += dt * 0.12; B.hitCd -= dt; B.recoil = Math.max(0, B.recoil - dt * 4); B.hurt = Math.max(0, B.hurt - dt * 5);
-    B.summon = Math.max(0, B.summon - dt * 1.2); B.shield = Math.max(0, B.shield - dt * 3); B.blinkT -= dt;
+    const p = G.player, S = G.siege, ph = B.phase - 1;
+    B.recoil = Math.max(0, B.recoil - dt * 4); B.hurt = Math.max(0, B.hurt - dt * 4); B.summon = Math.max(0, B.summon - dt * 2); B.blinkT -= dt;
     if (B.blinkT < -0.12) B.blinkT = rand(1.8, 4);
-    for (const sl of B.slots) sl.flash -= dt;
-    // the blaster arm tracks you (on whichever side you're on), and locks for the last moment before a shot
-    const want = Math.atan2(p.y - B.y, p.x - B.x);
-    if (!(B.st === 'lock' && B.shotT < 0.15)) { let d = want - B.gunA; d = Math.atan2(Math.sin(d), Math.cos(d)); B.gunA += clamp(d, -dt * 3.2, dt * 3.2); }
+    for (let i = B.links.length - 1; i >= 0; i--) { B.links[i].t += dt; if (B.links[i].t > 0.35) B.links.splice(i, 1); }
+    // he wanders about behind the arena
+    B.x = AW / 2 + Math.sin(B.t * 0.21) * AW * 0.24; B.y = AH * 0.48 + Math.sin(B.t * 0.33 + 1) * AH * 0.1;
+    if (S) { // his walls: faster as he weakens, with more orbs; he shoves with both arms as each layer goes in
+      S.interval = GEO_PUSH[ph]; S.orb = GEO_ORBS[ph];
+      if (S.timer < dt * 1.5) B.summon = 1;
+    }
+    // the blaster arm tracks you, and locks for the last moment before a shot
+    const [mx, my] = geoMuzzle(B), want = Math.atan2(p.y - my, p.x - mx);
+    if (B.shotT > 0.15) { let d = want - B.gunA; d = Math.atan2(Math.sin(d), Math.cos(d)); B.gunA += clamp(d, -dt * 3, dt * 3); }
     if (Math.cos(B.gunA) > 0.3) B.side = 1; else if (Math.cos(B.gunA) < -0.3) B.side = -1;
-    if (B.st === 'shell') {
-      B.escT -= dt;
-      if (B.escT <= 0 && G.enemies.length < 14) {
-        B.escT = GEO_ESCORT[B.phase - 1];
-        for (const t of ['drifter', 'drifter', 'dasher', 'splitter', 'blinker'].slice(0, 2 + B.phase)) G.spawnQueue.push(t);
-      }
-    } else if (B.st === 'crack') {
-      B.stT -= dt;
-      if (B.stT <= 0) geoLock(B);
-    } else if (B.st === 'lock') {
-      B.lockT += dt;
-      if (G.siege) G.siege.interval = GEO_GROW[B.phase - 1];
-      B.shotT -= dt; B.chg = B.shotT < GEO_CHARGE ? 1 - B.shotT / GEO_CHARGE : 0;
-      if (B.shotT < GEO_CHARGE && B.shotT + dt >= GEO_CHARGE) sfx.blasterCharge();
-      if (B.shotT <= 0) { // fire: a ring that grows as it flies (two in the last phase)
-        B.shotT = GEO_SHOT[B.phase - 1]; B.chg = 0; B.recoil = 1;
-        const [mx, my] = geoMuzzle(B);
-        for (const off of B.phase === 3 ? [-0.22, 0.22] : [0]) {
-          const a = B.gunA + off;
-          G.bullets.push({ x: mx, y: my, vx: Math.cos(a) * GEO_SHOT_V, vy: Math.sin(a) * GEO_SHOT_V, r: 1.4, geo: true, grow: 0.085, rMax: 7 });
+    B.shotT -= dt; B.chg = B.shotT < GEO_CHARGE ? 1 - B.shotT / GEO_CHARGE : 0;
+    if (B.chg > 0) { const [fx, fy] = geoShotFrom(B); B.aimX = fx; B.aimY = fy; }
+    if (B.shotT < GEO_CHARGE && B.shotT + dt >= GEO_CHARGE) sfx.blasterCharge();
+    if (B.shotT <= 0) { // fire: a ring that grows as it flies (two in the last phase)
+      B.shotT = GEO_SHOT[ph]; B.chg = 0; B.recoil = 1;
+      const [fx, fy] = geoShotFrom(B), a0 = Math.atan2(p.y - fy, p.x - fx);
+      for (const off of ph === 2 ? [-0.2, 0.2] : [0]) G.bullets.push({ x: fx, y: fy, vx: Math.cos(a0 + off) * GEO_SHOT_V, vy: Math.sin(a0 + off) * GEO_SHOT_V, r: 1.4, geo: true, grow: 0.085, rMax: 7 });
+      ring(fx, fy, 1, 7, 0.25, COL.threat, 0.9); sfx.blaster();
+    }
+    // enemies drop into the open middle, never right on you
+    B.escT -= dt;
+    if (B.escT <= 0) {
+      B.escT = GEO_ESCORT[ph];
+      if (G.enemies.length + G.tele.length < 12) for (const type of ['drifter', 'dasher', 'splitter', 'blinker'].slice(0, 2 + ph)) {
+        for (let k = 0; k < 20; k++) {
+          const x = rand(AW * 0.25, AW * 0.75), y = rand(AH * 0.3, AH * 0.7);
+          let free = Math.hypot(x - p.x, y - p.y) > 22; if (free && S) siegeNear(S, x, y, 4, () => (free = false));
+          if (free) { G.tele.push({ x, y, type, t: 0.8 }); break; }
         }
-        ring(mx, my, 1, 6, 0.25, COL.threat, 0.8); sfx.blaster();
       }
-      if ((G.siege && G.siege.broken >= GEO_BREAK[B.phase - 1]) || B.lockT >= GEO_LOCK) geoRebuild(B);
-    } else if (B.st === 'rebuild') {
-      B.stT -= dt;
-      let all = true;
-      for (const f of B.fly) {
-        f.t += dt;
-        if (f.t - f.d >= 0.85 && !f.sl.on) { f.sl.on = true; f.sl.flash = 0.2; const [x, y] = geoSlot(B, f.sl); ring(x, y, 1, 4, 0.2, ECOL.splitter, 0.5); }
-        if (!f.sl.on) all = false;
-      }
-      if (B.stT <= 0 && all) { B.st = 'shell'; B.fly = []; B.escT = 2; sfx.clank(); }
     }
   }
-  // Ball against the Geode: shell crystals first, then his body. 'bounce' when it bounces (the caller adds the charge).
-  function ballGeode(B, o, r, b) {
-    if (B.st === 'shell' || B.st === 'rebuild') {
-      let hit = null, hx = 0, hy = 0, hd = 1e9;
-      for (const sl of B.slots) {
-        if (!sl.on) continue;
-        const [x, y] = geoSlot(B, sl), d = Math.hypot(o.x - x, o.y - y);
-        if (d < GEO_CRY + r && d < hd) { hit = sl; hx = x; hy = y; hd = d; }
-      }
-      if (hit) {
-        const nx = (o.x - hx) / (hd || 1e-6), ny = (o.y - hy) / (hd || 1e-6), dot = o.vx * nx + o.vy * ny;
-        o.x = hx + nx * (GEO_CRY + r + 0.05); o.y = hy + ny * (GEO_CRY + r + 0.05);
-        if (dot >= 0) return '';
-        o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny;
-        if (o.lit) o.fuse = FUSE_TIME; // crystals keep a hot ball from overloading
-        geoBreak(B, hit, b, true);
-        const extra = Math.floor(b / 5); // a hot ball cracks the crystals round its hit too
-        if (extra) B.slots.filter(sl => sl.on).map(sl => [sl, Math.hypot(geoSlot(B, sl)[0] - hx, geoSlot(B, sl)[1] - hy)]).sort((p, q) => p[1] - q[1]).slice(0, extra).forEach(([sl]) => geoBreak(B, sl, b, false));
-        if (B.st === 'shell' && !B.slots.some(sl => sl.on)) geoCrack(B);
-        return 'bounce';
-      }
-    }
-    const dx = o.x - B.x, dy = o.y - B.y, d = Math.hypot(dx, dy) || 1e-6;
-    if (d >= GEO_R + r) return '';
-    const nx = dx / d, ny = dy / d, dot = o.vx * nx + o.vy * ny;
-    o.x = B.x + nx * (GEO_R + r + 0.05); o.y = B.y + ny * (GEO_R + r + 0.05);
-    if (dot >= 0) return '';
-    o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny;
-    if (!geoExposed(B)) { B.shield = 1; sfx.clank(); return 'bounce'; } // sealed in: a shimmer, no damage
-    if (B.hitCd <= 0) {
-      B.hitCd = 0.12; B.hurt = 1;
-      const hx = B.x + nx * GEO_R, hy = B.y + ny * GEO_R;
-      burst(hx, hy, 10 + b, ECOL.blinker, 30 + b * 2, 0.8, 0.4); ring(hx, hy, 1, 6 + b * 0.4, 0.25, heat(b), 0.8);
-      sfx.splat(b); damageBoss(1 + b, hx, hy);
-    }
-    return 'bounce';
-  }
+  // A blast (overload, shockwave, catch) shatters the walls it reaches, and pops any orbs in them.
   function blastGeode(B, x, y, rad, dmg) {
-    if (B.st === 'shell' || B.st === 'rebuild') {
-      for (const sl of B.slots) if (sl.on) { const [sx, sy] = geoSlot(B, sl); if (Math.hypot(sx - x, sy - y) < rad + GEO_CRY) geoBreak(B, sl, 0, false); }
-      if (B.st === 'shell' && !B.slots.some(sl => sl.on)) geoCrack(B);
-    }
-    if (geoExposed(B) && Math.hypot(B.x - x, B.y - y) < rad + GEO_R) { B.hurt = 1; sfx.splat(4); damageBoss(dmg, B.x, B.y); }
+    const S = G.siege; if (!S) return;
+    const hit = []; siegeNear(S, x, y, rad, (side, c, k, cell, R0) => { if (Math.hypot(clamp(x, R0.x0, R0.x1) - x, clamp(y, R0.y0, R0.y1) - y) < rad) hit.push([side, c, k, cell, R0]); return false; });
+    hit.sort((a, q) => q[2] - a[2]).forEach(([side, c, k, cell, R0]) => { siegeBreak(side, c, k, 0, false); if (cell.orb) geoOrbHit((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2, dmg); });
   }
-  function pushOutGeode(B, o, r) {
-    const parts = [[B.x, B.y, GEO_R]];
-    if (B.st === 'shell' || B.st === 'rebuild') for (const sl of B.slots) if (sl.on) { const [x, y] = geoSlot(B, sl); parts.push([x, y, GEO_CRY]); }
-    for (const [x, y, rr] of parts) {
-      const dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy) || 1e-6;
-      if (d < rr + r) { o.x = x + dx / d * (rr + r); o.y = y + dy / d * (rr + r); }
+  // He looms in the background: drawn big and faint behind everything, a nerve of light running from each orb you pop
+  // back to him. When he dies he swells, his eyes go to X's, and he bursts.
+  function drawGeodeBg() {
+    const B = G.boss && G.boss.kind === 'geode' ? G.boss : null, gh = G.geoGhost;
+    if (gh) {
+      const k = (G.time - gh.t0) / 1.1;
+      if (k >= 1) G.geoGhost = null;
+      else { ctx.save(); ctx.translate(gh.x, gh.y); ctx.scale(1 + k * 0.5, 1 + k * 0.5); ctx.translate(-gh.x, -gh.y); drawGeode(gh, 0.45 * (1 - k), geoScale(), 1); ctx.restore(); }
+    }
+    if (!B) return;
+    const fade = B.enter > 0 ? clamp(1 - B.enter / BOSS_ENTER, 0, 1) : 1;
+    drawGeode(B, 0.3 * fade, geoScale());
+    for (const l of B.links) { // a nerve back to him from the orb you popped
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1 - l.t / 0.35; ctx.strokeStyle = GEO_ORB_COL; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.quadraticCurveTo((l.x + B.x) / 2 + 8, (l.y + B.y) / 2 - 8, B.x, B.y); ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     }
   }
+  // In the arena: where his next shot will come from, a ring closing in and a line toward you.
+  function drawGeodeFg(B) {
+    if (!(B.chg > 0)) return;
+    const k = B.chg, x = B.aimX, y = B.aimY, p = G.player, a = Math.atan2(p.y - y, p.x - x);
+    ctx.globalAlpha = 0.4 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.arc(x, y, 9 - 7 * k, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.3 + 0.5 * k; ctx.beginPath(); ctx.arc(x, y, 1 + 2 * k, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.25 * k; ctx.lineWidth = 0.3; ctx.setLineDash([1.2, 1]); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 16, y + Math.sin(a) * 16); ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  }
+
   // The alien: a big bean of a body on four curling tentacles, a dome of a head with one big eye and two small ones
   // (they follow you and blink), two antennae, and two arms, one of them holding the blaster on your side. He bobs and
   // breathes; the blaster's muzzle glows and pulls in sparks as it charges, kicks back as it fires; a hit squashes him
   // and screws his eyes shut; cracked open, he wobbles, dazed; summoning, he throws both arms up.
-  function drawGeode(B, a0 = 1) {
-    const t = G.time, u = GEO_R / 10, skin = ECOL.blinker, p = G.player, out = !geoExposed(B) || B.st === 'rebuild';
-    const daze = B.st === 'crack' ? B.stT / GEO_STAGGER : 0, up = Math.max(B.summon, B.st === 'rebuild' ? 1 : 0);
+  function drawGeode(B, a0 = 1, sc = 1, dying = 0) {
+    const t = G.time, u = GEO_R / 10, skin = ECOL.blinker, p = G.player;
+    const daze = 0, up = B.summon;
     const bob = Math.sin(t * 1.7) * 0.6 - up * 0.6, sq = B.hurt, br = 1 + 0.035 * Math.sin(t * 2.2);
     const look = Math.atan2(p.y - B.y, p.x - B.x), lx = Math.cos(look), ly = Math.sin(look);
     ctx.save(); ctx.globalAlpha = a0;
-    ctx.translate(B.x, B.y + bob); ctx.rotate(Math.sin(t * 9) * 0.12 * daze);
+    ctx.translate(B.x, B.y + bob * sc); ctx.scale(sc, sc); ctx.rotate(Math.sin(t * 9) * 0.12 * daze);
     ctx.scale(1 + 0.16 * sq, (1 - 0.13 * sq) * br);
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     const tube = (pts, w) => { // an outlined limb: a fat stroke in his colour, a dark core
@@ -2535,9 +2478,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.fillStyle = glow > 0.5 ? COL.chalk : skin; ctx.beginPath(); ctx.arc(tx, ty, 0.95 * u, 0, Math.PI * 2); ctx.fill();
     }
     // eyes: one big, two small, following you; blinking, screwed shut when hit, spinning when dazed
-    const shut = sq > 0.3, blink = B.blinkT < 0;
+    const shut = sq > 0.3 && !dying, blink = B.blinkT < 0 && !dying;
     for (const [ex, ey, er] of [[0, -3, 2.7], [-4.3, -5, 1.3], [4.3, -5, 1.3]]) {
       const X = ex * u, Y = ey * u, R = er * u;
+      if (dying) { ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(X - R * 0.7, Y - R * 0.7); ctx.lineTo(X + R * 0.7, Y + R * 0.7); ctx.moveTo(X + R * 0.7, Y - R * 0.7); ctx.lineTo(X - R * 0.7, Y + R * 0.7); ctx.stroke(); continue; }
       if (shut) { ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.45; ctx.beginPath(); ctx.moveTo(X - R, Y - R * 0.5); ctx.lineTo(X + R * 0.3, Y); ctx.lineTo(X - R, Y + R * 0.5); ctx.moveTo(X + R, Y - R * 0.5); ctx.lineTo(X - R * 0.3, Y); ctx.lineTo(X + R, Y + R * 0.5); ctx.stroke(); continue; }
       if (blink) { ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.45; ctx.beginPath(); ctx.moveTo(X - R, Y); ctx.quadraticCurveTo(X, Y + R * 0.5, X + R, Y); ctx.stroke(); continue; }
       ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2); ctx.fill();
@@ -2565,37 +2509,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.lineWidth = 0.3; ctx.beginPath(); for (const k of [1.9, 2.7, 3.5]) { ctx.moveTo(k * u, -0.6 * u); ctx.lineTo(k * u, 0.6 * u); } ctx.stroke(); // vents
     ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.ellipse(4.9 * u, 0, 0.45 * u, 1.35 * u, 0, 0, Math.PI * 2); ctx.stroke(); // the muzzle ring
     ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(-0.2 * u, 0.4 * u, 1.05 * u, 0, Math.PI * 2); ctx.fill(); // his hand on the grip
-    if (B.chg > 0 || B.recoil > 0.5) { // charging: a growing glow at the muzzle, sparks drawn in; firing: a flash
+    if ((B.chg > 0 || B.recoil > 0.5) && sc <= 1) { // charging: a growing glow at the muzzle, sparks drawn in; firing: a flash (not from the background, where the arena's aim ring does the job)
       ctx.globalCompositeOperation = 'lighter';
       const gr = (0.8 + B.chg * 1.8 + B.recoil * 1.5) * u;
-      ctx.globalAlpha = 0.5 + 0.4 * B.chg; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(5.2 * u, 0, gr, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.9; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(5.2 * u, 0, gr * 0.45, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = (0.5 + 0.4 * B.chg) * a0; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(5.2 * u, 0, gr, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.9 * a0; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(5.2 * u, 0, gr * 0.45, 0, Math.PI * 2); ctx.fill();
       if (B.chg > 0) { ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2 + t * 5, rr = (1 - (t * 2.5 + k / 6) % 1) * 5 * u; ctx.moveTo(5.2 * u + Math.cos(a) * rr + 0.3, Math.sin(a) * rr); ctx.arc(5.2 * u + Math.cos(a) * rr, Math.sin(a) * rr, 0.3, 0, Math.PI * 2); } ctx.fill(); }
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = a0;
     }
     ctx.restore();
-    // sealed in: a shimmer round him that lights up when the ball gets through to him
-    if (out) { ctx.globalAlpha = (0.25 + 0.15 * Math.sin(t * 4) + B.shield * 0.6) * a0; ctx.strokeStyle = B.shield > 0 ? COL.chalk : ECOL.splitter; ctx.lineWidth = 0.4 + B.shield * 0.5; ctx.beginPath(); ctx.arc(0, 0.6 * u, 10.6 * u, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = a0; }
     ctx.restore();
-    // the shell, and crystals flying in to rebuild it
-    const cry = ECOL.splitter, gems = [];
-    for (const sl of B.slots) if (sl.on) { const [x, y] = geoSlot(B, sl); gems.push([x, y, Math.atan2(y - B.y, x - B.x), sl.flash > 0]); }
-    for (const f of B.fly) { if (f.sl.on) continue; const k = clamp((f.t - f.d) / 0.85, 0, 1), e = k * k * (3 - 2 * k), [x, y] = geoSlot(B, f.sl); gems.push([f.x0 + (x - f.x0) * e, f.y0 + (y - f.y0) * e, f.t * 8, false]); }
-    if (!gems.length) return;
-    ctx.globalAlpha = a0; ctx.beginPath(); for (const [x, y, a] of gems) geoGem(x, y, a, GEO_CRY); ctx.fillStyle = COL.ink; ctx.fill();
-    ctx.globalAlpha = 0.32 * a0; ctx.fillStyle = cry; ctx.fill(); ctx.globalAlpha = a0; ctx.strokeStyle = cry; ctx.lineWidth = 0.4; ctx.stroke();
-    ctx.globalAlpha = 0.55 * a0; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.2; ctx.beginPath(); // a facet line down each gem
-    for (const [x, y, a] of gems) { ctx.moveTo(x + Math.cos(a) * GEO_CRY * 1.1, y + Math.sin(a) * GEO_CRY * 1.1); ctx.lineTo(x - Math.cos(a + 0.5) * GEO_CRY * 0.6, y - Math.sin(a + 0.5) * GEO_CRY * 0.6); }
-    ctx.stroke();
-    const lit = gems.filter(g => g[3]); if (lit.length) { ctx.globalAlpha = 0.9 * a0; ctx.fillStyle = COL.chalk; ctx.beginPath(); for (const [x, y, a] of lit) geoGem(x, y, a, GEO_CRY); ctx.fill(); }
-    ctx.globalAlpha = 1;
-  }
-
-  // A shell crystal: a cut gem, long axis pointing out from him.
-  function geoGem(x, y, a, s) {
-    const c = Math.cos(a), sn = Math.sin(a), pt = (u, v) => [x + c * u - sn * v, y + sn * u + c * v];
-    const P = [pt(1.25 * s, 0), pt(0.35 * s, 0.75 * s), pt(-0.9 * s, 0.6 * s), pt(-1.15 * s, 0), pt(-0.9 * s, -0.6 * s), pt(0.35 * s, -0.75 * s)];
-    ctx.moveTo(...P[0]); for (const q of P.slice(1)) ctx.lineTo(...q); ctx.closePath();
   }
 
   function drawBossBar() {
@@ -3412,64 +3335,75 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   /* ---------- siege walls ---------- */
-  // Walls that close in from all four sides at once, on a grid. A cell's ring is how far in it sits from the nearest
-  // edge. Every few seconds the walls advance: an empty cell fills if it's at or outside the front and the cell just
-  // outside it (toward its wall) is solid, so a wall grows inward a cell at a time and a hole you break is refilled from
-  // behind, slowly. Two skins and rule sets:
+  // Walls that close in from all four sides, Crusher-style: each side is a row of columns, each column a stack of cells
+  // from the wall inward. Every few seconds a new layer slides in at the wall and pushes every stack in a cell; breaking
+  // a cell lets the ones behind it slide back toward the wall. The corners are mitred (each corner cell belongs to the
+  // nearer wall, scaled to the arena's shape, so all four walls meet the middle together) and every stack stops at
+  // S.depth. Two skins and rule sets:
   //  - 'brick' (Crusher II, wave 29): the Crusher's rules. A ball smashes through a brick its damage covers, otherwise it
   //    chips it and bounces (+1 charge); pinned by the walls, you take a hit and blow a hole.
-  //  - 'crystal' (the Geode's lockdown): crystals can't hurt you. The ball always bounces off (+1 charge) and breaks the
-  //    crystal it hits, and every crystal hit refills an overloading ball's countdown; pinned, you just shatter free.
+  //  - 'crystal' (the Geode, wave 30): crystals can't hurt you. The ball always bounces off (+1 charge) and breaks the
+  //    crystal it hits, and every crystal hit refills an overloading ball's countdown; pinned, you just shatter free. Some
+  //    cells are the Geode's orbs: hitting one pops it and hurts him.
   const SIEGE_CELL = 5.6, SIEGE_GAP = 0.25;
-  // a cell's ring, scaled to the arena's shape so all four walls reach the middle together
-  const sRing = (S, i, j) => Math.floor(Math.min(Math.min(i, S.nx - 1 - i) * S.kx, Math.min(j, S.ny - 1 - j) * S.ky));
-  const cellRect = (S, i, j) => ({ x0: i * S.cw + SIEGE_GAP, x1: (i + 1) * S.cw - SIEGE_GAP, y0: j * S.ch + SIEGE_GAP, y1: (j + 1) * S.ch - SIEGE_GAP });
-  function sOut(S, i, j) { // the cell just outside (i, j), toward its nearest wall; -1 against the wall
-    const dx = Math.min(i, S.nx - 1 - i) * S.kx, dy = Math.min(j, S.ny - 1 - j) * S.ky;
-    if (dx <= dy) return i === 0 || i === S.nx - 1 ? -1 : i < S.nx / 2 ? j * S.nx + i - 1 : j * S.nx + i + 1;
-    return j === 0 || j === S.ny - 1 ? -1 : j < S.ny / 2 ? (j - 1) * S.nx + i : (j + 1) * S.nx + i;
+  // side 0 top, 1 right, 2 bottom, 3 left; column c runs along the wall, depth k in from it
+  const sCell = (S, side, c, k) => side === 0 ? [c, k] : side === 1 ? [S.nx - 1 - k, c] : side === 2 ? [c, S.ny - 1 - k] : [k, c];
+  function sLimit(S, side, c) { // how many cells this column may hold
+    if (side % 2 === 0) { const room = Math.min(c, S.nx - 1 - c) * S.kx; return Math.floor(Math.min(room, S.depth) / S.ky + 1e-6) + 1; }
+    const room = Math.min(c, S.ny - 1 - c) * S.ky; return Math.max(0, Math.min(Math.ceil(room / S.kx - 1e-6), Math.floor(S.depth / S.kx + 1e-6) + 1));
+  }
+  // The rectangle of a cell at (possibly fractional) depth kf: cells slide, so drawing uses each cell's animated depth.
+  function sRect(S, side, c, kf) {
+    let x0, y0;
+    if (side === 0) { x0 = c * S.cw; y0 = kf * S.ch; } else if (side === 2) { x0 = c * S.cw; y0 = AH - (kf + 1) * S.ch; }
+    else if (side === 3) { x0 = kf * S.cw; y0 = c * S.ch; } else { x0 = AW - (kf + 1) * S.cw; y0 = c * S.ch; }
+    return { x0: x0 + SIEGE_GAP, x1: x0 + S.cw - SIEGE_GAP, y0: y0 + SIEGE_GAP, y1: y0 + S.ch - SIEGE_GAP };
   }
   function setupSiege(skin, cycle, opt = {}) {
-    const nx = Math.max(6, Math.round(AW / SIEGE_CELL)), ny = Math.max(6, Math.round(AH / SIEGE_CELL));
-    const m = Math.min(nx, ny);
-    G.siege = { skin, cycle, nx, ny, cw: AW / nx, ch: AH / ny, kx: m / nx, ky: m / ny, cells: new Array(nx * ny).fill(null), front: -1,
-                maxRing: opt.maxRing ?? Math.floor(Math.min(nx, ny) / 2) - 2, interval: opt.interval || 3, timer: opt.first ?? 2, broken: 0,
-                keep: opt.keep || null }; // keep(x, y): false where walls may never grow (round the Geode)
-    for (let k = 0; k < (opt.rings || 1); k++) siegeAdvance(); // the outer rings arrive at once
-    return G.siege;
+    const nx = Math.max(6, Math.round(AW / SIEGE_CELL)), ny = Math.max(6, Math.round(AH / SIEGE_CELL)), m = Math.min(nx, ny);
+    const S = G.siege = { skin, cycle, nx, ny, cw: AW / nx, ch: AH / ny, kx: m / nx, ky: m / ny, depth: opt.depth ?? m / 2 - 2.5,
+                          cols: [nx, ny, nx, ny].map(n => Array.from({ length: n }, () => [])), interval: opt.interval || 3, timer: opt.first ?? 2,
+                          broken: 0, orb: opt.orb || 0, ref: null };
+    for (let k = 0; k < (opt.layers || 1); k++) siegeLayer(true);
+    return S;
   }
-  function siegeAdvance() {
+  function sNewCell(S) {
+    const hp = S.skin === 'brick' ? newBrick(S.cycle).hp : 1;
+    return { hp, max: hp, flash: 0, vd: -1, orb: false };
+  }
+  // A new layer slides in at every wall, pushing each stack in a cell (a full stack takes no more).
+  function siegeLayer(quiet) {
     const S = G.siege; if (!S) return 0;
-    S.front = Math.min(S.maxRing, S.front + 1);
-    let total = 0;
-    for (let pass = 0; pass < Math.ceil(Math.max(S.nx, S.ny) / Math.min(S.nx, S.ny)); pass++) total += siegePass(S); // the long walls take more steps
-    return total;
-  }
-  function siegePass(S) {
-    const add = [], p = G.player, balls = liveBalls();
-    for (let j = 0; j < S.ny; j++) for (let i = 0; i < S.nx; i++) {
-      const k = j * S.nx + i;
-      if (S.cells[k] || sRing(S, i, j) > S.front) continue;
-      const o = sOut(S, i, j); if (o >= 0 && !S.cells[o]) continue; // grows from the wall side only
-      const R0 = cellRect(S, i, j);
-      if (balls.some(b => hitRect(b.x, b.y, ballR(b.b) + 0.5, R0))) continue; // never on a ball
-      if (S.skin === 'crystal' && hitRect(p.x, p.y, PLAYER_R + 0.5, R0)) continue; // crystals grow round you
-      if (S.keep && !S.keep((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2)) continue;
-      add.push(k);
+    let n = 0;
+    const fresh = [];
+    S.cols.forEach((cols, side) => cols.forEach((st, c) => { if (st.length < sLimit(S, side, c)) { const cell = sNewCell(S); st.unshift(cell); fresh.push(cell); n++; } }));
+    if (S.orb && fresh.length) { // the Geode's orbs: a few at a time, set into the layer that's just come in
+      let have = 0; S.cols.forEach(cols => cols.forEach(st => st.forEach(cell => { if (cell.orb) have++; })));
+      for (let k = have; k < S.orb && fresh.length; k++) fresh.splice(Math.floor(Math.random() * fresh.length), 1)[0].orb = true;
     }
-    for (const k of add) { const hp = S.skin === 'brick' ? newBrick(S.cycle).hp : 1; S.cells[k] = { hp, max: hp, flash: 0, born: 0.3 }; }
-    return add.length;
+    S.ref = null;
+    if (n && !quiet) { if (S.skin === 'brick') { sfx.advance(); shake(0.5); } else { sfx.crystalGrow(); shake(0.35); } }
+    return n;
   }
-  // Visit the solid cells overlapping a box of half-size r round (x, y). fn(k, i, j, cell) returns true to stop.
+  function sRefs(S) { // grid cell -> [side, c, k], rebuilt when the walls change
+    if (S.ref) return S.ref;
+    S.ref = new Array(S.nx * S.ny).fill(null);
+    S.cols.forEach((cols, side) => cols.forEach((st, c) => st.forEach((cell, k) => { const [i, j] = sCell(S, side, c, k); S.ref[j * S.nx + i] = [side, c, k]; })));
+    return S.ref;
+  }
+  // Visit the cells overlapping a box of half-size r round (x, y). fn(side, c, k, cell, rect) returns true to stop.
   function siegeNear(S, x, y, r, fn) {
-    const i0 = Math.max(0, Math.floor((x - r) / S.cw)), i1 = Math.min(S.nx - 1, Math.floor((x + r) / S.cw));
+    const R = sRefs(S), i0 = Math.max(0, Math.floor((x - r) / S.cw)), i1 = Math.min(S.nx - 1, Math.floor((x + r) / S.cw));
     const j0 = Math.max(0, Math.floor((y - r) / S.ch)), j1 = Math.min(S.ny - 1, Math.floor((y + r) / S.ch));
-    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const k = j * S.nx + i; if (S.cells[k] && fn(k, i, j, S.cells[k])) return; }
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const q = R[j * S.nx + i]; if (!q) continue;
+      const [side, c, k] = q; if (fn(side, c, k, S.cols[side][c][k], sRect(S, side, c, k))) return;
+    }
   }
-  function siegeBreak(k, i, j, b, scored) {
-    const S = G.siege, c = S.cells[k], R0 = cellRect(S, i, j), x = (R0.x0 + R0.x1) / 2, y = (R0.y0 + R0.y1) / 2;
-    const col = S.skin === 'brick' ? COL.bricks[Math.min(2, c.max - 1)] || COL.bricks[2] : ECOL.splitter;
-    S.cells[k] = null; S.broken++;
+  function siegeBreak(side, c, k, b, scored) {
+    const S = G.siege, st = S.cols[side][c], cell = st[k], R0 = sRect(S, side, c, k), x = (R0.x0 + R0.x1) / 2, y = (R0.y0 + R0.y1) / 2;
+    const col = S.skin === 'brick' ? COL.bricks[Math.min(2, cell.max - 1)] || COL.bricks[2] : cell.orb ? GEO_ORB_COL : ECOL.splitter;
+    st.splice(k, 1); S.ref = null; S.broken++; // the cells behind it slide back toward the wall
     if (G.shards.length < 260) for (let n = 0; n < (scored ? 5 : 2); n++) {
       const a = rand(0, Math.PI * 2), sp = rand(15, 35);
       G.shards.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: rand(0, Math.PI), va: rand(-10, 10), size: rand(0.5, 0.9), t: 0, max: rand(0.3, 0.5), color: col, lit: 1 });
@@ -3481,83 +3415,83 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Ball (or a multiball extra) against the walls. Returns 'break' (smashed through), 'bounce' or ''.
   function siegeHit(o, r, b) {
     const S = G.siege; if (!S) return '';
-    let best = -1, h = null, bi = 0, bj = 0;
-    siegeNear(S, o.x, o.y, r, (k, i, j) => { const hq = hitRect(o.x, o.y, r, cellRect(S, i, j)); if (hq && (!h || hq.depth > h.depth)) { best = k; h = hq; bi = i; bj = j; } return false; });
-    if (best < 0) return '';
-    const c = S.cells[best], dot = o.vx * h.nx + o.vy * h.ny;
-    if (S.skin === 'brick' && 1 + b >= c.hp) { siegeBreak(best, bi, bj, b, true); return 'break'; }
+    let hit = null, h = null;
+    siegeNear(S, o.x, o.y, r, (side, c, k, cell, R0) => { const hq = hitRect(o.x, o.y, r, R0); if (hq && (!h || hq.depth > h.depth)) { hit = [side, c, k, cell, R0]; h = hq; } return false; });
+    if (!hit) return '';
+    const [side, c, k, cell, R0] = hit, dot = o.vx * h.nx + o.vy * h.ny;
+    if (S.skin === 'brick' && 1 + b >= cell.hp) { siegeBreak(side, c, k, b, true); return 'break'; }
     o.x += h.nx * h.depth; o.y += h.ny * h.depth;
     if (dot >= 0) return '';
     o.vx -= 2 * dot * h.nx; o.vy -= 2 * dot * h.ny;
-    if (S.skin === 'brick') { c.hp -= 1 + b; c.flash = 0.15; return 'bounce'; }
+    if (S.skin === 'brick') { cell.hp -= 1 + b; cell.flash = 0.15; return 'bounce'; }
     if (o.lit) o.fuse = FUSE_TIME; // crystals keep a hot ball from overloading
-    if (--c.hp <= 0) siegeBreak(best, bi, bj, b, true); else c.flash = 0.15;
+    if (cell.orb) { siegeBreak(side, c, k, b, false); geoOrbHit((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2, 1 + b); return 'bounce'; }
+    if (--cell.hp <= 0) siegeBreak(side, c, k, b, true); else cell.flash = 0.15;
     return 'bounce';
   }
   function pushOutSiege(o, r) {
     const S = G.siege; if (!S) return false;
-    siegeNear(S, o.x, o.y, r, (k, i, j) => { const h = hitRect(o.x, o.y, r, cellRect(S, i, j)); if (h) { o.x += h.nx * h.depth; o.y += h.ny * h.depth; } return false; });
+    siegeNear(S, o.x, o.y, r, (side, c, k, cell, R0) => { const h = hitRect(o.x, o.y, r, R0); if (h) { o.x += h.nx * h.depth; o.y += h.ny * h.depth; } return false; });
     let stuck = false;
-    siegeNear(S, o.x, o.y, r * 0.6, (k, i, j) => (stuck = !!hitRect(o.x, o.y, r * 0.6, cellRect(S, i, j))));
+    siegeNear(S, o.x, o.y, r * 0.6, (side, c, k, cell, R0) => (stuck = !!hitRect(o.x, o.y, r * 0.6, R0)));
     return stuck;
   }
   function updateSiege(dt) {
     const S = G.siege; if (!S) return;
-    for (const c of S.cells) if (c) { c.flash -= dt; if (c.born > 0) c.born -= dt; }
+    S.cols.forEach(cols => cols.forEach(st => st.forEach((cell, k) => { cell.vd += (k - cell.vd) * Math.min(1, dt * 10); cell.flash -= dt; })));
     S.timer -= dt;
-    if (S.timer <= 0) {
-      S.timer = S.interval;
-      if (siegeAdvance()) { if (S.skin === 'brick') { sfx.advance(); shake(0.5); } else { sfx.crystalGrow(); shake(0.3); } }
-    }
+    if (S.timer <= 0) { S.timer = S.interval; siegeLayer(); }
     // pinned by the walls: bricks hurt and blow a hole to escape; crystals just shatter round you
     const p = G.player;
     if (pushOutSiege(p, PLAYER_R)) {
       if (S.skin === 'brick' && p.inv <= 0) damagePlayer();
-      siegeNear(S, p.x, p.y, 9, (k, i, j) => { siegeBreak(k, i, j, 0, false); return false; });
+      const hits = []; siegeNear(S, p.x, p.y, 9, (side, c, k) => { hits.push([side, c, k]); return false; });
+      hits.sort((a, q) => q[2] - a[2]).forEach(([side, c, k]) => siegeBreak(side, c, k, 0, false)); // deepest first, so the indices hold
       ring(p.x, p.y, 2, 14, 0.4, COL.chalk, 0.8); shake(1.5);
     }
   }
   function crumbleSiege() {
     const S = G.siege; if (!S) return;
-    for (let j = 0; j < S.ny; j++) for (let i = 0; i < S.nx; i++) if (S.cells[j * S.nx + i]) siegeBreak(j * S.nx + i, i, j, 0, false);
+    S.cols.forEach((cols, side) => cols.forEach((st, c) => { for (let k = st.length - 1; k >= 0; k--) siegeBreak(side, c, k, 0, false); }));
     G.siege = null; sfx.shock();
   }
   function drawSiege() {
     const S = G.siege; if (!S) return;
-    const warn = S.timer < 0.6 && Math.floor(G.time * 10) % 2, brick = S.skin === 'brick';
-    const rects = [];
-    for (let j = 0; j < S.ny; j++) for (let i = 0; i < S.nx; i++) {
-      const c = S.cells[j * S.nx + i]; if (!c) continue;
-      const R0 = cellRect(S, i, j), g = c.born > 0 ? 1 - c.born / 0.3 : 1; // a new cell grows in from its middle
-      if (g < 1) { const cx = (R0.x0 + R0.x1) / 2, cy = (R0.y0 + R0.y1) / 2, hw = (R0.x1 - R0.x0) / 2 * g, hh = (R0.y1 - R0.y0) / 2 * g; Object.assign(R0, { x0: cx - hw, x1: cx + hw, y0: cy - hh, y1: cy + hh }); }
-      rects.push([R0, c, sRing(S, i, j) === S.front]);
-    }
+    const warn = S.timer < 0.6 && Math.floor(G.time * 10) % 2, brick = S.skin === 'brick', cells = [];
+    S.cols.forEach((cols, side) => cols.forEach((st, c) => st.forEach((cell, k) => cells.push([sRect(S, side, c, cell.vd), cell, side, c, k === 0]))));
     if (brick) {
-      ctx.fillStyle = COL.block; ctx.beginPath(); for (const [R0] of rects) ctx.rect(R0.x0, R0.y0, R0.x1 - R0.x0, R0.y1 - R0.y0); ctx.fill();
+      ctx.fillStyle = COL.block; ctx.beginPath(); for (const [R0] of cells) ctx.rect(R0.x0, R0.y0, R0.x1 - R0.x0, R0.y1 - R0.y0); ctx.fill();
       for (let hp = 1; hp <= 3; hp++) { // tint and outline by toughness, batched
         const col = COL.bricks[hp - 1]; ctx.beginPath(); let any = false;
-        for (const [R0, c] of rects) if (Math.min(3, c.hp) === hp) { any = true; ctx.rect(R0.x0, R0.y0, R0.x1 - R0.x0, R0.y1 - R0.y0); }
+        for (const [R0, cell] of cells) if (Math.min(3, cell.hp) === hp) { any = true; ctx.rect(R0.x0, R0.y0, R0.x1 - R0.x0, R0.y1 - R0.y0); }
         if (!any) continue;
         ctx.globalAlpha = 0.25; ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1; ctx.strokeStyle = col; ctx.lineWidth = 0.35; ctx.stroke();
       }
-    } else { // crystal: a shard in each cell, pointing inward the way the wall grows, each a little different
-      const cry = ECOL.splitter, shard = (R0, i, j, glint) => {
-        const h = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453 % 1, side = Math.min(i, S.nx - 1 - i) * S.kx <= Math.min(j, S.ny - 1 - j) * S.ky, dir = (side ? (i < S.nx / 2 ? 0 : Math.PI) : (j < S.ny / 2 ? Math.PI / 2 : -Math.PI / 2)) + h * 0.5;
-        const cx = (R0.x0 + R0.x1) / 2, cy = (R0.y0 + R0.y1) / 2, sz = Math.min(R0.x1 - R0.x0, R0.y1 - R0.y0), L = sz * (0.62 + 0.12 * Math.abs(h)), W = sz * 0.36;
-        const c = Math.cos(dir), sn = Math.sin(dir), pt = (a, b) => [cx + c * a - sn * b, cy + sn * a + c * b];
+    } else { // crystal: a shard in each cell, pointing inward the way the walls push, each a little different
+      const cry = ECOL.splitter, dirs = [Math.PI / 2, Math.PI, -Math.PI / 2, 0];
+      const shard = (R0, side, c, glint, sz2) => {
+        const h = Math.sin(c * 12.9898 + side * 78.233) * 43758.5453 % 1, dir = dirs[side] + h * 0.5;
+        const cx = (R0.x0 + R0.x1) / 2, cy = (R0.y0 + R0.y1) / 2, sz = Math.min(R0.x1 - R0.x0, R0.y1 - R0.y0) * (sz2 || 1), L = sz * (0.62 + 0.12 * Math.abs(h)), W = sz * 0.36;
+        const co = Math.cos(dir), sn = Math.sin(dir), pt = (a, b) => [cx + co * a - sn * b, cy + sn * a + co * b];
         if (glint) { ctx.moveTo(...pt(L, 0)); ctx.lineTo(...pt(-L * 0.7, W * 0.3)); return; }
         const P = [pt(L, 0), pt(L * 0.3, W), pt(-L * 0.75, W * 0.85), pt(-L, 0), pt(-L * 0.75, -W * 0.85), pt(L * 0.3, -W)];
         ctx.moveTo(...P[0]); for (const q of P.slice(1)) ctx.lineTo(...q); ctx.closePath();
       };
-      const cells = [];
-      for (let j = 0; j < S.ny; j++) for (let i = 0; i < S.nx; i++) if (S.cells[j * S.nx + i]) cells.push([i, j]);
-      const R = ([i, j]) => { const R0 = cellRect(S, i, j), c = S.cells[j * S.nx + i], g = c.born > 0 ? 1 - c.born / 0.3 : 1, cx = (R0.x0 + R0.x1) / 2, cy = (R0.y0 + R0.y1) / 2, hw = (R0.x1 - R0.x0) / 2 * g, hh = (R0.y1 - R0.y0) / 2 * g; return { x0: cx - hw, x1: cx + hw, y0: cy - hh, y1: cy + hh }; };
-      ctx.fillStyle = COL.ink; ctx.beginPath(); for (const ij of cells) shard(R(ij), ij[0], ij[1]); ctx.fill();
+      const plain = cells.filter(q => !q[1].orb), orbs = cells.filter(q => q[1].orb);
+      ctx.fillStyle = COL.ink; ctx.beginPath(); for (const [R0, , side, c] of plain) shard(R0, side, c); ctx.fill();
       ctx.globalAlpha = 0.3; ctx.fillStyle = cry; ctx.fill(); ctx.globalAlpha = 0.95; ctx.strokeStyle = cry; ctx.lineWidth = 0.3; ctx.stroke();
-      ctx.globalAlpha = 0.5; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.18; ctx.beginPath(); for (const ij of cells) shard(R(ij), ij[0], ij[1], true); ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.5; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.18; ctx.beginPath(); for (const [R0, , side, c] of plain) shard(R0, side, c, true); ctx.stroke(); ctx.globalAlpha = 1;
+      for (const [R0] of orbs) { // his orbs: a fleshy pink core, bigger than its cell, beating like a heart
+        const cx = (R0.x0 + R0.x1) / 2, cy = (R0.y0 + R0.y1) / 2, beat = Math.pow(Math.max(0, Math.sin(G.time * 5 + cx * 0.3)), 6), rr = Math.min(R0.x1 - R0.x0, R0.y1 - R0.y0) * (0.62 + 0.06 * beat);
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3 + 0.35 * beat; ctx.fillStyle = GEO_ORB_COL; ctx.beginPath(); ctx.arc(cx, cy, rr * (1.6 + 0.4 * beat), 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1; ctx.fillStyle = GEO_ORB_COL; ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.4; ctx.stroke();
+        ctx.globalAlpha = 0.35; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(cx + rr * 0.15, cy + rr * 0.2, rr * 0.55, 0, Math.PI * 2); ctx.fill(); // a darker heart inside
+        ctx.globalAlpha = 1; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(cx - rr * 0.38, cy - rr * 0.38, rr * 0.2, 0, Math.PI * 2); ctx.fill();
+      }
     }
-    ctx.lineWidth = 0.45; ctx.strokeStyle = COL.chalk; ctx.beginPath(); let fl = false; // hits flash; the front blinks just before the walls advance
-    for (const [R0, c, front] of rects) if (c.flash > 0 || (front && warn)) { fl = true; ctx.rect(R0.x0, R0.y0, R0.x1 - R0.x0, R0.y1 - R0.y0); }
+    ctx.lineWidth = 0.45; ctx.strokeStyle = COL.chalk; ctx.beginPath(); let fl = false; // hits flash; the outer layer blinks just before the next one pushes in
+    for (const [R0, cell, , , outer] of cells) if (cell.flash > 0 || (outer && warn)) { fl = true; ctx.rect(R0.x0, R0.y0, R0.x1 - R0.x0, R0.y1 - R0.y0); }
     if (fl) ctx.stroke();
   }
 
@@ -3640,7 +3574,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (d < rr + r) { o.x = x + dx / d * (rr + r); o.y = y + dy / d * (rr + r); }
       }
     }
-    else if (G.boss && G.boss.kind === 'geode') pushOutGeode(G.boss, o, r);
+    else if (G.boss && G.boss.kind === 'geode') { /* he's in the background: nothing of him is solid */ }
     else if (G.boss && G.boss.kind === 'maw') { // the wings, and the bay as a block (only the ball goes in)
       const B = G.boss;
       for (const S of [mawWing(B, -1), mawWing(B, 1), mawCavity(B)]) {
@@ -3834,7 +3768,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (warden) q.unshift('warden'); // miniboss arrives last, after its escorts
       add('turret', f(turrets));
       if (sp === 'crusher') setupCrusher(cycle);
-      if (sp === 'crusher2') setupSiege('brick', cycle, { interval: Math.max(2, 2.8 - cycle * 0.4), first: 2.5 });
+      if (sp === 'crusher2') setupSiege('brick', cycle, { interval: Math.max(2, 2.8 - cycle * 0.4), first: 2.5, layers: 2 });
     }
     G.spawnQueue = q; G.spawnTimer = 0.2;
   }
@@ -5040,9 +4974,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       let dead = b.x < b.r || b.x > AW - b.r || b.y < b.r || b.y > AH - b.r;
       if (!dead) for (const o of G.obstacles) if (!o.dying && hitObs(b.x, b.y, b.r, o)) { dead = true; break; }
       if (!dead && G.crush) nearBricks(b.x, b.y, (side, c, k) => (dead = !!hitRect(b.x, b.y, b.r, brickRect(side, c, k))));
-      if (!dead && G.siege) siegeNear(G.siege, b.x, b.y, b.r, (k, i, j, c) => { // a wall stops a shot; the Geode's shots crack the crystal they hit
-        if (!hitRect(b.x, b.y, b.r, cellRect(G.siege, i, j))) return false;
-        if (b.geo && --c.hp <= 0) siegeBreak(k, i, j, 0, false); else c.flash = 0.15;
+      if (!dead && G.siege) siegeNear(G.siege, b.x, b.y, b.r, (side, c, k, cell, R0) => { // a wall stops a shot; the Geode's shots crack the crystal they hit
+        if (!hitRect(b.x, b.y, b.r, R0)) return false;
+        if (b.geo && !cell.orb && --cell.hp <= 0) siegeBreak(side, c, k, 0, false); else cell.flash = 0.15;
         return (dead = true);
       });
       if (!dead && G.inv) for (const c of G.inv.bunkers) if (c.hp > 0 && hitRect(b.x, b.y, b.r, c)) { chipBunker(c); dead = true; break; }
@@ -5398,6 +5332,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (!G) return;
 
+    drawGeodeBg();
     drawBricks();
     drawSiege();
     drawInvasion();
@@ -6353,14 +6288,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B) {
       const ok = B.kind === 'maw' ? Number.isFinite(B.W) && Number.isFinite(B.throatCd) && Array.isArray(B.bricks) && B.bricks.every(br => Number.isFinite(br.rx0) && typeof br.alive === 'boolean')
                : B.kind === 'hive' ? Array.isArray(B.cells) && typeof B.st === 'string' && Number.isFinite(B.comb0)
-               : B.kind === 'geode' ? Array.isArray(B.slots) && Array.isArray(B.fly) && typeof B.st === 'string'
+               : B.kind === 'geode' ? Array.isArray(B.links) && Number.isFinite(B.shotT)
                : B.kind === 'serpent' ? Array.isArray(B.segs) && B.segs.length === SERP_N && B.next && Array.isArray(B.next.n)
                : B.kind === 'core' && B.r === CORE_R && typeof B.mode === 'string';
       if (!ok) setupBoss(['core', 'maw', 'serpent', 'geode', 'hive'].includes(B.kind) ? B.kind : 'core', B.cycle || 0);
     }
     G.bombs = (G.bombs || []).filter(bm => Number.isFinite(bm.vx) && Number.isFinite(bm.vy));
     G.ghosts = G.ghosts || [];
-    if (G.siege && G.boss && G.boss.kind === 'geode') { const B2 = G.boss; G.siege.keep = (x, y) => Math.hypot(x - B2.x, y - B2.y) > GEO_CLEAR; } // functions don't survive the save
+    if (G.siege && !Array.isArray(G.siege.cols)) G.siege = null; // saved with the old walls
     if (G.ball) { G.balls = [G.ball]; delete G.ball; } // saved before extra balls: its one ball carries over
     if (G.player.hull > (G.hullMax || HULL_MAX)) G.player.hull = G.hullMax || HULL_MAX; // saved when the cap was 5
     if (!Array.isArray(G.balls) || !G.balls.length) G.balls = [makeBall()];
