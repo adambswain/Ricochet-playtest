@@ -4474,9 +4474,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
   }
 
-  // Inner detail and idle motion, per type.
+  // Inner detail and idle motion, per type: each reads as a small machine (vents, rivets, bevels, struts, grooves),
+  // kept to thin lines at the rim so the centre stays clear for the health number. Anything with more than one hit
+  // also cracks as it's worn down.
   function enemyDetail(e, col) {
     const t = G.time + e.seed;
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 0.25; ctx.globalAlpha = 0.7;
+    detailMore(e, col, t);
     ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 0.25; ctx.globalAlpha = 0.7;
     if (e.bee) { // two stripes across the body and a blur of wings
       const a = Math.atan2(e.vy, e.vx), cx = Math.cos(a), cy = Math.sin(a), nx = -cy, ny = cx, r = e.r;
@@ -4490,7 +4494,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     } else if (e.type === 'drifter' || e.type === 'mini') {
       ctx.beginPath(); ctx.arc(0, 0, e.r * (0.42 + Math.sin(t * 4) * 0.06), 0, Math.PI * 2); ctx.stroke();
     } else if (e.type === 'brute' || e.type === 'titan') {
-      const s = e.r * 0.42, a = -e.rot * 0.9;
+      const s = e.r * 0.36, a = -e.rot * 0.9; // spins inside the raised plate without crossing its edge
       ctx.beginPath();
       for (let i = 0; i < 4; i++) { const q = a + Math.PI / 4 + i * Math.PI / 2; ctx.lineTo(Math.cos(q) * s * Math.SQRT2, Math.sin(q) * s * Math.SQRT2); }
       ctx.closePath(); ctx.stroke();
@@ -4542,6 +4546,73 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.closePath(); ctx.stroke();
     }
     ctx.globalAlpha = 1;
+  }
+
+  function detailMore(e, col, t) {
+    const r = e.r, dot = (x, y, rad) => { ctx.moveTo(x + rad, y); ctx.arc(x, y, rad, 0, Math.PI * 2); };
+    if (e.type === 'drifter') { // a drone: three vents on the rim, turning slowly
+      ctx.globalAlpha = 0.65; ctx.lineWidth = 0.3; ctx.beginPath();
+      for (let i = 0; i < 3; i++) { const q = t * 0.6 + i * Math.PI * 2 / 3; ctx.moveTo(Math.cos(q) * r * 0.72, Math.sin(q) * r * 0.72); ctx.lineTo(Math.cos(q) * r * 0.95, Math.sin(q) * r * 0.95); }
+      ctx.stroke();
+    } else if (e.type === 'brute' || e.type === 'titan') { // an armoured block seen from above: a raised plate, bevels to its corners, rivets on the rim
+      const a = e.rot * 0.4, so = r * 0.86 * Math.SQRT2, si = r * 0.56 * Math.SQRT2, band = r * 0.71;
+      ctx.globalAlpha = 0.45; ctx.lineWidth = 0.25; ctx.beginPath();
+      for (let i = 0; i < 4; i++) { const q = a + Math.PI / 4 + i * Math.PI / 2; ctx.moveTo(Math.cos(q) * so * 0.95, Math.sin(q) * so * 0.95); ctx.lineTo(Math.cos(q) * si, Math.sin(q) * si); }
+      ctx.stroke();
+      if (!LINES) { shapePath(e, 0.7); ctx.stroke(); } // the drafting looks already outline the plate
+      ctx.globalAlpha = 0.8; ctx.beginPath();
+      for (let i = 0; i < 4; i++) for (const off of e.type === 'titan' ? [-0.45, 0.45] : [0]) {
+        const q = a + i * Math.PI / 2, cx = Math.cos(q), cy = Math.sin(q);
+        dot(cx * band - cy * off * band, cy * band + cx * off * band, r * 0.05);
+      }
+      ctx.fill();
+    } else if (e.type === 'dasher') { // a spine to the nose and two engine ticks at the back
+      const a = dasherAngle(e), cx = Math.cos(a), cy = Math.sin(a);
+      ctx.globalAlpha = 0.6; ctx.lineWidth = 0.25; ctx.beginPath(); ctx.moveTo(cx * r * 0.5, cy * r * 0.5); ctx.lineTo(cx * r * 1.1, cy * r * 1.1);
+      for (const sg of [-1, 1]) { const q = a + sg * Math.PI * 2 / 3; ctx.moveTo(Math.cos(q) * r * 0.62, Math.sin(q) * r * 0.62); ctx.lineTo(Math.cos(q) * r * 0.92 - cx * r * 0.25, Math.sin(q) * r * 0.92 - cy * r * 0.25); }
+      ctx.stroke();
+    } else if (e.type === 'magnet') { // pole caps at both tips, and a field arc either side
+      ctx.globalAlpha = 0.85; ctx.beginPath();
+      for (const sy of [-1, 1]) { ctx.moveTo(0, sy * r * 1.2); ctx.lineTo(r * 0.24, sy * r * 0.92); ctx.lineTo(-r * 0.24, sy * r * 0.92); ctx.closePath(); }
+      ctx.fill();
+      ctx.globalAlpha = 0.35; ctx.lineWidth = 0.22; ctx.beginPath();
+      for (const sx of [-1, 1]) { ctx.moveTo(sx * r * 0.2, -r * 1.05); ctx.quadraticCurveTo(sx * r * 1.55, 0, sx * r * 0.2, r * 1.05); }
+      ctx.stroke();
+    } else if (e.type === 'bulwark') { // struts holding the shield to the body
+      const fx = Math.cos(e.face), fy = Math.sin(e.face), c = r + 1;
+      ctx.globalAlpha = 0.6; ctx.lineWidth = 0.3; ctx.beginPath();
+      for (const sg of [-1, 1]) { ctx.moveTo(fx * r * 0.8 + fy * sg * r * 0.45, fy * r * 0.8 - fx * sg * r * 0.45); ctx.lineTo(fx * c + fy * sg * r * 0.8, fy * c - fx * sg * r * 0.8); }
+      ctx.stroke();
+    } else if (e.type === 'blinker') { // a phantom echo, flickering just out of step
+      ctx.save(); ctx.rotate(-e.rot * 3); ctx.scale(1.3, 1.3); shapePath(e); ctx.restore();
+      ctx.globalAlpha = 0.18 + 0.12 * Math.sin(t * 13); ctx.lineWidth = 0.2; ctx.stroke();
+    } else if (e.type === 'monolith') { // a carved slab: grooves across the top and bottom, a seam down each side
+      const w = r * 0.78, h = r * 1.08;
+      ctx.globalAlpha = 0.5; ctx.lineWidth = 0.25; ctx.beginPath();
+      for (const sy of [-1, 1]) { ctx.moveTo(-w * 0.6, sy * h * 0.72); ctx.lineTo(w * 0.6, sy * h * 0.72); ctx.moveTo(-w * 0.35, sy * h * 0.86); ctx.lineTo(w * 0.35, sy * h * 0.86); }
+      for (const sx of [-1, 1]) { ctx.moveTo(sx * w * 0.72, -h * 0.45); ctx.lineTo(sx * w * 0.72, h * 0.45); }
+      ctx.stroke();
+    } else if (e.type === 'warden') { // studs at the corners
+      ctx.globalAlpha = 0.75; ctx.beginPath();
+      for (let i = 0; i < 8; i++) { const q = Math.PI / 8 + i * Math.PI / 4; dot(Math.cos(q) * r * 0.82, Math.sin(q) * r * 0.82, r * 0.05); }
+      ctx.fill();
+    } else if (e.type === 'turret') { // a base plate along the wall, bolted
+      const n = wallNormal(e), wx = -Math.sin(n), wy = Math.cos(n);
+      ctx.globalAlpha = 0.75; ctx.lineWidth = 0.45; ctx.beginPath(); ctx.moveTo(wx * r * 1.25, wy * r * 1.25); ctx.lineTo(-wx * r * 1.25, -wy * r * 1.25); ctx.stroke();
+      ctx.beginPath(); for (const sg of [-1, 1]) dot(wx * sg * r * 1.08 + Math.cos(n) * r * 0.18, wy * sg * r * 1.08 + Math.sin(n) * r * 0.18, r * 0.07); ctx.fill();
+    }
+    // wear: cracks run in from the edge as it loses health (clipped to the body, and never into the middle, where the number is)
+    const dmg = e.maxHp > 1 ? 1 - e.hp / e.maxHp : 0;
+    if (dmg > 0 && !['splitter', 'rock', 'invader', 'wax', 'egg', 'saucer', 'swarm'].includes(e.type) && !e.bee) {
+      ctx.save(); shapePath(e); ctx.clip();
+      ctx.globalAlpha = 0.55 + 0.3 * dmg; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.25; ctx.beginPath();
+      const n = 1 + Math.min(3, Math.floor(dmg * 4)), L = r * (0.3 + 0.3 * dmg);
+      for (let i = 0; i < n; i++) {
+        const q = e.seed * 2.3 + i * 2.1, c = Math.cos(q), sn = Math.sin(q), px = -sn, py = c, j = (i % 2 ? 1 : -1) * r * 0.08;
+        ctx.moveTo(c * r * 1.3, sn * r * 1.3); ctx.lineTo(c * r * 0.95, sn * r * 0.95); ctx.lineTo(c * (r * 0.95 - L * 0.5) + px * j, sn * (r * 0.95 - L * 0.5) + py * j); ctx.lineTo(c * (r * 0.95 - L), sn * (r * 0.95 - L));
+      }
+      ctx.stroke(); ctx.restore();
+    }
   }
 
   // The Asteroid Field is drawn like the 1979 vector monitor: black, everything in thin white lines (your ball and danger
