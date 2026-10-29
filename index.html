@@ -510,6 +510,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
     30: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
+    36: 'Bees! The Hive\'s scouts are out. Something big is buzzing nearby',
     29: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
     13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
@@ -2674,11 +2675,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     }
   }
-  // A shell crystal: a cut gem, long axis pointing out from him.
-  function geoGem(x, y, a, s) {
-    const c = Math.cos(a), sn = Math.sin(a), pt = (u, v) => [x + c * u - sn * v, y + sn * u + c * v];
-    const P = [pt(1.25 * s, 0), pt(0.35 * s, 0.75 * s), pt(-0.9 * s, 0.6 * s), pt(-1.15 * s, 0), pt(-0.9 * s, -0.6 * s), pt(0.35 * s, -0.75 * s)];
-    ctx.moveTo(...P[0]); for (const q of P.slice(1)) ctx.lineTo(...q); ctx.closePath();
+  // A shell crystal: a flat-faced glass block, square to him (k < 1 gives its top face).
+  function geoGem(x, y, a, s, k = 1) {
+    const c = Math.cos(a), sn = Math.sin(a), h = s * 0.95 * k, pt = (u, v) => [x + c * u - sn * v, y + sn * u + c * v];
+    ctx.moveTo(...pt(h, -h)); ctx.lineTo(...pt(h, h)); ctx.lineTo(...pt(-h, h)); ctx.lineTo(...pt(-h, -h)); ctx.closePath();
   }
   // In the arena: his shell (and crystals flying in to rebuild it), and the warning before each shot.
   function drawGeodeFg(B) {
@@ -2688,8 +2688,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (gems.length) {
       ctx.beginPath(); for (const [x, y, a] of gems) geoGem(x, y, a, GEO_CRY); ctx.fillStyle = COL.ink; ctx.fill();
       ctx.globalAlpha = 0.32; ctx.fillStyle = cry; ctx.fill(); ctx.globalAlpha = 1; ctx.strokeStyle = cry; ctx.lineWidth = 0.4; ctx.stroke();
-      ctx.globalAlpha = 0.55; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.2; ctx.beginPath(); // a facet line down each gem
-      for (const [x, y, a] of gems) { ctx.moveTo(x + Math.cos(a) * GEO_CRY * 1.1, y + Math.sin(a) * GEO_CRY * 1.1); ctx.lineTo(x - Math.cos(a + 0.5) * GEO_CRY * 0.6, y - Math.sin(a + 0.5) * GEO_CRY * 0.6); }
+      ctx.globalAlpha = 0.3; ctx.fillStyle = cry; ctx.beginPath(); for (const [x, y, a] of gems) geoGem(x, y, a, GEO_CRY, 0.55); ctx.fill(); // the top face
+      ctx.globalAlpha = 0.55; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.2; ctx.beginPath(); // a glint across it
+      for (const [x, y, a] of gems) { const c = Math.cos(a), sn = Math.sin(a), h = GEO_CRY * 0.5; ctx.moveTo(x + c * h * 0.3 + sn * h * 0.6, y + sn * h * 0.3 - c * h * 0.6); ctx.lineTo(x - c * h * 0.6 + sn * h * 0.1, y - sn * h * 0.6 - c * h * 0.1); }
       ctx.stroke();
       const lit = gems.filter(g => g[3]); if (lit.length) { ctx.globalAlpha = 0.9; ctx.fillStyle = COL.chalk; ctx.beginPath(); for (const [x, y, a] of lit) geoGem(x, y, a, GEO_CRY); ctx.fill(); }
       ctx.globalAlpha = 1;
@@ -3831,20 +3832,22 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (!any) continue;
         ctx.globalAlpha = 0.25; ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1; ctx.strokeStyle = col; ctx.lineWidth = 0.35; ctx.stroke();
       }
-    } else { // crystal: a shard in each cell, pointing inward the way the walls push, each a little different
-      const cry = ECOL.splitter, dirs = [Math.PI / 2, Math.PI, -Math.PI / 2, 0];
-      const shard = (R0, side, c, glint, sz2) => {
-        const h = Math.sin(c * 12.9898 + side * 78.233) * 43758.5453 % 1, dir = dirs[side] + h * 0.5;
-        const cx = (R0.x0 + R0.x1) / 2, cy = (R0.y0 + R0.y1) / 2, sz = Math.min(R0.x1 - R0.x0, R0.y1 - R0.y0) * (sz2 || 1), L = sz * (0.62 + 0.12 * Math.abs(h)), W = sz * 0.36;
-        const co = Math.cos(dir), sn = Math.sin(dir), pt = (a, b) => [cx + co * a - sn * b, cy + sn * a + co * b];
-        if (glint) { ctx.moveTo(...pt(L, 0)); ctx.lineTo(...pt(-L * 0.7, W * 0.3)); return; }
-        const P = [pt(L, 0), pt(L * 0.3, W), pt(-L * 0.75, W * 0.85), pt(-L, 0), pt(-L * 0.75, -W * 0.85), pt(L * 0.3, -W)];
-        ctx.moveTo(...P[0]); for (const q of P.slice(1)) ctx.lineTo(...q); ctx.closePath();
+    } else { // crystal: a flat-faced glass block in each cell (the Crusher's block, cut from crystal): a bevelled rim
+      // round a lighter top face, with a glint across it. Flat faces, so it reads as a wall, not a hazard.
+      const cry = ECOL.splitter;
+      const block = (R0, part) => {
+        const w = R0.x1 - R0.x0, h = R0.y1 - R0.y0, b = Math.min(w, h) * 0.24, i0 = { x0: R0.x0 + b, y0: R0.y0 + b, x1: R0.x1 - b, y1: R0.y1 - b };
+        if (part === 'face') { ctx.rect(i0.x0, i0.y0, i0.x1 - i0.x0, i0.y1 - i0.y0); return; }
+        if (part === 'bevel') { for (const [ox, oy, ix, iy] of [[R0.x0, R0.y0, i0.x0, i0.y0], [R0.x1, R0.y0, i0.x1, i0.y0], [R0.x1, R0.y1, i0.x1, i0.y1], [R0.x0, R0.y1, i0.x0, i0.y1]]) { ctx.moveTo(ox, oy); ctx.lineTo(ix, iy); } return; }
+        if (part === 'glint') { ctx.moveTo(i0.x0 + (i0.x1 - i0.x0) * 0.2, i0.y0 + (i0.y1 - i0.y0) * 0.55); ctx.lineTo(i0.x0 + (i0.x1 - i0.x0) * 0.55, i0.y0 + (i0.y1 - i0.y0) * 0.2); return; }
+        ctx.rect(R0.x0, R0.y0, w, h);
       };
       const plain = cells.filter(q => !q[1].orb), orbs = cells.filter(q => q[1].orb);
-      ctx.fillStyle = COL.ink; ctx.beginPath(); for (const [R0, , side, c] of plain) shard(R0, side, c); ctx.fill();
-      ctx.globalAlpha = 0.3; ctx.fillStyle = cry; ctx.fill(); ctx.globalAlpha = 0.95; ctx.strokeStyle = cry; ctx.lineWidth = 0.3; ctx.stroke();
-      ctx.globalAlpha = 0.5; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.18; ctx.beginPath(); for (const [R0, , side, c] of plain) shard(R0, side, c, true); ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.fillStyle = COL.ink; ctx.beginPath(); for (const [R0] of plain) block(R0); ctx.fill();
+      ctx.globalAlpha = 0.22; ctx.fillStyle = cry; ctx.fill(); ctx.globalAlpha = 0.95; ctx.strokeStyle = cry; ctx.lineWidth = 0.3; ctx.stroke();
+      ctx.globalAlpha = 0.25; ctx.beginPath(); for (const [R0] of plain) block(R0, 'face'); ctx.fill(); // the lighter top face
+      ctx.globalAlpha = 0.55; ctx.lineWidth = 0.18; ctx.beginPath(); for (const [R0] of plain) block(R0, 'bevel'); ctx.stroke(); // the bevels
+      ctx.globalAlpha = 0.55; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.22; ctx.beginPath(); for (const [R0] of plain) block(R0, 'glint'); ctx.stroke(); ctx.globalAlpha = 1;
       for (const [R0] of orbs) { // his orbs: a fleshy pink core, bigger than its cell, beating like a heart
         const cx = (R0.x0 + R0.x1) / 2, cy = (R0.y0 + R0.y1) / 2, beat = Math.pow(Math.max(0, Math.sin(G.time * 5 + cx * 0.3)), 6), rr = Math.min(R0.x1 - R0.x0, R0.y1 - R0.y0) * (0.62 + 0.06 * beat);
         ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3 + 0.35 * beat; ctx.fillStyle = GEO_ORB_COL; ctx.beginPath(); ctx.arc(cx, cy, rr * (1.6 + 0.4 * beat), 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
@@ -4126,7 +4129,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const monoliths = n >= 14 ? Math.min(3, Math.max(1, tank(1 + Math.floor((m - 9) / 3)))) : 0;
       const drifters = Math.max(2, total - brutes - G.wallCount - dashers - splitters - turrets - magnets - bulwarks - blinkers - monoliths) + (m >= 9 ? 4 : 0);
       add('drifter', f(drifters)); add('brute', f(brutes)); add('dasher', f(dashers)); add('splitter', f(splitters)); add('magnet', f(magnets));
-      add('bulwark', f(bulwarks)); add('blinker', f(blinkers)); add('monolith', f(monoliths)); add('swarm', swarms);
+      add('bulwark', f(bulwarks)); add('blinker', f(blinkers)); add('monolith', f(monoliths));
+      const bees = inLoop(n) >= 36 && inLoop(n) <= 39; // the Hive's scouts are out in the waves before it: bee swarms in place of the usual ones, and more of them
+      add(bees ? 'bees' : 'swarm', swarms + (bees ? 1 + (inLoop(n) >= 38 ? 1 : 0) : 0));
       shuffle();
       if (wall) q.splice(Math.floor(q.length / 2), 0, 'wall');
       if (warden) q.unshift('warden'); // miniboss arrives last, after its escorts
@@ -4328,10 +4333,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const t = G.tele[i];
       t.t -= dt;
       if (t.t <= 0) {
-        if (t.type === 'swarm') {
+        if (t.type === 'swarm' || t.type === 'bees') {
           for (let k = 0; k < SWARM_SIZE; k++) {
             const a = k / SWARM_SIZE * Math.PI * 2, m = makeEnemy('swarm', t.x + Math.cos(a) * 3, t.y + Math.sin(a) * 3);
-            m.seed = a; G.enemies.push(m);
+            m.seed = a; if (t.type === 'bees') m.bee = true; G.enemies.push(m);
           }
         } else if (t.type === 'rock') {
           G.enemies.push(makeRock(3, t.x, t.y, Math.atan2(AH / 2 - t.y, AW / 2 - t.x) + rand(-0.6, 0.6), rand(7, 11)));
@@ -5766,7 +5771,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // spawn telegraphs
     for (const t of G.tele) {
       const k = t.t / 0.8; // a ring draws itself round the spot; when it closes, the enemy arrives
-      penRing(t.x, t.y, ENEMY[t.type].r + 2.5, 1 - k, ECOL[t.type] || COL.lilac, 0.45 + 0.45 * (1 - k));
+      const bees = t.type === 'bees';
+      penRing(t.x, t.y, ENEMY[bees ? 'swarm' : t.type].r + 2.5, 1 - k, bees ? GOLD() : ECOL[t.type] || COL.lilac, 0.45 + 0.45 * (1 - k));
     }
     ctx.globalAlpha = 1;
 
