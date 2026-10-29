@@ -293,6 +293,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <div class="ctrl"><div><span>Screen shake</span> <button class="linkbtn shakeBtn" data-v="1" type="button">Full</button><button class="linkbtn shakeBtn" data-v="0.4" type="button">Reduced</button><button class="linkbtn shakeBtn" data-v="0" type="button">Off</button></div></div>
     <div class="ctrl"><div><span>Flashes</span> <button class="linkbtn flashBtn" data-v="1" type="button">Full</button><button class="linkbtn flashBtn" data-v="0" type="button">Reduced</button> <span class="startNote">Reduced: no full-screen flashes and no strobing lights</span></div></div>
     <div class="ctrl"><div><span>Touch controls</span> <button class="linkbtn swapBtn" type="button">Move on left</button></div></div>
+    <div class="ctrl"><div><span>Ball pull</span> <button class="linkbtn pullBtn" data-v="0" type="button">Classic</button><button class="linkbtn pullBtn" data-v="1" type="button">Tight</button> <span class="startNote">Tight: a fast ball curves home as tightly as a slow one, so it can't loop round you</span></div></div>
     <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
     <div class="ctrl"><div><span>Look</span> <button class="linkbtn lookBtn" data-look="neon" type="button">Neon</button> <button class="linkbtn lookBtn" data-look="cabinet" type="button">Cabinet</button> <button class="linkbtn lookBtn" data-look="bone" type="button">Bone</button> <button class="linkbtn lookBtn" data-look="blueprint" type="button">Blueprint</button> <button class="linkbtn lookBtn" data-look="blueprint2" type="button">Blueprint 2</button></div></div>
     <div class="btnrow"><button class="btn" id="setBack" type="button">Back</button></div>
@@ -453,6 +454,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // the front socket's frame: round behind the ball, drawn out to a point toward the nose
   const SHIP_FRAME = (() => { const [x, , r] = SHIP_LIGHTS[0], R = r + 0.15, pts = [[x + R + 0.3, 0]]; for (let k = 0; k <= 8; k++) { const q = 0.75 + k / 8 * (Math.PI - 0.75); pts.push([x + Math.cos(q) * R, Math.sin(q) * R]); } return pts; })();
   const PULL_TURN = 3.2 * SPEED_K * BALL_START_K; // radians per second the ball turns toward the ship while pulling
+  // The Tight pull (a setting): the turn rate rises with the ball's speed so every ball curves home on the same radius
+  // (PULL_R_TIGHT, a touch tighter than a slow ball's Classic curve) instead of a hot ball swinging wide round you, and
+  // tightens further close in (never wider than a bit under half its distance), so it can't settle into an orbit.
+  const PULL_R_TIGHT = 66 * SPEED_K * BALL_START_K / (PULL_TURN * 1.15);
+  let pullTight = false;
+  const pullRate = (o, d) => pullTight ? Math.max(PULL_TURN, Math.hypot(o.vx, o.vy) / Math.max(1, Math.min(PULL_R_TIGHT, d * 0.42))) : PULL_TURN;
   const BLAST_R = 26, MULT_MAX = 10, CHAIN_STEP = 0.1; // each kill adds CHAIN_STEP × its place in this throw's chain
   // Power-up capsules: dropped by kills, collected only by the ball; charge sets duration (and shockwave size).
   const DROP_CHANCE = 0.1, CHAIN_DROP = 5, PICKUP_MAX = 3, PICKUP_R = 3.6; // capsules stay until the ball collects them
@@ -567,7 +574,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // no strobing alert lights)
   let shakeK = 1, flashK = 1;
   try { const sk = localStorage.getItem('ricochet.shake'), fk = localStorage.getItem('ricochet.flash'); if (sk !== null) shakeK = +sk; if (fk !== null) flashK = +fk; } catch (e) {}
-  try { best = +localStorage.getItem('ricochet.best') || 0; muted = localStorage.getItem('ricochet.muted') === '1'; swapSides = localStorage.getItem('ricochet.swap') === '1'; touchHint = localStorage.getItem('ricochet.touchHint') !== 'done'; musicOn = localStorage.getItem('ricochet.music') !== '0'; } catch (e) {}
+  try { best = +localStorage.getItem('ricochet.best') || 0; muted = localStorage.getItem('ricochet.muted') === '1'; swapSides = localStorage.getItem('ricochet.swap') === '1'; pullTight = localStorage.getItem('ricochet.pull') === '1'; touchHint = localStorage.getItem('ricochet.touchHint') !== 'done'; musicOn = localStorage.getItem('ricochet.music') !== '0'; } catch (e) {}
 
   /* ---------- audio ---------- */
   // Everything is synthesised: voices run through a compressor, with a shared reverb send and stereo pan by
@@ -5514,7 +5521,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const steps = Math.min(16, Math.ceil(ballSpeed(x.b) * dt / (ballR(x.b) * 0.6))), sub = dt / steps;
       for (let s = 0; s < steps; s++) {
         const r = ballR(x.b) * bigK();
-        if (G.pulling) { const [tx, ty] = fieldOpen() ? wrapTarget(x, G.player.x, G.player.y) : [G.player.x, G.player.y]; turnBall(x, tx, ty, PULL_TURN * sub); }
+        if (G.pulling) { const [tx, ty] = fieldOpen() ? wrapTarget(x, G.player.x, G.player.y) : [G.player.x, G.player.y]; turnBall(x, tx, ty, pullRate(x, Math.hypot(tx - x.x, ty - x.y)) * sub); }
         x.x += x.vx * sub; x.y += x.vy * sub;
         let bounced = false;
         if (fieldOpen()) wrapEdges(x, r);
@@ -5664,7 +5671,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const sub = dt / steps;
     for (let s = 0; s < steps && ball.state === 'live'; s++) {
       const r = ballR(ball.b) * bigK() * (ball.wing ? WING_SCALE : 1);
-      if (pulling && !ball.noPull) { const [tx, ty] = fieldOpen() ? wrapTarget(ball, p.x, p.y) : [p.x, p.y]; turnBall(ball, tx, ty, PULL_TURN * sub); }
+      if (pulling && !ball.noPull) { const [tx, ty] = fieldOpen() ? wrapTarget(ball, p.x, p.y) : [p.x, p.y]; turnBall(ball, tx, ty, pullRate(ball, Math.hypot(tx - ball.x, ty - ball.y)) * sub); }
       else if (G.bonus && !G.bonus.done) { const [cx, cy] = bumpCentre(); if (Math.hypot(ball.x - cx, ball.y - cy) > bumpScale() * 2) turnBall(ball, cx, cy, Math.hypot(ball.vx, ball.vy) / (bumpScale() * BUMP_TILT_R) * sub); }
       for (const e of G.enemies) {
         if (fieldUp(e) && (e.x - ball.x) ** 2 + (e.y - ball.y) ** 2 < MAGNET_FIELD_R ** 2) turnBall(ball, e.x, e.y, MAGNET_TURN * sub);
@@ -7140,7 +7147,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const setFlash = v => { flashK = v; pickOpt('.flashBtn', v); try { localStorage.setItem('ricochet.flash', String(v)); } catch (e) {} };
   document.querySelectorAll('.shakeBtn').forEach(b => b.addEventListener('click', () => { setShake(+b.dataset.v); b.blur(); }));
   document.querySelectorAll('.flashBtn').forEach(b => b.addEventListener('click', () => { setFlash(+b.dataset.v); b.blur(); }));
-  setShake(shakeK); setFlash(flashK);
+  const setPull = v => { pullTight = !!v; pickOpt('.pullBtn', v); try { localStorage.setItem('ricochet.pull', String(v)); } catch (e) {} };
+  document.querySelectorAll('.pullBtn').forEach(b => b.addEventListener('click', () => { setPull(+b.dataset.v); b.blur(); }));
+  setShake(shakeK); setFlash(flashK); setPull(pullTight ? 1 : 0);
   const showHow = on => { $('ov-how').hidden = !on; if (on) { $('ov-how').scrollTop = 0; $('howBack').focus({ preventScroll: true }); } else $('play').focus({ preventScroll: true }); };
   $('howBtn').addEventListener('click', () => showHow(true));
   $('howBack').addEventListener('click', () => showHow(false));
