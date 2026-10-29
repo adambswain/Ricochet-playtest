@@ -2351,11 +2351,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    it and hurts him (GEO_ORB × the ball's damage).
   //  - rebuild: once you've broken GEO_BREAK crystals (or GEO_WALL seconds have passed) he comes forward into the middle
   //    again and the walls that are left fly in as his next shell, GEO_THIN crystals thinner for every one you broke.
-  // Except while he's cracked, he fires his blaster: a glowing ring marks where a shot will come from (never close to
-  // you), then a ring flies at you that grows as it goes and cracks the crystal it meets. Everything speeds up as he weakens.
+  // Except while he's cracked, he fires his blaster, always from its muzzle: first the muzzle flares and a targeting
+  // laser runs from it to you, locking and flashing just before he fires; then a ring flies at you that grows as it goes
+  // and cracks the crystal it meets (a shot fired from over his walls flies clear of them before it can hit one). He holds
+  // his fire while his muzzle is within GEO_NEAR of you. As he walls you in, every enemy left is crushed, and none come
+  // while the walls are up. Everything speeds up as he weakens.
   const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 240, GEO_ORB = 2, GEO_EXPOSED = 5, GEO_WALL = 16, GEO_BREAK = [60, 75, 90], GEO_THIN = 0.3;
-  const GEO_PUSH = [2.6, 2.1, 1.6], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.6, GEO_SHOT_V = 32, GEO_RISE = 1.1, GEO_RETURN = 1.3;
-  const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 24, GEO_DEPTH = 0.3;
+  const GEO_PUSH = [2.6, 2.1, 1.6], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 32, GEO_RISE = 1.1, GEO_RETURN = 1.3;
+  const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
   const geoScale = () => Math.min(AW, AH) / 38; // how big he looms in the background
   const geoEase = k => k * k * (3 - 2 * k);
   function setupGeode(B, cycle) {
@@ -2369,14 +2372,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const geoShelled = B => B.st === 'shell' || B.st === 'crack' || B.st === 'rebuild';
   const geoSlot = (B, sl) => { const a = sl.a + B.spin * (sl.ring % 2 ? -1 : 1), rr = GEO_RINGS[sl.ring]; return [B.hx + Math.cos(a) * rr, B.hy + Math.sin(a) * rr]; };
   // Where his blaster is, in the arena: his shoulder, out along his arm to the muzzle, at whatever size he's drawn.
-  const geoMuzzle = B => { const k = B.sc, sx = B.x + B.side * GEO_R * 0.8 * k, sy = B.y + GEO_R * 0.06 * k, L = (GEO_R * 1.28 - B.recoil * 1.3) * k; return [sx + Math.cos(B.gunA) * L, sy + Math.sin(B.gunA) * L]; };
-  // Where the next shot comes from: the muzzle, but never within GEO_NEAR of you, and inside the arena.
-  function geoShotFrom(B) {
-    const p = G.player; let [x, y] = geoMuzzle(B);
-    const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy);
-    if (d < GEO_NEAR) { const a = d > 0.01 ? Math.atan2(dy, dx) : Math.atan2(B.y - p.y, B.x - p.x); x = p.x + Math.cos(a) * GEO_NEAR; y = p.y + Math.sin(a) * GEO_NEAR; }
-    return [clamp(x, 4, AW - 4), clamp(y, 4, AH - 4)];
-  }
+  const geoMuzzle = B => { const k = B.sc, sx = B.x + B.side * GEO_R * 0.8 * k, sy = B.y + GEO_R * 0.06 * k, L = (GEO_R * 1.31 - B.recoil * 1.3) * k; return [sx + Math.cos(B.gunA) * L, sy + Math.sin(B.gunA) * L]; };
+  // Where the next shot comes from: the muzzle (kept just inside the arena when his gun reaches past its edge).
+  function geoShotFrom(B) { const [x, y] = geoMuzzle(B); return [clamp(x, 3, AW - 3), clamp(y, 3, AH - 3)]; }
   function geoBreak(B, sl, b, scored) {
     sl.on = false;
     const [x, y] = geoSlot(B, sl);
@@ -2392,6 +2390,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function geoRise(B) { // back he goes: the walls slide in from every edge as he rises into the background
     B.st = 'rise'; B.stT = GEO_RISE; B.summon = 1; B.shotT = Math.max(B.shotT, GEO_RISE + 0.8);
+    for (const e of G.enemies) { // crushed as the walls come in: nothing gets shoved into you, or you into it
+      e.gone = true; burst(e.x, e.y, 10, ECOL[e.type] || COL.lilac, 30, 0.6, 0.35); ring(e.x, e.y, 1, e.r + 4, 0.25, ECOL.splitter, 0.6);
+    }
+    G.tele.length = 0; G.spawnQueue.length = 0;
     const m = Math.min(Math.round(AW / SIEGE_CELL), Math.round(AH / SIEGE_CELL));
     setupSiege('crystal', B.cycle, { depth: m * GEO_DEPTH, interval: GEO_PUSH[B.phase - 1], first: 0.35, layers: 1, orb: GEO_ORBS[B.phase - 1] });
     sfx.crystalGrow(); sfx.boss(); shake(1.5);
@@ -2446,21 +2448,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     // the blaster arm tracks you, and locks for the last moment before a shot; no shots while he's cracked open
     const [mx, my] = geoMuzzle(B), want = Math.atan2(p.y - my, p.x - mx);
-    if (B.shotT > 0.15) { let d = want - B.gunA; d = Math.atan2(Math.sin(d), Math.cos(d)); B.gunA += clamp(d, -dt * 3, dt * 3); }
+    if (B.shotT > GEO_LOCK) { let d = want - B.gunA; d = Math.atan2(Math.sin(d), Math.cos(d)); B.gunA += clamp(d, -dt * 3, dt * 3); }
     if (Math.cos(B.gunA) > 0.3) B.side = 1; else if (Math.cos(B.gunA) < -0.3) B.side = -1;
     if (B.st !== 'crack') {
-      B.shotT -= dt; B.chg = B.shotT < GEO_CHARGE ? 1 - B.shotT / GEO_CHARGE : 0;
-      if (B.chg > 0) { const [fx, fy] = geoShotFrom(B); B.aimX = fx; B.aimY = fy; }
+      const [fx0, fy0] = geoShotFrom(B), close = Math.hypot(fx0 - p.x, fy0 - p.y) < GEO_NEAR;
+      B.shotT = close ? Math.max(B.shotT - dt, GEO_LOCK + 0.01) : B.shotT - dt; // too close to you: he holds at full charge, still tracking
+      B.chg = B.shotT < GEO_CHARGE ? 1 - B.shotT / GEO_CHARGE : 0;
+      B.aimX = fx0; B.aimY = fy0;
       if (B.shotT < GEO_CHARGE && B.shotT + dt >= GEO_CHARGE) sfx.blasterCharge();
       if (B.shotT <= 0) { // fire: a ring that grows as it flies (two in the last phase)
         B.shotT = GEO_SHOT[ph] * (B.st === 'shell' ? 1.6 : 1); B.chg = 0; B.recoil = 1;
-        const [fx, fy] = geoShotFrom(B), a0 = Math.atan2(p.y - fy, p.x - fx);
+        const [fx, fy] = geoShotFrom(B), a0 = B.gunA; // straight down the locked laser
         for (const off of ph === 2 ? [-0.2, 0.2] : [0]) G.bullets.push({ x: fx, y: fy, vx: Math.cos(a0 + off) * GEO_SHOT_V, vy: Math.sin(a0 + off) * GEO_SHOT_V, r: 1.4, geo: true, grow: 0.085, rMax: 7 });
         ring(fx, fy, 1, 7, 0.25, COL.threat, 0.9); sfx.blaster();
       }
     } else B.chg = 0;
     // enemies drop into the open space, never right on you (nor on him while he's in the middle)
-    if (B.st === 'shell' || B.st === 'wall') {
+    if (B.st === 'shell') {
       B.escT -= dt;
       if (B.escT <= 0) {
         B.escT = GEO_ESCORT[ph];
@@ -2591,11 +2595,22 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.globalAlpha = 1;
     }
     if (!(B.chg > 0)) return;
-    const k = B.chg, x = B.aimX, y = B.aimY, p = G.player, a = Math.atan2(p.y - y, p.x - x);
-    ctx.globalAlpha = 0.4 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.5;
-    ctx.beginPath(); ctx.arc(x, y, 9 - 7 * k, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.3 + 0.5 * k; ctx.beginPath(); ctx.arc(x, y, 1 + 2 * k, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.25 * k; ctx.lineWidth = 0.3; ctx.setLineDash([1.2, 1]); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 16, y + Math.sin(a) * 16); ctx.stroke(); ctx.setLineDash([]);
+    // the warning, at his muzzle: a flare that swells and pulls sparks in, and a targeting laser from it to you that
+    // brightens and then locks (white, flashing) for the last GEO_LOCK seconds before the shot
+    const k = B.chg, x = B.aimX, y = B.aimY, p = G.player, locked = B.shotT <= GEO_LOCK, ca = Math.cos(B.gunA), sa = Math.sin(B.gunA);
+    const L = Math.hypot(p.x - x, p.y - y) + 6, flick = locked ? (Math.floor(G.time * 30) % 2 ? 1 : 0.55) : 1;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    ctx.strokeStyle = locked ? COL.chalk : COL.threat; ctx.globalAlpha = (locked ? 0.95 : 0.25 + 0.5 * k) * flick; ctx.lineWidth = locked ? 0.7 : 0.3 + 0.3 * k;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + ca * L, y + sa * L); ctx.stroke();
+    ctx.globalAlpha = 0.25 * k * flick; ctx.lineWidth = 2.2; ctx.strokeStyle = COL.threat; ctx.stroke(); // its glow
+    const gr = 1.6 + 4 * k;
+    ctx.globalAlpha = 0.55 + 0.35 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(x, y, gr, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.9 * flick; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(x, y, gr * 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.8; ctx.fillStyle = COL.threat; ctx.beginPath(); // sparks drawn in
+    for (let i = 0; i < 7; i++) { const a2 = i / 7 * Math.PI * 2 + G.time * 4, rr = (1 - (G.time * 2.2 + i / 7) % 1) * 9; ctx.moveTo(x + Math.cos(a2) * rr + 0.35, y + Math.sin(a2) * rr); ctx.arc(x + Math.cos(a2) * rr, y + Math.sin(a2) * rr, 0.35, 0, Math.PI * 2); }
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over'; ctx.restore();
     ctx.globalAlpha = 1;
   }
   // The alien: a pear of a body (a round head over wide hips) on four curling tentacles, one big eye and two small ones
@@ -2734,7 +2749,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.chg > 0 && !shut) { ctx.strokeStyle = skin; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(-3.4 * u, -6.6 * u - B.chg * 0.5); ctx.lineTo(-0.8 * u, -5.9 * u); ctx.moveTo(3.4 * u, -6.6 * u - B.chg * 0.5); ctx.lineTo(0.8 * u, -5.9 * u); ctx.stroke(); } // a scowl as he charges
     // the blaster arm, on your side of him, kicking back when it fires
     const gx = B.side * 6.8 * u, gy = 0.6 * u, ca = Math.cos(B.gunA), sa = Math.sin(B.gunA), kick = B.recoil * 1.3;
-    const hx = gx + ca * (5 * u - kick) + B.side * 1.2 * u, hy = gy + sa * (5 * u - kick) - Math.sin(t * 1.7) * 0.2;
+    const arm = 5 * u, hx = gx + ca * (arm - kick) + B.side * 1.2 * u, hy = gy + sa * (arm - kick) - Math.sin(t * 1.7) * 0.2; // the arm pulls in when you're close
     limb([[gx, gy], [gx + B.side * 2.2 * u + ca * 1.4 * u, gy + sa * 1.4 * u + 0.6 * u], [hx, hy]], 3 * u, 2 * u);
     ctx.save(); ctx.translate(hx, hy); ctx.rotate(B.gunA); ctx.scale(1.5, ca < 0 ? -1.5 : 1.5); // the gun, upright whichever way it points
     const rr = (x0, y0, x1, y1, r) => { ctx.moveTo(x0 + r, y0); ctx.arcTo(x1, y0, x1, y1, r); ctx.arcTo(x1, y1, x0, y1, r); ctx.arcTo(x0, y1, x0, y0, r); ctx.arcTo(x0, y0, x1, y0, r); ctx.closePath(); };
@@ -5223,11 +5238,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       let dead = b.x < b.r || b.x > AW - b.r || b.y < b.r || b.y > AH - b.r;
       if (!dead) for (const o of G.obstacles) if (!o.dying && hitObs(b.x, b.y, b.r, o)) { dead = true; break; }
       if (!dead && G.crush) nearBricks(b.x, b.y, (side, c, k) => (dead = !!hitRect(b.x, b.y, b.r, brickRect(side, c, k))));
-      if (!dead && G.siege) siegeNear(G.siege, b.x, b.y, b.r, (side, c, k, cell, R0) => { // a wall stops a shot; the Geode's shots crack the crystal they hit
-        if (!hitRect(b.x, b.y, b.r, R0)) return false;
-        if (b.geo && !cell.orb && --cell.hp <= 0) siegeBreak(side, c, k, 0, false); else cell.flash = 0.15;
-        return (dead = true);
-      });
+      if (!dead && G.siege) { // a wall stops a shot; the Geode's shots crack the crystal they hit, once they've flown clear of the wall they started over
+        let hw = null; siegeNear(G.siege, b.x, b.y, b.r, (side, c, k, cell, R0) => (hw = hitRect(b.x, b.y, b.r, R0) ? [side, c, k, cell] : null));
+        if (!hw) b.clear = true;
+        else if (!b.geo || b.clear) {
+          const [side, c, k, cell] = hw;
+          if (b.geo && !cell.orb && --cell.hp <= 0) siegeBreak(side, c, k, 0, false); else cell.flash = 0.15;
+          dead = true;
+        }
+      }
       if (!dead && G.inv) for (const c of G.inv.bunkers) if (c.hp > 0 && hitRect(b.x, b.y, b.r, c)) { chipBunker(c); dead = true; break; }
       if (dead) { burst(b.x, b.y, 4, COL.threat, 12, 0.4, 0.2); G.bullets.splice(i, 1); continue; }
       if (p.inv <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < PLAYER_R * 0.9 + b.r) {
