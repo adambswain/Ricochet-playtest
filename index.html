@@ -509,7 +509,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     10: 'The Core: hit its bombs with the ball to send them back into it. Don\'t touch it',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
-    30: 'Gorp the Jailer: smash his crystal shell, then hit him. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
+    30: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
     29: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
     13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
@@ -2340,23 +2340,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   /* ---------- the Geode ---------- */
   // Wave 30. A big alien, in a loop of four states:
   //  - shell: he sits in the middle of the arena in a shell of crystals while enemies stream in. Crystals can't hurt you
-  //    and breaking them doesn't hurt him, but every one you break is gone; a hot ball cracks the ones round its hit too
-  //    (one more per 5 charge). A ball that slips through bounces off a shimmer round him.
-  //  - crack: the last crystal breaks, the shell bursts and he's exposed in the middle for GEO_EXPOSED seconds: hit him
-  //    (1 + the ball's charge a hit, with a meaty thud).
+  //    and breaking them doesn't hurt him, but every one you break is gone (a hot ball cracks the ones round its hit too,
+  //    one more per 5 charge), opening gaps; a ball that gets through one hits him (1 + the ball's charge, with a meaty
+  //    thud). Once he's taken GEO_TRIP of his health this way, the rest of his shell bursts.
+  //  - crack: a beat of stagger (GEO_STAGGER) after the shell bursts; strip every crystal before that and he takes
+  //    GEO_BARE of his health at once and staggers for GEO_EXPOSED seconds, wide open.
   //  - wall: he retreats into the background, huge and faint, and runs the arena from there. Crystal walls slide in from
   //    every edge, a layer at a time, pushing everything (your ship included) in toward the middle (siege walls,
   //    'crystal' rules: they can't hurt you, the ball always bounces and breaks one, each crystal hit keeps a hot ball
   //    from overloading). Set into the incoming layers are his orbs, fleshy cores beating like hearts: hitting one pops
   //    it and hurts him (GEO_ORB × the ball's damage).
-  //  - rebuild: once you've broken GEO_BREAK crystals (or GEO_WALL seconds have passed) he comes forward into the middle
-  //    again and the walls that are left fly in as his next shell, GEO_THIN crystals thinner for every one you broke.
+  //  - rebuild: after GEO_WALL seconds he comes forward into the middle again and the walls that are left fly in as his
+  //    next shell, GEO_THIN crystals thinner for every one you broke.
   // Except while he's cracked, he fires his blaster, always from its muzzle: first the muzzle flares and a targeting
   // laser runs from it to you, locking and flashing just before he fires; then a ring flies at you that grows as it goes
   // and cracks the crystal it meets (a shot fired from over his walls flies clear of them before it can hit one). He holds
   // his fire while his muzzle is within GEO_NEAR of you. As he walls you in, every enemy left is crushed, and none come
   // while the walls are up. Everything speeds up as he weakens.
-  const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 240, GEO_ORB = 2, GEO_EXPOSED = 5, GEO_WALL = 16, GEO_BREAK = [60, 75, 90], GEO_THIN = 0.3;
+  const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 240, GEO_ORB = 1.5, GEO_TRIP = 0.2, GEO_BARE = 0.1, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 25, GEO_THIN = 0.3;
   const GEO_PUSH = [2.6, 2.1, 1.6], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 32, GEO_RISE = 1.1, GEO_RETURN = 1.3;
   const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
   const geoScale = () => Math.min(AW, AH) / 38; // how big he looms in the background
@@ -2368,7 +2369,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
                        slots, fly: [], shotT: 2.5, chg: 0, gunA: Math.PI / 2, side: 1, recoil: 0, hurt: 0, blinkT: 2.5, summon: 0, escT: 3, links: [], shield: 0, hitCd: 0,
                        aimX: AW / 2, aimY: AH / 2 });
   }
-  const geoExposed = B => B.st === 'crack';
+  const geoExposed = B => B.st === 'shell' || B.st === 'crack' || B.st === 'rebuild'; // his body takes hits whenever he's in the middle
   const geoShelled = B => B.st === 'shell' || B.st === 'crack' || B.st === 'rebuild';
   const geoSlot = (B, sl) => { const a = sl.a + B.spin * (sl.ring % 2 ? -1 : 1), rr = GEO_RINGS[sl.ring]; return [B.hx + Math.cos(a) * rr, B.hy + Math.sin(a) * rr]; };
   // Where his blaster is, in the arena: his shoulder, out along his arm to the muzzle, at whatever size he's drawn.
@@ -2381,12 +2382,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.shards.length < 260) for (let n = 0; n < 5; n++) { const a = rand(0, Math.PI * 2), sp = rand(18, 40); G.shards.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: rand(0, Math.PI), va: rand(-10, 10), size: rand(0.5, 1), t: 0, max: rand(0.3, 0.55), color: ECOL.splitter, lit: 1 }); }
     if (scored) { G.score += Math.round(10 * (1 + b) * G.mult); sfx.crystal(b); }
   }
-  function geoCrack(B) {
-    B.st = 'crack'; B.stT = GEO_EXPOSED; B.hurt = 1;
+  // His shell bursts: everything left of it flies apart and he staggers. bare: you stripped it all, which pays out at once
+  // and leaves him reeling longer.
+  function geoCrack(B, bare) {
+    B.st = 'crack'; B.stT = bare ? GEO_EXPOSED : GEO_STAGGER; B.hurt = 1;
+    for (const sl of B.slots) if (sl.on) geoBreak(B, sl, 0, false);
     for (let i = 0; i < 3; i++) ring(B.hx, B.hy, GEO_R, GEO_RINGS[1] + 8 + i * 9, 0.4 + i * 0.12, i % 2 ? COL.chalk : ECOL.splitter, 1.2);
     burst(B.hx, B.hy, 50, ECOL.splitter, 70, 1, 0.7); gridImpulse(B.hx, B.hy, 60, 200);
-    float(B.hx, B.hy - GEO_RINGS[1] - 5, 'Cracked open! Hit him!', COL.chalk, 3.6);
+    float(B.hx, B.hy - GEO_RINGS[1] - 5, bare ? 'Stripped bare! Hit him!' : 'Shell shattered!', COL.chalk, 3.6);
     G.freeze = Math.max(G.freeze, 0.12); shake(3); sfx.shatter();
+    if (bare) { sfx.splat(15); damageBoss(Math.round(B.maxHp * GEO_BARE), B.hx, B.hy - GEO_R); }
   }
   function geoRise(B) { // back he goes: the walls slide in from every edge as he rises into the background
     B.st = 'rise'; B.stT = GEO_RISE; B.summon = 1; B.shotT = Math.max(B.shotT, GEO_RISE + 0.8);
@@ -2408,7 +2413,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.fly = order.map((sl, i) => { const q = left[i % Math.max(1, left.length)] || [B.hx, B.hy]; return { x0: q[0], y0: q[1], sl, t: 0, d: rand(0, 0.3) }; });
     for (const [x, y] of left.slice(n)) if (Math.random() < 0.15) burst(x, y, 2, ECOL.splitter, 14, 0.5, 0.3); // the rest dissolve
     G.siege = null;
-    B.st = 'rebuild'; B.stT = GEO_RETURN; B.summon = 1;
+    B.st = 'rebuild'; B.stT = GEO_RETURN; B.summon = 1; B.taken = 0;
     float(B.hx, B.hy - GEO_RINGS[1] - 5, n < B.slots.length * 0.5 ? 'Thin shell!' : 'Shell rebuilt', COL.chalk, 3.2);
     sfx.crystalGrow();
   }
@@ -2421,7 +2426,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateGeode(B, dt) {
     const p = G.player, ph = B.phase - 1;
     B.recoil = Math.max(0, B.recoil - dt * 4); B.hurt = Math.max(0, B.hurt - dt * 4); B.summon = Math.max(0, B.summon - dt * 2); B.blinkT -= dt;
-    B.shield = Math.max(0, B.shield - dt * 3); B.hitCd -= dt; B.spin += dt * 0.12;
+    B.hitCd -= dt; B.spin += dt * 0.12;
     if (B.blinkT < -0.12) B.blinkT = rand(1.8, 4);
     for (const sl of B.slots) sl.flash -= dt;
     for (let i = B.links.length - 1; i >= 0; i--) { B.links[i].t += dt; if (B.links[i].t > 0.35) B.links.splice(i, 1); }
@@ -2436,7 +2441,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (B.st === 'wall') {
       const S = G.siege;
       if (S) { S.interval = GEO_PUSH[ph]; S.orb = GEO_ORBS[ph]; if (S.timer < dt * 1.5) B.summon = 1; } // he shoves with both arms as each layer goes in
-      if (!S || S.broken >= GEO_BREAK[ph] || B.stT <= 0) geoRebuild(B);
+      if (!S || B.stT <= 0) geoRebuild(B);
     } else if (B.st === 'rebuild') {
       let all = true;
       for (const f of B.fly) {
@@ -2498,7 +2503,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         geoBreak(B, hit, b, true);
         const extra = Math.floor(b / 5); // a hot ball cracks the crystals round its hit too
         if (extra) B.slots.filter(sl => sl.on).map(sl => [sl, Math.hypot(geoSlot(B, sl)[0] - hx, geoSlot(B, sl)[1] - hy)]).sort((p, q) => p[1] - q[1]).slice(0, extra).forEach(([sl]) => geoBreak(B, sl, b, false));
-        if (B.st === 'shell' && !B.slots.some(sl => sl.on)) geoCrack(B);
+        if (B.st === 'shell' && !B.slots.some(sl => sl.on)) geoCrack(B, true);
         return 'bounce';
       }
     }
@@ -2508,14 +2513,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     o.x = B.x + nx * (GEO_R + r + 0.05); o.y = B.y + ny * (GEO_R + r + 0.05);
     if (dot >= 0) return '';
     o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny;
-    if (!geoExposed(B)) { B.shield = 1; sfx.clank(); return 'bounce'; } // sealed in: a shimmer, no damage
-    if (B.hitCd <= 0) {
+    if (geoExposed(B) && B.hitCd <= 0) {
       B.hitCd = 0.12; B.hurt = 1;
       const hx = B.x + nx * GEO_R, hy = B.y + ny * GEO_R;
       burst(hx, hy, 10 + b, GEO_ORB_COL, 30 + b * 2, 0.8, 0.4); ring(hx, hy, 1, 6 + b * 0.4, 0.25, heat(b), 0.8);
-      sfx.splat(b); damageBoss(1 + b, hx, hy);
+      sfx.splat(b); geoHurt(B, 1 + b, hx, hy);
     }
     return 'bounce';
+  }
+  // A hit on his body while he's in the middle; enough of them (GEO_TRIP of his health) and his shell bursts.
+  function geoHurt(B, dmg, x, y) {
+    damageBoss(dmg, x, y);
+    if (G.boss !== B || B.st === 'crack') return;
+    B.taken = (B.taken || 0) + dmg;
+    if (B.taken >= B.maxHp * GEO_TRIP) { B.taken = 0; geoCrack(B, false); }
   }
   function pushOutGeode(B, o, r) {
     if (B.bg > 0.5) return;
@@ -2531,9 +2542,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function blastGeode(B, x, y, rad, dmg) {
     if (B.st === 'shell' || B.st === 'rebuild') {
       for (const sl of B.slots) if (sl.on) { const [sx, sy] = geoSlot(B, sl); if (Math.hypot(sx - x, sy - y) < rad + GEO_CRY) geoBreak(B, sl, 0, false); }
-      if (B.st === 'shell' && !B.slots.some(sl => sl.on)) geoCrack(B);
+      if (B.st === 'shell' && !B.slots.some(sl => sl.on)) geoCrack(B, true);
     }
-    if (geoExposed(B) && Math.hypot(B.x - x, B.y - y) < rad + GEO_R) { B.hurt = 1; sfx.splat(4); damageBoss(dmg, B.x, B.y); }
+    if (geoExposed(B) && B.bg < 0.5 && G.boss === B && Math.hypot(B.x - x, B.y - y) < rad + GEO_R) { B.hurt = 1; sfx.splat(4); geoHurt(B, dmg, B.x, B.y); }
     const S = G.siege; if (!S) return;
     const hit = []; siegeNear(S, x, y, rad, (side, c, k, cell, R0) => { if (Math.hypot(clamp(x, R0.x0, R0.x1) - x, clamp(y, R0.y0, R0.y1) - y) < rad) hit.push([side, c, k, cell, R0]); return false; });
     hit.sort((a, q) => q[2] - a[2]).forEach(([side, c, k, cell, R0]) => { siegeBreak(side, c, k, 0, false); if (cell.orb) geoOrbHit((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2, dmg); });
@@ -2575,13 +2586,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const P = [pt(1.25 * s, 0), pt(0.35 * s, 0.75 * s), pt(-0.9 * s, 0.6 * s), pt(-1.15 * s, 0), pt(-0.9 * s, -0.6 * s), pt(0.35 * s, -0.75 * s)];
     ctx.moveTo(...P[0]); for (const q of P.slice(1)) ctx.lineTo(...q); ctx.closePath();
   }
-  // In the arena: his shell (and crystals flying in to rebuild it), the shimmer that seals him in, and where his next shot
-  // will come from: a ring closing in and a line toward you.
+  // In the arena: his shell (and crystals flying in to rebuild it), and the warning before each shot.
   function drawGeodeFg(B) {
-    if ((B.st === 'shell' || B.st === 'rebuild') && B.bg < 0.5) { // sealed in: a shimmer that lights up when the ball gets through to him
-      ctx.globalAlpha = 0.25 + 0.15 * Math.sin(G.time * 4) + B.shield * 0.6; ctx.strokeStyle = B.shield > 0 ? COL.chalk : ECOL.splitter; ctx.lineWidth = 0.4 + B.shield * 0.5;
-      ctx.beginPath(); ctx.arc(B.x, B.y, GEO_R + 1, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
-    }
     const cry = ECOL.splitter, gems = [];
     for (const sl of B.slots) if (sl.on) { const [x, y] = geoSlot(B, sl); gems.push([x, y, Math.atan2(y - B.hy, x - B.hx), sl.flash > 0]); }
     for (const f of B.fly) { if (f.sl.on) continue; const k = clamp((f.t - f.d) / 0.85, 0, 1), e = geoEase(k), [x, y] = geoSlot(B, f.sl); gems.push([f.x0 + (x - f.x0) * e, f.y0 + (y - f.y0) * e, f.t * 8, false]); }
