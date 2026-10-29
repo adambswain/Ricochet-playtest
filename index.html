@@ -700,6 +700,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     },
     blasterCharge() { voice({ type: 'sine', f: 260, f2: 980, dur: GEO_CHARGE, vol: 0.06, wet: 0.2 }); voice({ type: 'sawtooth', f: 130, f2: 490, dur: GEO_CHARGE, vol: 0.03, filter: 'lowpass', ff: 900 }); },
     blaster() { voice({ type: 'square', f: 720, f2: 170, dur: 0.22, vol: 0.12, filter: 'lowpass', ff: 2400 }); voice({ f: 90, f2: 50, dur: 0.18, vol: 0.2 }); voice({ noise: true, filter: 'bandpass', ff: 1400, q: 1, dur: 0.1, vol: 0.08 }); },
+    geoSwell() { voice({ type: 'sine', f: 180, f2: 1100, dur: GEO_POP, vol: 0.09, wet: 0.3 }); voice({ type: 'sawtooth', f: 90, f2: 420, dur: GEO_POP, vol: 0.05, filter: 'lowpass', ff: 700 }); },
     shatter() { for (let i = 0; i < 6; i++) voice({ type: 'triangle', f: note(20 + Math.floor(Math.random() * 8)), dur: 0.25, vol: 0.05, at: i * 0.025, wet: 0.4 }); voice({ noise: true, filter: 'highpass', ff: 3000, dur: 0.45, vol: 0.14 }); voice({ f: 110, f2: 40, dur: 0.3, vol: 0.25 }); },
     bump() { if (gate('bump', 40)) { voice({ type: 'square', f: 196, f2: 150, filter: 'lowpass', ff: 1400, dur: 0.07, vol: 0.07 }); voice({ type: 'triangle', f: 98, dur: 0.06, vol: 0.08 }); } },
     coin(k) { // one coin: a bright ping that climbs the scale with the streak
@@ -1469,23 +1470,29 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind !== 'core') return;
     if (Math.hypot(B.x - x, B.y - y) - B.r < rad) damageBoss(dmg, B.x + (x - B.x) * 0.5, B.y + (y - B.y) * 0.5);
   }
+  function hullSlot() {
+    const p = G.player, more = (G.hullMax || HULL_MAX) < HULL_MAX + 2; G.hullMax = Math.min(HULL_MAX + 2, (G.hullMax || HULL_MAX) + 1); p.hull = G.hullMax;
+    float(p.x, p.y - 8, more ? 'Hull +1 slot · repaired' : 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
+  }
   function defeatBoss() {
     const B = G.boss, bonus = B.kind === 'hive' ? Math.round(HIVE_FINALE * G.mult) * (B.cycle + 1) : 5000 * (B.cycle + 1); // the finale pays by your multiplier
     G.score += bonus;
-    for (let i = 0; i < 4; i++) ring(B.x, B.y, 2, B.r + 10 + i * 9, 0.5 + i * 0.15, i % 2 ? ECOL.warden : COL.threat, 1.2);
-    burst(B.x, B.y, 90, ECOL.warden, 90, 1.1, 1.0); burst(B.x, B.y, 60, COL.threat, 70, 0.9, 0.8);
-    gridImpulse(B.x, B.y, Math.max(AW, AH), 220);
-    G.freeze = Math.max(G.freeze, 0.25); shake(5); sfx.overload(); sfx.boss();
+    if (B.kind !== 'geode') { // Gorp has his own death (geoDie): the bang comes when he pops
+      for (let i = 0; i < 4; i++) ring(B.x, B.y, 2, B.r + 10 + i * 9, 0.5 + i * 0.15, i % 2 ? ECOL.warden : COL.threat, 1.2);
+      burst(B.x, B.y, 90, ECOL.warden, 90, 1.1, 1.0); burst(B.x, B.y, 60, COL.threat, 70, 0.9, 0.8);
+      gridImpulse(B.x, B.y, Math.max(AW, AH), 220);
+      G.freeze = Math.max(G.freeze, 0.25); shake(5); sfx.overload(); sfx.boss();
+    }
     G.result = { text: `${BOSS_NAMES[B.kind]} destroyed`, sub: `+${bonus.toLocaleString()}`, t: 3, max: 3 };
-    for (let i = 0; i < 3; i++) spawnPickup(B.x + rand(-6, 6), B.y + rand(-6, 6));
-    if (B.kind === 'hive') { // the finale's reward: the hull repaired to full
+    if (B.kind !== 'geode') for (let i = 0; i < 3; i++) spawnPickup(B.x + rand(-6, 6), B.y + rand(-6, 6)); // Gorp's come out when he pops
+    if (B.kind === 'geode') { /* his reward comes when he pops (geoPop) */ }
+    else if (B.kind === 'hive') { // the finale's reward: the hull repaired to full
       const p = G.player; p.hull = G.hullMax || HULL_MAX;
       G.result = { text: 'The Hive has fallen', sub: `+${bonus.toLocaleString()} (×${G.mult.toFixed(1)})`, t: 4, max: 4 };
       float(p.x, p.y - 8, 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
       for (const e of G.enemies) if (e.bee || e.type === 'egg' || e.type === 'wax') e.gone = true; // the swarm dies with its queen
-    } else if (B.kind === 'serpent' || B.kind === 'geode') { // the Serpent's and the Geode's reward: one more hull slot, and the hull repaired to full
-      const p = G.player, more = (G.hullMax || HULL_MAX) < HULL_MAX + 2; G.hullMax = Math.min(HULL_MAX + 2, (G.hullMax || HULL_MAX) + 1); p.hull = G.hullMax;
-      float(p.x, p.y - 8, more ? 'Hull +1 slot · repaired' : 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
+    } else if (B.kind === 'serpent') { // the Serpent's reward (Gorp's too, when he pops): one more hull slot, and the hull repaired to full
+      hullSlot();
     } else if (G.balls.length < BALLS_MAX) { // the wreck drops another ball (a wingman): fly over to grab it
       const nb = Object.assign(makeBall(), { state: 'ember', fresh: true, wing: true, x: clamp(B.x, 6, AW - 6), y: clamp(B.y, 6, AH - 6), vx: 0, vy: 0 });
       G.balls.push(nb);
@@ -1495,10 +1502,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const p = G.player; p.hull = G.hullMax || HULL_MAX;
       float(p.x, p.y - 8, 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
     }
-    if (B.kind === 'geode') { // he bursts; his walls and his shots go with him
-      G.geoGhost = { ...B, t0: G.time, links: [], fly: [] }; crumbleSiege(); G.bullets = G.bullets.filter(q => !q.geo);
-      burst(B.x, B.y, 80, ECOL.blinker, 80, 1.1, 0.9); burst(B.x, B.y, 40, ECOL.splitter, 60, 0.9, 0.7); sfx.splat(15);
-    }
+    if (B.kind === 'geode') geoDie(B);
     for (const bm of G.bombs) burst(bm.x, bm.y, 8, COL.threat, 20, 0.5, 0.3);
     G.bombs = []; G.boss = null;
   }
@@ -2564,13 +2568,103 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     try { fn(); } finally { ctx = main; }
     main.save(); main.setTransform(1, 0, 0, 1, 0, 0); main.globalAlpha = a; main.drawImage(fadeBuf, 0, 0); main.restore();
   }
-  function drawGeodeBg() {
-    const B = G.boss && G.boss.kind === 'geode' ? G.boss : null, gh = G.geoGhost;
-    if (gh) {
-      const k = (G.time - gh.t0) / 1.1;
-      if (k >= 1) G.geoGhost = null;
-      else faded((gh.bg > 0.5 ? 0.45 : 1) * (1 - k), () => { ctx.translate(gh.x, gh.y); ctx.scale(1 + k * 0.5, 1 + k * 0.5); ctx.translate(-gh.x, -gh.y); drawGeode(gh, 1, gh.sc, 1); });
+  // Gorp's death, in three beats. Uh-oh (GEO_DIE_HIT): a freeze, a white flash, a squash, and his gun drops. Swell (to
+  // GEO_POP): his eyes go to X's and he balloons, jiggling harder and harder, lit pink from inside, with cracks of light
+  // spreading across him, while the screen rumbles and a whine climbs; his walls stop. Pop: a big pink splat, his walls
+  // shatter outward, his blaster and antennae go spinning off, goo splats stay on the floor for a while, and only then does
+  // the banner land.
+  const GEO_DIE_HIT = 0.3, GEO_POP = 1.35, GEO_GOO = 3.2;
+  function geoDie(B) {
+    for (const sl of B.slots) if (sl.on) geoBreak(B, sl, 0, false);
+    G.bullets = G.bullets.filter(q => !q.geo);
+    if (G.siege) G.siege.timer = 1e9; // his walls stop where they are
+    G.geoDeath = { B: { ...B, links: [], fly: [], chg: 0, recoil: 0, summon: 0, flash: 0.25, hurt: 1 }, t: 0, popped: false, result: G.result, bits: [], goo: [],
+                   cracks: Array.from({ length: 9 }, (_, i) => ({ a: i / 9 * Math.PI * 2 + rand(-0.3, 0.3), len: rand(0.55, 0.95), kink: rand(-0.5, 0.5), at: rand(0, 0.6) })) };
+    G.result = null;
+    G.freeze = Math.max(G.freeze, 0.18); shake(2.5); sfx.splat(12); sfx.geoSwell();
+  }
+  function updateGeoDeath(dt) {
+    const D = G.geoDeath; if (!D) return;
+    D.t += dt; const B = D.B, k = clamp((D.t - GEO_DIE_HIT) / (GEO_POP - GEO_DIE_HIT), 0, 1);
+    B.flash -= dt; B.hurt = D.t < GEO_DIE_HIT ? 1 : 0;
+    if (!D.popped) {
+      shake(0.2 + 1.6 * k * k);
+      if (Math.random() < dt * (6 + 30 * k)) burst(B.x + rand(-1, 1) * GEO_R * B.sc, B.y + rand(-1, 1) * GEO_R * B.sc, 1, GEO_ORB_COL, 10 + 20 * k, 0.6, 0.3); // spatters as he strains
+      if (D.t >= GEO_POP) geoPop(D);
     }
+    for (const q of D.bits) { const f = Math.exp(-1.6 * dt); q.vx *= f; q.vy *= f; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; q.va *= f; }
+    if (D.popped && D.t > GEO_POP + GEO_GOO) G.geoDeath = null;
+  }
+  function geoPop(D) {
+    const B = D.B, x = B.x, y = B.y, k = B.sc, sp = Math.sqrt(k);
+    D.popped = true;
+    crumbleSiege();
+    for (let i = 0; i < 4; i++) ring(x, y, 2, GEO_R * k * (1.4 + i * 0.7) + 10, 0.5 + i * 0.15, i % 2 ? COL.chalk : GEO_ORB_COL, 1.4);
+    burst(x, y, 110, GEO_ORB_COL, 95 * sp, 1.4 * sp, 1.1); burst(x, y, 60, ECOL.blinker, 75 * sp, 1.1 * sp, 0.9); burst(x, y, 30, COL.chalk, 60 * sp, 0.8, 0.5);
+    gridImpulse(x, y, Math.max(AW, AH), 260);
+    G.freeze = Math.max(G.freeze, 0.12); G.screenFlash = Math.max(G.screenFlash || 0, 0.3); shake(6);
+    sfx.splat(15); sfx.overload(); sfx.shatter();
+    const fling = (kind, ox, oy, r) => { const a = Math.atan2(oy, ox) + rand(-0.3, 0.3), v = rand(45, 70) * sp; D.bits.push({ kind, x: x + ox * k, y: y + oy * k, vx: Math.cos(a) * v, vy: Math.sin(a) * v, a: rand(0, 6), va: rand(-9, 9), r: r * k }); };
+    fling('gun', B.side * 11, 2, 1); fling('bulb', -5, -12, 1.05); fling('bulb', 5, -12, 1.05);
+    for (const tx of [-4.6, -1.6, 1.6, 4.6]) fling('tip', tx * 1.3, 11, 0.9);
+    for (let i = 0; i < 9; i++) { // goo splats on the floor: a blob and a few droplets flung out past it
+      const a = rand(0, Math.PI * 2), d = rand(0.3, 1.6) * GEO_R * k + rand(0, 8), r = rand(1.6, 3.6) * sp;
+      D.goo.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, r, a, drops: Array.from({ length: 4 }, () => [rand(1.2, 2.4), rand(-0.6, 0.6), rand(0.25, 0.5)]) });
+    }
+    G.result = D.result;
+    hullSlot();
+    for (let i = 0; i < 3; i++) spawnPickup(x + rand(-6, 6), y + rand(-6, 6));
+  }
+  function drawGeoDeath() {
+    const D = G.geoDeath; if (!D) return;
+    const B = D.B, x = B.x, y = B.y, k = clamp((D.t - GEO_DIE_HIT) / (GEO_POP - GEO_DIE_HIT), 0, 1), base = B.bg > 0.5 ? 0.3 : 1;
+    if (D.popped) { // goo on the floor, fading; the pieces spinning away
+      const f = clamp(1 - (D.t - GEO_POP - GEO_GOO * 0.55) / (GEO_GOO * 0.45), 0, 1);
+      ctx.globalAlpha = 0.55 * f; ctx.fillStyle = GEO_ORB_COL; ctx.beginPath();
+      for (const g of D.goo) { ctx.moveTo(g.x + g.r, g.y); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); for (const [dd, da, dr] of g.drops) { const px = g.x + Math.cos(g.a + da) * g.r * dd, py = g.y + Math.sin(g.a + da) * g.r * dd; ctx.moveTo(px + g.r * dr, py); ctx.arc(px, py, g.r * dr, 0, Math.PI * 2); } }
+      ctx.fill();
+      ctx.globalAlpha = 0.35 * f; ctx.fillStyle = COL.chalk; ctx.beginPath(); for (const g of D.goo) { ctx.moveTo(g.x - g.r * 0.3 + g.r * 0.25, g.y - g.r * 0.3); ctx.arc(g.x - g.r * 0.3, g.y - g.r * 0.3, g.r * 0.25, 0, Math.PI * 2); } ctx.fill(); // wet glints
+      const fb = clamp(1 - (D.t - GEO_POP - 0.8) / 0.9, 0, 1); if (fb <= 0) { ctx.globalAlpha = 1; return; }
+      const u = GEO_R / 10;
+      for (const q of D.bits) {
+        ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.a); ctx.globalAlpha = fb; ctx.lineJoin = 'round';
+        if (q.kind === 'gun') { // his blaster, tumbling
+          const s = q.r * u * 1.1; ctx.translate(-2 * s, 0); ctx.beginPath(); // the same shape as in his hand
+          ctx.moveTo(-0.2 * s, 0.9 * s); ctx.lineTo(0.9 * s, 0.9 * s); ctx.lineTo(0.4 * s, 2.9 * s); ctx.lineTo(-0.8 * s, 2.7 * s); ctx.closePath();
+          ctx.roundRect(-1.3 * s, -1.25 * s, 4.3 * s, 2.3 * s, 0.6 * s); ctx.roundRect(2.8 * s, -0.7 * s, 2.4 * s, 1.3 * s, 0.3 * s);
+          ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.35; ctx.stroke();
+          ctx.globalAlpha = 0.45 * fb; ctx.fillStyle = COL.threat; ctx.fillRect(3.1 * s, -0.22 * s, 1.9 * s, 0.32 * s); ctx.globalAlpha = fb;
+          ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.45; ctx.beginPath(); ctx.ellipse(5.25 * s, -0.05 * s, 0.35 * s, 0.95 * s, 0, 0, Math.PI * 2); ctx.stroke();
+        } else if (q.kind === 'bulb') { // an antenna, snapped off
+          ctx.strokeStyle = ECOL.blinker; ctx.lineWidth = 0.5 * q.r; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(1.2 * q.r, 2 * q.r, 0.4 * q.r, 3.6 * q.r); ctx.stroke();
+          ctx.fillStyle = ECOL.blinker; ctx.beginPath(); ctx.arc(0, 0, 1.05 * q.r, 0, Math.PI * 2); ctx.fill();
+        } else { // a tentacle tip
+          ctx.fillStyle = ECOL.blinker; ctx.beginPath(); ctx.ellipse(0, 0, 1.6 * q.r, 0.6 * q.r, 0, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1; return;
+    }
+    // straining: he swells and jiggles, lit from inside, cracks of light spreading
+    const s = 1 + (B.bg > 0.5 ? 0.45 : 0.9) * k * k, jig = Math.sin(D.t * (30 + 25 * k)) * 0.08 * k, a = base + (0.9 - base) * k;
+    const draw = () => { ctx.translate(x, y); ctx.scale(s * (1 + jig), s * (1 - jig)); ctx.translate(-x, -y); drawGeode(B, 1, B.sc, D.t >= GEO_DIE_HIT ? 1 : 0); };
+    if (a >= 0.999) { ctx.save(); draw(); ctx.restore(); } else faded(a, draw);
+    const R = GEO_R * B.sc * s;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(x, y + R * 0.1, 0, x, y + R * 0.1, R * 1.1); g.addColorStop(0, `rgba(255,120,190,${0.55 * k})`); g.addColorStop(1, 'rgba(255,120,190,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y + R * 0.1, R * 1.1, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = COL.chalk; ctx.lineCap = 'round';
+    for (const c of D.cracks) {
+      const g2 = clamp((k - c.at) / 0.35, 0, 1); if (g2 <= 0) continue;
+      const L = R * c.len * g2, ca = Math.cos(c.a), sa = Math.sin(c.a), na = c.a + c.kink;
+      ctx.globalAlpha = 0.5 + 0.5 * g2 * (0.7 + 0.3 * Math.sin(D.t * 40)); ctx.lineWidth = Math.max(0.3, 0.9 * B.sc * 0.25);
+      ctx.beginPath(); ctx.moveTo(x + ca * R * 0.1, y + sa * R * 0.1); ctx.lineTo(x + ca * L * 0.55, y + sa * L * 0.55); ctx.lineTo(x + ca * L * 0.55 + Math.cos(na) * L * 0.45, y + sa * L * 0.55 + Math.sin(na) * L * 0.45); ctx.stroke();
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  function drawGeodeBg() {
+    const B = G.boss && G.boss.kind === 'geode' ? G.boss : null;
+    drawGeoDeath();
     if (!B) return;
     const e = geoEase(clamp(B.bg, 0, 1)), a = (B.enter > 0 ? clamp((1 - B.enter / BOSS_ENTER - 0.45) / 0.5, 0, 1) : 1) * (1 - 0.7 * e); // solid in the middle, faint behind
     if (a >= 0.999) drawGeode(B, 1, B.sc); else if (a > 0) faded(a, () => drawGeode(B, 1, B.sc));
@@ -4253,7 +4347,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.between === null) {
-      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss) {
+      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss && !G.geoDeath) {
         if (inLoop(G.wave) === LOOP_LEN && G.winShown !== G.wave && !G.attract) { // the loop's finale is down
           if (!G.result) showWin(); // once its banner has had its moment
           return;
@@ -5296,6 +5390,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.inv) updateInvaders(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
+    updateGeoDeath(dt);
     updateBullets(dt * ws);
     updateWaves(dt);
     if (scoreK(G.wave) > 1) G.score += Math.round((scoreK(G.wave) - 1) * (G.score - score0)); // later loops: every point counts more
