@@ -518,7 +518,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     18: 'Invasion: break the formation before it lands. The top rows are tougher: charge your ball off the walls and bunkers to punch through',
     19: 'A Brute Wall marches in partway through this wave',
     20: 'The Carrier: break through its docked fighters and hit the glowing throat at the back',
-    40: 'The Hive: dig to the royal cell before workers patch the comb. Smash thrown comb for chain. Hit the queen while her brood glows',
+    40: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. She hides back in the hive to rebuild it: dig her out again',
     23: 'Swarm Storm',
     26: 'Titans: huge and slow. Each one cracks open into two brutes',
     28: 'Crusher: brick walls close in. Break them to push them back',
@@ -1067,24 +1067,27 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MAW_GUN_WARN = 0.8;
   const MAW_THROAT_D = 7, MAW_THROAT_HP = 120, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 3, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [4, 5, 6], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
 
-  // The Hive (wave 40, the finale). Phase one is the comb: HIVE_RINGS rings of hexagonal wax cells around a royal cell.
-  // The ball always bounces off a cell (1 damage, 2 when hot), so it digs tunnels; every few seconds an outer cell
-  // flashes and hatches HIVE_BEES bees. Breaking the royal cell cracks the hive open: the comb crumbles and the queen
-  // comes out. She loops round the arena, lays eggs that hatch into bees unless smashed, and every so often locks on
-  // and stings straight at you. Only she takes damage in phase two.
+  // The Hive (wave 40, the finale): Queen Vexa, in a loop. The dig: HIVE_RINGS rings of hexagonal wax cells round a
+  // royal cell. The ball always bounces off a cell (1 damage, 2 when hot), so it digs tunnels; every few seconds an
+  // outer cell flashes and hatches HIVE_BEES bees. Breaking the royal cell cracks the hive open: the comb crumbles and
+  // Vexa comes out, huge, and hangs from the top of the arena, head up, her glowing abdomen hanging down. Her abdomen
+  // is the target (1 + charge a hit); her head and thorax are armour. She launches bee formations (a column sweeping in
+  // from a side, a row rising from the bottom, each with a gap; a V dropping from her), aims her stinger down a lane
+  // (it glows, locks, then fires a needle), and throws honeycomb. Once she's taken VEXA_TRIP of her health she ducks
+  // back into the hive and the comb regrows, a ring thinner each time; dig her out again. Below VEXA_BERSERK of her
+  // health she stays out for good and everything comes faster.
   // Both halves throw honeycomb: a chunk of seven wax cells, flagged by a ring closing on an edge cell (or flung by the
   // queen), that flies and bounces off the walls COMB_BOUNCES times or for COMB_LIFE seconds, then crumbles. Its touch
   // hurts; each cell breaks in one hit and counts toward the chain, and breaking the core cell shatters the rest.
-  // During the dig, worker bees fly to holes in the comb and rebuild them (kill them first). While the queen's brood
-  // glows (QUEEN_BROOD seconds before she lays), a hit does double damage and stops the lay.
-  const COMB_SPEED = 50, COMB_BOUNCES = 3, COMB_LIFE = 7, COMB_MAX = 2, COMB_WARN = 0.7, COMB_EVERY = [6, 5, 4], QUEEN_COMB = [7, 6, 5], WAX_S = 3;
-  const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2, QUEEN_BROOD = 1.5;
+  // During the dig, worker bees fly to holes in the comb and rebuild them (kill them first).
+  const COMB_SPEED = 50, COMB_BOUNCES = 3, COMB_LIFE = 7, COMB_MAX = 2, COMB_WARN = 0.7, COMB_EVERY = [6, 5, 4], WAX_S = 3;
+  const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2, HIVE_FINALE = 25000;
   const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [5.5, 4.5, 3.5], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
-  // The queen's fight is a crowd: when she comes out, and again at 2/3 and 1/3 health, she calls a royal guard (GUARD_N
-  // bees in two rings circling her in opposite directions) that peels off in pairs to dive at you; her eggs come in tight
-  // clutches (CLUTCH + phase); and the ruins trickle bees in (TRICKLE seconds apart). Guards ignore the bee cap.
-  const GUARD_N = [18, 24, 30], GUARD_PEEL = [2.2, 1.7, 1.2], CLUTCH = 6, TRICKLE = [3, 2.4, 1.8], HIVE_FINALE = 25000;
-  const QUEEN_R = 9.5, QUEEN_HP = 160, QUEEN_EMERGE = 1.8, QUEEN_STING = [5, 4, 3], QUEEN_EGGS = [6, 5, 4], EGG_HATCH = 4.5;
+  const VEXA_SC = 1.5, VEXA_TRIP = 0.25, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [3.6, 3.0, 2.5, 2.0], VEXA_STING = [3.2, 2.7, 2.2, 1.8];
+  const VEXA_AIM = 0.9, VEXA_LOCK = 0.25, VEXA_NEEDLE = 105, VEXA_BEE_V = [30, 35, 40, 46], VEXA_COMB = [8, 7, 6, 5];
+  // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
+  const VEXA_BODY = [[0.75, 0.36, false], [0, 0.48, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
+  const QUEEN_R = 9.5, QUEEN_HP = 360, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
   function setupHive(B, cycle) {
     const S = HIVE_CELL, cx = AW / 2, cy = clamp(AH * 0.36, S * 9, AH * 0.45), cells = [];
@@ -1095,7 +1098,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       cells.push({ x: cx + S * Math.sqrt(3) * (q + r / 2), y: cy + S * 1.5 * r, d, hp, max: hp, flash: 0, hatch: 0 });
     }
     Object.assign(B, { x: cx, y: cy, cx, cy, r: S * Math.sqrt(3) * (HIVE_RINGS + 0.5), st: 'comb', cells, hatchT: 3, hitCd: 0,
-                       hp: Math.round(QUEEN_HP * (1 + cycle * 0.6)), vx: 0, vy: 0, mode: 'fly', modeT: 0, stingT: QUEEN_STING[0], eggT: QUEEN_EGGS[0],
+                       hp: Math.round(QUEEN_HP * (1 + cycle * 0.6)), vx: 0, vy: 0, mode: 'hang', modeT: 0,
                        combs: [], combT: 4, mendT: HIVE_MEND[0] });
     B.comb0 = cells.reduce((s2, c) => s2 + c.hp, 0);
   }
@@ -1334,52 +1337,71 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       return;
     }
-    if (B.st === 'emerge') { B.modeT -= dt; if (B.modeT <= 0) { B.st = 'queen'; B.mode = 'fly'; B.guards = 0; B.peelT = GUARD_PEEL[0]; B.trickleT = TRICKLE[0]; } return; }
-    // the queen: loops round the upper arena, lays eggs, and now and then locks on and stings
-    if (p.inv <= 0 && Math.hypot(p.x - B.x, p.y - B.y) < QUEEN_R + PLAYER_R * 0.8) damagePlayer();
-    if ((B.guards || 0) < B.phase) { B.guards = B.phase; summonGuard(B, GUARD_N[B.phase - 1] * (1 + B.cycle * 0.25) | 0); } // a guard for each third of her health
-    B.peelT -= dt;
-    if (B.peelT <= 0) { // two guards break off and dive at you
-      B.peelT = GUARD_PEEL[ph];
-      const gs = G.enemies.filter(e => e.guard && !(e.spawnT > 0));
-      for (let k = 0; k < 2 && gs.length; k++) { const e = gs.splice(Math.floor(Math.random() * gs.length), 1)[0]; e.guard = null; e.flash = 0.15; }
+    const ph2 = B.hp <= B.maxHp * VEXA_BERSERK ? 3 : ph; // berserk: the fastest of everything
+    const hang = vexaHang(B), ease = k => k * k * (3 - 2 * k);
+    B.face = B.face ?? -Math.PI / 2;
+    if (B.st === 'emerge') { // up out of the royal cell to where she hangs, growing as she goes
+      B.modeT -= dt; const k = ease(1 - B.modeT / QUEEN_EMERGE);
+      B.x = B.cx + (hang[0] - B.cx) * k; B.y = B.cy + (hang[1] - B.cy) * k; B.face = -Math.PI / 2;
+      if (B.modeT <= 0) { B.st = 'queen'; }
+      return;
     }
-    B.trickleT -= dt;
-    if (B.trickleT <= 0) { // the ruins keep bees coming
-      B.trickleT = TRICKLE[ph];
-      const a = rand(0, Math.PI * 2), rr = B.r * 0.7;
-      spawnBees(clamp(B.cx + Math.cos(a) * rr, 6, AW - 6), clamp(B.cy + Math.sin(a) * rr, 6, AH - 6), 2 + (ph > 1 ? 1 : 0));
+    if (B.st === 'retreat') { // back down into the hive while the comb grows back round her
+      B.modeT -= dt; const k = ease(1 - B.modeT / VEXA_RETREAT);
+      if (B.hx0 === undefined) { B.hx0 = B.x; B.hy0 = B.y; }
+      B.x = B.hx0 + (B.cx - B.hx0) * k; B.y = B.hy0 + (B.cy - B.hy0) * k;
+      for (const c of B.cells) c.grow = Math.min(1, c.grow + dt / (VEXA_RETREAT * 0.6));
+      if (B.modeT <= 0) { B.st = 'comb'; B.hx0 = undefined; for (const c of B.cells) c.grow = 1; B.hatchT = 2; B.mendT = HIVE_MEND[ph]; B.combT = 3; }
+      return;
     }
-    const sp = Math.hypot(B.vx, B.vy);
-    if (sp > 6 && Math.random() < dt * 25) burst(B.x - B.vx / sp * QUEEN_R * 1.6, B.y - B.vy / sp * QUEEN_R * 1.6, 1, GOLD(), 6, 0.7, 0.2); // a trail of glittering motes
-    B.eggT -= dt;
-    if (B.eggT <= 0 && B.mode === 'fly') {
-      B.eggT = QUEEN_EGGS[ph];
-      const a = rand(0, Math.PI * 2), n = CLUTCH + ph; // a tight clutch, drifting off together
-      for (let k = 0; k < n; k++) {
-        const q = k ? (k - 1) / (n - 1) * Math.PI * 2 : 0, d = k ? 4 : 0;
-        const e = makeEnemy('egg', B.x + Math.cos(q) * d, B.y + Math.sin(q) * d);
-        Object.assign(e, { hatchT: EGG_HATCH, vx: Math.cos(a) * 12, vy: Math.sin(a) * 12, spawnT: 0 });
-        G.enemies.push(e);
+    // Vexa, hanging over the arena
+    B.x += (hang[0] - B.x) * Math.min(1, dt * 2); B.y += (hang[1] - B.y) * Math.min(1, dt * 2);
+    const [tx0, ty0] = vexaTip(B), want = clamp(Math.atan2(p.y - ty0, p.x - tx0) - Math.PI / 2, -0.4, 0.4); // her abdomen leans toward you
+    if (B.mode !== 'lock') B.face += (-Math.PI / 2 + want - B.face) * Math.min(1, dt * 2.5);
+    if (p.inv <= 0) for (const [x, y, rr] of vexaBody(B)) if (Math.hypot(p.x - x, p.y - y) < rr + PLAYER_R * 0.8) { damagePlayer(); break; }
+    // the sting: the abdomen leans in and glows down a lane, locks, and fires a needle
+    B.stingT -= dt;
+    if (B.mode === 'hang' && B.stingT <= 0) { B.mode = 'aim'; B.modeT = VEXA_AIM; sfx.blasterCharge(); }
+    if (B.mode === 'aim' || B.mode === 'lock') {
+      B.modeT -= dt;
+      const [tx, ty] = vexaTip(B);
+      if (B.modeT > VEXA_LOCK) B.aimA = Math.atan2(p.y - ty, p.x - tx); else B.mode = 'lock';
+      if (B.modeT <= 0) {
+        G.bullets.push({ x: tx, y: ty, vx: Math.cos(B.aimA) * VEXA_NEEDLE, vy: Math.sin(B.aimA) * VEXA_NEEDLE, r: 1.6, sting: true });
+        B.mode = 'hang'; B.stingT = VEXA_STING[ph2]; B.recoil = 1; shake(0.8); sfx.blaster();
+      }
+    }
+    B.recoil = Math.max(0, (B.recoil || 0) - dt * 4);
+    // bee formations: flagged at their entry edge, then they fly straight across
+    B.formT -= dt;
+    if (B.formT <= 0) {
+      B.formT = VEXA_FORM[ph2];
+      const kinds = ['column', 'row', 'v'], kind = kinds[Math.floor(Math.random() * kinds.length)];
+      B.forms.push({ kind, t: 0.9, side: Math.random() < 0.5 ? -1 : 1, gap: rand(0.2, 0.8), x: clamp(p.x + rand(-15, 15), 15, AW - 15) });
+    }
+    for (const f of B.forms) {
+      f.t -= dt;
+      if (f.t > 0) continue;
+      f.done = true;
+      const v = VEXA_BEE_V[ph2], gapW = 15, add = (x, y, vx, vy) => {
+        const m = makeEnemy('swarm', x, y);
+        Object.assign(m, { bee: true, form: { vx, vy }, seed: rand(0, 6), vx, vy, spawnT: 0 }); G.enemies.push(m);
+      };
+      if (f.kind === 'column') { // from a side, top to bottom, with a gap to fly through
+        const x0 = f.side < 0 ? -3 : AW + 3, gy = 8 + f.gap * (AH - 16);
+        for (let y = 5; y < AH - 4; y += 5.5) if (Math.abs(y - gy) > gapW / 2) add(x0, y, -f.side * v, 0);
+      } else if (f.kind === 'row') { // rising from the bottom, side to side, with a gap
+        const gx = 8 + f.gap * (AW - 16);
+        for (let x = 5; x < AW - 4; x += 5.5) if (Math.abs(x - gx) > gapW / 2) add(x, AH + 3, 0, -v * 0.9);
+      } else { // a V dropped from her abdomen, at where you are
+        const [tx, ty] = vexaTip(B), n = 5 + ph2;
+        for (let k = -n; k <= n; k++) add(tx + k * 4.5, ty + 4 - Math.abs(k) * 3.5, (f.x - tx) * 0.35, v * 0.9);
       }
       sfx.field();
     }
-    if (B.mode === 'fly') {
-      B.stingT -= dt;
-      const t = B.t * (0.5 + ph * 0.12), tx = AW / 2 + AW * 0.32 * Math.sin(t), ty = AH * 0.32 + AH * 0.16 * Math.sin(t * 1.6);
-      const k = Math.min(1, dt * 2); B.vx += ((tx - B.x) * 1.2 - B.vx) * k; B.vy += ((ty - B.y) * 1.2 - B.vy) * k;
-      if (B.stingT <= 0) { B.mode = 'aim'; B.modeT = 0.9; sfx.boss(); }
-      B.combT -= dt;
-      if (B.combT <= 0 && B.combs.length < COMB_MAX) { B.combT = QUEEN_COMB[ph]; throwComb(B, B.x, B.y); }
-    } else if (B.mode === 'aim') { // stop, shake, track you, then lock the line for the last moment
-      B.vx *= Math.exp(-8 * dt); B.vy *= Math.exp(-8 * dt); B.modeT -= dt;
-      if (B.modeT > 0.3) B.aimA = Math.atan2(p.y - B.y, p.x - B.x);
-      if (B.modeT <= 0) { B.mode = 'sting'; B.modeT = 0.7; B.vx = Math.cos(B.aimA) * 95; B.vy = Math.sin(B.aimA) * 95; }
-    } else if (B.mode === 'sting') {
-      B.modeT -= dt;
-      if (B.modeT <= 0 || B.x < QUEEN_R || B.x > AW - QUEEN_R || B.y < QUEEN_R || B.y > AH - QUEEN_R) { B.mode = 'fly'; B.stingT = QUEEN_STING[ph]; shake(1.2); }
-    }
-    B.x = clamp(B.x + B.vx * dt, QUEEN_R, AW - QUEEN_R); B.y = clamp(B.y + B.vy * dt, QUEEN_R, AH - QUEEN_R);
+    B.forms = B.forms.filter(f => !f.done);
+    B.combT -= dt;
+    if (B.combT <= 0 && B.combs.length < COMB_MAX) { B.combT = VEXA_COMB[ph2]; const [tx, ty] = vexaTip(B); throwComb(B, tx, ty + 6); }
   }
   // Ball against the Serpent: the head is armour; a plate takes the ball's damage and breaks open when it runs out;
   // an open core takes damage off the health bar. Everything bounces the ball. Returns 'bounce' on contact.
@@ -1407,7 +1429,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     return '';
   }
-  const bossHp = B => B.kind === 'hive' && B.st === 'comb' ? combHp(B) / B.comb0 * B.maxHp : B.hp; // the Hive's bar is the comb, then the queen
+  const bossHp = B => B.hp; // the Hive's bar is Vexa's health; the comb is her armour (its royal cell has its own bar under it)
   const mawThroat = B => ({ x0: B.bx - B.MW / 2, x1: B.bx + B.MW / 2, y0: -6, y1: MAW_THROAT_D });
   const mawCavity = B => ({ x0: B.bx - B.MW / 2, x1: B.bx + B.MW / 2, y0: 0, y1: B.D });
   const mawBrick = (B, br) => ({ x0: B.bx + br.rx0, x1: B.bx + br.rx1, y0: br.y0, y1: br.y1 });
@@ -1458,7 +1480,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (B.kind === 'hive') { // a blast cracks the cells it reaches; in phase two it hurts the queen
       if (B.st === 'comb') { for (const c of B.cells) if (c.hp > 0 && Math.hypot(c.x - x, c.y - y) < rad + HIVE_CELL) hiveCellHit(B, c, 2, 4); }
-      else if (B.st === 'queen' && Math.hypot(B.x - x, B.y - y) < rad + QUEEN_R) damageBoss(dmg, B.x, B.y);
+      else if (B.st === 'queen' && vexaBody(B).some(([qx, qy, rr, hurts]) => hurts && Math.hypot(qx - x, qy - y) < rad + rr)) damageBoss(dmg, B.x, B.y);
       return;
     }
     if (B.kind === 'geode') { blastGeode(B, x, y, rad, dmg); return; }
@@ -1550,11 +1572,35 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The royal cell is broken: the comb crumbles away and the queen comes out (untouchable while she emerges).
   function crackHive(B) {
     for (const c of B.cells) if (c.hp > 0) { burst(c.x, c.y, 6, GOLD(), 40, 0.7, 0.5); G.score += Math.round(20 * G.mult); c.hp = 0; }
-    Object.assign(B, { st: 'emerge', modeT: QUEEN_EMERGE, x: B.cx, y: B.cy, hp: B.maxHp, flash: 0.3, combT: QUEEN_COMB[0] });
+    Object.assign(B, { st: 'emerge', modeT: QUEEN_EMERGE, x: B.cx, y: B.cy, flash: 0.3, combT: VEXA_COMB[0], taken: 0, mode: 'hang', formT: 1.6, stingT: 2.4, forms: [] });
+    B.outs = (B.outs || 0) + 1;
     for (const e of G.enemies) e.mend = null;
     for (let k = 0; k < 4; k++) ring(B.x, B.y, 2, B.r * (0.8 + k * 0.5), 0.6 + k * 0.15, k % 2 ? COL.chalk : GOLD(), 1.4);
     G.slowT = 0.6; G.screenFlash = 0.4; shake(5); gridImpulse(B.x, B.y, Math.max(AW, AH), 240); sfx.overload(); sfx.boss();
-    G.banner = { text: 'The Queen', sub: 'Hit her while her brood glows', t: 2.4, max: 2.4, top: true };
+    if (B.outs === 1) G.bossCard = { text: 'QUEEN VEXA', t: 2.2, max: 2.2 };
+    else G.banner = { text: 'She\'s out!', sub: 'Hit her abdomen', t: 1.6, max: 1.6, top: true };
+  }
+  // Where Vexa hangs: her head near the top of the arena, swaying side to side.
+  const vexaR = () => QUEEN_R * VEXA_SC;
+  const vexaHang = B => [AW / 2 + Math.sin(B.t * 0.35) * AW * 0.16, vexaR() * 2.1];
+  // Her body in the arena: [x, y, radius, hurts?] for each of the circles along her length (she faces B.face).
+  function vexaBody(B, k = 1) {
+    const r = vexaR() * k, c = Math.cos(B.face ?? -Math.PI / 2), sn = Math.sin(B.face ?? -Math.PI / 2);
+    return VEXA_BODY.map(([lx, rr, hurts]) => [B.x + c * lx * r, B.y + sn * lx * r, rr * r, hurts]);
+  }
+  const vexaTip = B => { const r = vexaR(), c = Math.cos(B.face ?? -Math.PI / 2), sn = Math.sin(B.face ?? -Math.PI / 2); return [B.x - c * 2.6 * r, B.y - sn * 2.6 * r]; };
+  // She ducks back into the hive: the comb regrows round her, a ring thinner each time she's been out.
+  function vexaRetreat(B) {
+    B.st = 'retreat'; B.modeT = VEXA_RETREAT; B.mode = 'hang'; B.forms = [];
+    const rings = Math.max(1, HIVE_RINGS - B.outs), S = HIVE_CELL, cells = [];
+    for (let q = -rings; q <= rings; q++) for (let r = -rings; r <= rings; r++) {
+      const d = Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r));
+      if (d > rings) continue;
+      const hp = d === 0 ? Math.max(4, 8 - B.outs * 2) + B.cycle * 3 : (d <= 2 ? 3 : 2) + B.cycle;
+      cells.push({ x: B.cx + S * Math.sqrt(3) * (q + r / 2), y: B.cy + S * 1.5 * r, d, hp, max: hp, flash: 0, hatch: 0, grow: -0.25 * (rings - d) });
+    }
+    B.cells = cells; B.r = S * Math.sqrt(3) * (rings + 0.5);
+    G.banner = { text: 'She\'s hiding!', sub: 'Dig her out again', t: 1.6, max: 1.6, top: true }; sfx.boss(); shake(1.5);
   }
   function ballHive(B, o, r, b) {
     if (B.st === 'comb') {
@@ -1571,20 +1617,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       return '';
     }
-    const dx = o.x - B.x, dy = o.y - B.y, d = Math.hypot(dx, dy) || 1e-6, nx = dx / d, ny = dy / d;
-    if (d - r >= QUEEN_R) return '';
-    o.x = B.x + nx * (QUEEN_R + r + 0.05); o.y = B.y + ny * (QUEEN_R + r + 0.05);
+    if (B.st !== 'queen') return '';
+    let hit = null, hd = 1e9;
+    for (const q of vexaBody(B)) { const d = Math.hypot(o.x - q[0], o.y - q[1]) - q[2]; if (d < r && d < hd) { hit = q; hd = d; } }
+    if (!hit) return '';
+    const [x, y, rr, hurts] = hit, d = Math.hypot(o.x - x, o.y - y) || 1e-6, nx = (o.x - x) / d, ny = (o.y - y) / d;
+    o.x = x + nx * (rr + r + 0.05); o.y = y + ny * (rr + r + 0.05);
     const dot = o.vx * nx + o.vy * ny;
     if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
-    if (B.st === 'queen' && B.hitCd <= 0) {
-      B.hitCd = 0.25; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8);
-      const brood = B.eggT < QUEEN_BROOD;
-      if (brood) { // caught while her brood glows: double damage, and no eggs this time
-        B.eggT = QUEEN_EGGS[B.phase - 1];
-        burst(B.x, B.y, 18, COL.threat, 45, 0.7, 0.5); ring(B.x, B.y, QUEEN_R, QUEEN_R + 14, 0.45, COL.threat, 1.4);
-        float(B.x, B.y - QUEEN_R - 5, 'Brood broken', COL.threat, 3.2); shake(1.5); G.freeze = Math.max(G.freeze, 0.05); sfx.shell();
-      }
-      damageBoss((1 + b) * (brood ? 2 : 1), o.x, o.y);
+    if (!hurts) { B.armorT = 0.15; sfx.clank(); return 'bounce'; } // her head and thorax are armour
+    if (B.hitCd <= 0) {
+      B.hitCd = 0.12; B.flash = 0.08; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); burst(x + nx * rr, y + ny * rr, 8 + b, GOLD(), 30, 0.6, 0.35); sfx.splat(b);
+      damageBoss(1 + b, o.x, o.y);
+      if (G.boss === B && B.hp > B.maxHp * VEXA_BERSERK) { B.taken += 1 + b; if (B.taken >= B.maxHp * VEXA_TRIP && B.hp > B.maxHp * (VEXA_BERSERK + 0.1)) vexaRetreat(B); } // not for a sliver
+      else if (G.boss === B && !B.berserk) { B.berserk = true; G.banner = { text: 'Vexa is furious!', sub: 'No more hiding', t: 1.8, max: 1.8, top: true }; shake(2); sfx.boss(); }
     }
     return 'bounce';
   }
@@ -2005,7 +2051,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (const [w, al] of [[g.r * 0.9, 0.06], [g.r * 0.35, 0.12]]) { ctx.globalAlpha = al; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.lineTo(g.x - g.vx / sp * 16, g.y - g.vy / sp * 16); ctx.stroke(); }
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     }
-    if (B.st === 'comb') {
+    if (B.st === 'comb' || B.st === 'retreat') {
+      if (B.st === 'retreat') drawQueen(B); // she shrinks back into the hive as it grows round her
       for (const e of G.enemies) if (e.mend) { // a worker's thread to the hole it's rebuilding, and the cell to come
         pulseLine(e.x, e.y, e.mend.x, e.mend.y, gold, 0.6, 0.25, 20);
         hexPath(e.mend.x, e.mend.y, HIVE_CELL * 0.95); ctx.strokeStyle = gold; ctx.lineWidth = 0.25; ctx.globalAlpha = 0.25 + 0.2 * Math.sin(G.time * 8); ctx.stroke(); ctx.globalAlpha = 1;
@@ -2013,8 +2060,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.12 + 0.05 * Math.sin(B.t * 2); ctx.fillStyle = gold; // the hive's warm glow
       ctx.beginPath(); ctx.arc(B.cx, B.cy, B.r * 1.05, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
       for (const c of B.cells) {
-        if (c.hp <= 0) continue;
-        const s = HIVE_CELL * 0.95, royal = c.d === 0, hatching = c.hatch > 0 && Math.floor(G.time * 16) % 2;
+        if (c.hp <= 0 || (c.grow ?? 1) <= 0) continue;
+        const s = HIVE_CELL * 0.95 * Math.min(1, c.grow ?? 1), royal = c.d === 0, hatching = c.hatch > 0 && Math.floor(G.time * 16) % 2;
         hexPath(c.x, c.y, s); ctx.fillStyle = COL.ink; ctx.fill();
         ctx.globalAlpha = c.flash > 0 || hatching ? 0.85 : royal ? 0.35 + 0.2 * Math.sin(B.t * 4) : 0.12 + 0.3 * c.hp / c.max;
         ctx.fillStyle = c.flash > 0 || hatching ? COL.chalk : royal ? COL.threat : gold; ctx.fill(); ctx.globalAlpha = 1;
@@ -2040,17 +2087,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // antennae; six barbed legs; four blade wings beating with motion blur. Drawn facing +x. She unfurls as she
   // emerges, and her eyes and needle flare when she aims.
   function drawQueen(B) {
-    const r = QUEEN_R, gold = GOLD(), threat = COL.threat, hot = B.flash > 0, aiming = B.mode === 'aim' || B.mode === 'sting';
-    const em = B.st === 'emerge' ? 1 - B.modeT / QUEEN_EMERGE : 1, sc = 1 - Math.pow(1 - em, 2), unfurl = clamp(em * 1.6 - 0.4, 0, 1);
-    const face = aiming ? B.aimA : Math.hypot(B.vx, B.vy) > 4 ? Math.atan2(B.vy, B.vx) : Math.PI / 2, t = G.time;
-    const line = hot ? COL.chalk : gold, brood = B.st === 'queen' ? clamp(1 - B.eggT / QUEEN_BROOD, 0, 1) : 0;
+    const r = vexaR(), gold = GOLD(), threat = COL.threat, hot = B.flash > 0, aiming = B.st === 'queen' && (B.mode === 'aim' || B.mode === 'lock');
+    const em = B.st === 'emerge' ? 1 - B.modeT / QUEEN_EMERGE : B.st === 'retreat' ? B.modeT / VEXA_RETREAT : 1;
+    const sc = 1 - Math.pow(1 - em, 2), unfurl = clamp(em * 1.6 - 0.4, 0, 1);
+    const face = B.face ?? -Math.PI / 2, t = G.time, mad = B.hp <= B.maxHp * VEXA_BERSERK;
+    const line = hot ? COL.chalk : gold, brood = B.st === 'queen' ? 0.35 + (mad ? 0.35 : 0) : 0; // the abdomen glows: it's where she's soft
     const glow = (fn, col, a) => { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a; ctx.fillStyle = col; ctx.strokeStyle = col; fn(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; };
-    if (B.mode === 'aim') { // the sting's line
-      const cx = Math.cos(B.aimA), cy = Math.sin(B.aimA), locked = B.modeT <= 0.3;
-      if (locked) { ctx.globalAlpha = 0.8; ctx.strokeStyle = threat; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(B.x, B.y); ctx.lineTo(B.x + cx * 60, B.y + cy * 60); ctx.stroke(); ctx.globalAlpha = 1; }
-      else pulseLine(B.x, B.y, B.x + cx * 60, B.y + cy * 60, threat, 0.55, 0.45, 60);
+    if (aiming) { // the stinger's lane, from the tip to the edge of the arena: it brightens, then locks (white, flashing)
+      const [x, y] = vexaTip(B), ca = Math.cos(B.aimA), sa = Math.sin(B.aimA), locked = B.mode === 'lock';
+      const k = clamp(1 - (B.modeT - VEXA_LOCK) / (VEXA_AIM - VEXA_LOCK), 0, 1), L = Math.max(AW, AH) * 1.5;
+      const flick = locked ? (Math.floor(G.time * 30) % 2 ? 1 : 0.55) : 1;
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
+      glow(() => { ctx.lineWidth = locked ? 3 : 1.5 + 1.5 * k; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + ca * L, y + sa * L); ctx.stroke(); }, threat, (locked ? 0.3 : 0.08 + 0.15 * k) * flick);
+      ctx.strokeStyle = locked ? COL.chalk : threat; ctx.globalAlpha = (locked ? 0.95 : 0.25 + 0.5 * k) * flick; ctx.lineWidth = locked ? 0.7 : 0.3 + 0.3 * k;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + ca * L, y + sa * L); ctx.stroke(); ctx.globalAlpha = 1; ctx.restore();
     }
-    ctx.save(); ctx.translate(B.x + (B.mode === 'aim' ? rand(-0.4, 0.4) : 0), B.y); ctx.rotate(face); ctx.scale(sc, sc);
+    const jit = B.mode === 'lock' || mad ? 0.35 : 0;
+    ctx.save(); ctx.translate(B.x + rand(-jit, jit), B.y + rand(-jit, jit)); ctx.rotate(face); ctx.scale(sc, sc);
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     // legs: three a side fanning forward, out and back, each bent at the knee and ending in a hook
     ctx.strokeStyle = line; ctx.globalAlpha = 0.75;
@@ -2093,7 +2146,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     abd(); ctx.fillStyle = COL.ink; ctx.fill();
     ctx.save(); abd(); ctx.clip();
     // the brood chamber: eggs glowing through the plates, brighter as she gets ready to lay
-    const bc = 0.25 + 0.15 * Math.sin(t * 5) + (brood > 0 ? 0.45 + 0.3 * Math.sin(t * 22) : 0) + (aiming ? 0.1 : 0);
+    const bc = 0.25 + 0.15 * Math.sin(t * 5) + brood * (1 + 0.4 * Math.sin(t * (mad ? 14 : 4))) + (aiming ? 0.1 : 0);
     glow(() => { ctx.beginPath(); ctx.ellipse(-r * 1.25, 0, r * (0.62 + brood * 0.1), r * (0.36 + brood * 0.08), 0, 0, Math.PI * 2); ctx.fill(); }, threat, bc * 0.5);
     glow(() => { for (const [ex, ey] of [[-1.0, 0.12], [-1.25, -0.14], [-1.5, 0.08], [-1.22, 0.16]]) { ctx.beginPath(); ctx.arc(r * ex, r * ey, r * (0.1 + brood * 0.03), 0, Math.PI * 2); ctx.fill(); } }, threat, bc);
     // chevron bands, a pulse of light running down them
@@ -2105,7 +2158,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     });
     ctx.globalAlpha = 0.35; ctx.strokeStyle = line; ctx.lineWidth = 0.2; ctx.beginPath(); ctx.moveTo(-r * 0.5, 0); ctx.lineTo(tip, 0); ctx.stroke(); ctx.globalAlpha = 1; // the spine
     ctx.restore();
-    if (brood > 0) { abd(); glow(() => { ctx.lineWidth = r * 0.22; ctx.stroke(); }, threat, 0.35 + 0.25 * Math.sin(t * 22)); } // open to a double hit
+    if (brood > 0) { abd(); glow(() => { ctx.lineWidth = r * 0.22; ctx.stroke(); }, threat, 0.18 + 0.1 * Math.sin(t * (mad ? 14 : 4))); } // the target
     abd(); ctx.strokeStyle = line; ctx.lineWidth = 0.45; ctx.stroke();
     // the needle
     const nl = r * (0.6 + (aiming ? 0.25 : 0));
@@ -2885,9 +2938,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // the Maw carries its gauge just under its throat
     const maw = B.kind === 'maw', cx = maw ? B.bx : AW / 2, w = maw ? B.MW - 8 : Math.min(AW * 0.5, 70), x = cx - w / 2, y = maw ? MAW_THROAT_D + 1.2 : 6;
     const royal = B.kind === 'hive' && B.st === 'comb' && B.cells.find(c => c.d === 0); // the comb's bar is the royal cell: that's the goal
-    const f = royal ? royal.hp / royal.max : bossHp(B) / B.maxHp;
+    const f = bossHp(B) / B.maxHp;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 2.8px ${FONT}`; ctx.fillStyle = ECOL.warden;
-    if (!maw) ctx.fillText((B.kind === 'hive' && B.st !== 'comb' ? 'The Queen' : BOSS_NAMES[B.kind]).toUpperCase(), cx, y - 2.6);
+    if (!maw) ctx.fillText((B.kind === 'hive' ? 'Queen Vexa' : BOSS_NAMES[B.kind]).toUpperCase(), cx, y - 2.6);
+    if (royal) { ctx.fillStyle = COL.block; ctx.fillRect(x + w * 0.3, y + 2, w * 0.4, 0.8); ctx.fillStyle = GOLD(); ctx.fillRect(x + w * 0.3, y + 2, w * 0.4 * royal.hp / royal.max, 0.8); } // the royal cell
     ctx.fillStyle = COL.block; ctx.fillRect(x, y, w, 1.4);
     ctx.fillStyle = COL.threat; ctx.fillRect(x, y, w * f, 1.4);
     ctx.strokeStyle = COL.line; ctx.lineWidth = 0.2; ctx.strokeRect(x, y, w, 1.4);
@@ -3935,7 +3989,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     else if (G.boss && G.boss.kind === 'hive') { // the comb is solid (harmless); the queen is solid too (her touch hurts, in updateHive)
-      const B = G.boss, parts = B.st === 'comb' ? B.cells.filter(c => c.hp > 0).map(c => [c.x, c.y, HIVE_CELL * 0.87]) : [[B.x, B.y, QUEEN_R]];
+      const B = G.boss, parts = B.st === 'comb' || B.st === 'retreat' ? B.cells.filter(c => c.hp > 0).map(c => [c.x, c.y, HIVE_CELL * 0.87]) : B.st === 'queen' ? vexaBody(B) : [];
       for (const [x, y, rr] of parts) {
         const dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy) || 1e-6;
         if (d < rr + r) { o.x = x + dx / d * (rr + r); o.y = y + dy / d * (rr + r); }
@@ -5250,10 +5304,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           tx = e.march.nx * e.spd * 1.3; ty = e.march.ny * e.spd * 1.3;
           const prog = e.march.nx > 0 ? e.x / AW : e.march.nx < 0 ? 1 - e.x / AW : e.march.ny > 0 ? e.y / AH : 1 - e.y / AH;
           if (prog > 0.7) delete e.march;
-        } else if (e.guard && G.boss && G.boss.kind === 'hive' && G.boss.st === 'queen') { // a royal guard: circling the queen
-          const B = G.boss, gd = e.guard; gd.a += dt * (gd.ring ? -0.9 : 1.3);
-          const rr = QUEEN_R + (gd.ring ? 13 : 7), gx = B.x + Math.cos(gd.a) * rr - e.x, gy = B.y + Math.sin(gd.a) * rr - e.y;
-          tx = gx * 6; ty = gy * 6;
+        } else if (e.form) { tx = e.form.vx; ty = e.form.vy; e.vx = tx; e.vy = ty;
         } else if (e.mend) { // a worker: straight to its hole in the comb
           const ox = e.mend.x - e.x, oy = e.mend.y - e.y, od = Math.hypot(ox, oy) || 1;
           tx = ox / od * e.spd * 1.1; ty = oy / od * e.spd * 1.1;
@@ -5281,7 +5332,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         }
       }
       e.x += e.vx * dt; e.y += e.vy * dt;
-      keepIn(e, e.r); if (!e.mend) pushOut(e, e.r); // a worker flies over the comb
+      if (e.form) { if (e.x < -12 || e.x > AW + 12 || e.y < -12 || e.y > AH + 12) e.gone = true; } // a formation flies straight through and out
+      else { keepIn(e, e.r); if (!e.mend) pushOut(e, e.r); } // a worker flies over the comb
     }
     // Warden shields: an enemy inside a Warden's aura carries a WARD_LAYERS shield. Each ball hit pops a layer (and
     // charges the ball, like bouncing off a wall); once both are gone it reforms after WARD_CD, blinking back in faster and
@@ -5943,7 +5995,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
     // turret shots
     ctx.fillStyle = COL.threat; ctx.shadowColor = COL.threat; ctx.shadowBlur = 6 * DPR;
-    for (const b of G.bullets) if (!b.geo) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); }
+    for (const b of G.bullets) if (!b.geo && !b.sting) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); }
+    for (const b of G.bullets) if (b.sting) { // Vexa's needle
+      const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp;
+      ctx.beginPath(); ctx.moveTo(b.x + ux * 3.2, b.y + uy * 3.2); ctx.lineTo(b.x - ux * 3 - uy * 1.1, b.y - uy * 3 + ux * 1.1); ctx.lineTo(b.x - ux * 3 + uy * 1.1, b.y - uy * 3 - ux * 1.1); ctx.closePath(); ctx.fill();
+    }
     ctx.shadowBlur = 0;
     for (const b of G.bullets) if (b.geo) { // the Geode's rings: a bright rim round a faint disc
       ctx.globalAlpha = 0.16; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
