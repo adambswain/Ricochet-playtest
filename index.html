@@ -512,8 +512,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     6: 'Turrets fire slow shots. Your ball destroys them',
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them',
-    9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind',
-    10: 'The Core: hit its bombs with the ball to send them back into it. Don\'t touch it',
+    9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tankettes are rolling in: something big is coming',
+    10: 'The Tank: smash its treads and its cannon, then hit the reactor under its hatch. Its fuel drums explode',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
     30: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
@@ -547,6 +547,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     mini:     { r: 1.9, hp: 1, spd: 17,  pts: 5 },
     turret:   { r: 4.6, hp: 4, spd: 0,   pts: 40 },
     magnet:   { r: 3.2, hp: 5, spd: 9,   pts: 50 },
+    tankette: { r: 3.2, hp: 2, spd: 10,  pts: 30 }, // spawned as a drifter that looks and takes hits like a little tank
     swarm:    { r: 1.4, hp: 1, spd: 21,  pts: 8 },
     bulwark:  { r: 3.0, hp: 3, spd: 8,   pts: 35 },
     blinker:  { r: 2.4, hp: 2, spd: 11,  pts: 30 },
@@ -1033,7 +1034,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //   the doors open to a gap narrower than the bay, so a ball that gets in rattles around. A ball shut in stays
   //   trapped until the doors open again; inside the bay it heats only to just under the warning.
   // Bosses: the Core at 10, the Serpent at 15, the Maw at 20; after that one every ten waves in turn, harder each lap.
-  const BOSSES = ['core', 'maw', 'geode', 'hive'];
+  const BOSSES = ['tank', 'maw', 'geode', 'hive'];
   // The game runs in loops of LOOP_LEN waves. Each loop replays the first one's structure (the same set pieces and
   // bosses at the same waves) in Overdrive: everything that comes at you runs faster and every point counts more. The
   // last wave of a loop is its finale: beating it brings up the victory screen.
@@ -1045,7 +1046,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const bossFor = n => { const k = inLoop(n); return k === 15 ? 'serpent' : k % 10 === 0 ? BOSSES[(k / 10 - 1) % BOSSES.length] : null; };
   // how many times this boss has come before (the Serpent's wave-15 visit counts), so each visit is harder than its last
   const bossCycle = n => loopOf(n);
-  const BOSS_NAMES = { core: 'The Core', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'The Hive' };
+  const BOSS_NAMES = { core: 'The Core', tank: 'The Tank', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'The Hive' };
   const BOSS_TITLES = { geode: 'the Jailer' }; // shown under the name as it lands
   const RAM_AIM = 1.2, RAM_LOCK = 0.35, RAM_SPEED = 110, RAM_STUN = 2.4;
   const CORE_R = 16, CORE_SPEED = 9, BOMB_R = 3.6, BOMB_SPEED = 16, BOMB_RETURN = 90, BOMB_FUSE = 10, BOMB_FUSE_BLAST = 14, BOMB_MAX = 4;
@@ -1169,6 +1170,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (kind === 'hive') setupHive(B, cycle);
     if (kind === 'geode') setupGeode(B, cycle);
+    if (kind === 'tank') setupTank(B, cycle);
     if (kind === 'core') Object.assign(B, { r: CORE_R, hp: Math.round(60 * (1 + cycle * 0.6)), fireT: 2.5, aim: Math.PI / 2, vx: 0, vy: 0, wx: AW / 2, wy: AH / 2, wT: 0, mode: 'drift', ramT: 7, modeT: 0, ramA: 0, hitCd: 0 });
     else if (kind === 'maw') {
       // hull spans x = bx ± W/2 and y = 0..D from the top wall; the hangar bay is MW wide in the middle
@@ -1209,7 +1211,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     } else if (B.kind === 'core') {
       const dx = p.x - B.x, dy = p.y - B.y, d = Math.hypot(dx, dy);
       if (d < B.r + PLAYER_R + 2) { const nx = d > 0.01 ? dx / d : 0, ny = d > 0.01 ? dy / d : 1; p.x = B.x + nx * (B.r + PLAYER_R + 3); p.y = B.y + ny * (B.r + PLAYER_R + 3); keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); }
-    } else if (p.y < B.D + PLAYER_R && Math.abs(p.x - B.bx) < B.W / 2 + PLAYER_R) { p.y = B.D + PLAYER_R + 3; p.inv = Math.max(p.inv, 1); }
+    } else if (B.kind === 'tank') { if (pushOutTank(B, p, PLAYER_R + 3)) { keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); } }
+    else if (p.y < B.D + PLAYER_R && Math.abs(p.x - B.bx) < B.W / 2 + PLAYER_R) { p.y = B.D + PLAYER_R + 3; p.inv = Math.max(p.inv, 1); }
     ring(B.x, B.y, 2, (B.r || 20) * 2.2, 0.5, COL.threat, 1.2); gridImpulse(B.x, B.y, Math.max(AW, AH) * 0.5, 180);
     shake(3); sfx.boss();
   }
@@ -1533,6 +1536,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return;
     }
     if (B.kind === 'geode') { blastGeode(B, x, y, rad, dmg); return; }
+    if (B.kind === 'tank') { // a blast hurts every part it reaches, sets off the drums, strips the tiles, and hurts the reactor once it's open
+      for (const key of ['L', 'R', 'gun']) { const [px, py] = tankPartAt(B, key); if (Math.hypot(px - x, py - y) < rad + 8) tankHit(B, key, dmg, px, py); }
+      TANK_DRUMS.forEach((d, i) => { if (B.drums[i] && G.boss === B) { const [dx, dy] = tankWorld(B, ...d); if (Math.hypot(dx - x, dy - y) < rad + 3) tankDrum(B, i); } });
+      TANK_TILES.forEach((T, i) => { const [tx, ty] = tankWorld(B, (T.x0 + T.x1) / 2, (T.y0 + T.y1) / 2); if (B.tiles[i] && Math.hypot(tx - x, ty - y) < rad + 2) { B.tiles[i] = false; burst(tx, ty, 10, ECOL.warden, 30, 0.5, 0.3); } });
+      if (B.open && G.boss === B && Math.hypot(B.x - x, B.y - y) < rad + 14) damageBoss(dmg, B.x, B.y);
+      return;
+    }
     if (B.kind === 'maw') { // a blast wrecks the fighters it reaches, and hurts if it reaches the throat
       B.bricks.forEach((br, i) => { if (br.alive) { const R0 = mawBrick(B, br); if (Math.hypot(clamp(x, R0.x0, R0.x1) - x, clamp(y, R0.y0, R0.y1) - y) < rad) mawBrickBreak(i, 4); } });
       for (const d of B.decks) if (d.alive) { const [dx, dy] = mawDeckAt(B, d); if (Math.hypot(dx - x, dy - y) < rad + MAW_SHIP_R) mawDeckBreak(B, d, 4); }
@@ -1563,7 +1573,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function defeatBoss() {
     const B = G.boss, bonus = B.kind === 'hive' ? Math.round(HIVE_FINALE * G.mult) * (B.cycle + 1) : 5000 * (B.cycle + 1); // the finale pays by your multiplier
     G.score += bonus;
-    const own = B.kind === 'geode' || B.kind === 'hive' || B.kind === 'maw'; // Gorp, Vexa and the Carrier have their own deaths: the bang (and the reward) comes later
+    const own = B.kind === 'geode' || B.kind === 'hive' || B.kind === 'maw' || B.kind === 'tank'; // Gorp, Vexa and the Carrier have their own deaths: the bang (and the reward) comes later
     if (!own) {
       for (let i = 0; i < 4; i++) ring(B.x, B.y, 2, B.r + 10 + i * 9, 0.5 + i * 0.15, i % 2 ? ECOL.warden : COL.threat, 1.2);
       burst(B.x, B.y, 90, ECOL.warden, 90, 1.1, 1.0); burst(B.x, B.y, 60, COL.threat, 70, 0.9, 0.8);
@@ -1572,7 +1582,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     G.result = { text: `${BOSS_NAMES[B.kind]} destroyed`, sub: `+${bonus.toLocaleString()}`, t: 3, max: 3 };
     if (!own) for (let i = 0; i < 3; i++) spawnPickup(B.x + rand(-6, 6), B.y + rand(-6, 6)); // Gorp's come out when he pops
-    if (B.kind === 'geode' || B.kind === 'maw') { /* the reward comes with the bang (geoPop, mawBlow) */ }
+    if (B.kind === 'geode' || B.kind === 'maw' || B.kind === 'tank') { /* the reward comes with the bang (geoPop, mawBlow, the Tank's blow) */ }
     else if (B.kind === 'hive') { // the finale's reward (the hull repaired to full) comes when she bursts (vexaPop)
       G.result = { text: 'The Hive has fallen', sub: `+${bonus.toLocaleString()} (×${G.mult.toFixed(1)})`, t: 4, max: 4 };
       for (const e of G.enemies) if (e.bee || e.type === 'egg' || e.type === 'wax') e.gone = true; // the swarm dies with its queen
@@ -1581,6 +1591,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     } else wreckReward(B.x, B.y);
     if (B.kind === 'geode') geoDie(B);
     if (B.kind === 'maw') mawDie(B);
+    if (B.kind === 'tank') tankDie(B);
     if (B.kind === 'hive') vexaDie(B);
     for (const bm of G.bombs) burst(bm.x, bm.y, 8, COL.threat, 20, 0.5, 0.3);
     G.bombs = []; G.boss = null;
@@ -1697,6 +1708,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'serpent') return ballSerpent(B, o, r, b);
     if (B.kind === 'hive') return ballHive(B, o, r, b);
     if (B.kind === 'geode') return ballGeode(B, o, r, b);
+    if (B.kind === 'tank') return ballTank(B, o, r, b);
     const dx = o.x - B.x, dy = o.y - B.y, d = Math.hypot(dx, dy) || 1e-6, nx = dx / d, ny = dy / d;
     if (d - r < B.r) {
       o.x = B.x + nx * (B.r + r + 0.05); o.y = B.y + ny * (B.r + r + 0.05);
@@ -1819,6 +1831,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       B.enter -= dt; B.alarmT = (B.alarmT || 0) - dt;
       if (B.alarmT <= 0) { B.alarmT = 0.5; B.alarmK = (B.alarmK || 0) + 1; sfx.klaxon(B.alarmK); }
       shake(0.15 + 0.5 * (1 - B.enter / BOSS_ENTER)); // a rumble that builds
+      if (B.kind === 'tank') { B.tread += dt * 14; if (Math.random() < dt * 25) { const y = B.y - (B.y + 32) * Math.pow(B.enter / BOSS_ENTER, 1.6); burst(B.x + rand(-1, 1) * 18, y - 20, 2, COL.dim, 14, 0.6, 0.35); } } // dust kicked up as it rolls in
       if (B.kind === 'maw' && Math.random() < dt * 30) { // grit shaken off its underside as it slides in
         const y = B.D - (B.D + 8) * Math.pow(B.enter / BOSS_ENTER, 2.2);
         burst(B.bx + rand(-0.5, 0.5) * B.W, y, 2, COL.dim, 14, 0.6, 0.35);
@@ -1836,6 +1849,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'serpent') { updateSerpent(B, dt); return; }
     if (B.kind === 'hive') { updateHive(B, dt); return; }
     if (B.kind === 'geode') { updateGeode(B, dt); return; }
+    if (B.kind === 'tank') { updateTank(B, dt); return; }
     if (B.phase >= 2 && B.kind !== 'maw' && B.kind !== 'hive') { B.nextEscort -= dt; if (B.nextEscort <= 0) { B.nextEscort = B.phase === 3 ? 7 : 11; for (let i = 0; i < (B.phase === 3 ? 4 : 2); i++) G.spawnQueue.push(B.phase === 3 && i % 2 ? 'dasher' : 'drifter'); } }
     if (B.kind === 'core') {
       B.hitCd -= dt;
@@ -2628,7 +2642,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (c) drawCrown(c.x, c.y, c.a, c.u, clamp(1 - (at - VEXA_AFTER + 0.8) / 0.8, 0, 1));
   }
   function drawBoss() {
-    drawVexaDeath(); drawMawDeath();
+    drawVexaDeath(); drawMawDeath(); drawTankDeath();
     const B = G.boss;
     if (B && B.enter > 0) {
       const k = 1 - B.enter / BOSS_ENTER;
@@ -2639,6 +2653,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const e0 = B.enter;
       ctx.save();
       if (B.kind === 'core') { const d = B.enter / BOSS_DROP, sc = 1 + 1.8 * d * d; ctx.translate(B.x, B.y); ctx.scale(sc, sc); ctx.translate(-B.x, -B.y); } // falls in toward you
+      else if (B.kind === 'tank') { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.y + 32) * Math.pow(1 - k, 1.6)); } // the Tank rolls in from the top over the whole warning
       else { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.D + 8) * Math.pow(1 - k, 2.2)); } // the Carrier slides down out of the top over the whole warning
       B.enter = 0; drawBoss(); B.enter = e0; // the boss as it will look, just not solid yet
       ctx.restore();
@@ -2667,6 +2682,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'maw') { drawMaw(B); return; }
     if (B.kind === 'hive') { drawHive(B); return; }
     if (B.kind === 'geode') { drawGeodeFg(B); return; }
+    if (B.kind === 'tank') { drawTank(B); return; }
     if (B.kind === 'serpent') { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); drawSerpent(B); ctx.restore(); return; } // it lives beyond the walls too: only show what's inside
     const col = B.flash > 0 ? COL.chalk : ECOL.warden;
     ctx.save(); ctx.translate(B.x, B.y);
@@ -2965,6 +2981,353 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
   }
   const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a)); // an angle wrapped to -π..π
+  /* ---------- the Tank ---------- */
+  // Wave 10. A big armoured tank that drives round the arena, its turret tracking you. Every part of it is a target:
+  //  - the two treads (TANK_TREAD each): one gone and it limps along in arcs at TANK_LIMP of its speed; both gone and
+  //    it's stuck (and can't ram);
+  //  - the cannon (TANK_CANNON): the long barrel is what the ball hits; gone, it stops shelling you;
+  //  - four armour tiles across its front (one hit each) and two fuel drums on its back (one hit: they explode, doing
+  //    TANK_DRUM_DMG to every part within TANK_DRUM_R and wrecking escorts there too).
+  // The ball bounces off all of it (1 + charge a hit) and clanks off the armoured hull, until the treads and the cannon
+  // are all gone: then its hatch blows open and the hull itself is the target (the reactor, TANK_REACTOR).
+  // While it has both treads it rams like the old Core: it stops, swings round to face you, locks on and charges, and
+  // is stunned when it hits the wall. While it has its cannon it fires a slow shell, telegraphed (TANK_AIM: the muzzle
+  // glows and a line shows the shot). Whenever a part breaks it calls in tankettes (small tanks), and once it's weakened
+  // a trickle more (TANK_TRICKLE), never more than TANK_ESCORTS at a time.
+  const TANK_S = 1.45, TANK_TREAD = 14, TANK_CANNON = 16, TANK_REACTOR = 24, TANK_SPEED = 10, TANK_TURN = 1.1, TANK_LIMP = 0.45;
+  const TANK_FIRE = [3.4, 2.8, 2.3], TANK_AIM = 0.9, TANK_SHELL = 46, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8, TANK_ESCORTS = 4, TANK_TRICKLE = 10;
+  const TANK_RAM = [9, 7.5, 6], TANK_BARREL = 17, TANK_BARREL_R = 1.9;
+  // its parts, in its own units before TANK_S: x across (the left tread at -x), y forward (the way it drives)
+  const TANK_TILES = [-6, -2, 2, 6].map(x => ({ x0: x - 1.8, x1: x + 1.8, y0: 12.2, y1: 14.8 }));
+  const TANK_DRUMS = [[-5.5, -16.4], [5.5, -16.4]], TANK_DRUM_RR = 2.3;
+  const TANK_TREADS = { L: { x0: -13.7, x1: -7.3, y0: -15, y1: 15 }, R: { x0: 7.3, x1: 13.7, y0: -15, y1: 15 } };
+  const TANK_HULL = { x0: -8.5, x1: 8.5, y0: -14, y1: 14 }, TANK_BOX = { x0: -13.7, x1: 13.7, y0: -15.5, y1: 15 };
+  function setupTank(B, cycle) {
+    const k = 1 + cycle * 0.6, tr = Math.round(TANK_TREAD * k), cn = Math.round(TANK_CANNON * k), re = Math.round(TANK_REACTOR * k);
+    Object.assign(B, { x: AW / 2, y: clamp(AH * 0.3, 30, AH * 0.4), th: Math.PI / 2, aim: Math.PI / 2, r: 24,
+      parts: { L: { hp: tr, max: tr, flash: 0 }, R: { hp: tr, max: tr, flash: 0 }, gun: { hp: cn, max: cn, flash: 0 } },
+      tiles: TANK_TILES.map(() => true), drums: TANK_DRUMS.map(() => true), open: false, hp: tr * 2 + cn + re,
+      mode: 'drive', modeT: 0, ramT: TANK_RAM[0], fireT: 2.6, wx: AW / 2, wy: AH * 0.35, wT: 0, hitCd: 0, trickleT: TANK_TRICKLE, recoil: 0, tread: 0, fires: [] });
+  }
+  // between the arena and the tank's own frame
+  const tankFrame = B => { const f = B.th - Math.PI / 2; return [Math.cos(f), Math.sin(f)]; };
+  const tankLocal = (B, x, y) => { const [c, s] = tankFrame(B), dx = x - B.x, dy = y - B.y; return [(dx * c + dy * s) / TANK_S, (-dx * s + dy * c) / TANK_S]; };
+  const tankWorld = (B, lx, ly) => { const [c, s] = tankFrame(B); return [B.x + (lx * c - ly * s) * TANK_S, B.y + (lx * s + ly * c) * TANK_S]; };
+  const tankDir = (B, nx, ny) => { const [c, s] = tankFrame(B); return [nx * c - ny * s, nx * s + ny * c]; };
+  const tankBarrel = B => { // the barrel in the tank's frame: from the turret along its aim
+    const [c, s] = tankFrame(B), ax = Math.cos(B.aim), ay = Math.sin(B.aim), bx = ax * c + ay * s, by = -ax * s + ay * c, L = B.parts.gun.hp > 0 ? TANK_BARREL : 6;
+    return [0, 0.5, bx, by, L];
+  };
+  const tankMuzzle = B => { const [x0, y0, bx, by, L] = tankBarrel(B); return tankWorld(B, x0 + bx * L, y0 + by * L); };
+  const tankPartAt = (B, key) => key === 'gun' ? tankWorld(B, 0, 0.5) : tankWorld(B, key === 'L' ? -10.5 : 10.5, 0);
+  // Push a circle (r, in arena units) out of the tank's hull and treads, for the ship and the enemies.
+  function pushOutTank(B, o, r) {
+    const [lx, ly] = tankLocal(B, o.x, o.y), h = hitRect(lx, ly, r / TANK_S, TANK_BOX);
+    if (!h) return false;
+    const [nx, ny] = tankDir(B, h.nx, h.ny); o.x += nx * h.depth * TANK_S; o.y += ny * h.depth * TANK_S;
+    return true;
+  }
+  // A part takes damage: off its own health and the boss's total (the bar), breaking when it runs out.
+  function tankHit(B, key, dmg, x, y) {
+    const P = B.parts[key]; if (P.hp <= 0) return;
+    const d = Math.min(dmg, P.hp); P.hp -= d; P.flash = 0.14;
+    damageBoss(d, x, y);
+    if (P.hp <= 0 && G.boss === B) tankBreak(B, key);
+  }
+  function tankBreak(B, key) {
+    const [x, y] = tankPartAt(B, key), fire = heat(MAX_CHARGE * 0.75);
+    for (let i = 0; i < 3; i++) ring(x, y, 1, 10 + i * 7, 0.4 + i * 0.1, i % 2 ? COL.chalk : fire, 1.2);
+    burst(x, y, 40, fire, 60, 0.9, 0.6); burst(x, y, 20, ECOL.warden, 50, 0.7, 0.5); burst(x, y, 10, COL.chalk, 40, 0.5, 0.4);
+    gridImpulse(x, y, 40, 160); shake(3.5); G.freeze = Math.max(G.freeze, 0.08); sfx.overload(); sfx.brick(12);
+    float(x, y - 8, key === 'gun' ? 'Cannon down!' : 'Tread down!', COL.chalk, 3.6);
+    B.fires.push({ key, ph: rand(0, 6) });
+    if (key === 'gun') B.bits = [...(B.bits || []), { ...(() => { const [mx, my] = tankMuzzle(B); return { x: mx, y: my }; })(), vx: rand(-20, 20), vy: rand(-30, -10), a: B.aim, va: rand(-8, 8), t: 0 }]; // the barrel's end goes spinning
+    tankBackup(B, 2 + B.phase - 1);
+    if (B.parts.L.hp <= 0 && B.parts.R.hp <= 0 && B.parts.gun.hp <= 0 && !B.open) { // everything's down: the hatch blows
+      B.open = true; B.mode = 'drive';
+      const [hx, hy] = tankWorld(B, 0, -6);
+      for (let i = 0; i < 4; i++) ring(hx, hy, 2, 14 + i * 8, 0.5 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3);
+      burst(hx, hy, 50, COL.threat, 70, 1, 0.7); G.screenFlash = Math.max(G.screenFlash || 0, 0.25); shake(4); sfx.boss();
+      G.banner = { text: 'Hatch blown!', sub: 'Hit the reactor', t: 1.8, max: 1.8, top: true };
+    }
+  }
+  // Call in tankettes from the edges (never more than TANK_ESCORTS on the field).
+  function tankBackup(B, n) {
+    const have = G.enemies.filter(e => e.tankette).length + G.tele.filter(t => t.type === 'tankette').length;
+    for (let i = 0; i < Math.min(n, TANK_ESCORTS - have); i++) G.tele.push({ ...spawnPoint(), type: 'tankette', t: 0.8 + i * 0.25 });
+    if (n > 0 && have < TANK_ESCORTS) float(B.x, B.y - 30, 'Backup!', COL.threat, 3.2);
+  }
+  // A fuel drum goes up: it hurts every part (and the reactor, once open) within TANK_DRUM_R and wrecks the escorts there.
+  function tankDrum(B, i, src) {
+    B.drums[i] = false;
+    const [x, y] = tankWorld(B, ...TANK_DRUMS[i]), fire = heat(MAX_CHARGE * 0.75), b = src ? src.b : 4;
+    for (let k = 0; k < 3; k++) ring(x, y, 1, TANK_DRUM_R * (0.6 + k * 0.3), 0.35 + k * 0.1, k % 2 ? COL.chalk : fire, 1.2);
+    burst(x, y, 36, fire, 60, 0.8, 0.5); burst(x, y, 12, COL.chalk, 40, 0.5, 0.4); gridImpulse(x, y, TANK_DRUM_R * 2, 140); shake(2.5); sfx.overload();
+    G.score += Math.round(60 * (1 + b) * G.mult);
+    if (src) chainCredit(src, x, y, b);
+    B.fires.push({ drum: i, ph: rand(0, 6) });
+    for (const key of ['L', 'R', 'gun']) { const [px, py] = tankPartAt(B, key); if (Math.hypot(px - x, py - y) < TANK_DRUM_R + 6) tankHit(B, key, TANK_DRUM_DMG, px, py); }
+    if (B.open && G.boss === B) damageBoss(TANK_DRUM_DMG, x, y);
+    for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (Math.hypot(e.x - x, e.y - y) < TANK_DRUM_R + e.r) kill(j, b, 0, src || G.balls[0]); }
+  }
+  // Ball against the tank: drums, tiles, the barrel, the treads, the hull, in that order (one per call).
+  function ballTank(B, o, r, b) {
+    const [lx, ly] = tankLocal(B, o.x, o.y), lr = r / TANK_S;
+    const bounce = (nx, ny, depth) => {
+      const [wx, wy] = tankDir(B, nx, ny); o.x += wx * depth * TANK_S; o.y += wy * depth * TANK_S;
+      const dot = o.vx * wx + o.vy * wy; if (dot < 0) { o.vx -= 2 * dot * wx; o.vy -= 2 * dot * wy; }
+    };
+    const dmg = 1 + b;
+    for (let i = 0; i < TANK_DRUMS.length; i++) {
+      if (!B.drums[i]) continue;
+      const [dx0, dy0] = TANK_DRUMS[i], dx = lx - dx0, dy = ly - dy0, d = Math.hypot(dx, dy);
+      if (d >= TANK_DRUM_RR + lr || d < 1e-6) continue;
+      bounce(dx / d, dy / d, TANK_DRUM_RR + lr - d); tankDrum(B, i, o); return 'bounce';
+    }
+    for (let i = 0; i < TANK_TILES.length; i++) {
+      if (!B.tiles[i]) continue;
+      const h = hitRect(lx, ly, lr, TANK_TILES[i]); if (!h) continue;
+      bounce(h.nx, h.ny, h.depth); B.tiles[i] = false;
+      const T = TANK_TILES[i], [x, y] = tankWorld(B, (T.x0 + T.x1) / 2, (T.y0 + T.y1) / 2);
+      burst(x, y, 14, ECOL.warden, 40, 0.5, 0.4); burst(x, y, 6, heat(MAX_CHARGE * 0.75), 30, 0.4, 0.3); ring(x, y, 1, 6, 0.25, heat(b), 0.6); sfx.brick(b); shake(0.5);
+      G.score += Math.round(30 * (1 + b) * G.mult); chainCredit(o, x, y, b);
+      return 'bounce';
+    }
+    { // the barrel: a capsule out from the turret
+      const [x0, y0, bx, by, L] = tankBarrel(B), t = clamp((lx - x0) * bx + (ly - y0) * by, 0, L), qx = x0 + bx * t, qy = y0 + by * t, dx = lx - qx, dy = ly - qy, d = Math.hypot(dx, dy);
+      if (d < TANK_BARREL_R + lr && d > 1e-6 && t > 6) {
+        bounce(dx / d, dy / d, TANK_BARREL_R + lr - d);
+        if (B.parts.gun.hp > 0 && B.hitCd <= 0) { B.hitCd = 0.1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); sfx.brick(b); tankHit(B, 'gun', dmg, o.x, o.y); } else sfx.clank();
+        return 'bounce';
+      }
+    }
+    for (const key of ['L', 'R']) {
+      const h = hitRect(lx, ly, lr, TANK_TREADS[key]); if (!h) continue;
+      bounce(h.nx, h.ny, h.depth);
+      if (B.parts[key].hp > 0 && B.hitCd <= 0) { B.hitCd = 0.1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); sfx.brick(b); tankHit(B, key, dmg, o.x, o.y); } else sfx.clank();
+      return 'bounce';
+    }
+    const h = hitRect(lx, ly, lr, TANK_HULL);
+    if (h) {
+      bounce(h.nx, h.ny, h.depth);
+      if (B.open && B.hitCd <= 0) { B.hitCd = 0.1; B.flash = 0.1; ring(o.x, o.y, 1, 8, 0.3, COL.threat, 0.9); burst(o.x, o.y, 10 + b, COL.threat, 35, 0.5, 0.35); sfx.boss(); damageBoss(dmg, o.x, o.y); }
+      else { B.armorT = 0.12; ring(o.x, o.y, 0.5, 4, 0.2, COL.chalk, 0.5); sfx.clank(); } // armour: it clanks off
+      return 'bounce';
+    }
+    return '';
+  }
+  function updateTank(B, dt) {
+    const p = G.player, L = B.parts.L.hp > 0, R = B.parts.R.hp > 0, both = L && R;
+    B.hitCd -= dt; B.armorT = (B.armorT || 0) - dt; B.recoil = Math.max(0, B.recoil - dt * 3);
+    for (const k in B.parts) B.parts[k].flash -= dt;
+    for (const q of B.bits || []) { q.t += dt; q.vy += 60 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; }
+    if (B.bits) B.bits = B.bits.filter(q => q.t < 1.4);
+    const da = wrapA(Math.atan2(p.y - B.y, p.x - B.x) - B.aim); B.aim += clamp(da, -1.5 * dt, 1.5 * dt); // the turret tracks you
+    const spd = TANK_SPEED * (both ? 1 : TANK_LIMP) * (B.phase === 3 ? 1.3 : 1) * (1 + B.cycle * 0.15) * (L || R ? 1 : 0);
+    const m = 22, inside = () => B.x > m && B.x < AW - m && B.y > m && B.y < AH - m;
+    if (B.mode === 'aim') { // stop, swing round to face you, lock on
+      B.modeT -= dt;
+      if (B.modeT > RAM_LOCK) { const dh = wrapA(Math.atan2(p.y - B.y, p.x - B.x) - B.th); B.th += clamp(dh, -3 * dt, 3 * dt); }
+      if (B.modeT <= 0) { B.mode = 'ram'; sfx.boss(); }
+    } else if (B.mode === 'ram') {
+      const v = RAM_SPEED * 0.8; B.x += Math.cos(B.th) * v * dt; B.y += Math.sin(B.th) * v * dt; B.tread += v * dt;
+      if (Math.random() < dt * 40) { const [tx, ty] = tankWorld(B, rand(-12, 12), -15); burst(tx, ty, 2, COL.dim, 15, 0.5, 0.3); }
+      gridImpulse(B.x, B.y, 30, 30);
+      if (!inside()) {
+        B.x = clamp(B.x, m, AW - m); B.y = clamp(B.y, m, AH - m);
+        B.mode = 'stun'; B.modeT = RAM_STUN; shake(3.5); gridImpulse(B.x, B.y, 80, 220); burst(B.x, B.y, 40, ECOL.warden, 60, 1, 0.6); sfx.overload();
+        float(B.x, B.y - 28, 'Stunned!', COL.chalk, 3.6);
+      }
+    } else if (B.mode === 'stun') {
+      B.modeT -= dt; if (B.modeT <= 0) { B.mode = 'drive'; B.ramT = TANK_RAM[B.phase - 1]; }
+    } else { // drive between waypoints; one tread gone, it drags round toward the dead side
+      B.wT -= dt;
+      if (B.wT <= 0 || Math.hypot(B.wx - B.x, B.wy - B.y) < 8) { B.wT = rand(3, 5); B.wx = rand(m + 6, AW - m - 6); B.wy = rand(m + 6, AH * 0.62); }
+      const dh = wrapA(Math.atan2(B.wy - B.y, B.wx - B.x) - B.th);
+      B.th += clamp(dh, -TANK_TURN * dt, TANK_TURN * dt) + (both || !(L || R) ? 0 : (L ? 0.7 : -0.7) * dt);
+      B.x += Math.cos(B.th) * spd * dt; B.y += Math.sin(B.th) * spd * dt; B.tread += spd * dt;
+      if (!inside()) { B.x = clamp(B.x, m, AW - m); B.y = clamp(B.y, m, AH - m); B.wT = 0; }
+      if (both) { B.ramT -= dt; if (B.ramT <= 0) { B.mode = 'aim'; B.modeT = RAM_AIM; sfx.field(); } }
+    }
+    if (B.parts.gun.hp > 0 && B.mode !== 'ram') { // the cannon: the muzzle glows and a line shows the shot, then a slow shell
+      B.fireT -= dt;
+      if (B.fireT <= 0) {
+        B.fireT = TANK_FIRE[B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1);
+        const [mx, my] = tankMuzzle(B);
+        G.bullets.push({ x: mx, y: my, vx: Math.cos(B.aim) * TANK_SHELL, vy: Math.sin(B.aim) * TANK_SHELL, r: 2.2, shell: true });
+        B.recoil = 1; burst(mx, my, 10, COL.threat, 35, 0.4, 0.3); shake(1.2); sfx.blaster();
+      }
+    }
+    if (B.phase >= 2) { B.trickleT -= dt; if (B.trickleT <= 0) { B.trickleT = TANK_TRICKLE * (B.phase === 3 ? 0.7 : 1); tankBackup(B, 1 + (B.phase === 3 ? 1 : 0)); } }
+    if (p.inv <= 0) { const [lx, ly] = tankLocal(B, p.x, p.y); if (hitRect(lx, ly, PLAYER_R * 0.8 / TANK_S, TANK_BOX)) damagePlayer(); }
+  }
+  // A tankette (an escort): a small tank seen from above, nose toward its heading, its turret on you.
+  function drawTankette(e, col) {
+    const a = Math.atan2(e.vy || 1, e.vx || 0), r = e.r, fl = e.flash > 0, line = fl ? COL.chalk : col, H3 = hex(COL.hull), p = G.player;
+    ctx.save(); ctx.rotate(a - Math.PI / 2); ctx.lineJoin = 'round';
+    const k = r / 3.2;
+    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.roundRect(sx * 2.4 * k - 1 * k, -3.2 * k, 2 * k, 6.4 * k, 0.8 * k); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 0.35; ctx.stroke(); ctx.beginPath(); for (let y = -3 + (G.time * 6) % 1.2; y < 3.2; y += 1.2) { ctx.moveTo(sx * 2.4 * k - k, y * k); ctx.lineTo(sx * 2.4 * k + k, y * k); } ctx.globalAlpha = 0.5; ctx.lineWidth = 0.15; ctx.stroke(); ctx.globalAlpha = 1; }
+    ctx.beginPath(); ctx.roundRect(-1.6 * k, -2.8 * k, 3.2 * k, 5.6 * k, 0.6 * k); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.25)`; ctx.fill(); if (fl) { ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 1; } ctx.strokeStyle = line; ctx.lineWidth = 0.4; ctx.stroke();
+    ctx.rotate(Math.atan2(p.y - e.y, p.x - e.x) - a); // its turret on you
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 4 * k); ctx.lineWidth = 0.9 * k; ctx.strokeStyle = line; ctx.stroke(); ctx.lineWidth = 0.45 * k; ctx.strokeStyle = COL.ink; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 1.3 * k, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 0.35; ctx.stroke();
+    ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(0, 0.5 * k, 0.4 * k, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  // The tank, drawn in its own frame: treads (links rolling as it drives), the hull (an engine grille and exhausts at
+  // the back, the glacis and its armour tiles up front, the fuel drums), the turret with its barrel, a commander's
+  // hatch, an antenna and a periscope eye glaring at you. Each part shows its health as notches and its damage as smoke,
+  // then sparks; broken, it burns. The cannon's shot is shown before it fires; so is a ram.
+  function drawTank(B) {
+    const col = B.flash > 0 ? COL.chalk : ECOL.warden, H3 = hex(COL.hull), I3 = hex(COL.ink), t = G.time, fire = heat(MAX_CHARGE * 0.75), p = G.player, die = B.die || 0;
+    const W1 = 0.75, W2 = 0.35, W3 = 0.18;
+    const stroke = (w, a = 1, c = col) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.globalAlpha = a; ctx.stroke(); ctx.globalAlpha = 1; };
+    const glow = (fn, c, a) => { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a; ctx.fillStyle = c; ctx.strokeStyle = c; fn(); ctx.restore(); };
+    const fill = (a = 0.24) => { ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},${a})`; ctx.fill(); };
+    const poly = P => { ctx.beginPath(); P.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); };
+    const shade = (path, cx, cy, r) => { ctx.save(); path(); ctx.clip(); const g = ctx.createRadialGradient(cx - r * 0.45, cy - r * 0.5, r * 0.1, cx, cy, r * 1.3); g.addColorStop(0, `rgba(${H3.join(',')},0.28)`); g.addColorStop(1, `rgba(${I3.join(',')},0.55)`); ctx.fillStyle = g; ctx.fillRect(cx - r * 2, cy - r * 2, r * 4, r * 4); ctx.restore(); };
+    const flame = (x, y, s, ph) => { // a small fire with smoke
+      const fl = 0.6 + 0.4 * Math.sin(t * 23 + ph) * Math.sin(t * 9 + ph * 2);
+      ctx.save(); ctx.globalAlpha = 0.3; ctx.fillStyle = COL.ink; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(x + Math.sin(t * 2 + k + ph) * s * 0.4, y - s * (1 + k * 0.8) - (t * 3 + k) % 2, s * (0.7 + k * 0.3), 0, Math.PI * 2); ctx.fill(); } ctx.restore();
+      glow(() => { const g = ctx.createRadialGradient(x, y, 0, x, y, s * 1.8); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, s * 1.8, 0, Math.PI * 2); ctx.fill(); }, fire, 0.8 * fl);
+    };
+    const sparks = (x, y, n = 5) => { if (Math.floor(t * 8 + x) % 3) return; ctx.beginPath(); for (let k = 0; k < n; k++) { const a = k * 2.4 + Math.floor(t * 12), l = 1 + (k * 7 + Math.floor(t * 12)) % 3; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); } stroke(0.3, 0.9, COL.chalk); };
+    const pips = (x, y, hp, max, n = 4) => { const f = hp / max; for (let i = 0; i < n; i++) { const on = f > i / n + 1e-6; ctx.beginPath(); ctx.arc(x + (i - (n - 1) / 2) * 1.5, y, 0.55, 0, Math.PI * 2); if (on) glow(() => ctx.fill(), COL.threat, 0.5); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.15; ctx.stroke(); } };
+    // the ram's line, before it goes
+    if (B.mode === 'aim') {
+      const k = 1 - B.modeT / RAM_AIM, locked = B.modeT <= RAM_LOCK, cx = Math.cos(B.th), cy = Math.sin(B.th);
+      const L = Math.min(cx > 0 ? (AW - B.x) / cx : cx < 0 ? -B.x / cx : 1e9, cy > 0 ? (AH - B.y) / cy : cy < 0 ? -B.y / cy : 1e9);
+      if (locked) { ctx.globalAlpha = 0.85; ctx.strokeStyle = COL.threat; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(B.x + cx * 20, B.y + cy * 20); ctx.lineTo(B.x + cx * L, B.y + cy * L); ctx.stroke(); ctx.globalAlpha = 0.15; ctx.lineWidth = 40; ctx.stroke(); ctx.globalAlpha = 1; }
+      else pulseLine(B.x + cx * 20, B.y + cy * 20, B.x + cx * L, B.y + cy * L, COL.threat, 0.4 + 0.4 * k, 0.5, 70);
+    }
+    // the cannon's shot, before it fires
+    if (B.parts.gun.hp > 0 && B.fireT < TANK_AIM && B.mode !== 'ram' && !die) {
+      const k = 1 - B.fireT / TANK_AIM, [mx, my] = tankMuzzle(B), L = Math.hypot(AW, AH);
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
+      ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + Math.cos(B.aim) * L, my + Math.sin(B.aim) * L); ctx.setLineDash([2, 1.6]); ctx.lineDashOffset = -t * 14;
+      ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35 + 0.3 * k; ctx.globalAlpha = 0.3 + 0.6 * k * (k > 0.7 && Math.floor(t * 20) % 2 ? 0.5 : 1); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+      glow(() => { ctx.beginPath(); ctx.arc(mx, my, 1.5 + 2.5 * k, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.3 + 0.6 * k);
+    }
+    const shakeK = B.mode === 'aim' ? 0.5 * (1 - B.modeT / RAM_AIM) : B.mode === 'stun' ? 0.25 : die * 0.8;
+    ctx.save(); ctx.translate(B.x + rand(-shakeK, shakeK), B.y + rand(-shakeK, shakeK)); ctx.rotate(B.th - Math.PI / 2); ctx.scale(TANK_S, TANK_S); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.fillStyle = `rgba(${I3.join(',')},0.5)`; ctx.beginPath(); ctx.roundRect(-13, -16, 29, 33, 4); ctx.fill(); // its shadow
+    // the treads
+    for (const key of ['L', 'R']) {
+      const P = B.parts[key], side = key === 'L' ? -1 : 1, tx = side * 10.5, pc = P.flash > 0 ? COL.chalk : col;
+      if (P.hp <= 0) { // wrecked: bare road wheels, links scattered, burning
+        for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(tx, -10 + k * 6.6, 2, 0, Math.PI * 2); fill(0.2); stroke(W2, 0.8); }
+        for (let k = 0; k < 6; k++) { ctx.save(); ctx.translate(tx + side * (2.5 + (k % 3) * 1.6), -12 + k * 4.4); ctx.rotate(k * 0.9); ctx.beginPath(); ctx.rect(-1.2, -0.5, 2.4, 1); fill(0.2); stroke(W3, 0.8); ctx.restore(); }
+        flame(tx, 2, 2.2, side); sparks(tx, -6);
+        continue;
+      }
+      ctx.beginPath(); ctx.roundRect(tx - 3.2, -15, 6.4, 30, 3); fill(0.18);
+      ctx.save(); ctx.clip(); const off = B.tread % 2; ctx.beginPath(); for (let ly = -16 - off; ly < 16; ly += 2) { ctx.moveTo(tx - 3.2, ly); ctx.lineTo(tx + 3.2, ly); } stroke(W3 * 1.4, 0.6, pc); ctx.restore(); // the links, rolling
+      ctx.beginPath(); ctx.roundRect(tx - 3.2, -15, 6.4, 30, 3); stroke(W1, 1, pc);
+      ctx.beginPath(); ctx.moveTo(tx - side * 3.2, -13); ctx.lineTo(tx - side * 3.2, 13); stroke(W2, 0.7, pc);
+      if (P.hp < P.max * 0.5) { sparks(tx, 5); ctx.save(); ctx.globalAlpha = 0.3; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(tx + Math.sin(t * 2) * 0.5, -2 - (t * 3) % 3, 1.8, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+      pips(tx, 16.8, P.hp, P.max);
+    }
+    // the hull
+    const hull = () => poly([[-7.5, -14], [7.5, -14], [8.5, -11], [8.5, 9], [6, 14], [-6, 14], [-8.5, 9], [-8.5, -11]]);
+    hull(); fill(0.22); shade(hull, 0, 0, 12);
+    poly([[-6, 9], [6, 9], [5, 12.2], [-5, 12.2]]); ctx.fillStyle = `rgba(${H3.join(',')},0.18)`; ctx.fill(); stroke(W3, 0.7); // the glacis
+    ctx.beginPath(); for (let k = 0; k < 5; k++) { ctx.moveTo(-5, -12.5 + k * 1.2); ctx.lineTo(5, -12.5 + k * 1.2); } stroke(W3, 0.6); // engine grille
+    for (const ex of [-2.5, 2.5]) { ctx.beginPath(); ctx.arc(ex, -14, 0.9, 0, Math.PI * 2); fill(0.3); stroke(W2, 1); } // exhausts
+    if (B.open) { // the hatch blown off: its reactor glowing, the target
+      glow(() => { const g = ctx.createRadialGradient(0, -6, 0, 0, -6, 7); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, COL.threat); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, -6, 7, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.75 + 0.25 * Math.sin(t * 6) + die);
+      ctx.beginPath(); ctx.arc(0, -6, 3, 0, Math.PI * 2); stroke(W2 * 1.5, 1, COL.threat);
+      ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 + t; ctx.moveTo(Math.cos(a) * 3.4, -6 + Math.sin(a) * 3.4); ctx.lineTo(Math.cos(a) * 5, -6 + Math.sin(a) * 5); } stroke(W3, 0.7, COL.threat);
+    }
+    hull(); stroke(W1, 1, B.open && Math.floor(t * 6) % 2 ? COL.threat : col);
+    TANK_TILES.forEach((T, i) => { // armour tiles across the front
+      if (!B.tiles[i]) { ctx.beginPath(); ctx.moveTo(T.x0 + 0.5, T.y0 + 0.4); ctx.lineTo(T.x1 - 0.5, T.y1 - 0.4); stroke(W3, 0.5); return; }
+      ctx.beginPath(); ctx.rect(T.x0, T.y0, T.x1 - T.x0, T.y1 - T.y0); fill(0.32); stroke(W2 * 1.3);
+      ctx.fillStyle = col; ctx.globalAlpha = 0.6; for (const [bx, by] of [[T.x0 + 0.6, T.y0 + 0.6], [T.x1 - 0.6, T.y0 + 0.6]]) ctx.fillRect(bx - 0.2, by - 0.2, 0.4, 0.4); ctx.globalAlpha = 1;
+    });
+    TANK_DRUMS.forEach(([dx, dy], i) => { // fuel drums strapped on the back, a hazard band round each
+      if (!B.drums[i]) { flame(dx, dy, 1.8, i + 7); return; }
+      ctx.beginPath(); ctx.arc(dx, dy, TANK_DRUM_RR, 0, Math.PI * 2); fill(0.3); stroke(W1 * 0.9);
+      ctx.beginPath(); ctx.arc(dx, dy, TANK_DRUM_RR * 0.6, 0, Math.PI * 2); stroke(W2, 1, COL.threat);
+      ctx.beginPath(); ctx.arc(dx, dy, 0.5, 0, Math.PI * 2); ctx.fillStyle = COL.threat; ctx.fill();
+    });
+    // the turret
+    if (!B.open) {
+      const gun = B.parts.gun, gc = gun.flash > 0 ? COL.chalk : col;
+      ctx.save(); ctx.translate(0, 0.5); ctx.rotate(B.aim - B.th); ctx.translate(0, -B.recoil * 1.2);
+      const L = gun.hp > 0 ? TANK_BARREL : 6;
+      ctx.beginPath(); ctx.roundRect(-1.4, 3, 2.8, L - 3, 0.6); fill(0.3); stroke(W2 * 1.5, 1, gc); // the barrel
+      if (gun.hp > 0) { ctx.beginPath(); ctx.roundRect(-2.1, L - 2.6, 4.2, 2.9, 0.6); fill(0.3); stroke(W2 * 1.5, 1, gc); } // muzzle brake
+      else { poly([[-1.4, L], [-0.4, L + 1.3], [0.5, L + 0.4], [1.4, L + 1.5], [1.4, L]]); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W2, 1); flame(0, L + 0.6, 1.4, 3); sparks(0, L + 1, 4); } // snapped
+      if (gun.hp > 0 && gun.hp < gun.max * 0.5) sparks(1.4, 9);
+      const tur = () => poly([[-5, -5], [5, -5], [6.5, -1], [6, 3.5], [3, 5.5], [-3, 5.5], [-6, 3.5], [-6.5, -1]]);
+      tur(); fill(0.32); shade(tur, 0, 0, 7); tur(); stroke(W1, 1, gc);
+      ctx.beginPath(); ctx.arc(-2.4, -1.2, 1.6, 0, Math.PI * 2); fill(0.3); stroke(W2); // the commander's hatch
+      ctx.beginPath(); ctx.moveTo(3.5, -3.5); ctx.lineTo(5.5 + Math.sin(t * 3) * 0.5, -8.5); stroke(W3, 0.8); // antenna
+      glow(() => { ctx.beginPath(); ctx.arc(2.4, 2.6, 1.3, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.5 + (B.fireT < TANK_AIM ? 0.4 : 0)); // the periscope eye, glaring at you
+      ctx.beginPath(); ctx.ellipse(2.4, 2.6, 0.9, 0.55, 0, 0, Math.PI * 2); ctx.fillStyle = COL.threat; ctx.fill(); ctx.beginPath(); ctx.arc(2.2, 2.4, 0.22, 0, Math.PI * 2); ctx.fillStyle = COL.chalk; ctx.fill();
+      ctx.restore();
+      pips(0, -18.4, gun.hp, gun.max);
+    }
+    for (const f of B.fires) if (f.key === 'gun') flame(0, 0.5, 2.2, f.ph); // the turret burning where the cannon blew
+    ctx.restore();
+    for (const q of B.bits || []) { ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.a); ctx.globalAlpha = clamp(1.4 - q.t, 0, 1); ctx.beginPath(); ctx.roundRect(-1.4 * TANK_S, -4 * TANK_S, 2.8 * TANK_S, 8 * TANK_S, 0.6); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.4; ctx.stroke(); ctx.restore(); }
+  }
+  // The Tank's death. The hit (TANK_DIE_HIT), then the cook-off (to TANK_BLOW): explosions go off over the hull as the
+  // reactor flares. The blow: the turret is blown clean off and goes spinning up and away, lands, bounces; the hull
+  // burns out where it stopped and fades; the reward lands with the blow.
+  const TANK_DIE_HIT = 0.25, TANK_BLOW = 1.3, TANK_AFTER = 2.6;
+  function tankDie(B) {
+    G.tankDeath = { B: { ...B, parts: JSON.parse(JSON.stringify(B.parts)), tiles: [...B.tiles], drums: [...B.drums], fires: [...B.fires], bits: [], mode: 'drive', fireT: 9, flash: 0.2, open: true }, t: 0, blown: false, result: G.result, turret: null };
+    G.result = null; G.bullets = G.bullets.filter(q => !q.shell);
+    for (const e of G.enemies) if (e.tankette) e.boomAt = rand(0.3, TANK_BLOW - 0.1); // its escorts go up with it
+    G.freeze = Math.max(G.freeze, 0.18); shake(3); sfx.overload();
+  }
+  function updateTankDeath(dt) {
+    const D = G.tankDeath; if (!D) return;
+    D.t += dt; const B = D.B, k = clamp((D.t - TANK_DIE_HIT) / (TANK_BLOW - TANK_DIE_HIT), 0, 1), fire = heat(MAX_CHARGE * 0.75);
+    B.flash -= dt; B.die = k;
+    if (!D.blown) {
+      shake(0.3 + 1.4 * k);
+      if (D.t > TANK_DIE_HIT && Math.random() < dt * (6 + 22 * k)) { const [x, y] = tankWorld(B, rand(-12, 12), rand(-14, 14)); burst(x, y, 14, fire, 45, 0.6, 0.45); ring(x, y, 1, 8, 0.3, fire, 0.8); if (Math.random() < 0.4) sfx.brick(6); }
+      for (let i = G.enemies.length - 1; i >= 0; i--) { const e = G.enemies[i]; if (e.tankette && e.boomAt !== undefined && D.t >= e.boomAt) { burst(e.x, e.y, 16, fire, 40, 0.5, 0.4); G.enemies.splice(i, 1); sfx.brick(5); } }
+      if (D.t >= TANK_BLOW) {
+        D.blown = true; const x = B.x, y = B.y;
+        for (let i = 0; i < 5; i++) ring(x, y, 2, 16 + i * 12, 0.5 + i * 0.14, i % 2 ? COL.chalk : i % 3 ? fire : COL.threat, 1.5);
+        burst(x, y, 120, fire, 100, 1.3, 1); burst(x, y, 60, COL.threat, 80, 1.1, 0.8); burst(x, y, 40, COL.chalk, 60, 0.7, 0.5);
+        gridImpulse(x, y, Math.max(AW, AH), 280); G.freeze = Math.max(G.freeze, 0.12); G.screenFlash = Math.max(G.screenFlash || 0, 0.45); shake(7);
+        sfx.overload(); sfx.shatter(); sfx.boss();
+        D.turret = { x, y, z: 0, vz: 70, vx: rand(-18, 18), vy: rand(-14, 6), a: B.aim, va: rand(-7, 7), bounced: false };
+        G.result = D.result; wreckReward(x, y); for (let i = 0; i < 3; i++) spawnPickup(x + rand(-8, 8), y + rand(-8, 8));
+      }
+    } else {
+      const q = D.turret;
+      if (q) { q.vz -= 110 * dt; q.z += q.vz * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; q.x = clamp(q.x, 8, AW - 8); q.y = clamp(q.y, 8, AH - 8);
+        if (q.z < 0) { q.z = 0; if (!q.bounced) { q.bounced = true; q.vz = 26; q.vx *= 0.4; q.vy *= 0.4; q.va *= 0.4; burst(q.x, q.y, 16, ECOL.warden, 35, 0.5, 0.4); shake(2); sfx.clank(); } else { q.vz = 0; q.vx = q.vy = q.va = 0; } } }
+      if (Math.random() < dt * 8) { const [x, y] = tankWorld(B, rand(-8, 8), rand(-10, 10)); burst(x, y, 2, fire, 15, 0.6, 0.4); }
+      if (D.t > TANK_BLOW + TANK_AFTER) G.tankDeath = null;
+    }
+  }
+  function drawTankDeath() {
+    const D = G.tankDeath; if (!D) return;
+    const B = D.B, fade = D.blown ? clamp(1 - (D.t - TANK_BLOW - TANK_AFTER + 0.9) / 0.9, 0, 1) : 1;
+    ctx.save(); ctx.globalAlpha = fade;
+    if (!D.blown) drawTank(B);
+    else { // the burnt-out hull, its turret gone
+      ctx.save(); faded(0.6 * fade, () => drawTank({ ...B, fireT: 9, mode: 'drive', open: true, die: 0, bits: [] })); ctx.restore();
+      const fire = heat(MAX_CHARGE * 0.75), [x, y] = tankWorld(B, 0, -2), fl = 0.6 + 0.4 * Math.sin(D.t * 21) * Math.sin(D.t * 7);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7 * fl * fade; const g = ctx.createRadialGradient(x, y, 0, x, y, 14); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    const q = D.turret;
+    if (q) { // the turret, blown off: up (bigger), spinning, down, a bounce
+      const s = (1 + q.z / 45) * TANK_S;
+      ctx.save(); ctx.translate(q.x, q.y - q.z * 0.25); ctx.rotate(q.a - Math.PI / 2); ctx.scale(s, s); ctx.lineJoin = 'round';
+      const col = ECOL.warden;
+      ctx.beginPath(); ctx.roundRect(-1.4, 3, 2.8, 10, 0.6); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 0.5; ctx.stroke();
+      ctx.beginPath(); [[-5, -5], [5, -5], [6.5, -1], [6, 3.5], [3, 5.5], [-3, 5.5], [-6, 3.5], [-6.5, -1]].forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 0.75; ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
   /* ---------- the Geode ---------- */
   // Wave 30. A big alien, in a loop of four states:
   //  - shell: he sits in the middle of the arena in a shell of crystals while enemies stream in. Crystals can't hurt you
@@ -4566,6 +4929,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     else if (G.boss && G.boss.kind === 'geode') pushOutGeode(G.boss, o, r);
+    else if (G.boss && G.boss.kind === 'tank') pushOutTank(G.boss, o, r);
     else if (G.boss && G.boss.kind === 'maw') { // the wings, and the bay as a block (only the ball goes in)
       const B = G.boss;
       for (const S of [mawWing(B, -1), mawWing(B, 1), mawCavity(B)]) {
@@ -4756,6 +5120,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       add('bulwark', f(bulwarks)); add('blinker', f(blinkers)); add('monolith', f(monoliths));
       const bees = inLoop(n) >= 36 && inLoop(n) <= 39; // the Hive's scouts are out in the waves before it: bee swarms in place of the usual ones, and more of them
       add(bees ? 'bees' : 'swarm', swarms + (bees ? 1 + (inLoop(n) >= 38 ? 1 : 0) : 0));
+      if (inLoop(n) === 8 || inLoop(n) === 9) add('tankette', inLoop(n) === 8 ? 2 : 3); // the Tank's scouts roll in ahead of it
       shuffle();
       if (wall) q.splice(Math.floor(q.length / 2), 0, 'wall');
       if (warden) q.unshift('warden'); // miniboss arrives last, after its escorts
@@ -4965,7 +5330,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         } else if (t.type === 'rock') {
           G.enemies.push(makeRock(3, t.x, t.y, Math.atan2(AH / 2 - t.y, AW / 2 - t.x) + rand(-0.6, 0.6), rand(7, 11)));
         } else {
-          const e = makeEnemy(t.type, t.x, t.y);
+          const e = makeEnemy(t.type === 'tankette' ? 'drifter' : t.type, t.x, t.y);
+          if (t.type === 'tankette') { const d = ENEMY.tankette, hp = Math.max(d.hp, Math.round(d.hp * hpScale(G.wave))); Object.assign(e, { tankette: true, r: d.r, hp, maxHp: hp, pts: d.pts, spd: e.spd * d.spd / ENEMY.drifter.spd }); }
           if (t.side !== undefined) { e.side = t.side; e.wt = t.wt; }
           if (t.march) e.march = t.march;
           if (G.crush && e.type !== 'turret') pushOut(e, e.r);
@@ -4976,7 +5342,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.between === null) {
-      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath) {
+      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath) {
         if (inLoop(G.wave) === LOOP_LEN && G.winShown !== G.wave && !G.attract) { // the loop's finale is down
           if (!G.result) showWin(); // once its banner has had its moment
           return;
@@ -6023,7 +6389,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.inv) updateInvaders(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
-    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt);
+    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt);
     updateBullets(dt * ws);
     updateWaves(dt);
     if (scoreK(G.wave) > 1) G.score += Math.round((scoreK(G.wave) - 1) * (G.score - score0)); // later loops: every point counts more
@@ -6543,6 +6909,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (e.type === 'monolith' && e.st === 'warn' && Math.floor(G.time * 14) % 2) { // the block it's about to become
         const s = e.r * 1.25; ctx.strokeStyle = ECOL.monolith; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.75; ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.globalAlpha = 1;
+      }
+      if (e.tankette) { // a little tank, its health in the middle like everyone else's
+        drawTankette(e, stroke);
+        if (e.hp > 1 && !VEC) { ctx.font = `700 ${e.r * 0.8}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = pierce ? heat(liveB) : COL.chalk; ctx.fillText(e.hp, 0, e.r * 0.05); }
+        ctx.restore(); continue;
       }
       if (e.fromMaw) { // a Carrier fighter: its engine roars and it flickers white as it winds up to dash
         ctx.save(); squash(e); ctx.rotate(dasherAngle(e));
@@ -7333,8 +7704,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
                : B.kind === 'hive' ? Array.isArray(B.cells) && typeof B.st === 'string' && Number.isFinite(B.comb0)
                : B.kind === 'geode' ? Array.isArray(B.links) && Array.isArray(B.slots) && Array.isArray(B.fly) && typeof B.st === 'string'
                : B.kind === 'serpent' ? Array.isArray(B.segs) && B.segs.length === SERP_N && B.next && Array.isArray(B.next.n)
+               : B.kind === 'tank' ? !!B.parts && Array.isArray(B.tiles) && Array.isArray(B.drums) && Number.isFinite(B.th)
                : B.kind === 'core' && B.r === CORE_R && typeof B.mode === 'string';
-      if (!ok) setupBoss(['core', 'maw', 'serpent', 'geode', 'hive'].includes(B.kind) ? B.kind : 'core', B.cycle || 0);
+      if (!ok) setupBoss(['core', 'tank', 'maw', 'serpent', 'geode', 'hive'].includes(B.kind) ? B.kind : 'tank', B.cycle || 0);
     }
     G.bombs = (G.bombs || []).filter(bm => Number.isFinite(bm.vx) && Number.isFinite(bm.vy));
     G.ghosts = G.ghosts || [];
