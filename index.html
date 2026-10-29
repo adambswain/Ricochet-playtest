@@ -509,7 +509,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     10: 'The Core: hit its bombs with the ball to send them back into it. Don\'t touch it',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
-    30: 'The Geode: smash his crystal shell, then hit him. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
+    30: 'Gorp the Jailer: smash his crystal shell, then hit him. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
     29: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
     13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
@@ -1036,7 +1036,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const bossFor = n => { const k = inLoop(n); return k === 15 ? 'serpent' : k % 10 === 0 ? BOSSES[(k / 10 - 1) % BOSSES.length] : null; };
   // how many times this boss has come before (the Serpent's wave-15 visit counts), so each visit is harder than its last
   const bossCycle = n => loopOf(n);
-  const BOSS_NAMES = { core: 'The Core', maw: 'The Carrier', serpent: 'The Serpent', geode: 'The Geode', hive: 'The Hive' };
+  const BOSS_NAMES = { core: 'The Core', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'The Hive' };
+  const BOSS_TITLES = { geode: 'the Jailer' }; // shown under the name as it lands
   const RAM_AIM = 1.2, RAM_LOCK = 0.35, RAM_SPEED = 110, RAM_STUN = 2.4;
   const CORE_R = 16, CORE_SPEED = 9, BOMB_R = 3.6, BOMB_SPEED = 16, BOMB_RETURN = 90, BOMB_FUSE = 10, BOMB_FUSE_BLAST = 14, BOMB_MAX = 4;
   // Bosses announce themselves: for BOSS_ENTER seconds the arena goes to red alert (a klaxon, a red wash, the edges and
@@ -1698,7 +1699,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (B.enter <= 0) { // it's here
         G.screenFlash = 0.35; G.slowT = Math.max(G.slowT, 0.35);
-        G.bossCard = { text: BOSS_NAMES[B.kind].toUpperCase(), t: 1.8, max: 1.8 };
+        G.bossCard = { text: BOSS_NAMES[B.kind].toUpperCase(), sub: BOSS_TITLES[B.kind], t: B.kind in BOSS_TITLES ? 2.4 : 1.8, max: B.kind in BOSS_TITLES ? 2.4 : 1.8 };
         bossArrive(B);
       }
       return;
@@ -6176,6 +6177,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const a = Math.min(1, C.t / 0.5);
       ctx.globalAlpha = a; ctx.lineJoin = 'round'; ctx.strokeStyle = COL.ink; ctx.lineWidth = sz * 0.16; ctx.strokeText(C.text, 0, 0); // a dark outline keeps it legible over anything
       ctx.shadowColor = COL.threat; ctx.shadowBlur = 16; ctx.fillStyle = COL.chalk; ctx.fillText(C.text, 0, 0); ctx.shadowBlur = 0;
+      if (C.sub) { // a title underneath, a beat later
+        const s2 = sz * 0.36; ctx.globalAlpha = a * clamp((e - 0.3) / 0.25, 0, 1); ctx.font = `600 ${s2}px ${FONT}`;
+        ctx.lineWidth = s2 * 0.2; ctx.strokeText(C.sub, 0, sz * 0.78); ctx.fillStyle = COL.dim; ctx.fillText(C.sub, 0, sz * 0.78);
+      }
       ctx.restore(); ctx.globalAlpha = 1;
     }
 
