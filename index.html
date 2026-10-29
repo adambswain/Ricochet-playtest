@@ -517,7 +517,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     15: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts',
     18: 'Invasion: break the formation before it lands. The top rows are tougher: charge your ball off the walls and bunkers to punch through',
     19: 'A Brute Wall marches in partway through this wave',
-    20: 'The Carrier: break through its docked fighters and hit the glowing throat at the back',
+    20: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
     40: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. She hides back in the hive to rebuild it: dig her out again',
     23: 'Swarm Storm',
     26: 'Titans: huge and slow. Each one cracks open into two brutes',
@@ -1065,7 +1065,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // In landscape the arena zooms out to MAW_ARENA for the fight so the bay fits.
   const MAW_SHIP_R = 4.2, MAW_BRICK_W = 8.4, MAW_BRICK_H = 8.4, MAW_GAP_X = 8, MAW_GAP_Y = 7.5, MAW_CHAMBER = 12, MAW_MOUTH = 11, MAW_ARENA = 172, MAW_STEEP = 0.35, MAW_ROWS = 5, MAW_JITTER = 2.5;
   const MAW_GUN_WARN = 0.8;
-  const MAW_THROAT_D = 7, MAW_THROAT_HP = 120, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 3, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [4, 5, 6], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
+  // The hull: each side runs from the stern on the wall to a prong MAW_PRONG past the doors, with an angled bow and a gun
+  // pod on it. Between hull and bay a pylon (MAW_PYLON wide) the ball bounces off. Each side's top is an open flight deck:
+  // the ball flies in over its edge (the ship can't), and jets are parked there, MAW_DECK_GAP apart: one hit wrecks one
+  // (it doesn't hurt the Carrier, but it counts toward the chain). Every MAW_DECK_LAND seconds a jet flies in from off the
+  // arena and lands on an empty spot (MAW_LAND_T to land). The right deck has the island, a tower the ball bounces off.
+  const MAW_PRONG = 9, MAW_PYLON = 1.6, MAW_DECK_GAP = 13.5, MAW_DECK_LAND = [2.4, 2, 1.6], MAW_LAND_T = 1.4;
+  const MAW_THROAT_D = 7, MAW_THROAT_HP = 210, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 3, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [4, 5, 6], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
 
   // The Hive (wave 40, the finale): Queen Vexa, in a loop. The dig: HIVE_RINGS rings of hexagonal wax cells round a
   // royal cell. The ball always bounces off a cell (1 damage, 2 when hot), so it digs tunnels; every few seconds an
@@ -1173,7 +1179,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           B.bricks.push({ rx0, rx1: rx0 + MAW_BRICK_W, y0: top, y1: top + MAW_BRICK_H, hp, max: hp, row: j, flash: 0, alive: true, born: 0, pick: false });
         }
       }
-      Object.assign(B, { hp: Math.round(MAW_THROAT_HP * (1 + cycle * 0.6)), throatCd: 0, dockT: MAW_DOCK[0] });
+      Object.assign(B, { hp: Math.round(MAW_THROAT_HP * (1 + cycle * 0.6)), throatCd: 0, dockT: MAW_DOCK[0], landT: MAW_DECK_LAND[0], landing: [] });
+      B.decks = mawDeckSlots(B);
     }
     B.maxHp = B.hp;
     G.boss = B; G.bombs = [];
@@ -1444,12 +1451,47 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // A wing either side of the bay: swept back from the hangar mouth to the wall (convex, so hitPoly works on it).
   function mawWing(B, side) {
-    const w = (B.W - B.MW) / 2, D = B.D, xo = B.bx + side * B.W / 2, xi = B.bx + side * B.MW / 2;
-    return side < 0 ? [[xo, 0], [xi, 0], [xi, D], [xo + w * 0.55, D], [xo, D * 0.35]]
-                    : [[xi, 0], [xo, 0], [xo, D * 0.35], [xo - w * 0.55, D], [xi, D]];
+    const w = (B.W - B.MW) / 2, D = B.D, xo = B.bx + side * B.W / 2, xi = B.bx + side * B.MW / 2, P = MAW_PRONG;
+    return side < 0 ? [[xo, 0], [xi, 0], [xi, D + P], [xi - w * 0.42, D + P * 0.35], [xo, D * 0.42]]
+                    : [[xi, 0], [xo, 0], [xo, D * 0.42], [xi + w * 0.42, D + P * 0.35], [xi, D + P]];
   }
-  // A turret under the far end of each wing's flat underside (the wing's outer corner).
-  const mawGuns = B => { const w = (B.W - B.MW) / 2; return [B.bx - B.W / 2 + w * 0.62, B.bx + B.W / 2 - w * 0.62]; };
+  // A gun pod on each bow (the middle of the prong's angled edge): [x, y] for each side.
+  const mawGuns = B => { const w = (B.W - B.MW) / 2; return [-1, 1].map(s => [B.bx + s * (B.MW / 2 + w * 0.21), B.D + MAW_PRONG * 0.675]); };
+  // The pylons between the hull's decks and the bay, and the island on the right deck (solid to the ball).
+  const mawPylons = B => [-1, 1].map(s => { const xi = B.bx + s * B.MW / 2; return { x0: s < 0 ? xi - MAW_PYLON : xi, x1: s < 0 ? xi : xi + MAW_PYLON, y0: 0, y1: B.D + MAW_PRONG }; });
+  function mawIsland(B) {
+    const w = (B.W - B.MW) / 2, xo = B.bx + B.W / 2, xi = B.bx + B.MW / 2, bw = Math.min(w * 0.6, 8), ih = Math.min(B.D * 0.3, bw * 3.2);
+    const ix = xo + (xi - xo) * 0.5, iy = B.D * 0.2;
+    return { x0: ix - bw / 2, x1: ix + bw / 2, y0: iy, y1: iy + ih, bw, ih, ix };
+  }
+  const inConvex = (P, x, y, m = 0) => { // inside a convex polygon by at least m
+    let mx = 0, my = 0; for (const [px, py] of P) { mx += px / P.length; my += py / P.length; }
+    for (let i = 0; i < P.length; i++) {
+      const [ax, ay] = P[i], [bx, by] = P[(i + 1) % P.length], l = Math.hypot(bx - ax, by - ay) || 1e-9;
+      let nx = (by - ay) / l, ny = -(bx - ax) / l; if ((mx - ax) * nx + (my - ay) * ny > 0) { nx = -nx; ny = -ny; }
+      if ((x - ax) * nx + (y - ay) * ny > -m) return false;
+    }
+    return true;
+  };
+  // Parking spots on the decks, staggered rows, clear of the edges, the island and the gun pods (stored relative to bx).
+  function mawDeckSlots(B) {
+    const out = [], R = MAW_SHIP_R, isl = mawIsland(B), guns = mawGuns(B);
+    for (const side of [-1, 1]) {
+      const P = mawWing(B, side), xi = B.bx + side * (B.MW / 2 + MAW_PYLON);
+      for (let j = 0, y = 7; y < B.D + MAW_PRONG - 4; y += MAW_DECK_GAP * 0.86, j++) {
+        for (let k = 0; ; k++) {
+          const x = xi + side * (R * 1.15 + (k + (j % 2) * 0.5) * MAW_DECK_GAP);
+          if (Math.abs(x - B.bx) > B.W / 2) break;
+          if (!inConvex(P, x, y, R * 0.95)) continue;
+          if (side > 0 && x > isl.x0 - R * 1.2 * 1.35 && x < isl.x1 + R * 1.2 * 1.35 && y > isl.y0 - R * 1.3 && y < isl.y1 + R * 1.6) continue;
+          if (guns.some(([gx, gy]) => Math.hypot(gx - x, gy - y) < R + 4)) continue;
+          out.push({ side, rx: x - B.bx, y, a: Math.PI / 2 + side * 0.55, alive: true, flash: 0, born: 0, landing: false });
+        }
+      }
+    }
+    return out;
+  }
+  const mawDeckAt = (B, d) => [B.bx + d.rx, d.y];
   // The two hangar doors, which slide into the wings to open.
   function mawSolids(B) {
     const half = B.MW / 2 - B.MW * MAW_GAP / 2 * B.open, out = [];
@@ -1458,7 +1500,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     return out;
   }
   const inRect = (R0, x, y) => x > R0.x0 && x < R0.x1 && y > R0.y0 && y < R0.y1;
-  const inMawBay = o => !!(G.boss && G.boss.kind === 'maw' && inRect(mawCavity(G.boss), o.x, o.y));
+  const inMawBay = o => !!(G.boss && G.boss.kind === 'maw' && (inRect(mawCavity(G.boss), o.x, o.y) || inConvex(mawWing(G.boss, -1), o.x, o.y) || inConvex(mawWing(G.boss, 1), o.x, o.y))); // the bay or a deck
 
   function damageBoss(dmg, x, y) {
     const B = G.boss; if (!B || B.hp <= 0 || B.enter > 0) return;
@@ -1486,6 +1528,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'geode') { blastGeode(B, x, y, rad, dmg); return; }
     if (B.kind === 'maw') { // a blast wrecks the fighters it reaches, and hurts if it reaches the throat
       B.bricks.forEach((br, i) => { if (br.alive) { const R0 = mawBrick(B, br); if (Math.hypot(clamp(x, R0.x0, R0.x1) - x, clamp(y, R0.y0, R0.y1) - y) < rad) mawBrickBreak(i, 4); } });
+      for (const d of B.decks) if (d.alive) { const [dx, dy] = mawDeckAt(B, d); if (Math.hypot(dx - x, dy - y) < rad + MAW_SHIP_R) mawDeckBreak(B, d, 4); }
       const T = mawThroat(B);
       if (Math.hypot(clamp(x, T.x0, T.x1) - x, clamp(y, T.y0, T.y1) - y) < rad) damageBoss(dmg, clamp(x, T.x0, T.x1), MAW_THROAT_D + 3);
       return;
@@ -1497,33 +1540,40 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const p = G.player, more = (G.hullMax || HULL_MAX) < HULL_MAX + 2; G.hullMax = Math.min(HULL_MAX + 2, (G.hullMax || HULL_MAX) + 1); p.hull = G.hullMax;
     float(p.x, p.y - 8, more ? 'Hull +1 slot · repaired' : 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
   }
+  // A machine's reward (the Core's, the Carrier's): its wreck drops another ball (a wingman) to fly over and grab; in later
+  // loops it also repairs you to full (the others already do).
+  function wreckReward(x, y) {
+    if (G.balls.length < BALLS_MAX) {
+      const nb = Object.assign(makeBall(), { state: 'ember', fresh: true, wing: true, x: clamp(x, 6, AW - 6), y: clamp(y, 6, AH - 6), vx: 0, vy: 0 });
+      G.balls.push(nb);
+      float(nb.x, nb.y - 7, G.balls.length === 2 ? 'Second ball' : 'Third ball', heat(0), 4.4); // the next wave's banner says what to do
+    }
+    if (loopOf(G.wave) > 0) {
+      const p = G.player; p.hull = G.hullMax || HULL_MAX;
+      float(p.x, p.y - 8, 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
+    }
+  }
   function defeatBoss() {
     const B = G.boss, bonus = B.kind === 'hive' ? Math.round(HIVE_FINALE * G.mult) * (B.cycle + 1) : 5000 * (B.cycle + 1); // the finale pays by your multiplier
     G.score += bonus;
-    if (B.kind !== 'geode' && B.kind !== 'hive') { // Gorp and Vexa have their own deaths (geoDie, vexaDie): the bang comes later
+    const own = B.kind === 'geode' || B.kind === 'hive' || B.kind === 'maw'; // Gorp, Vexa and the Carrier have their own deaths: the bang (and the reward) comes later
+    if (!own) {
       for (let i = 0; i < 4; i++) ring(B.x, B.y, 2, B.r + 10 + i * 9, 0.5 + i * 0.15, i % 2 ? ECOL.warden : COL.threat, 1.2);
       burst(B.x, B.y, 90, ECOL.warden, 90, 1.1, 1.0); burst(B.x, B.y, 60, COL.threat, 70, 0.9, 0.8);
       gridImpulse(B.x, B.y, Math.max(AW, AH), 220);
       G.freeze = Math.max(G.freeze, 0.25); shake(5); sfx.overload(); sfx.boss();
     }
     G.result = { text: `${BOSS_NAMES[B.kind]} destroyed`, sub: `+${bonus.toLocaleString()}`, t: 3, max: 3 };
-    if (B.kind !== 'geode' && B.kind !== 'hive') for (let i = 0; i < 3; i++) spawnPickup(B.x + rand(-6, 6), B.y + rand(-6, 6)); // Gorp's come out when he pops
-    if (B.kind === 'geode') { /* his reward comes when he pops (geoPop) */ }
+    if (!own) for (let i = 0; i < 3; i++) spawnPickup(B.x + rand(-6, 6), B.y + rand(-6, 6)); // Gorp's come out when he pops
+    if (B.kind === 'geode' || B.kind === 'maw') { /* the reward comes with the bang (geoPop, mawBlow) */ }
     else if (B.kind === 'hive') { // the finale's reward (the hull repaired to full) comes when she bursts (vexaPop)
       G.result = { text: 'The Hive has fallen', sub: `+${bonus.toLocaleString()} (×${G.mult.toFixed(1)})`, t: 4, max: 4 };
       for (const e of G.enemies) if (e.bee || e.type === 'egg' || e.type === 'wax') e.gone = true; // the swarm dies with its queen
     } else if (B.kind === 'serpent') { // the Serpent's reward (Gorp's too, when he pops): one more hull slot, and the hull repaired to full
       hullSlot();
-    } else if (G.balls.length < BALLS_MAX) { // the wreck drops another ball (a wingman): fly over to grab it
-      const nb = Object.assign(makeBall(), { state: 'ember', fresh: true, wing: true, x: clamp(B.x, 6, AW - 6), y: clamp(B.y, 6, AH - 6), vx: 0, vy: 0 });
-      G.balls.push(nb);
-      float(nb.x, nb.y - 7, G.balls.length === 2 ? 'Second ball' : 'Third ball', heat(0), 4.4); // the next wave's banner says what to do
-    }
-    if (loopOf(G.wave) > 0 && B.kind !== 'hive' && B.kind !== 'serpent' && B.kind !== 'geode') { // later loops: every boss repairs you to full (those two already do)
-      const p = G.player; p.hull = G.hullMax || HULL_MAX;
-      float(p.x, p.y - 8, 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
-    }
+    } else wreckReward(B.x, B.y);
     if (B.kind === 'geode') geoDie(B);
+    if (B.kind === 'maw') mawDie(B);
     if (B.kind === 'hive') vexaDie(B);
     for (const bm of G.bombs) burst(bm.x, bm.y, 8, COL.threat, 20, 0.5, 0.3);
     G.bombs = []; G.boss = null;
@@ -1654,8 +1704,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function ballMaw(B, o, r, b) {
     let res = '';
-    for (const S of [mawWing(B, -1), mawWing(B, 1), ...mawSolids(B)]) {
-      const h = Array.isArray(S) ? hitPoly(o.x, o.y, r, S) : hitRect(o.x, o.y, r, S);
+    for (const S of [...mawPylons(B), mawIsland(B), ...mawSolids(B)]) {
+      const h = hitRect(o.x, o.y, r, S);
       if (!h) continue;
       o.x += h.nx * h.depth; o.y += h.ny * h.depth;
       const dot = o.vx * h.nx + o.vy * h.ny;
@@ -1688,13 +1738,31 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
       res = 'bounce'; steepen(o);
       const dmg = b >= 8 ? 2 : 1;
-      if (dmg >= br.hp) { mawBrickBreak(i, b); return res; }
+      if (dmg >= br.hp) { mawBrickBreak(i, b, o); return res; }
       br.hp -= dmg; br.flash = 0.15;
       G.score += Math.round(20 * (1 + b) * G.mult);
       sfx.clank();
       break;
     }
+    for (const d of B.decks) { // a jet parked on a deck: the ball bounces off it and wrecks it
+      if (!d.alive) continue;
+      const [sx, sy] = mawDeckAt(B, d), dx = o.x - sx, dy = o.y - sy, dd = Math.hypot(dx, dy), rr = MAW_SHIP_R * 0.9;
+      if (dd >= rr + r || dd < 1e-6) continue;
+      const nx = dx / dd, ny = dy / dd; o.x = sx + nx * (rr + r); o.y = sy + ny * (rr + r);
+      const dot = o.vx * nx + o.vy * ny;
+      if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
+      mawDeckBreak(B, d, b, o);
+      return 'bounce';
+    }
     return res;
+  }
+  function mawDeckBreak(B, d, b, src) {
+    const [x, y] = mawDeckAt(B, d);
+    d.alive = false;
+    G.score += Math.round(40 * (1 + b) * G.mult);
+    burst(x, y, 16, ECOL.dasher, 45, 0.6, 0.4); burst(x, y, 6, heat(MAX_CHARGE * 0.75), 30, 0.5, 0.3); ring(x, y, 1, 7, 0.25, heat(b), 0.6);
+    gridImpulse(x, y, 10, 40); sfx.brick(b); shake(0.4);
+    if (src) chainCredit(src, x, y, b);
   }
   // Breakout's anti-stall rule: off a fighter, the throat or the bay's walls the ball never skims flatter than MAW_STEEP,
   // so it can't ping-pong sideways inside the bay without touching anything
@@ -1702,12 +1770,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const sp = Math.hypot(o.vx, o.vy); if (sp < 1 || Math.abs(o.vy) >= sp * MAW_STEEP) return;
     o.vy = (o.vy < 0 ? -1 : 1) * sp * MAW_STEEP; o.vx = (o.vx < 0 ? -1 : 1) * Math.sqrt(sp * sp - o.vy * o.vy);
   }
-  function mawBrickBreak(i, b) {
+  function mawBrickBreak(i, b, src) { // src: the ball that wrecked it (it counts toward that ball's chain)
     const B = G.boss, br = B.bricks[i], R0 = mawBrick(B, br), x = (R0.x0 + R0.x1) / 2, y = (R0.y0 + R0.y1) / 2;
     br.alive = false; br.pick = false;
     G.score += Math.round(40 * (1 + b) * G.mult);
     burst(x, y, 14, ECOL.dasher, 40, 0.6, 0.4); ring(x, y, 1, 6, 0.25, heat(b), 0.5);
     gridImpulse(x, y, 10, 40); sfx.brick(b); shake(0.4);
+    if (src) chainCredit(src, x, y, b);
   }
 
   function updateBoss(dt) {
@@ -1834,11 +1903,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         B.gunT -= dt;
         if (B.gunT <= 0) {
           const n = [3, 4, 5][B.phase - 1], spread = [0.45, 0.6, 0.75][B.phase - 1];
-          for (const gx of mawGuns(B)) {
-            const a0 = clamp(Math.atan2(p.y - B.D, p.x - gx), 0.2, Math.PI - 0.2);
+          for (const [gx, gy] of mawGuns(B)) {
+            const a0 = clamp(Math.atan2(p.y - gy, p.x - gx), 0.2, Math.PI - 0.2);
             for (let i = 0; i < n; i++) {
               const a = a0 + (i / (n - 1) - 0.5) * spread;
-              G.bullets.push({ x: gx + Math.cos(a) * 4, y: B.D + Math.sin(a) * 4, vx: Math.cos(a) * 30, vy: Math.sin(a) * 30, r: BULLET_R * 1.3 });
+              G.bullets.push({ x: gx + Math.cos(a) * 5, y: gy + Math.sin(a) * 5, vx: Math.cos(a) * 30, vy: Math.sin(a) * 30, r: BULLET_R * 1.3 });
             }
           }
           sfx.shoot(B.bx); shake(1);
@@ -1854,6 +1923,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         }
       }
       for (const br of B.bricks) { br.flash -= dt; br.born = Math.max(0, (br.born || 0) - dt); }
+      for (const d of B.decks) { d.flash -= dt; d.born = Math.max(0, d.born - dt); }
+      B.landT -= dt; // a jet flies in from off the arena and lands on an empty deck spot (never on top of a ball)
+      if (B.landT <= 0) {
+        B.landT = MAW_DECK_LAND[B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1);
+        const free = B.decks.filter(d => !d.alive && !d.landing && G.balls.every(o => o.state !== 'live' || Math.hypot(o.x - B.bx - d.rx, o.y - d.y) > MAW_SHIP_R + ballR(o.b) + 6));
+        const d = B.landing.length < 2 ? free[Math.floor(Math.random() * free.length)] : null;
+        if (d) { d.landing = true; B.landing.push({ d, t: 0, fx: d.side < 0 ? -14 : AW + 14, fy: d.y + rand(30, 55) }); }
+      }
+      for (const L of B.landing) {
+        L.t += dt / MAW_LAND_T;
+        if (L.t >= 1) {
+          const d = L.d; L.t = 1;
+          if (G.balls.some(o => o.state === 'live' && Math.hypot(o.x - B.bx - d.rx, o.y - d.y) < MAW_SHIP_R + ballR(o.b))) continue; // a ball's in the way: it hovers until it's clear
+          d.landing = false; d.alive = true; d.born = 0.3; d.flash = 0.15;
+          const [x, y] = mawDeckAt(B, d); ring(x, y, 1, 7, 0.3, ECOL.dasher, 0.6); sfx.clank();
+        }
+      }
+      B.landing = B.landing.filter(L => L.d.landing);
       for (const L of B.launching || []) { // fighters on their way out: once clear of the doors they're live dashers
         const was = L.t; L.t += dt / MAW_LAUNCH_T;
         if (was < 0 && L.t >= 0) sfx.launch(B.bx + L.rx);
@@ -2334,6 +2421,92 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (sc <= 0.01) return;
     drawVexa(B, 1, sc, { aim: aimK, hurt: B.hurt || 0, mad: B.st === 'queen' && B.hp <= B.maxHp * VEXA_BERSERK ? 1 : 0, rot: (B.face ?? -Math.PI / 2) + Math.PI / 2, curl: 0.4 });
   }
+  // The Carrier's death. The hit (MAW_DIE_HIT): a freeze and a flash. The chain (to MAW_BLOW): explosions go off all over
+  // the hull, faster and faster, the docked and parked jets cook off one by one, the launched ones blow up in the air,
+  // its lights stutter out, the grille buckles and the reactor goes white-hot, the whole ship shaking. The blow: the
+  // reactor goes up in a white flash, the ship breaks in two down the middle and both halves tumble down through the
+  // arena, burning and trailing fire, while debris spins away; the reward lands with the blow.
+  const MAW_DIE_HIT = 0.25, MAW_BLOW = 2.1, MAW_AFTER = 3.2;
+  function mawDie(B) {
+    const S = { ...B, bricks: B.bricks.map(br => ({ ...br, pick: false })), decks: B.decks.map(d => ({ ...d })), launching: [], landing: [], st: 'closed', open: 0, flash: 0.2, gunT: 0 };
+    G.mawDeath = { B: S, t: 0, blown: false, result: G.result, halves: [], debris: [], fires: [] };
+    G.result = null;
+    for (const e of G.enemies) if (e.fromMaw) e.boomAt = rand(0.4, MAW_BLOW - 0.2); // its fighters go up with it
+    G.freeze = Math.max(G.freeze, 0.2); G.screenFlash = Math.max(G.screenFlash || 0, 0.2); shake(3); sfx.overload();
+  }
+  const mawHullPoint = B => { // somewhere on the ship
+    if (Math.random() < 0.6) { const P = mawWing(B, Math.random() < 0.5 ? -1 : 1); for (let i = 0; i < 20; i++) { const x = rand(Math.min(...P.map(q => q[0])), Math.max(...P.map(q => q[0]))), y = rand(0, B.D + MAW_PRONG); if (inConvex(P, x, y)) return [x, y]; } }
+    return [B.bx + rand(-0.5, 0.5) * B.MW, rand(0, B.D)];
+  };
+  function updateMawDeath(dt) {
+    const D = G.mawDeath; if (!D) return;
+    D.t += dt; const B = D.B, k = clamp((D.t - MAW_DIE_HIT) / (MAW_BLOW - MAW_DIE_HIT), 0, 1), fire = heat(MAX_CHARGE * 0.75);
+    B.t += dt; B.flash -= dt; B.die = k;
+    if (!D.blown) {
+      shake(0.3 + 1.6 * k * k);
+      if (D.t > MAW_DIE_HIT && Math.random() < dt * (5 + 26 * k)) { // an explosion somewhere on the hull
+        const [x, y] = mawHullPoint(B), big = Math.random() < 0.35;
+        burst(x, y, big ? 34 : 16, fire, big ? 70 : 45, 0.8, 0.6); burst(x, y, big ? 14 : 6, COL.chalk, 40, 0.5, 0.4); ring(x, y, 1, big ? 14 : 8, 0.35, fire, big ? 1.4 : 0.8);
+        if (big) { gridImpulse(x, y, 24, 90); sfx.brick(8); shake(1.2); D.fires.push({ x, y, s: rand(2.5, 4.5), ph: rand(0, 6) }); } else if (Math.random() < 0.5) sfx.clank();
+      }
+      if (D.t > MAW_DIE_HIT && Math.random() < dt * (3 + 12 * k)) { // a jet cooks off
+        const live = [...B.bricks.filter(br => br.alive).map(br => [br, mawShip(B, br)]), ...B.decks.filter(d => d.alive).map(d => [d, mawDeckAt(B, d)])];
+        if (live.length) { const [o, [x, y]] = live[Math.floor(Math.random() * live.length)]; o.alive = false; burst(x, y, 14, ECOL.dasher, 40, 0.5, 0.4); burst(x, y, 6, fire, 30, 0.5, 0.3); sfx.brick(4); }
+      }
+      for (let i = G.enemies.length - 1; i >= 0; i--) { const e = G.enemies[i]; if (e.fromMaw && e.boomAt !== undefined && D.t >= e.boomAt) { burst(e.x, e.y, 18, fire, 45, 0.6, 0.4); ring(e.x, e.y, 1, 8, 0.3, fire, 0.8); G.enemies.splice(i, 1); sfx.brick(6); } }
+      if (D.t >= MAW_BLOW) mawBlow(D);
+    } else {
+      for (const h of D.halves) {
+        h.vy += 62 * dt; h.x += h.vx * dt; h.y += h.vy * dt; h.a += h.va * dt;
+        if (Math.random() < dt * 14) { const [px, py] = [h.cx + h.x + rand(-1, 1) * B.MW * 0.3, h.cy + h.y + rand(-0.5, 0.5) * B.D]; burst(px, py, 3, Math.random() < 0.5 ? fire : COL.threat, 20, 0.6, 0.4); } // trailing fire
+      }
+      for (const q of D.debris) { q.vy += 30 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; }
+      if (D.t > MAW_BLOW + MAW_AFTER) G.mawDeath = null;
+    }
+  }
+  function mawBlow(D) {
+    const B = D.B, x = B.bx, y = MAW_THROAT_D, fire = heat(MAX_CHARGE * 0.75);
+    D.blown = true;
+    for (let i = 0; i < 5; i++) ring(x, y, 2, 20 + i * 16, 0.5 + i * 0.15, i % 2 ? COL.chalk : i % 3 ? fire : COL.threat, 1.5);
+    burst(x, y, 140, fire, 110, 1.4, 1.1); burst(x, y, 80, COL.threat, 90, 1.2, 0.9); burst(x, y, 50, COL.chalk, 70, 0.8, 0.5);
+    gridImpulse(x, B.D / 2, Math.max(AW, AH), 300);
+    G.freeze = Math.max(G.freeze, 0.15); G.screenFlash = Math.max(G.screenFlash || 0, 0.5); shake(8);
+    sfx.overload(); sfx.shatter(); sfx.boss();
+    for (const side of [-1, 1]) D.halves.push({ side, x: 0, y: 0, cx: B.bx + side * B.W / 4, cy: B.D / 2, vx: side * rand(12, 20), vy: rand(-8, -2), a: 0, va: side * rand(0.4, 0.75) });
+    for (let i = 0; i < 16; i++) { const a = rand(0, Math.PI * 2), v = rand(35, 80); D.debris.push({ x, y: y + rand(0, B.D * 0.5), vx: Math.cos(a) * v, vy: Math.sin(a) * v - 20, a: rand(0, 6), va: rand(-8, 8), s: rand(1.2, 3), pts: Array.from({ length: 4 }, (_, j) => [Math.cos(j * 1.57 + rand(-0.4, 0.4)) * rand(0.6, 1.2), Math.sin(j * 1.57 + rand(-0.4, 0.4)) * rand(0.6, 1.2)]) }); }
+    G.result = D.result;
+    wreckReward(x, clamp(B.D * 0.6, 12, AH * 0.4));
+    for (let i = 0; i < 3; i++) spawnPickup(x + rand(-10, 10), B.D * 0.5 + rand(-6, 6));
+  }
+  function drawMawDeath() {
+    const D = G.mawDeath; if (!D) return;
+    const B = D.B, fire = heat(MAX_CHARGE * 0.75);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); // (the halves can't tumble over the HUD)
+    if (!D.blown) {
+      const j = B.die * 0.8; ctx.save(); ctx.translate(rand(-j, j), rand(-j, j)); drawMaw(B);
+      ctx.globalCompositeOperation = 'lighter'; // fires left burning on the hull by the big blasts
+      for (const f of D.fires) { const fl = 0.6 + 0.4 * Math.sin(D.t * 23 + f.ph) * Math.sin(D.t * 9 + f.ph * 2), g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.s * 2); g.addColorStop(0, COL.chalk); g.addColorStop(0.25, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.globalAlpha = 0.7 * fl; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, f.s * 2, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore(); ctx.restore(); return;
+    }
+    const at = D.t - MAW_BLOW, fade = clamp(1 - (at - MAW_AFTER + 0.8) / 0.8, 0, 1);
+    for (const h of D.halves) { // each half: the ship clipped down the middle, tumbling away, its broken edge burning
+      ctx.save(); ctx.globalAlpha = fade;
+      ctx.translate(h.cx + h.x, h.cy + h.y); ctx.rotate(h.a); ctx.translate(-h.cx, -h.cy);
+      ctx.beginPath(); if (h.side < 0) ctx.rect(-AW, -AH, B.bx + AW + rand(-0.3, 0.3), AH * 3); else ctx.rect(B.bx, -AH, AW * 2, AH * 3); ctx.clip();
+      drawMaw(B);
+      ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = fire; ctx.lineCap = 'round';
+      ctx.beginPath(); for (let yy = 0; yy <= B.D + 2; yy += 3) ctx.lineTo(B.bx + Math.sin(yy * 1.7 + D.t * 20) * 1.2, yy);
+      ctx.globalAlpha = (0.5 + 0.4 * Math.sin(D.t * 30)) * fade; ctx.lineWidth = 3; ctx.stroke(); ctx.globalAlpha = 0.9 * fade; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.8; ctx.stroke();
+      ctx.restore();
+    }
+    for (const q of D.debris) { // hull plates spinning away
+      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.a); ctx.globalAlpha = clamp(1 - at / 2.2, 0, 1);
+      ctx.beginPath(); q.pts.forEach(([px, py], i) => i ? ctx.lineTo(px * q.s, py * q.s) : ctx.moveTo(px * q.s, py * q.s)); ctx.closePath();
+      ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.brute; ctx.lineWidth = 0.35; ctx.stroke();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1; ctx.restore();
+  }
   // Vexa's death. The hit (VEXA_DIE_HIT): a freeze, a flash, her eyes screwed shut. The fall (to VEXA_POP): she shudders
   // and sinks, her eyes going dark and wide, her wings drooping still, her glow surging through the plates, her crown
   // slipping, sparks spitting from the seams. The burst: she breaks into a cloud of little gold bees that scatter, her
@@ -2448,7 +2621,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (c) drawCrown(c.x, c.y, c.a, c.u, clamp(1 - (at - VEXA_AFTER + 0.8) / 0.8, 0, 1));
   }
   function drawBoss() {
-    drawVexaDeath();
+    drawVexaDeath(); drawMawDeath();
     const B = G.boss;
     if (B && B.enter > 0) {
       const k = 1 - B.enter / BOSS_ENTER;
@@ -2537,106 +2710,254 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     ctx.restore();
   }
+  // A Carrier fighter, top-down, nose along +x: a slim fuselage, swept delta wings with a faction stripe, twin tail fins,
+  // a lit canopy, and its health as lights along the wings' trailing edges (lit = left; in the ball's colour once the
+  // ball can punch straight through it). thrust: 0..1 of engine flame. Docked, parked, launching and flying all use it.
+  function drawFighter(r, hp, max, flash, lit, thrust, pierceCol) {
+    const line = flash > 0 || lit ? COL.chalk : ECOL.dasher, H3 = hex(COL.hull);
+    if (thrust > 0) { // engine flame
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      const fl = r * (0.6 + thrust * (1.2 + Math.random() * 0.6));
+      ctx.globalAlpha = 0.75; ctx.strokeStyle = COL.threat; ctx.lineWidth = r * 0.38; ctx.beginPath(); ctx.moveTo(-r * 0.95, 0); ctx.lineTo(-r * 0.95 - fl, 0); ctx.stroke();
+      ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.chalk; ctx.lineWidth = r * 0.15; ctx.beginPath(); ctx.moveTo(-r * 0.95, 0); ctx.lineTo(-r * 0.95 - fl * 0.55, 0); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(r * 0.35, r * 0.16); ctx.lineTo(-r * 0.5, r * 1.05); ctx.lineTo(-r * 0.8, r * 1.0); ctx.lineTo(-r * 0.62, r * 0.3); ctx.lineTo(-r * 0.62, -r * 0.3); ctx.lineTo(-r * 0.8, -r * 1.0); ctx.lineTo(-r * 0.5, -r * 1.05); ctx.lineTo(r * 0.35, -r * 0.16); ctx.closePath(); // the wings
+    ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.16)`; ctx.fill();
+    if (flash > 0 || lit) { ctx.globalAlpha = 0.8; ctx.fillStyle = COL.chalk; ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.strokeStyle = line; ctx.lineWidth = 0.38; ctx.stroke();
+    ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.8; ctx.beginPath(); // a faction stripe on each wing
+    for (const sy of [-1, 1]) { ctx.moveTo(-r * 0.2, sy * r * 0.45); ctx.lineTo(-r * 0.45, sy * r * 0.85); }
+    ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.beginPath(); for (const sy of [-1, 1]) { ctx.moveTo(-r * 0.55, sy * r * 0.2); ctx.lineTo(-r * 1.05, sy * r * 0.48); } ctx.strokeStyle = line; ctx.lineWidth = 0.45; ctx.stroke(); // twin tail fins
+    ctx.beginPath(); ctx.moveTo(r * 1.3, 0); ctx.lineTo(r * 0.45, r * 0.27); ctx.lineTo(-r * 0.9, r * 0.22); ctx.lineTo(-r * 1.0, 0); ctx.lineTo(-r * 0.9, -r * 0.22); ctx.lineTo(r * 0.45, -r * 0.27); ctx.closePath(); // the fuselage
+    ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.28)`; ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 0.42; ctx.stroke();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.lilac; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.ellipse(r * 0.55, 0, r * 0.32, r * 0.15, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); // the canopy
+    ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.ellipse(r * 0.6, 0, r * 0.2, r * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+    if (max <= 1) return;
+    for (let i = 0; i < max; i++) { // health lights along the trailing edges, alternating wings, from the root out
+      const sy = i % 2 ? 1 : -1, k = Math.floor(i / 2), f = 0.15 + 0.42 * k, x = -r * (0.54 + 0.18 * f), y = sy * r * (0.3 + 0.62 * f), on = i < hp;
+      if (on) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; ctx.fillStyle = pierceCol || COL.threat; ctx.beginPath(); ctx.arc(x, y, r * 0.2, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+      ctx.fillStyle = on ? pierceCol || COL.chalk : COL.ink; ctx.globalAlpha = on ? 1 : 0.8; ctx.beginPath(); ctx.arc(x, y, r * 0.1, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    }
+  }
+  // The Carrier: a warship docked on the top wall, drawn with a line hierarchy (a heavy silhouette, lighter inner lines,
+  // faint detail) and lit from the upper left, casting a shadow on the arena. Each side is a flight deck running from
+  // engines at the stern down to a prong with a gun pod on its bow: jets parked on painted spots, a lit edge where the
+  // ball can fly in, the island on the right (bridge windows looking down at you, a radar turning, a beacon), side
+  // thrusters that fire as it slides, docking clamps on the wall, damage showing as it weakens (scorch, then fire in the
+  // seams). In the bay: a plated deck, launch lanes whose chevrons chase toward the doors while it launches, rails of
+  // lights, and across the back its reactor, the only place it can be hurt: a hot core behind a grille, arcing worse the
+  // more it's been hurt, flaring when hit. Blast doors with hazard edges and a seam light; jets lifting out on their way.
+  // B.die (0..1): dying, its lights flicker out and the reactor goes white-hot.
   function drawMaw(B) {
-    const hull = B.flash > 0 ? COL.chalk : ECOL.brute, cav = mawCavity(B), p = G.player, D = B.D, w = (B.W - B.MW) / 2;
-    const charging = B.st === 'charge', path = P => { ctx.beginPath(); P.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); };
-    // hangar bay: dark deck, ribs, lights along the back that strobe while the guns charge
+    const hullC = B.flash > 0 ? COL.chalk : ECOL.brute, cav = mawCavity(B), p = G.player, D = B.D, w = (B.W - B.MW) / 2, t = B.t, die = B.die || 0;
+    const H3 = hex(COL.hull), I3 = hex(COL.ink), T3 = hex(COL.threat), rgba = (c, a) => `rgba(${c.join(',')},${a})`;
+    const W1 = 0.75, W2 = 0.35, W3 = 0.18, hurt = Math.max(1 - bossHp(B) / B.maxHp, die), PR = MAW_PRONG;
+    const charging = B.st === 'charge', launching = (B.launching || []).some(L => L.t >= 0);
+    const lights = die > 0 ? (Math.random() > die * 0.9 ? 1 : 0) : 1; // dying, the lights stutter out
+    const path = P => { ctx.beginPath(); P.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); };
+    const stroke = (wd, a = 1, col = hullC) => { ctx.strokeStyle = col; ctx.lineWidth = wd; ctx.globalAlpha = a; ctx.stroke(); ctx.globalAlpha = 1; };
+    const glow = (fn, col, a) => { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a; ctx.fillStyle = col; ctx.strokeStyle = col; fn(); ctx.restore(); };
+    const hash = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+    B._vx = (B._vx || 0) * 0.85 + (B.bx - (B._pbx ?? B.bx)) * 60 * 0.15; B._pbx = B.bx; // how fast it's sliding
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    // --- its shadow on the arena below it: it hangs over the arena
+    for (const [dy, a] of [[1.5, 0.22], [3, 0.16], [5, 0.1], [7.5, 0.06]]) {
+      ctx.save(); ctx.translate(0.6 * dy, dy); ctx.fillStyle = rgba(I3, a);
+      for (const side of [-1, 1]) { path(mawWing(B, side)); ctx.fill(); }
+      ctx.fillRect(cav.x0, 0, B.MW, D); ctx.restore();
+    }
+    // --- the bay: a plated deck, shadowed side walls, launch lanes, rails of lights
     ctx.fillStyle = COL.ink; ctx.fillRect(cav.x0, 0, B.MW, D);
-    ctx.globalAlpha = charging ? 0.16 + 0.1 * Math.sin(B.t * 18) : 0.05; ctx.fillStyle = COL.threat; ctx.fillRect(cav.x0, 0, B.MW, D); ctx.globalAlpha = 1;
-    ctx.strokeStyle = COL.line; ctx.lineWidth = 0.3;
-    for (let x = cav.x0 + 4; x < cav.x1 - 2; x += 8) { ctx.beginPath(); ctx.moveTo(x, MAW_TOP - 1); ctx.lineTo(x, D - MAW_JAW_T); ctx.stroke(); }
-    for (let x = cav.x0 + 3; x < cav.x1; x += 6) {
-      ctx.fillStyle = charging && Math.floor(B.t * 10 + x) % 2 ? COL.threat : COL.dim;
-      ctx.fillRect(x, D - MAW_JAW_T - 1.4, 1.2, 0.5);
+    ctx.save(); ctx.beginPath(); ctx.rect(cav.x0, 0, B.MW, D); ctx.clip();
+    { const g = ctx.createLinearGradient(0, 0, 0, D); g.addColorStop(0, rgba(H3, 0.05)); g.addColorStop(1, rgba(H3, 0.12)); ctx.fillStyle = g; ctx.fillRect(cav.x0, 0, B.MW, D); }
+    if (charging) { ctx.globalAlpha = 0.1 + 0.08 * Math.sin(t * 18); ctx.fillStyle = COL.threat; ctx.fillRect(cav.x0, 0, B.MW, D); ctx.globalAlpha = 1; }
+    ctx.beginPath(); // deck plates
+    for (let y = MAW_THROAT_D + 6; y < D - MAW_JAW_T; y += 6) { ctx.moveTo(cav.x0, y); ctx.lineTo(cav.x1, y); }
+    for (let x = cav.x0 + 4; x < cav.x1 - 2; x += 8) { ctx.moveTo(x, MAW_THROAT_D); ctx.lineTo(x, D - MAW_JAW_T); }
+    stroke(W3, 0.16, COL.line);
+    for (const side of [-1, 1]) { // the side walls, in shadow, ribbed: it has depth
+      const x0 = side < 0 ? cav.x0 : cav.x1 - 3, g = ctx.createLinearGradient(side < 0 ? cav.x0 : cav.x1, 0, side < 0 ? cav.x0 + 6 : cav.x1 - 6, 0);
+      g.addColorStop(0, rgba(I3, 0.75)); g.addColorStop(1, rgba(I3, 0)); ctx.fillStyle = g; ctx.fillRect(side < 0 ? cav.x0 : cav.x1 - 6, 0, 6, D);
+      ctx.beginPath(); for (let y = MAW_THROAT_D + 2; y < D - MAW_JAW_T; y += 4) { ctx.moveTo(x0, y); ctx.lineTo(x0 + 3, y + side * 1.2); } stroke(W3, 0.3);
     }
-    // the throat across the back of the bay: a raw, pulsing membrane, the only place it can be hurt (it gags when hit)
+    { const g = ctx.createLinearGradient(0, D - MAW_JAW_T - 8, 0, D - MAW_JAW_T); g.addColorStop(0, rgba(I3, 0)); g.addColorStop(1, rgba(I3, 0.5)); ctx.fillStyle = g; ctx.fillRect(cav.x0, D - MAW_JAW_T - 8, B.MW, 8); } // shadow behind the doors
+    for (const lx of [B.bx - B.MW * 0.22, B.bx + B.MW * 0.22]) for (let k = 0, y = MAW_THROAT_D + 5; y < D - MAW_JAW_T - 2; y += 5, k++) { // launch lanes: chevrons out to the doors, chasing while it launches
+      const on = launching && (Math.floor(t * 14) - k) % 4 === 0;
+      ctx.beginPath(); ctx.moveTo(lx - 2, y); ctx.lineTo(lx, y + 1.6); ctx.lineTo(lx + 2, y);
+      if (on) glow(() => { ctx.lineWidth = 1.4; ctx.stroke(); }, COL.threat, 0.6);
+      stroke(W2, on ? 1 : 0.18 * lights, on ? COL.chalk : COL.threat);
+    }
+    for (const sx of [cav.x0 + 1.4, cav.x1 - 1.4]) for (let k = 0, y = MAW_THROAT_D + 3; y < D - MAW_JAW_T; y += 4, k++) { // rail lights down each side
+      const on = (charging && Math.floor(t * 10 + k) % 2) || (launching && (Math.floor(t * 12) - k) % 5 === 0);
+      ctx.fillStyle = on ? COL.chalk : COL.threat; ctx.globalAlpha = (on ? 1 : 0.35) * lights; ctx.fillRect(sx - 0.4, y, 0.8, 1.2); ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    // --- the reactor across the back of the bay: a hot core behind a grille, the only place it can be hurt
     {
-      const T = mawThroat(B), tw = T.x1 - T.x0, gag = B.gag || 0, pulse = 0.5 + 0.5 * Math.sin(B.t * (4 + (1 - bossHp(B) / B.maxHp) * 6));
-      ctx.fillStyle = COL.ink; ctx.fillRect(T.x0, 0, tw, MAW_THROAT_D);
-      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.28 + 0.25 * pulse + gag; ctx.fillStyle = B.flash > 0 ? COL.chalk : COL.threat;
-      ctx.beginPath(); ctx.moveTo(T.x0, 0); ctx.lineTo(T.x1, 0); ctx.lineTo(T.x1, MAW_THROAT_D - 2);
-      for (let x = T.x1; x >= T.x0; x -= tw / 12) ctx.lineTo(x, MAW_THROAT_D - 2 + 2 * Math.abs(Math.sin(x * 0.4 + B.t * 3)) * (1 + gag * 3));
-      ctx.closePath(); ctx.fill();
-      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 0.5; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35;
-      for (let x = T.x0 + 3; x < T.x1 - 1; x += 5) { ctx.beginPath(); ctx.moveTo(x, 0.5); ctx.lineTo(x + Math.sin(x + B.t * 2) * 0.8, MAW_THROAT_D - 2.5); ctx.stroke(); } // ridges
-      ctx.globalAlpha = 1;
+      const T = mawThroat(B), tw = T.x1 - T.x0, gag = B.gag || 0, pulse = 0.5 + 0.5 * Math.sin(t * (4 + hurt * 6 + die * 20)), RD = MAW_THROAT_D;
+      ctx.fillStyle = COL.ink; ctx.fillRect(T.x0, 0, tw, RD);
+      glow(() => { const g = ctx.createLinearGradient(0, 0, 0, RD); g.addColorStop(0, rgba(T3, 0.2)); g.addColorStop(0.55, rgba(T3, 1)); g.addColorStop(1, rgba(T3, 0.25)); ctx.fillStyle = g; ctx.fillRect(T.x0 + 1, 0.5, tw - 2, RD - 1.5); }, COL.threat, 0.35 + 0.3 * pulse + gag + die);
+      glow(() => { ctx.fillRect(T.x0 + 1, RD * (0.45 - die * 0.35), tw - 2, RD * (0.2 + die * 0.7)); }, COL.chalk, 0.15 + 0.25 * pulse + gag * 2 + die * 1.5); // the hot line at its centre (white-hot as it dies)
+      ctx.save(); ctx.beginPath(); ctx.rect(T.x0, 0, tw, RD); ctx.clip(); // arcs of energy, more the more it's hurt
+      const arcs = 1 + Math.floor(hurt * 4) + Math.floor(die * 4);
+      for (let i = 0; i < arcs; i++) {
+        const seed = Math.floor(t * 12) + i * 7; if (hash(seed) > 0.55 + 0.3 * (1 - hurt)) continue;
+        let x = T.x0 + hash(seed + 1) * tw, y = 0.8; ctx.beginPath(); ctx.moveTo(x, y);
+        for (let s = 0; s < 4; s++) { x += (hash(seed + s * 3) - 0.5) * 6; y += (RD - 1.6) / 4; ctx.lineTo(x, y); }
+        glow(() => { ctx.lineWidth = 0.9; ctx.stroke(); }, COL.threat, 0.6); stroke(W3 * 1.4, 0.9, COL.chalk);
+      }
+      ctx.restore();
+      ctx.beginPath(); for (let x = T.x0 + 2.5; x < T.x1 - 1; x += 3.2) { const jit = gag > 0 || die > 0 ? (Math.random() - 0.5) * (0.6 + die * 1.6) : 0; ctx.moveTo(x + jit, 0); ctx.lineTo(x - jit, RD); } // the grille (it buckles as it dies)
+      stroke(0.55, 0.85, B.flash > 0 ? COL.chalk : hullC);
+      ctx.beginPath(); ctx.rect(T.x0 + 0.5, 0, tw - 1, RD); stroke(W1, 1, hullC); // its housing
+      ctx.beginPath(); for (let x = T.x0 + 4; x < T.x1; x += 6) { ctx.moveTo(x, RD + 0.6); ctx.lineTo(x + 2, RD + 0.6); } stroke(W2, 0.6 * lights, COL.threat); // warning marks under it
     }
-    // racks: docked fighters (dashers waiting to launch) and the empty racks they'll be docked into
+    // --- racks: docked fighters waiting to launch, and the empty racks they'll be docked into
     for (const br of B.bricks) {
       const [cx, cy] = mawShip(B, br), r = MAW_SHIP_R;
       tickRing(cx, cy, r * 0.95, 4, 1, COL.line, 0.9, 0.35, Math.PI / 4); // the clamp: four jaws
       if (!br.alive) continue;
-      const sc = 1 - (br.born || 0) / 0.4 * 0.6, lit = br.pick && Math.floor(B.t * 12) % 2;
-      ctx.save(); ctx.translate(cx, cy - r * 0.12); ctx.scale(sc, sc); // nudged up to centre the triangle in its rack
-      // drawn by the same code as the dasher it launches as (nose down toward the doors), so docked and flying match
-      const look = { type: 'dasher', r, st: 'walk', vx: 0, vy: 1, stT: lit ? 0 : 1.2, hp: br.hp, flash: br.flash, seed: br.rx0 };
-      shapePath(look); ctx.fillStyle = COL.ink; ctx.fill();
-      ctx.globalAlpha = br.flash > 0 || lit ? 0.9 : 0.16; ctx.fillStyle = br.flash > 0 || lit ? COL.chalk : ECOL.dasher; ctx.fill(); ctx.globalAlpha = 1;
-      strokeEnemy(look, lit ? COL.chalk : ECOL.dasher); enemyDetail(look, ECOL.dasher);
-      ctx.fillStyle = COL.chalk; ctx.font = `700 ${r * 0.85}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; if (br.hp > 1) ctx.fillText(br.hp, 0, r * 0.35); // ahead of the notch (it docks nose down)
+      const sc = 1 - (br.born || 0) / 0.4 * 0.6, lit = br.pick && Math.floor(t * 12) % 2;
+      ctx.save(); ctx.translate(cx, cy); ctx.scale(sc, sc); ctx.rotate(Math.PI / 2); // nose toward the doors
+      drawFighter(r, br.hp, br.max, br.flash, lit, 0);
       ctx.restore();
     }
-
-    // hull: two swept wings
+    // --- the hull: a flight deck each side
     for (const side of [-1, 1]) {
       const P = mawWing(B, side), xo = B.bx + side * B.W / 2, xi = B.bx + side * B.MW / 2, at = (fx, fy) => [xo + (xi - xo) * fx, D * fy];
       path(P); ctx.fillStyle = COL.ink; ctx.fill();
       ctx.save(); path(P); ctx.clip();
-      const g = ctx.createLinearGradient(0, 0, 0, D), tint = hex(COL.hull).join(); g.addColorStop(0, `rgba(${tint},0.22)`); g.addColorStop(1, `rgba(${tint},0.06)`);
-      ctx.fillStyle = g; ctx.fillRect(Math.min(xo, xi), 0, w, D);
-      ctx.strokeStyle = hull; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.4;
-      for (const f of [0.18, 0.36, 0.54, 0.72]) { ctx.beginPath(); ctx.moveTo(xo, D * f); ctx.lineTo(xi, D * f); ctx.stroke(); } // armour plating
-      ctx.beginPath(); ctx.moveTo(...at(0, 0.5)); ctx.lineTo(...at(0.55, 1.1)); ctx.stroke(); // a seam following the sweep
-      ctx.beginPath(); ctx.moveTo(...at(0.3, 0)); ctx.lineTo(...at(0.3, 0.6)); ctx.stroke();
-      ctx.globalAlpha = 0.7; ctx.lineWidth = 0.35;
-      for (let k = 0; k < 3; k++) { const [vx, vy] = at(0.62, 0.12 + k * 0.07); ctx.beginPath(); ctx.moveTo(vx, vy); ctx.lineTo(vx + (xi - xo) * 0.25, vy); ctx.stroke(); } // vents
+      { const g = ctx.createLinearGradient(0, 0, 0, D + PR); g.addColorStop(0, rgba(H3, side < 0 ? 0.28 : 0.2)); g.addColorStop(1, rgba(H3, 0.07)); ctx.fillStyle = g; ctx.fillRect(Math.min(xo, xi), 0, w, D + PR); } // metal: lighter at the top and on the lit side
+      const bands = [0, 0.22, 0.46, 0.7, 1.3]; // deck plates, staggered like brickwork, each a slightly different tone
+      for (let i = 0; i < bands.length - 1; i++) {
+        const n = 2 + (i % 2);
+        for (let j = 0; j < n; j++) {
+          const f0 = (j + (i % 2 ? 0.5 : 0)) / n, f1 = (j + 1 + (i % 2 ? 0.5 : 0)) / n, [x0] = at(clamp(f0, 0, 1), 0), [x1] = at(clamp(f1, 0, 1), 0), tone = hash(i * 13 + j + side * 7);
+          ctx.fillStyle = tone > 0.5 ? rgba(H3, 0.05 * tone) : rgba(I3, 0.22 * (1 - tone)); ctx.fillRect(Math.min(x0, x1), D * bands[i], Math.abs(x1 - x0), D * (bands[i + 1] - bands[i]));
+        }
+      }
+      ctx.beginPath();
+      for (const f of bands.slice(1, -1)) { ctx.moveTo(xo, D * f); ctx.lineTo(xi, D * f); }
+      stroke(W3 * 1.2, 0.35);
+      for (const d of B.decks) { // painted parking spots: a circle and a line to the deck edge
+        if (d.side !== side) continue;
+        const [x, y] = mawDeckAt(B, d);
+        ctx.beginPath(); ctx.arc(x, y, MAW_SHIP_R * 1.15, 0, Math.PI * 2); ctx.setLineDash([1.2, 1]); stroke(W3, 0.45, COL.threat); ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(x + Math.cos(d.a) * MAW_SHIP_R * 1.15, y + Math.sin(d.a) * MAW_SHIP_R * 1.15); ctx.lineTo(x + Math.cos(d.a) * MAW_SHIP_R * 2, y + Math.sin(d.a) * MAW_SHIP_R * 2); stroke(W3, 0.35, COL.threat);
+      }
+      if (hurt > 0.33) { // damage: scorch, then fire burning in the seams
+        const [sx, sy] = at(0.3, 0.42);
+        const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, w * 0.4); g.addColorStop(0, rgba(I3, 0.7)); g.addColorStop(1, rgba(I3, 0)); ctx.fillStyle = g; ctx.fillRect(sx - w, sy - w, w * 2, w * 2);
+        const crack = () => { ctx.beginPath(); ctx.moveTo(sx - 3, sy - 2); ctx.lineTo(sx - 0.5, sy + 0.5); ctx.lineTo(sx + 2.5, sy - 0.5); ctx.lineTo(sx + 4, sy + 2.5); };
+        crack(); stroke(W2, 0.8, COL.ink);
+        if (hurt > 0.66) { const fl = 0.5 + 0.5 * Math.sin(t * 23 + side) * Math.sin(t * 7); crack(); glow(() => { ctx.lineWidth = 1.6; ctx.stroke(); }, heat(MAX_CHARGE * 0.75), 0.4 + 0.4 * fl); stroke(W3, 0.9, COL.chalk); }
+      }
       ctx.restore();
-      path(P); ctx.strokeStyle = hull; ctx.lineWidth = 0.7; ctx.lineJoin = 'round'; ctx.stroke();
-      // the hangar mouth's frame and a blinking nav light on the wingtip
-      ctx.strokeStyle = B.flash > 0 ? COL.chalk : COL.lilac; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.moveTo(xi, 0); ctx.lineTo(xi, D); ctx.stroke();
-      const [tx, ty] = at(0.05, 0.33), on = Math.floor(B.t * 1.5 + (side > 0 ? 0.5 : 0)) % 2;
-      ctx.fillStyle = on ? COL.chalk : side < 0 ? ECOL.dasher : ECOL.splitter; ctx.globalAlpha = on ? 1 : 0.6;
-      ctx.beginPath(); ctx.arc(tx, ty, 0.8, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-      for (let i = 0; i < 3; i++) { ctx.fillStyle = Math.floor(B.t * 3 - i) % 3 === 0 ? COL.chalk : COL.threat; const [lx] = at(0.62 + i * 0.13, 1); ctx.fillRect(lx - 0.4, D - 1.3, 0.8, 0.6); } // running lights
+      // the outline: the deck's open edges are a lit lip (the ball flies over it), the pylon a heavy line
+      path(P); stroke(W2 * 1.4, 0.9);
+      const open = side < 0 ? [[P[2], P[3]], [P[3], P[4]], [P[4], P[0]]] : [[P[1], P[2]], [P[2], P[3]], [P[3], P[4]]];
+      let k = 0;
+      for (const [[ax, ay], [bx2, by2]] of open) { // deck-edge lights
+        const L = Math.hypot(bx2 - ax, by2 - ay), n = Math.floor(L / 4);
+        for (let i = 1; i < n; i++, k++) {
+          const x = ax + (bx2 - ax) * i / n, y = ay + (by2 - ay) * i / n, on = Math.floor(t * 2 + k * 0.25) % 2;
+          ctx.fillStyle = on ? COL.lilac : COL.dim; ctx.globalAlpha = (on ? 0.9 : 0.6) * lights; ctx.beginPath(); ctx.arc(x, y, 0.45, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+        }
+      }
+      for (const f of [0.3, 0.62]) { // engines at the stern: housings against the wall, their exhaust glowing off it
+        const [ex] = at(f, 0), ew = Math.min(w * 0.18, 2.6);
+        glow(() => { const g = ctx.createLinearGradient(0, 0, 0, 5); g.addColorStop(0, rgba(T3, 0.9)); g.addColorStop(1, rgba(T3, 0)); ctx.fillStyle = g; ctx.fillRect(ex - ew, 0, ew * 2, 5); }, COL.threat, (0.35 + 0.15 * Math.sin(t * 9 + f * 10)) * lights);
+        ctx.beginPath(); ctx.moveTo(ex - ew, 0); ctx.lineTo(ex - ew, 4); ctx.quadraticCurveTo(ex, 6, ex + ew, 4); ctx.lineTo(ex + ew, 0); ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.6; ctx.fill(); ctx.globalAlpha = 1; stroke(W2 * 1.3);
+        ctx.beginPath(); for (let q = -1; q <= 1; q++) { ctx.moveTo(ex + q * ew * 0.5, 0); ctx.lineTo(ex + q * ew * 0.5, 3.5); } stroke(W3, 0.6);
+      }
+      for (const f of [0.12, 0.85]) { // docking clamps gripping the wall
+        const [cx] = at(f, 0), cw = 2.6;
+        ctx.beginPath(); ctx.moveTo(cx - cw, 0); ctx.lineTo(cx + cw, 0); ctx.lineTo(cx + cw * 0.6, 3); ctx.lineTo(cx - cw * 0.6, 3); ctx.closePath();
+        ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = rgba(H3, 0.22); ctx.fill(); stroke(W2 * 1.3);
+        ctx.save(); ctx.clip(); ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.6; for (let x = cx - cw - 2; x < cx + cw; x += 1.8) { ctx.beginPath(); ctx.moveTo(x, 1.2); ctx.lineTo(x + 0.9, 1.2); ctx.lineTo(x + 1.9, 0); ctx.lineTo(x + 1, 0); ctx.closePath(); ctx.fill(); } ctx.restore();
+      }
+      // side thrusters on the outer edge, firing against the slide
+      const [nx, ny] = at(0.02, 0.22), push = clamp(-side * B._vx / 20, 0, 1);
+      ctx.fillStyle = COL.ink; ctx.fillRect(nx - (side < 0 ? 0 : 1.6), ny - 1.2, 1.6, 2.4); ctx.beginPath(); ctx.rect(nx - (side < 0 ? 0 : 1.6), ny - 1.2, 1.6, 2.4); stroke(W3, 0.8);
+      if (push > 0.05) { const fl = push * (2.5 + Math.random() * 2); glow(() => { ctx.beginPath(); ctx.moveTo(nx, ny - 0.8); ctx.lineTo(nx + side * fl, ny); ctx.lineTo(nx, ny + 0.8); ctx.closePath(); ctx.fill(); }, COL.lilac, 0.8); }
+      // the pylon between deck and bay, down to the bow: its lights chase while it launches
+      const PY = mawPylons(B)[side < 0 ? 0 : 1];
+      ctx.fillStyle = COL.ink; ctx.fillRect(PY.x0, 0, PY.x1 - PY.x0, PY.y1);
+      ctx.beginPath(); ctx.rect(PY.x0, 0, PY.x1 - PY.x0, PY.y1); stroke(W1 * 0.9, 1, B.flash > 0 ? COL.chalk : COL.lilac);
+      for (let q = 0, y = 3; y < PY.y1 - 2; y += 3.5, q++) { const on = launching ? (Math.floor(t * 12) - q) % 4 === 0 : q % 3 === 0; ctx.fillStyle = on ? COL.chalk : COL.lilac; ctx.globalAlpha = (on ? 1 : 0.35) * lights; ctx.fillRect((PY.x0 + PY.x1) / 2 - 0.25, y, 0.5, 1); ctx.globalAlpha = 1; }
+      // a nav light on the wingtip, and running lights along the bow
+      const [tx, ty] = at(0.05, 0.36), on = Math.floor(t * 1.5 + (side > 0 ? 0.5 : 0)) % 2 && lights;
+      if (on) glow(() => { ctx.beginPath(); ctx.arc(tx, ty, 2, 0, Math.PI * 2); ctx.fill(); }, side < 0 ? ECOL.dasher : ECOL.splitter, 0.5);
+      ctx.fillStyle = on ? COL.chalk : side < 0 ? ECOL.dasher : ECOL.splitter; ctx.globalAlpha = on ? 1 : 0.6; ctx.beginPath(); ctx.arc(tx, ty, 0.8, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
     }
-    // turrets under the wingtips track the ship, and flash while they charge
-    const gunsHot = B.st === 'closed' && B.gunT > 0 && B.gunT < MAW_GUN_WARN;
-    for (const gx of mawGuns(B)) {
-      const a = clamp(Math.atan2(p.y - D, p.x - gx), 0.2, Math.PI - 0.2);
-      ctx.strokeStyle = gunsHot && Math.floor(B.t * 16) % 2 ? COL.chalk : COL.threat; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(gx, D); ctx.lineTo(gx + Math.cos(a) * 4.5, D + Math.sin(a) * 4.5); ctx.stroke();
-      ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(gx, D, 2.2, 0, Math.PI); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = hull; ctx.lineWidth = 0.5; ctx.stroke();
-      if (gunsHot) { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(B.t * 30); ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(gx + Math.cos(a) * 4.5, D + Math.sin(a) * 4.5, 1.1, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    // --- jets parked on the decks, and jets coming in to land
+    for (const d of B.decks) {
+      if (!d.alive) continue;
+      const [x, y] = mawDeckAt(B, d), sc = 1 - d.born / 0.3 * 0.25;
+      ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.rotate(d.a); drawFighter(MAW_SHIP_R, 1, 1, d.flash, 0, 0); ctx.restore();
     }
-    // hangar doors with hazard stripes (fighters on their way out are drawn over them, below)
+    for (const L of B.landing || []) { // in from off the arena on a curve, slowing, turning into its spot
+      const [x1, y1] = mawDeckAt(B, L.d), k = Math.min(1, L.t), e = 1 - Math.pow(1 - k, 2.2), cx = (L.fx + x1) / 2, cy = Math.max(L.fy, y1) + 10;
+      const x = (1 - e) * (1 - e) * L.fx + 2 * (1 - e) * e * cx + e * e * x1, y = (1 - e) * (1 - e) * L.fy + 2 * (1 - e) * e * cy + e * e * y1;
+      const hx = 2 * (1 - e) * (cx - L.fx) + 2 * e * (x1 - cx), hy = 2 * (1 - e) * (cy - L.fy) + 2 * e * (y1 - cy);
+      let a = Math.atan2(hy, hx); if (k > 0.85) { const q = (k - 0.85) / 0.15; a += wrapA(L.d.a - a) * q; }
+      const sc = 1.25 - 0.25 * k; // a touch bigger in the air
+      ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.rotate(a); drawFighter(MAW_SHIP_R, 1, 1, 0, 0, 0.7 * (1 - k) + 0.1); ctx.restore();
+    }
+    // --- the island on the right deck: a command tower with its bridge facing the bow, a radar turning on its mast
+    {
+      const I = mawIsland(B), { ix, bw, ih } = I, iy = I.y0;
+      ctx.fillStyle = rgba(I3, 0.6); ctx.beginPath(); ctx.roundRect(ix - bw / 2 + 1.4, iy + 1.8, bw, ih, 1.2); ctx.fill(); // its shadow
+      ctx.beginPath(); ctx.roundRect(ix - bw / 2, iy, bw, ih, 1.2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = rgba(H3, 0.3); ctx.fill(); stroke(W1 * 0.9);
+      ctx.beginPath(); ctx.moveTo(ix - bw / 2 + 0.6, iy + ih * 0.35); ctx.lineTo(ix + bw / 2 - 0.6, iy + ih * 0.35); ctx.moveTo(ix - bw / 2 + 0.6, iy + ih * 0.6); ctx.lineTo(ix + bw / 2 - 0.6, iy + ih * 0.6); stroke(W3, 0.5); // its decks
+      const by = iy + ih * 0.78, bww = bw * 1.35; // the bridge: wider, its windows looking down at the arena
+      ctx.beginPath(); ctx.roundRect(ix - bww / 2, by, bww, ih * 0.2, 0.8); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = rgba(H3, 0.22); ctx.fill(); stroke(W2 * 1.3);
+      for (let q = 0; q < 6; q++) { const x = ix - bww / 2 + bww * (q + 0.5) / 6, fl = (hash(q + Math.floor(t * 3) * 7) > 0.93 ? 0.3 : 1) * lights; glow(() => ctx.fillRect(x - 0.8, by + ih * 0.11, 1.6, 1.1), COL.lilac, 0.4 * fl); ctx.fillStyle = COL.chalk; ctx.globalAlpha = fl; ctx.fillRect(x - 0.5, by + ih * 0.12, 1, 0.8); ctx.globalAlpha = 1; }
+      const my = iy + ih * 0.2, rr = bw * 0.6, sp = Math.cos(t * 2.2 * (1 - die)); // the mast and its radar
+      ctx.beginPath(); ctx.moveTo(ix, iy + ih * 0.05); ctx.lineTo(ix, iy + ih * 0.45); stroke(W2);
+      ctx.beginPath(); ctx.ellipse(ix, my, Math.max(0.3, Math.abs(sp) * rr), 1, 0, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W2 * 1.2, 1, sp > 0 ? COL.chalk : hullC);
+      const bl = Math.floor(t * 1.2) % 2 && lights; if (bl) glow(() => { ctx.beginPath(); ctx.arc(ix, iy + 0.8, 1.4, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.7);
+      ctx.fillStyle = bl ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(ix, iy + 0.8, 0.45, 0, Math.PI * 2); ctx.fill();
+    }
+    // --- gun pods on the bows: an armoured dome, twin barrels tracking you, a lens that heats as they charge
+    const gunsHot = B.st === 'closed' && B.gunT > 0 && B.gunT < MAW_GUN_WARN, heatK = gunsHot ? 1 - B.gunT / MAW_GUN_WARN : 0;
+    for (const [gx, gy] of mawGuns(B)) {
+      const a = clamp(Math.atan2(p.y - gy, p.x - gx), 0.2, Math.PI - 0.2), ca = Math.cos(a), sa = Math.sin(a);
+      for (const o of [-0.7, 0.7]) { ctx.beginPath(); ctx.moveTo(gx - sa * o, gy + ca * o); ctx.lineTo(gx - sa * o + ca * 5, gy + ca * o + sa * 5); stroke(0.9, 1, hullC); ctx.beginPath(); ctx.moveTo(gx - sa * o, gy + ca * o); ctx.lineTo(gx - sa * o + ca * 5, gy + ca * o + sa * 5); stroke(0.45, 1, COL.ink); }
+      ctx.beginPath(); ctx.arc(gx, gy, 2.6, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill();
+      ctx.save(); ctx.clip(); ctx.fillStyle = rgba(H3, 0.18); ctx.fillRect(gx - 2.6, gy - 2.6, 2.6, 5.2); ctx.restore(); // lit side
+      ctx.beginPath(); ctx.arc(gx, gy, 2.6, 0, Math.PI * 2); stroke(W2 * 1.4);
+      const lx = gx + ca * 1.4, ly = gy + sa * 1.4; // the lens
+      glow(() => { ctx.beginPath(); ctx.arc(lx, ly, 1.2 + heatK, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.25 + 0.6 * heatK);
+      ctx.fillStyle = heatK > 0.6 && Math.floor(t * 16) % 2 ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(lx, ly, 0.55, 0, Math.PI * 2); ctx.fill();
+      if (gunsHot) { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 30); ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(gx + ca * 5, gy + sa * 5, 1.1, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    }
+    // --- blast doors: armoured plates, hazard stripes along the edges that meet, a seam light
     for (const j of mawSolids(B)) {
-      const jw = j.x1 - j.x0;
+      const jw = j.x1 - j.x0, left = j.x0 < B.bx - 1, inner = left ? j.x1 : j.x0;
       ctx.save(); ctx.beginPath(); ctx.rect(j.x0, j.y0, jw, MAW_JAW_T); ctx.clip();
       ctx.fillStyle = COL.block; ctx.fillRect(j.x0, j.y0, jw, MAW_JAW_T);
-      ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.55;
-      for (let x = j.x0 - MAW_JAW_T; x < j.x1; x += 3) { ctx.beginPath(); ctx.moveTo(x, j.y1); ctx.lineTo(x + 1.5, j.y1); ctx.lineTo(x + 1.5 + MAW_JAW_T, j.y0); ctx.lineTo(x + MAW_JAW_T, j.y0); ctx.closePath(); ctx.fill(); }
-      ctx.restore();
-      ctx.strokeStyle = hull; ctx.lineWidth = 0.6; ctx.strokeRect(j.x0, j.y0, jw, MAW_JAW_T);
+      ctx.fillStyle = rgba(H3, 0.12); ctx.fillRect(j.x0, j.y0, jw, MAW_JAW_T * 0.4);
+      ctx.beginPath(); for (let x = j.x0 + 5; x < j.x1; x += 5) { ctx.moveTo(x, j.y0); ctx.lineTo(x, j.y1); } stroke(W3, 0.35);
+      const hz = Math.min(5, jw), hx0 = left ? inner - hz : inner; // hazard stripes on the leading edge
+      ctx.beginPath(); ctx.rect(hx0, j.y0, hz, MAW_JAW_T); ctx.clip(); ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.7;
+      for (let x = hx0 - MAW_JAW_T; x < hx0 + hz; x += 2.4) { ctx.beginPath(); ctx.moveTo(x, j.y1); ctx.lineTo(x + 1.2, j.y1); ctx.lineTo(x + 1.2 + MAW_JAW_T, j.y0); ctx.lineTo(x + MAW_JAW_T, j.y0); ctx.closePath(); ctx.fill(); }
+      ctx.globalAlpha = 1; ctx.restore();
+      ctx.beginPath(); ctx.rect(j.x0, j.y0, jw, MAW_JAW_T); stroke(W2 * 1.6);
+      ctx.beginPath(); ctx.moveTo(inner, j.y0 + 0.5); ctx.lineTo(inner, j.y1 - 0.5); glow(() => { ctx.lineWidth = 1; ctx.stroke(); }, COL.threat, (0.4 + 0.3 * Math.sin(t * 5)) * lights); // the seam light
     }
     for (const L of B.launching || []) { // fighters lifting out of their racks and flying out through the doors, engines lit
       if (L.t < 0) continue;
-      const [x, y, dx, dy] = mawLaunchAt(B, L, L.t), r = MAW_SHIP_R, lift = 1 + 0.18 * Math.sin(Math.PI * Math.min(1, L.t * 1.6));
-      ctx.save(); ctx.translate(x, y); ctx.scale(lift, lift);
-      const fl = r * (1 + Math.random() * 0.7 + L.t * 1.6);
-      ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
-      ctx.globalAlpha = 0.75; ctx.strokeStyle = COL.threat; ctx.lineWidth = r * 0.55;
-      ctx.beginPath(); ctx.moveTo(-dx * r * 0.5, -dy * r * 0.5); ctx.lineTo(-dx * (r * 0.5 + fl), -dy * (r * 0.5 + fl)); ctx.stroke();
-      ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.chalk; ctx.lineWidth = r * 0.22;
-      ctx.beginPath(); ctx.moveTo(-dx * r * 0.5, -dy * r * 0.5); ctx.lineTo(-dx * (r * 0.5 + fl * 0.5), -dy * (r * 0.5 + fl * 0.5)); ctx.stroke();
-      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-      const look = { type: 'dasher', r, st: 'walk', vx: dx, vy: dy, stT: 0, hp: L.hp, seed: L.rx };
-      shapePath(look); ctx.fillStyle = COL.ink; ctx.fill(); ctx.globalAlpha = 0.16; ctx.fillStyle = ECOL.dasher; ctx.fill(); ctx.globalAlpha = 1;
-      strokeEnemy(look, ECOL.dasher); enemyDetail(look, ECOL.dasher);
+      const [x, y, dx, dy] = mawLaunchAt(B, L, L.t), lift = 1 + 0.18 * Math.sin(Math.PI * Math.min(1, L.t * 1.6));
+      ctx.save(); ctx.translate(x, y); ctx.scale(lift, lift); ctx.rotate(Math.atan2(dy, dx));
+      drawFighter(MAW_SHIP_R, L.hp, L.hp, 0, 0, 0.5 + L.t);
       ctx.restore();
     }
   }
+  const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a)); // an angle wrapped to -π..π
   /* ---------- the Geode ---------- */
   // Wave 30. A big alien, in a loop of four states:
   //  - shell: he sits in the middle of the arena in a shell of crystals while enemies stream in. Crystals can't hurt you
@@ -4648,7 +4969,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.between === null) {
-      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss && !G.geoDeath && !G.vexaDeath) {
+      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath) {
         if (inLoop(G.wave) === LOOP_LEN && G.winShown !== G.wave && !G.attract) { // the loop's finale is down
           if (!G.result) showWin(); // once its banner has had its moment
           return;
@@ -4991,6 +5312,21 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     gridImpulse(src.x, src.y, Math.max(AW, AH) * 0.45, 140 + chain * 4);
     shake(1.5 + chain * 0.08); sfx.repair(); sfx.chain(14);
   }
+  // A kill (or a wreck that counts as one) on src's chain: the chain, the multiplier, the overload countdown refilled,
+  // the "N chain" pop (when shown) and the milestones.
+  function chainCredit(src, x, y, b, show = true) {
+    const chain = src.kills = (src.kills || 0) + 1, before = Math.floor(G.mult); // (a multi-ball extra starts without a count)
+    G.kills = (G.kills || 0) + 1; G.bestChain = Math.max(G.bestChain || 0, chain); // for the victory screen
+    if (src.lit && src.state === 'live') { src.fuse = FUSE_TIME; ring(src.x, src.y, ballR(src.b) + 2, ballR(src.b) + 4, 0.2, COL.chalk, 0.6); } // a kill refills the overload countdown
+    G.mult = Math.min(MULT_MAX, G.mult + CHAIN_STEP * chain);
+    if (Math.floor(G.mult) > before) { const m = $('mult'); m.classList.remove('bump', 'drop'); void m.offsetWidth; m.classList.add('bump'); }
+    if (chain >= 2 && show) {
+      float(src.x, src.y - ballR(b) - 4, `${chain} chain`, COL.chalk, 2.6 + Math.min(chain, 8) * 0.3);
+      sfx.chain(chain);
+    }
+    if (CHAIN_MILESTONES.includes(chain)) chainMilestone(chain, src);
+    return chain;
+  }
   // chargeOverride: overload blasts score at a fixed charge instead of the live one
   // depth counts lightning hops so a chain of arcs stops after BOLT_HOPS
   // src: the ball that made the kill (its chain count and motion); defaults to the first ball
@@ -4999,17 +5335,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.enemies.splice(i, 1);
     const pts = Math.round(e.pts * (1 + b) * G.mult);
     G.score += pts;
-    const chain = ++src.kills, before = Math.floor(G.mult);
-    G.kills = (G.kills || 0) + 1; G.bestChain = Math.max(G.bestChain || 0, chain); // for the victory screen
-    if (src.lit && src.state === 'live') { src.fuse = FUSE_TIME; ring(src.x, src.y, ballR(src.b) + 2, ballR(src.b) + 4, 0.2, COL.chalk, 0.6); } // a kill refills the overload countdown
-    G.mult = Math.min(MULT_MAX, G.mult + CHAIN_STEP * chain);
-    if (Math.floor(G.mult) > before) { const m = $('mult'); m.classList.remove('bump', 'drop'); void m.offsetWidth; m.classList.add('bump'); }
     float(e.x, e.y - e.r - 1, `${pts * scoreK(G.wave)}`, heat(b), 2.4 + Math.min(b, MAX_CHARGE) * 0.08);
-    if (chain >= 2 && chargeOverride === undefined) {
-      float(src.x, src.y - ballR(b) - 4, `${chain} chain`, COL.chalk, 2.6 + Math.min(chain, 8) * 0.3);
-      sfx.chain(chain);
-    }
-    if (CHAIN_MILESTONES.includes(chain)) chainMilestone(chain, src);
+    const chain = chainCredit(src, e.x, e.y, b, chargeOverride === undefined);
     G.flashes.push({ x: e.x, y: e.y, r: e.r * 1.35, t: 0, max: 0.09 });
     gridImpulse(e.x, e.y, 12 + e.r + b * 0.6, 45 + b * 6);
     // each type goes out its own way: swarms pop like bubbles, brutes cave in, splitters crack along their seam
@@ -5689,7 +6016,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.inv) updateInvaders(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
-    updateGeoDeath(dt); updateVexaDeath(dt);
+    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt);
     updateBullets(dt * ws);
     updateWaves(dt);
     if (scoreK(G.wave) > 1) G.score += Math.round((scoreK(G.wave) - 1) * (G.score - score0)); // later loops: every point counts more
@@ -6209,6 +6536,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (e.type === 'monolith' && e.st === 'warn' && Math.floor(G.time * 14) % 2) { // the block it's about to become
         const s = e.r * 1.25; ctx.strokeStyle = ECOL.monolith; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.75; ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.globalAlpha = 1;
+      }
+      if (e.fromMaw) { // a Carrier fighter: its engine roars and it flickers white as it winds up to dash
+        ctx.save(); squash(e); ctx.rotate(dasherAngle(e));
+        const wind = e.st === 'wind', th = e.st === 'dash' ? 1 : wind ? 0.6 + 0.4 * Math.random() : 0.3;
+        drawFighter(e.r, e.hp, e.maxHp, e.flash, wind && Math.floor(G.time * 20) % 2, th, pierce && !VEC ? heat(liveB) : null);
+        ctx.restore(); ctx.restore(); continue;
       }
       ctx.save(); squash(e);
       // body: dark core tinted with the enemy's colour, then a heavy outline
