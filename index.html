@@ -6927,7 +6927,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const pierce = !shielded && 1 + liveB >= e.hp;
       const col = e.bee || e.type === 'egg' ? GOLD() : ECOL[e.type] || COL.lilac;
       let stroke = col;
-      if (VEC && pierce) stroke = heat(liveB); // the vector look has no numbers: a killable rock or saucer takes the ball's colour
       if (e.type === 'dasher' && e.st === 'wind' && Math.floor(G.time * 20) % 2) stroke = COL.chalk;
       const grow = e.spawnT > 0 ? 1 - e.spawnT / 0.25 : 1;
       ctx.save(); ctx.translate(e.x, e.y); ctx.scale(grow, grow);
