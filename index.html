@@ -513,7 +513,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them',
     9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tankettes are rolling in: something big is coming',
-    10: 'The Tank: smash its treads. Once it digs in, every hit hurts it. Kill its repair crews. Its fuel drums explode',
+    10: 'The Tank: smash its treads and kill the crews who come to fix them. Once it digs in, every hit hurts it',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
     30: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
@@ -2990,22 +2990,22 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // charge a hit), clanking off the armoured hull and the cannon.
   // Digging in: with both treads gone it slams down where it stopped (TANK_DIG): stabiliser legs stamp into the floor,
   // its hatch opens on the reactor, and two machine-gun pods come up on its flanks. Where you stopped it matters.
-  // The turret (phase two): the reactor's open (TANK_REACTOR) and every hit on the tank hurts it. The cannon fires 3-shell bursts and
+  // The turret (phase two): the reactor's open (TANK_REACTOR) and every hit on the tank (legs too) hurts it. The cannon fires bursts and
   // turns faster; each gun pod (TANK_POD) sweeps an arc of bullets, its laser sight sweeping the same arc first
   // (TANK_SIGHT); break a pod and its sweeps stop. It calls in tankettes (small tanks) when a part breaks and in a
   // steady trickle (TANK_TRICKLE), never more than TANK_ESCORTS at once.
   // Both phases: four armour tiles across its front (one hit each) and two fuel drums on its back (one hit: they explode,
   // doing TANK_DRUM_DMG to every part within TANK_DRUM_R, and to the reactor once it's open, and wrecking escorts there).
-  // The bar is the treads and the reactor (TANK_TREAD × 2 ≈ a quarter of it): the pods are optional.
-  const TANK_S = 1.45, TANK_TREAD = 14, TANK_REACTOR = 90, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 1.1, TANK_LIMP = 0.45;
-  const TANK_FIRE = [3.4, 2.8, 2.3], TANK_BURST = [3.4, 3, 2.5], TANK_AIM = 0.9, TANK_SHELL = 46, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
+  // The bar is the treads and the reactor (TANK_TREAD × 2 ≈ a fifth of it): the pods are optional.
+  const TANK_S = 1.45, TANK_TREAD = 14, TANK_REACTOR = 110, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 1.1, TANK_LIMP = 0.45;
+  const TANK_FIRE = [3.9, 3.3, 2.8], TANK_BURST = [4, 3.5, 3], TANK_AIM = 0.9, TANK_SHELL = 40, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
   const TANK_RAM = [9, 7.5, 6], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 4, TANK_TRICKLE = [10, 7];
-  const TANK_SWEEP = [4.8, 4, 3.3], TANK_SIGHT = 1.1, TANK_SPRAY = 1, TANK_ARC = 1.1, TANK_MG = 50, TANK_MG_GAP = 0.09;
+  const TANK_SWEEP = [5.6, 4.8, 4], TANK_SIGHT = 1.1, TANK_SPRAY = 1, TANK_ARC = 0.95, TANK_MG = 40, TANK_MG_GAP = 0.13;
   // its parts, in its own units before TANK_S: x across (the left tread at -x), y forward (the way it drives)
   const TANK_TILES = [-6, -2, 2, 6].map(x => ({ x0: x - 1.8, x1: x + 1.8, y0: 12.2, y1: 14.8 }));
   const TANK_DRUMS = [[-5.5, -16.4], [5.5, -16.4]], TANK_DRUM_RR = 2.3;
   const TANK_TREADS = { L: { x0: -13.7, x1: -7.3, y0: -15, y1: 15 }, R: { x0: 7.3, x1: 13.7, y0: -15, y1: 15 } };
-  const TANK_PODS = { podL: [-11, 4], podR: [11, 4] }, TANK_POD_R = 3;
+  const TANK_PODS = { podL: [-11, 4], podR: [11, 4] }, TANK_POD_R = 4.5, TANK_POD_S = 1.5; // TANK_POD_S: the pod's drawing scale
   const TANK_LEGS = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
   const TANK_HULL = { x0: -8.5, x1: 8.5, y0: -14, y1: 14 }, TANK_BOX = { x0: -13.7, x1: 13.7, y0: -15.5, y1: 15 };
   function setupTank(B, cycle) {
@@ -3014,7 +3014,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       parts: { L: { hp: tr, max: tr, flash: 0 }, R: { hp: tr, max: tr, flash: 0 }, podL: { hp: pd, max: pd, flash: 0 }, podR: { hp: pd, max: pd, flash: 0 } },
       tiles: TANK_TILES.map(() => true), drums: TANK_DRUMS.map(() => true), open: false, dug: false, digT: 0, hp: tr * 2 + re,
       mode: 'drive', modeT: 0, ramT: TANK_RAM[0], fireT: 2.6, burst: 0, burstT: 0, sweepT: 2.5, sweep: null, nextPod: 'podL',
-      wx: AW / 2, wy: AH * 0.35, wT: 0, hitCd: 0, trickleT: TANK_TRICKLE[0], recoil: 0, tread: 0, fires: [], crewT: 4, doorT: 0, patch: {} });
+      wx: AW / 2, wy: AH * 0.35, wT: 0, hitCd: 0, trickleT: TANK_TRICKLE[0], recoil: 0, tread: 0, fires: [], crewT: CREW_FIRST, doorT: 0, fix: null });
   }
   // between the arena and the tank's own frame
   const tankFrame = B => { const f = B.th - Math.PI / 2; return [Math.cos(f), Math.sin(f)]; };
@@ -3052,6 +3052,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.fires.push({ key, ph: rand(0, 6) });
     if (B.sweep && B.sweep.pod === key) B.sweep = null;
     tankBackup(B, 2);
+    if (tread) B.crewT = CREW_FIRST;
     if (tread && B.parts.L.hp <= 0 && B.parts.R.hp <= 0 && !B.dug) tankDigIn(B);
   }
   // Both treads gone: it slams down where it stopped and becomes a gun emplacement.
@@ -3104,6 +3105,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (B.open) core();
       return 'bounce';
     }
+    if (B.dug && B.digT <= TANK_DIG * 0.5) for (const [sx, sy] of TANK_LEGS) { // its stabiliser legs and feet
+      if (circle(sx * 16, sy * 18, 2.5)) { armour(); return 'bounce'; }
+      const x0 = sx * 7, y0 = sy * 11, ux = sx * 9 / Math.hypot(9, 7), uy = sy * 7 / Math.hypot(9, 7), t = clamp((lx - x0) * ux + (ly - y0) * uy, 0, Math.hypot(9, 7)), qx = x0 + ux * t, qy = y0 + uy * t, dx = lx - qx, dy = ly - qy, d = Math.hypot(dx, dy);
+      if (d < 1.2 + lr && d > 1e-6 && t > 2) { bounce(dx / d, dy / d, 1.2 + lr - d); armour(); return 'bounce'; }
+    }
     if (B.dug) for (const key of ['podL', 'podR']) if (B.digT <= TANK_DIG * 0.5 && circle(...TANK_PODS[key], TANK_POD_R)) { if (B.parts[key].hp > 0) strike(key); else armour(); return 'bounce'; }
     { // the barrel, a capsule out from the turret: armour (it clanks)
       const [x0, y0, bx, by, L] = tankBarrel(B), t = clamp((lx - x0) * bx + (ly - y0) * by, 0, L), qx = x0 + bx * t, qy = y0 + by * t, dx = lx - qx, dy = ly - qy, d = Math.hypot(dx, dy);
@@ -3124,7 +3130,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     return '';
   }
   // A gun pod's muzzle, and the way it's pointing (along its sweep, else at you).
-  const tankPodMuzzle = (B, key) => { const [px, py] = tankPartAt(B, key), a = B.sweep && B.sweep.pod === key ? B.sweep.a : Math.atan2(G.player.y - py, G.player.x - px); return [px + Math.cos(a) * 4.5, py + Math.sin(a) * 4.5, a]; };
+  const tankPodMuzzle = (B, key) => { const [px, py] = tankPartAt(B, key), a = B.sweep && B.sweep.pod === key ? B.sweep.a : Math.atan2(G.player.y - py, G.player.x - px); return [px + Math.cos(a) * 9, py + Math.sin(a) * 9, a]; };
   function updateTank(B, dt) {
     const p = G.player, L = B.parts.L.hp > 0, R = B.parts.R.hp > 0, both = L && R;
     B.hitCd -= dt; B.armorT = (B.armorT || 0) - dt; B.recoil = Math.max(0, B.recoil - dt * 3);
@@ -3135,7 +3141,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.dug) { // the gun emplacement
       if (B.digT > 0) { B.digT -= dt; return; }
       B.fireT -= dt; // the cannon: a 3-shell burst, telegraphed
-      if (B.fireT <= 0 && !B.burst) { B.burst = 3; B.burstT = 0; B.fireT = TANK_BURST[B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1); }
+      if (B.fireT <= 0 && !B.burst) { B.burst = 2 + (B.cycle > 0 ? 1 : 0); B.burstT = 0; B.fireT = TANK_BURST[B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1); }
       if (B.burst) { B.burstT -= dt; if (B.burstT <= 0) { B.burst--; B.burstT = 0.2; tankShell(B); } }
       B.sweepT -= dt; // the gun pods take turns sweeping an arc of bullets, their sights sweeping it first
       if (!B.sweep && B.sweepT <= 0) {
@@ -3178,6 +3184,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     } else if (B.mode === 'stun') {
       B.modeT -= dt; if (B.modeT <= 0) { B.mode = 'drive'; B.ramT = TANK_RAM[B.phase - 1]; }
+    } else if (tankHalt(B)) { // stopped for its repair crew
     } else { // drive between waypoints; one tread gone, it drags round toward the dead side
       B.wT -= dt;
       if (B.wT <= 0 || Math.hypot(B.wx - B.x, B.wy - B.y) < 8) { B.wT = rand(3, 5); B.wx = rand(m + 6, AW - m - 6); B.wy = rand(m + 6, AH * 0.62); }
@@ -3195,59 +3202,57 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.bullets.push({ x: mx, y: my, vx: Math.cos(B.aim) * TANK_SHELL, vy: Math.sin(B.aim) * TANK_SHELL, r: 2.2, shell: true });
     B.recoil = 1; burst(mx, my, 10, COL.threat, 35, 0.4, 0.3); shake(1.2); sfx.blaster();
   }
-  // The repair crew. Every CREW_GAP, if a working part is damaged, the back door blinks (CREW_DOOR) and a crew of
-  // CREW_N climb out, walk round to it and weld (CREW_WELD), each welder patching CREW_RATE of its health a second
-  // (a tread's patch goes back on the bar), then walk back in. Broken is broken: they never bring back a part you've
-  // knocked off, and never touch the reactor (in phase two they mend the gun pods). They ride along with the tank, die
-  // to one hit (counting toward chains), and your ship squashes them. Their state is in the tank's own frame.
-  const CREW_GAP = 12, CREW_DOOR = 0.9, CREW_WELD = 4, CREW_RATE = 0.6, CREW_WALK = 12, CREW_R = 3, CREW_OUT = 18.5, CREW_BACK = -16.5;
+  // The repair crew. When a tread's destroyed (before it digs in), the tank stops, its back door blinks (CREW_DOOR) and
+  // a crew of two (three in later loops) climb out, walk round to the wreck and weld it back together (CREW_FIX with
+  // the whole crew; slower if you've killed some). If they finish, the tread's back on at half health (and on the
+  // bar). Kill them first, or break the other tread so it digs in, and they go back in. Killed, another crew comes
+  // CREW_GAP later. They ride along with the tank, die to one hit (counting toward chains), and your ship squashes
+  // them. Their state is in the tank's own frame.
+  const CREW_GAP = 10, CREW_FIRST = 1.5, CREW_DOOR = 0.9, CREW_FIX = 6, CREW_BACK_HP = 0.5, CREW_WALK = 12, CREW_R = 3, CREW_OUT = 18.5, CREW_BACK = -16.5;
   const tankCrew = () => G.enemies.filter(e => e.crew);
+  const tankHalt = B => B.doorT > 0 || G.enemies.some(e => e.crew && e.crew.st !== 'back'); // it waits for its crew
+  const tankCrewJob = B => B.dug ? null : ['L', 'R'].find(k => B.parts[k].hp <= 0) || null; // a wrecked tread
   function tankCrewCall(B, dt) {
-    if (B.digT > 0) { B.crewT = Math.max(B.crewT, 4); B.doorT = 0; return; } // nobody comes out while it's digging in
+    if (B.dug) { B.doorT = 0; return; } // dug in: nobody comes out
     if (B.doorT > 0) { B.doorT -= dt; if (B.doorT <= 0) tankCrewOut(B); return; }
+    if (!tankCrewJob(B) || tankCrew().length) return;
     B.crewT -= dt;
-    if (B.crewT > 0 || tankCrew().length) return;
-    if (!tankCrewJob(B)) return; // nothing to mend yet: they come as soon as there is
-    B.doorT = CREW_DOOR; B.crewT = CREW_GAP; sfx.field();
-  }
-  // The most damaged part they're allowed to mend: a tread before it digs in, a gun pod after.
-  function tankCrewJob(B) {
-    const keys = B.dug ? ['podL', 'podR'] : ['L', 'R'];
-    let best = null;
-    for (const k of keys) { const P = B.parts[k]; if (P.hp > 0 && P.hp < P.max && (!best || P.hp / P.max < B.parts[best].hp / B.parts[best].max)) best = k; }
-    return best;
+    if (B.crewT <= 0) { B.doorT = CREW_DOOR; B.crewT = CREW_GAP; sfx.field(); }
   }
   function tankCrewOut(B) {
     const key = tankCrewJob(B); if (!key) return;
-    const side = key === 'L' || key === 'podL' ? -1 : 1, n = 2 + (B.phase === 3 ? 1 : 0), cy = key === 'L' || key === 'R' ? 0 : TANK_PODS[key][1];
+    const side = key === 'L' ? -1 : 1, n = 2 + (B.cycle > 0 ? 1 : 0);
+    B.fix = { key, k: 0, n };
     for (let i = 0; i < n; i++) {
       const [x, y] = tankWorld(B, 0, CREW_BACK), e = makeEnemy('drifter', x, y);
       Object.assign(e, { r: CREW_R, hp: 1, maxHp: 1, pts: 40, spawnT: 0.25,
-        crew: { key, side, st: 'out', lx: 0, ly: CREW_BACK, wait: i * 0.3, weld: 0, face: 0, step: 0,
-          path: [[side * CREW_OUT, CREW_BACK], [side * CREW_OUT, cy + (i - (n - 1) / 2) * (cy ? 4 : 5)]] } });
+        crew: { key, side, st: 'out', lx: 0, ly: CREW_BACK, wait: i * 0.3, face: 0, step: 0,
+          path: [[side * CREW_OUT, CREW_BACK], [side * CREW_OUT, (i - (n - 1) / 2) * 5]] } });
       G.enemies.push(e);
     }
     const [dx, dy] = tankWorld(B, 0, CREW_BACK - 4);
     burst(dx, dy, 8, ECOL.warden, 20, 0.5, 0.3); float(dx, dy - 4, 'Repair crew!', COL.threat, 3.2);
-    if (!G.crewTold) { G.crewTold = true; G.banner = { text: 'Repair crew!', sub: 'Kill them before they patch it up', t: 1.8, max: 1.8, top: true }; }
+    if (!G.crewTold) { G.crewTold = true; G.banner = { text: 'Repair crew!', sub: 'Kill them or they\'ll fix the tread', t: 2, max: 2, top: true }; }
+  }
+  // The crew finish: the tread's back on at half health.
+  function tankFixed(B, key) {
+    const P = B.parts[key], hp = Math.ceil(P.max * CREW_BACK_HP), [x, y] = tankPartAt(B, key);
+    P.hp = hp; P.flash = 0.3; B.hp = Math.min(B.maxHp, B.hp + hp); B.fires = B.fires.filter(f => f.key !== key); B.fix = null;
+    for (let i = 0; i < 2; i++) ring(x, y, 2, 12 + i * 8, 0.4 + i * 0.1, i ? COL.chalk : COL.threat, 1);
+    burst(x, y, 24, ECOL.warden, 40, 0.6, 0.4); sfx.clank(); sfx.field(); shake(1.5);
+    float(x, y - 8, 'Tread fixed!', COL.threat, 3.6);
   }
   // One crewman: out the back door, round to his spot beside the part, weld, back in. His path is in the tank's frame.
   function updateCrew(e, dt) {
     const B = G.boss, C = e.crew;
     if (!B || B.kind !== 'tank') return; // the tank's gone: he stands there till it blows
-    const P = B.parts[C.key], home = () => { C.st = 'back'; C.path = C.ly > CREW_BACK + 0.01 ? [[C.side * CREW_OUT, CREW_BACK], [0, CREW_BACK]] : [[0, CREW_BACK]]; };
-    if (C.st === 'weld' && (P.hp <= 0 || P.hp >= P.max || B.digT > 0)) home(); // broken, or done: back in
-    if (C.st === 'out' && (P.hp <= 0 || B.digT > 0)) home();
+    const home = () => { C.st = 'back'; C.path = C.ly > CREW_BACK + 0.01 ? [[C.side * CREW_OUT, CREW_BACK], [0, CREW_BACK]] : [[0, CREW_BACK]]; };
+    if (C.st !== 'back' && (B.dug || B.parts[C.key].hp > 0)) home(); // it dug in, or the job's done: back in
     if (C.wait > 0) C.wait -= dt;
     else if (C.st === 'weld') {
-      C.weld += dt; C.face = Math.atan2(0, -C.side); // facing the part
-      B.patch[C.key] = (B.patch[C.key] || 0) + CREW_RATE * (1 + B.cycle * 0.6) * dt;
-      if (B.patch[C.key] >= 1) { // a point of health back on
-        B.patch[C.key] -= 1; P.hp = Math.min(P.max, P.hp + 1);
-        if (C.key === 'L' || C.key === 'R') B.hp = Math.min(B.maxHp, B.hp + 1);
-        const [px, py] = tankPartAt(B, C.key); float(px, py - 6, '+1', COL.threat, 3);
-      }
-      if (C.weld >= CREW_WELD) home();
+      C.face = Math.atan2(0, -C.side); // facing the tread
+      const F = B.fix;
+      if (F && F.key === C.key) { F.k += dt / CREW_FIX / F.n; if (F.k >= 1) tankFixed(B, C.key); }
     } else { // walking: corner by corner along his path
       let go = CREW_WALK * dt;
       while (go > 0 && C.path.length) {
@@ -3271,7 +3276,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // A crewman from above: helmet with a lamp, shoulders, his torch; welding, a white-hot point and sparks.
   function drawCrew(e) {
-    const C = e.crew, fl = e.flash > 0, line = fl ? COL.chalk : ECOL.warden, t = G.time, weld = C.st === 'weld' && C.wait <= 0;
+    const C = e.crew, fl = e.flash > 0, line = fl ? COL.chalk : ECOL.warden, weld = C.st === 'weld' && C.wait <= 0;
     ctx.save(); ctx.rotate(e.face); ctx.scale(1.9, 1.9);
     if (!weld && C.wait <= 0) { const sw = Math.sin(C.step * 1.6) * 0.7; ctx.beginPath(); ctx.moveTo(-0.3, -0.7); ctx.lineTo(-0.3 + sw, -0.7); ctx.moveTo(-0.3, 0.7); ctx.lineTo(-0.3 - sw, 0.7); ctx.strokeStyle = line; ctx.lineWidth = 0.5; ctx.lineCap = 'round'; ctx.stroke(); } // his feet
     ctx.beginPath(); ctx.ellipse(-0.2, 0, 0.9, 1.6, 0, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 0.35; ctx.stroke(); // shoulders
@@ -3285,18 +3290,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     ctx.restore();
   }
-  // Over the tank, in its frame: how far each repair's got, so you can see one coming. A bar filling along the
-  // tread's outside edge, or a ring round the gun pod.
+  // Over the tank, in its frame: how far the repair's got, so you can see it coming. The new tread's outline grows
+  // from the back as they weld, with a bar filling along its outside edge.
   function drawCrewJobs(B) {
-    const jobs = {};
-    for (const e of G.enemies) if (e.crew && e.crew.st === 'weld' && e.crew.wait <= 0) jobs[e.crew.key] = Math.max(jobs[e.crew.key] || 0, e.crew.weld / CREW_WELD);
-    const a = 0.65 + 0.3 * Math.sin(G.time * 12);
-    for (const k in jobs) {
-      ctx.beginPath();
-      if (k === 'L' || k === 'R') { const x = (k === 'L' ? -1 : 1) * 15; ctx.moveTo(x, -15); ctx.lineTo(x, 15); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.3; ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, -15); ctx.lineTo(x, -15 + 30 * jobs[k]); }
-      else { const [px, py] = TANK_PODS[k]; ctx.arc(px, py, 4.6, 0, Math.PI * 2); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.3; ctx.stroke(); ctx.beginPath(); ctx.arc(px, py, 4.6, -Math.PI / 2, -Math.PI / 2 + jobs[k] * Math.PI * 2); }
-      ctx.lineWidth = 0.8; ctx.lineCap = 'round'; ctx.globalAlpha = a; ctx.stroke(); ctx.globalAlpha = 1;
-    }
+    const F = B.fix; if (!F || !G.enemies.some(e => e.crew && e.crew.st === 'weld' && e.crew.wait <= 0)) return;
+    const side = F.key === 'L' ? -1 : 1, tx = side * 10.5, x = side * 15, a = 0.65 + 0.3 * Math.sin(G.time * 12);
+    ctx.save(); ctx.setLineDash([1.2, 0.9]); ctx.beginPath(); ctx.roundRect(tx - 3.2, -15, 6.4, Math.max(1, 30 * F.k), 2); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.globalAlpha = a; ctx.stroke(); ctx.restore();
+    ctx.beginPath(); ctx.moveTo(x, -15); ctx.lineTo(x, 15); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, -15); ctx.lineTo(x, -15 + 30 * F.k); ctx.lineWidth = 0.8; ctx.lineCap = 'round'; ctx.globalAlpha = a; ctx.stroke(); ctx.globalAlpha = 1;
   }
   // A tankette (an escort): a small tank seen from above, nose toward its heading, its turret on you.
   function drawTankette(e, col) {
@@ -3412,7 +3413,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const pk = B.dug ? clamp((1 - B.digT / TANK_DIG) * 2 - 0.6, 0, 1) : 0; // the gun pods rise as it digs in
     if (pk > 0) for (const key of ['podL', 'podR']) {
       const P = B.parts[key], [px, py] = TANK_PODS[key], pc = P.flash > 0 ? COL.chalk : col;
-      ctx.save(); ctx.translate(px, py); ctx.scale(pk, pk);
+      ctx.save(); ctx.translate(px, py); ctx.scale(pk * TANK_POD_S, pk * TANK_POD_S);
       if (P.hp <= 0) { ctx.beginPath(); ctx.roundRect(-2.6, -2.6, 5.2, 5.2, 1); fill(0.2); stroke(W2, 0.8); flame(0, 0, 2, key === 'podL' ? 3 : 5); sparks(1, 1, 4); ctx.restore(); continue; }
       const [mx0, my0, aw] = tankPodMuzzle(B, key);
       ctx.rotate(aw - (B.th - Math.PI / 2) - Math.PI / 2); // along its sweep (or at you)
@@ -3423,7 +3424,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); ctx.arc(0, 0.9, 0.7, 0, Math.PI * 2); ctx.fillStyle = hot && Math.floor(t * 16) % 2 ? COL.chalk : COL.threat; ctx.fill();
       ctx.restore();
       if (P.hp < P.max * 0.5) sparks(px + 1.5, py - 1.5);
-      pips(px, py - 4.6, P.hp, P.max, 3);
+      pips(px, py - 6.6, P.hp, P.max, 3);
     }
     if (G.boss === B) drawCrewJobs(B);
     // the turret
