@@ -3237,8 +3237,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     Object.assign(B, { dug: false, open: false, digT: 0, mode: 'drive', sweep: null, burst: 0, fireT: 2, wT: 0, trickleT: TANK_TRICKLE[0] });
     for (let i = 0; i < 2; i++) ring(x, y, 2, 12 + i * 8, 0.4 + i * 0.1, i ? COL.chalk : COL.threat, 1);
     burst(x, y, 24, ECOL.warden, 40, 0.6, 0.4); sfx.clank(); sfx.boss(); shake(2.5); gridImpulse(B.x, B.y, 60, 160);
-    float(x, y - 8, 'Tread fixed!', COL.threat, 3.6);
-    G.banner = { text: 'It\'s back up!', sub: 'Break the tread again to pin it down', t: 2, max: 2, top: true };
+    G.banner = { text: 'Tread repaired!', sub: 'It\'s mobile again. Break the tread to pin it down', t: 2.4, max: 2.4, top: true };
   }
   // One crewman: out the back door, round to his spot beside the part, weld, back in. His path is in the tank's frame.
   function updateCrew(e, dt) {
