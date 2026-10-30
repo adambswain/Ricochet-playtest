@@ -513,7 +513,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them',
     9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tankettes are rolling in: something big is coming',
-    10: 'The Tank: smash its treads and kill the crews who come to fix them. Once it digs in, every hit hurts it',
+    10: 'The Tank: smash its treads. Once it digs in, every hit hurts it. Kill its repair crew or it gets back up',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
     30: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
@@ -3052,12 +3052,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.fires.push({ key, ph: rand(0, 6) });
     if (B.sweep && B.sweep.pod === key) B.sweep = null;
     tankBackup(B, 2);
-    if (tread) B.crewT = CREW_FIRST;
     if (tread && B.parts.L.hp <= 0 && B.parts.R.hp <= 0 && !B.dug) tankDigIn(B);
   }
   // Both treads gone: it slams down where it stopped and becomes a gun emplacement.
   function tankDigIn(B) {
-    Object.assign(B, { dug: true, open: true, digT: TANK_DIG, mode: 'dig', fireT: TANK_DIG + 1.4, burst: 0, sweepT: TANK_DIG + 2.2, sweep: null, trickleT: TANK_TRICKLE[1] });
+    Object.assign(B, { dug: true, open: true, digT: TANK_DIG, mode: 'dig', fireT: TANK_DIG + 1.4, burst: 0, sweepT: TANK_DIG + 2.2, sweep: null, trickleT: TANK_TRICKLE[1], crewT: CREW_FIRST, doorT: 0, fix: null });
     for (const [sx, sy] of TANK_LEGS) { const [fx, fy] = tankWorld(B, sx * 16, sy * 18); burst(fx, fy, 14, COL.dim, 30, 0.7, 0.5); ring(fx, fy, 1, 8, 0.35, ECOL.warden, 0.8); }
     for (let i = 0; i < 3; i++) ring(B.x, B.y, 4, 30 + i * 14, 0.5 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3);
     gridImpulse(B.x, B.y, Math.max(AW, AH) * 0.6, 220); shake(5); G.slowT = Math.max(G.slowT, 0.5); G.screenFlash = Math.max(G.screenFlash || 0, 0.25); sfx.boss(); sfx.overload();
@@ -3184,7 +3183,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     } else if (B.mode === 'stun') {
       B.modeT -= dt; if (B.modeT <= 0) { B.mode = 'drive'; B.ramT = TANK_RAM[B.phase - 1]; }
-    } else if (tankHalt(B)) { // stopped for its repair crew
     } else { // drive between waypoints; one tread gone, it drags round toward the dead side
       B.wT -= dt;
       if (B.wT <= 0 || Math.hypot(B.wx - B.x, B.wy - B.y) < 8) { B.wT = rand(3, 5); B.wx = rand(m + 6, AW - m - 6); B.wy = rand(m + 6, AH * 0.62); }
@@ -3202,26 +3200,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.bullets.push({ x: mx, y: my, vx: Math.cos(B.aim) * TANK_SHELL, vy: Math.sin(B.aim) * TANK_SHELL, r: 2.2, shell: true });
     B.recoil = 1; burst(mx, my, 10, COL.threat, 35, 0.4, 0.3); shake(1.2); sfx.blaster();
   }
-  // The repair crew. When a tread's destroyed (before it digs in), the tank stops, its back door blinks (CREW_DOOR) and
-  // a crew of two (three in later loops) climb out, walk round to the wreck and weld it back together (CREW_FIX with
-  // the whole crew; slower if you've killed some). If they finish, the tread's back on at half health (and on the
-  // bar). Kill them first, or break the other tread so it digs in, and they go back in. Killed, another crew comes
-  // CREW_GAP later. They ride along with the tank, die to one hit (counting toward chains), and your ship squashes
-  // them. Their state is in the tank's own frame.
-  const CREW_GAP = 10, CREW_FIRST = 1.5, CREW_DOOR = 0.9, CREW_FIX = 6, CREW_BACK_HP = 0.5, CREW_WALK = 12, CREW_R = 3, CREW_OUT = 18.5, CREW_BACK = -16.5;
+  // The repair crew. Once it's dug in (both treads gone), its back door blinks (CREW_DOOR) and a crew of two (three
+  // in later loops) climb out, walk round to a wrecked tread and weld it back together (CREW_FIX with the whole crew;
+  // slower if you've killed some). If they finish, it gets back up: the tread's on at half health (and on the bar),
+  // its legs come up, the hatch shuts over the reactor and it limps off; break that tread again and it digs straight
+  // back in (the damage to its reactor stays). Kill them and another crew comes CREW_GAP later. They ride along with
+  // the tank, die to one hit (counting toward chains), and your ship squashes them. Their state is in its own frame.
+  const CREW_GAP = 10, CREW_FIRST = 2.5, CREW_DOOR = 0.9, CREW_FIX = 6, CREW_BACK_HP = 0.5, CREW_WALK = 12, CREW_R = 3, CREW_OUT = 18.5, CREW_BACK = -16.5;
   const tankCrew = () => G.enemies.filter(e => e.crew);
-  const tankHalt = B => B.doorT > 0 || G.enemies.some(e => e.crew && e.crew.st !== 'back'); // it waits for its crew
-  const tankCrewJob = B => B.dug ? null : ['L', 'R'].find(k => B.parts[k].hp <= 0) || null; // a wrecked tread
   function tankCrewCall(B, dt) {
-    if (B.dug) { B.doorT = 0; return; } // dug in: nobody comes out
+    if (!B.dug || B.digT > 0) { B.doorT = 0; return; } // only once it's dug in
     if (B.doorT > 0) { B.doorT -= dt; if (B.doorT <= 0) tankCrewOut(B); return; }
-    if (!tankCrewJob(B) || tankCrew().length) return;
+    if (tankCrew().length) return;
     B.crewT -= dt;
     if (B.crewT <= 0) { B.doorT = CREW_DOOR; B.crewT = CREW_GAP; sfx.field(); }
   }
   function tankCrewOut(B) {
-    const key = tankCrewJob(B); if (!key) return;
-    const side = key === 'L' ? -1 : 1, n = 2 + (B.cycle > 0 ? 1 : 0);
+    const key = Math.random() < 0.5 ? 'L' : 'R', side = key === 'L' ? -1 : 1, n = 2 + (B.cycle > 0 ? 1 : 0);
     B.fix = { key, k: 0, n };
     for (let i = 0; i < n; i++) {
       const [x, y] = tankWorld(B, 0, CREW_BACK), e = makeEnemy('drifter', x, y);
@@ -3232,22 +3227,25 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     const [dx, dy] = tankWorld(B, 0, CREW_BACK - 4);
     burst(dx, dy, 8, ECOL.warden, 20, 0.5, 0.3); float(dx, dy - 4, 'Repair crew!', COL.threat, 3.2);
-    if (!G.crewTold) { G.crewTold = true; G.banner = { text: 'Repair crew!', sub: 'Kill them or they\'ll fix the tread', t: 2, max: 2, top: true }; }
+    if (!G.crewTold) { G.crewTold = true; G.banner = { text: 'Repair crew!', sub: 'Kill them or it gets back up', t: 2, max: 2, top: true }; }
   }
-  // The crew finish: the tread's back on at half health.
+  // The crew finish: the tread's back on at half health, and it gets back up.
   function tankFixed(B, key) {
     const P = B.parts[key], hp = Math.ceil(P.max * CREW_BACK_HP), [x, y] = tankPartAt(B, key);
     P.hp = hp; P.flash = 0.3; B.hp = Math.min(B.maxHp, B.hp + hp); B.fires = B.fires.filter(f => f.key !== key); B.fix = null;
+    for (const [sx, sy] of TANK_LEGS) { const [fx, fy] = tankWorld(B, sx * 16, sy * 18); burst(fx, fy, 10, COL.dim, 25, 0.6, 0.4); } // its legs come up
+    Object.assign(B, { dug: false, open: false, digT: 0, mode: 'drive', sweep: null, burst: 0, fireT: 2, wT: 0, trickleT: TANK_TRICKLE[0] });
     for (let i = 0; i < 2; i++) ring(x, y, 2, 12 + i * 8, 0.4 + i * 0.1, i ? COL.chalk : COL.threat, 1);
-    burst(x, y, 24, ECOL.warden, 40, 0.6, 0.4); sfx.clank(); sfx.field(); shake(1.5);
+    burst(x, y, 24, ECOL.warden, 40, 0.6, 0.4); sfx.clank(); sfx.boss(); shake(2.5); gridImpulse(B.x, B.y, 60, 160);
     float(x, y - 8, 'Tread fixed!', COL.threat, 3.6);
+    G.banner = { text: 'It\'s back up!', sub: 'Break the tread again to pin it down', t: 2, max: 2, top: true };
   }
   // One crewman: out the back door, round to his spot beside the part, weld, back in. His path is in the tank's frame.
   function updateCrew(e, dt) {
     const B = G.boss, C = e.crew;
     if (!B || B.kind !== 'tank') return; // the tank's gone: he stands there till it blows
     const home = () => { C.st = 'back'; C.path = C.ly > CREW_BACK + 0.01 ? [[C.side * CREW_OUT, CREW_BACK], [0, CREW_BACK]] : [[0, CREW_BACK]]; };
-    if (C.st !== 'back' && (B.dug || B.parts[C.key].hp > 0)) home(); // it dug in, or the job's done: back in
+    if (C.st !== 'back' && (!B.dug || B.parts[C.key].hp > 0)) home(); // the job's done: back in
     if (C.wait > 0) C.wait -= dt;
     else if (C.st === 'weld') {
       C.face = Math.atan2(0, -C.side); // facing the tread
