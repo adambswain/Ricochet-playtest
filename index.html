@@ -513,7 +513,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them. Fuel drums: hit one to blow up everything near it',
     9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tanks are rolling in: something big is coming',
-    10: 'Clanktank: smash its treads. Once it digs in, every hit hurts it. Kill its repair crew or it gets back up',
+    10: 'Clanktank: smash its treads to immobilize it, then every hit hurts it. Don\'t let the repair crew get it moving again',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
     30: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
@@ -7621,7 +7621,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const top = G.banner.top || G.banner.low, by = G.banner.low ? AH * 0.68 : top ? Math.min(16, AH * 0.12) : AH / 2, big = top ? Math.min(7, AW / 12) : Math.min(12, AW / 7);
       ctx.fillStyle = COL.chalk; ctx.font = `700 ${big}px ${FONT}`;
       ctx.fillText(G.banner.text.toUpperCase(), AW / 2, by);
-      if (G.banner.sub) { ctx.fillStyle = COL.dim; ctx.font = `500 ${Math.min(3.6, AW / 26)}px ${FONT}`; ctx.fillText(G.banner.sub, AW / 2, by + big * 0.85); }
+      if (G.banner.sub) { // wrapped to the arena: a long intro breaks onto more lines rather than running off the sides
+        const fs = Math.min(3.6, AW / 26), maxW = AW * 0.88, lines = [];
+        ctx.fillStyle = COL.dim; ctx.font = `500 ${fs}px ${FONT}`;
+        for (const word of G.banner.sub.split(' ')) { const L = lines.length ? lines[lines.length - 1] + ' ' + word : word; if (lines.length && ctx.measureText(L).width <= maxW) lines[lines.length - 1] = L; else lines.push(word); }
+        lines.forEach((L, i) => ctx.fillText(L, AW / 2, by + big * 0.85 + i * fs * 1.3));
+      }
       ctx.globalAlpha = 1;
     }
 
