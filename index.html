@@ -511,7 +511,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     5: 'Pinball! No overloads here: rattle the bumpers, and drop all four targets for the jackpot',
     6: 'Turrets fire slow shots. Your ball destroys them',
     7: 'Swarms: small and fast. Chain them for a big multiplier',
-    8: 'Magnets pull your ball toward them',
+    8: 'Magnets pull your ball toward them. Fuel drums: hit one to blow up everything near it',
     9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tankettes are rolling in: something big is coming',
     10: 'The Tank: smash its treads. Once it digs in, every hit hurts it. Kill its repair crew or it gets back up',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
@@ -3499,6 +3499,86 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     ctx.restore();
   }
+  /* ---------- fuel drums ---------- */
+  // Waves 8 and 9, ahead of the Tank: fuel drums stand about in clusters (DRUM_CLUSTERS[wave]). The ball bounces off
+  // one and sets it off: it wrecks every enemy within DRUM_BLAST (counting toward your chain) and sets off the drums
+  // near it a moment later (DRUM_FUSE), so a cluster goes up in a chain. While the wave's on, a used-up cluster is
+  // replaced DRUM_RESTOCK later. They never hurt you, and don't hold up the wave. (The Tank carries two on its back.)
+  const DRUM_R = 3.2, DRUM_BLAST = 20, DRUM_FUSE = 0.14, DRUM_RESTOCK = 6, DRUM_CLUSTERS = { 8: 2, 9: 3 };
+  function drumSpot(r, avoid) { // somewhere clear: off the walls, the obstacles, you and the other drums
+    for (let k = 0; k < 60; k++) {
+      const x = rand(14, AW - 14), y = rand(14, AH - 14), p = G.player;
+      if (Math.hypot(x - p.x, y - p.y) < 30) continue;
+      if (G.obstacles.some(o => !o.dying && hitObs(x, y, r, o))) continue;
+      if (G.drums.some(d => !d.gone && Math.hypot(d.x - x, d.y - y) < avoid)) continue;
+      return [x, y];
+    }
+    return null;
+  }
+  function dropDrums() { // a cluster of two or three, close enough to set each other off
+    const c = drumSpot(12, 34); if (!c) return;
+    const id = (G.drumId = (G.drumId || 0) + 1), n = Math.random() < 0.5 ? 2 : 3, a0 = rand(0, Math.PI * 2);
+    for (let i = 0; i < n; i++) {
+      const a = a0 + i * Math.PI * 2 / n, x = clamp(c[0] + Math.cos(a) * (n === 2 ? 4.5 : 5.5), 8, AW - 8), y = clamp(c[1] + Math.sin(a) * (n === 2 ? 4.5 : 5.5), 8, AH - 8);
+      G.drums.push({ x, y, cl: id, t: -i * 0.12, fuse: 0, src: null, b: 0, gone: false, fade: 1 });
+      burst(x, y, 6, COL.lilac, 20, 0.6, 0.3);
+    }
+  }
+  function updateDrums(dt) {
+    const W = G.drumWave;
+    if (W) {
+      if (W.first) { W.first = false; for (let i = 0; i < W.n; i++) dropDrums(); }
+      const live = new Set(G.drums.filter(d => !d.gone).map(d => d.cl)).size;
+      if (live < W.n) { W.t -= dt; if (W.t <= 0) { W.t = DRUM_RESTOCK; dropDrums(); } } else W.t = DRUM_RESTOCK;
+    }
+    for (let i = G.drums.length - 1; i >= 0; i--) {
+      const d = G.drums[i]; d.t += dt;
+      if (d.gone) { d.fade -= dt * 2.5; if (d.fade <= 0) G.drums.splice(i, 1); continue; }
+      if (d.fuse > 0) { d.fuse -= dt; if (d.fuse <= 0) drumBlow(d, d.src, d.b); }
+    }
+  }
+  function drumBlow(d, src, b) {
+    d.gone = true; d.fade = 0; d.fuse = 0;
+    const fire = heat(MAX_CHARGE * 0.75), x = d.x, y = d.y;
+    for (let k = 0; k < 3; k++) ring(x, y, 1, DRUM_BLAST * (0.6 + k * 0.3), 0.35 + k * 0.1, k % 2 ? COL.chalk : fire, 1.2);
+    burst(x, y, 36, fire, 60, 0.8, 0.5); burst(x, y, 12, COL.chalk, 40, 0.5, 0.4); gridImpulse(x, y, DRUM_BLAST * 2, 140);
+    shake(2.5); G.freeze = Math.max(G.freeze, 0.04); sfx.overload();
+    G.score += Math.round(60 * (1 + b) * G.mult);
+    if (src) chainCredit(src, x, y, b);
+    for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (!isStone(e) && Math.hypot(e.x - x, e.y - y) < DRUM_BLAST + e.r) kill(j, b, 0, src || G.balls[0]); }
+    for (const o of G.drums) if (!o.gone && !(o.fuse > 0) && Math.hypot(o.x - x, o.y - y) < DRUM_BLAST) { o.fuse = DRUM_FUSE; o.src = src; o.b = b; } // the ones nearby go up next
+  }
+  // The ball against the drums: it bounces off and sets one off. True if it hit one.
+  function drumHit(o, r, b) {
+    for (const d of G.drums) {
+      if (d.gone || d.t < 0.2) continue;
+      const dx = o.x - d.x, dy = o.y - d.y, dd = Math.hypot(dx, dy);
+      if (dd >= DRUM_R + r || dd < 1e-6) continue;
+      const nx = dx / dd, ny = dy / dd; o.x = d.x + nx * (DRUM_R + r + 0.05); o.y = d.y + ny * (DRUM_R + r + 0.05);
+      const dot = o.vx * nx + o.vy * ny; if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
+      drumBlow(d, o, b);
+      return true;
+    }
+    return false;
+  }
+  // A drum from above, like the ones on the Tank's back: a hazard band round it and a glowing cap. About to go, it flashes.
+  function drawDrums() {
+    const H3 = hex(COL.hull), fire = heat(MAX_CHARGE * 0.75); // orange: it's the blast's colour, not the enemies' pink
+    for (const d of G.drums) {
+      if (d.gone) continue;
+      const s = clamp(d.t / 0.25, 0, 1), hot = d.fuse > 0 && Math.floor(G.time * 30) % 2;
+      if (s <= 0) continue;
+      ctx.save(); ctx.translate(d.x, d.y); ctx.scale(s, s);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.18 + 0.1 * Math.sin(G.time * 4 + d.cl); ctx.fillStyle = fire; ctx.beginPath(); ctx.arc(0, 0, DRUM_R * 1.9, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      ctx.beginPath(); ctx.arc(0, 0, DRUM_R, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill();
+      ctx.strokeStyle = hot ? COL.chalk : ECOL.warden; ctx.lineWidth = 0.55; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, DRUM_R * 0.62, 0, Math.PI * 2); ctx.strokeStyle = fire; ctx.lineWidth = 0.4; ctx.stroke();
+      ctx.beginPath(); for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.4; ctx.moveTo(Math.cos(a) * DRUM_R * 0.66, Math.sin(a) * DRUM_R * 0.66); ctx.lineTo(Math.cos(a) * DRUM_R * 0.92, Math.sin(a) * DRUM_R * 0.92); } ctx.strokeStyle = fire; ctx.lineWidth = 0.35; ctx.stroke(); // hazard ticks
+      ctx.beginPath(); ctx.arc(0, 0, DRUM_R * 0.2, 0, Math.PI * 2); ctx.fillStyle = hot ? COL.chalk : fire; ctx.fill();
+      ctx.restore();
+    }
+  }
+
   /* ---------- the Geode ---------- */
   // Wave 30. A big alien, in a loop of four states:
   //  - shell: he sits in the middle of the arena in a shell of crystals while enemies stream in. Crystals can't hurt you
@@ -5158,7 +5238,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       attract, score: 0, mult: 1, wave: 0, between: null, spawnQueue: [], spawnTimer: 0,
       player: { x: AW / 2, y: AH * 0.6, hull: 3, inv: 0, fx: 0, fy: -1, shield: 0, mvx: 0, mvy: 0 },
       balls: [Object.assign(makeBall(), { x: AW / 2, y: AH * 0.6 })],
-      enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [],
+      enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null,
       shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, lucky: null, table: null, siege: null, asteroidWave: ASTEROID_WAVES[Math.floor(Math.random() * ASTEROID_WAVES.length)], inv: null, result: null, boss: null, bombs: [],
       pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [],
       arenaTarget: ARENA_START, layoutPending: null, lastLayout: null,
@@ -5310,6 +5390,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const bees = inLoop(n) >= 36 && inLoop(n) <= 39; // the Hive's scouts are out in the waves before it: bee swarms in place of the usual ones, and more of them
       add(bees ? 'bees' : 'swarm', swarms + (bees ? 1 + (inLoop(n) >= 38 ? 1 : 0) : 0));
       if (inLoop(n) === 8 || inLoop(n) === 9) add('tankette', inLoop(n) === 8 ? 2 : 3); // the Tank's scouts roll in ahead of it
+      if (DRUM_CLUSTERS[inLoop(n)]) G.drumWave = { n: DRUM_CLUSTERS[inLoop(n)], t: DRUM_RESTOCK, first: true }; // and its fuel drums stand about
       shuffle();
       if (wall) q.splice(Math.floor(q.length / 2), 0, 'wall');
       if (warden) q.unshift('warden'); // miniboss arrives last, after its escorts
@@ -5541,6 +5622,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.between = G.wave === 0 ? 0.9 : 1.8; // waves with something to read wait long enough to read it (set with the banner below)
         G.arenaTarget = arenaFor(next);
         crumbleBricks(); crumbleSiege(); finishInvaders();
+        G.drumWave = null; for (const d of G.drums) d.gone = true; // the fuel drums fade away
         if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
         if (G.wave > 0 && !G.skipBonus) {
           const bonus = 100 * G.wave;
@@ -6100,6 +6182,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (G.lucky && luckyHit(x, r)) bounced = true;
         if (G.bombs.length) ballBombs(x, r, x.b);
         if (G.boss && ballBoss(x, r, x.b) === 'bounce') bounced = true;
+        if (G.drums.length && drumHit(x, r, x.b)) bounced = true;
         if (bounced) {
           x.b = Math.min(MAX_CHARGE, x.b + 1);
           const sp = ballSpeed(x.b), l = Math.hypot(x.vx, x.vy) || 1;
@@ -6267,6 +6350,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (G.lucky && luckyHit(ball, r)) { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.bombs.length) ballBombs(ball, r, ball.b);
       if (G.boss && ballBoss(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
+      if (G.drums.length && drumHit(ball, r, ball.b)) { chargeBounce(ball); if (ball.state !== 'live') break; }
 
       for (let i = G.pickups.length - 1; i >= 0; i--) {
         const pk = G.pickups[i];
@@ -6580,7 +6664,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.inv) updateInvaders(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
-    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt);
+    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt); updateDrums(dt);
     updateBullets(dt * ws);
     updateWaves(dt);
     if (scoreK(G.wave) > 1) G.score += Math.round((scoreK(G.wave) - 1) * (G.score - score0)); // later loops: every point counts more
@@ -7052,6 +7136,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     ctx.globalAlpha = 1;
 
+    if (G.drums.length) drawDrums();
     // enemies, clipped to the arena
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
     ctx.lineJoin = 'round';
@@ -7895,12 +7980,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
                : B.kind === 'hive' ? Array.isArray(B.cells) && typeof B.st === 'string' && Number.isFinite(B.comb0)
                : B.kind === 'geode' ? Array.isArray(B.links) && Array.isArray(B.slots) && Array.isArray(B.fly) && typeof B.st === 'string'
                : B.kind === 'serpent' ? Array.isArray(B.segs) && B.segs.length === SERP_N && B.next && Array.isArray(B.next.n)
-               : B.kind === 'tank' ? !!B.parts && Array.isArray(B.tiles) && Array.isArray(B.drums) && Number.isFinite(B.th)
+               : B.kind === 'tank' ? !!B.parts && Array.isArray(B.tiles) && Array.isArray(B.drums) && Number.isFinite(B.th) && Number.isFinite(B.crewT)
                : B.kind === 'core' && B.r === CORE_R && typeof B.mode === 'string';
       if (!ok) setupBoss(['core', 'tank', 'maw', 'serpent', 'geode', 'hive'].includes(B.kind) ? B.kind : 'tank', B.cycle || 0);
     }
     G.bombs = (G.bombs || []).filter(bm => Number.isFinite(bm.vx) && Number.isFinite(bm.vy));
     G.ghosts = G.ghosts || [];
+    G.drums = G.drums || []; G.drumWave = G.drumWave || null; // saved before the fuel drums
     if (G.siege && !Array.isArray(G.siege.cols)) G.siege = null; // saved with the old walls
     if (G.ball) { G.balls = [G.ball]; delete G.ball; } // saved before extra balls: its one ball carries over
     if (G.player.hull > (G.hullMax || HULL_MAX)) G.player.hull = G.hullMax || HULL_MAX; // saved when the cap was 5
