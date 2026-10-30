@@ -512,7 +512,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     6: 'Turrets fire slow shots. Your ball destroys them',
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them. Fuel drums: hit one to blow up everything near it',
-    9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tankettes are rolling in: something big is coming',
+    9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tanks are rolling in: something big is coming',
     10: 'Clanktank: smash its treads. Once it digs in, every hit hurts it. Kill its repair crew or it gets back up',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
@@ -539,6 +539,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     : n > LOOP_LEN && !setPiece(n) && !bossFor(n) ? '' // later loops don't re-introduce enemies
     : INTRO[inLoop(n)] || (setPiece(n) ? SET_NAMES[setPiece(n)] : bossFor(n) ? BOSS_NAMES[bossFor(n)] : '');
 
+  // A tank's armour counts hits, not how hard: every hit takes one plate, whatever the ball's charge (like the armour
+  // tiles on Clanktank). Its plates show as pips under it, and a hit that doesn't finish it clanks.
+  const TANK_ARMOUR = 3;
+  const hitFor = (e, dmg) => e.tankette ? 1 : dmg;
+  function armourClank(e) { sfx.clank(); burst(e.x, e.y, 6, ECOL.warden, 28, 0.45, 0.3); ring(e.x, e.y, e.r * 0.8, e.r + 2.5, 0.18, COL.chalk, 0.5); }
   const ENEMY = {
     drifter:  { r: 2.6, hp: 1, spd: 13,  pts: 10 },
     brute:    { r: 4.4, hp: 6, spd: 7.5, pts: 60 },
@@ -547,7 +552,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     mini:     { r: 1.9, hp: 1, spd: 17,  pts: 5 },
     turret:   { r: 4.6, hp: 4, spd: 0,   pts: 40 },
     magnet:   { r: 3.2, hp: 5, spd: 9,   pts: 50 },
-    tankette: { r: 3.2, hp: 2, spd: 10,  pts: 30 }, // spawned as a drifter that looks and takes hits like a little tank
+    tankette: { r: 3.8, hp: TANK_ARMOUR, spd: 10, pts: 60 }, // a tank: spawned as a drifter that looks like a little tank and takes TANK_ARMOUR hits
     swarm:    { r: 1.4, hp: 1, spd: 21,  pts: 8 },
     bulwark:  { r: 3.0, hp: 3, spd: 8,   pts: 35 },
     blinker:  { r: 2.4, hp: 2, spd: 11,  pts: 30 },
@@ -1608,7 +1613,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let k = G.enemies.length - 1; k >= 0; k--) {
       const e = G.enemies[k];
       if (Math.hypot(e.x - bm.x, e.y - bm.y) >= rad + e.r || isImmune(e)) continue;
-      if (e.hp <= dmg) kill(k, b); else { e.hp -= dmg; e.flash = 0.1; }
+      if (e.hp <= hitFor(e, dmg)) kill(k, b); else { e.hp -= hitFor(e, dmg); e.flash = 0.1; }
     }
     if (G.boss && G.boss.kind === 'core') damageBoss(dmg, bm.x, bm.y);
   }
@@ -2999,7 +3004,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The bar is the treads and the reactor (TANK_TREAD × 2 ≈ a fifth of it): the pods are optional.
   const TANK_S = 1.45, TANK_TREAD = 14, TANK_REACTOR = 110, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 1.1, TANK_LIMP = 0.45;
   const TANK_FIRE = [3.9, 3.3, 2.8], TANK_BURST = [4, 3.5, 3], TANK_AIM = 0.9, TANK_SHELL = 40, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
-  const TANK_RAM = [9, 7.5, 6], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 4, TANK_TRICKLE = [10, 7];
+  const TANK_RAM = [9, 7.5, 6], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 3, TANK_TRICKLE = [10, 7];
   const TANK_SWEEP = [5.6, 4.8, 4], TANK_SIGHT = 1.1, TANK_SPRAY = 1, TANK_ARC = 0.95, TANK_MG = 40, TANK_MG_GAP = 0.13;
   // its parts, in its own units before TANK_S: x across (the left tread at -x), y forward (the way it drives)
   const TANK_TILES = [-6, -2, 2, 6].map(x => ({ x0: x - 1.8, x1: x + 1.8, y0: 12.2, y1: 14.8 }));
@@ -5600,7 +5605,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           G.enemies.push(makeRock(3, t.x, t.y, Math.atan2(AH / 2 - t.y, AW / 2 - t.x) + rand(-0.6, 0.6), rand(7, 11)));
         } else {
           const e = makeEnemy(t.type === 'tankette' ? 'drifter' : t.type, t.x, t.y);
-          if (t.type === 'tankette') { const d = ENEMY.tankette, hp = Math.max(d.hp, Math.round(d.hp * hpScale(G.wave))); Object.assign(e, { tankette: true, r: d.r, hp, maxHp: hp, pts: d.pts, spd: e.spd * d.spd / ENEMY.drifter.spd }); }
+          if (t.type === 'tankette') { const d = ENEMY.tankette, hp = d.hp; /* its armour doesn't scale: it's hits, not damage */ Object.assign(e, { tankette: true, r: d.r, hp, maxHp: hp, pts: d.pts, spd: e.spd * d.spd / ENEMY.drifter.spd }); }
           if (t.side !== undefined) { e.side = t.side; e.wt = t.wt; }
           if (t.march) e.march = t.march;
           if (G.crush && e.type !== 'turret') pushOut(e, e.r);
@@ -5923,8 +5928,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const e = G.enemies[i];
       if (isStone(e) || Math.hypot(e.x - p.x, e.y - p.y) >= rad + e.r) continue;
       if (isImmune(e)) { if (e.wl > 0) popShield(e); continue; }
-      if (e.hp <= dmg) kill(i, b, 0, ball);
-      else { e.hp -= dmg; e.flash = 0.12; e.hitCd = 0.12; }
+      if (e.hp <= hitFor(e, dmg)) kill(i, b, 0, ball);
+      else { e.hp -= hitFor(e, dmg); e.flash = 0.12; e.hitCd = 0.12; }
     }
     for (let i = G.bullets.length - 1; i >= 0; i--) if (Math.hypot(G.bullets[i].x - p.x, G.bullets[i].y - p.y) < rad) G.bullets.splice(i, 1);
     blastBoss(p.x, p.y, rad, dmg);
@@ -6105,7 +6110,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (let i = G.enemies.length - 1; i >= 0; i--) {
         const e = G.enemies[i];
         if (Math.hypot(e.x - q.x, e.y - q.y) >= rad + e.r || isImmune(e)) continue;
-        if (e.hp <= dmg) kill(i, q.b); else { e.hp -= dmg; e.flash = 0.1; }
+        if (e.hp <= hitFor(e, dmg)) kill(i, q.b); else { e.hp -= hitFor(e, dmg); e.flash = 0.1; }
       }
       blastBoss(q.x, q.y, rad, dmg);
     }
@@ -6122,7 +6127,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const e = G.enemies[best], dmg = 1 + q.b;
       G.bolts.push({ x0: q.x, y0: q.y, x1: e.x, y1: e.y, t: 0, max: 0.18 });
       sfx.zap(e.x);
-      if (e.hp <= dmg) kill(best, q.b, q.depth); else { e.hp -= dmg; e.flash = 0.1; }
+      if (e.hp <= hitFor(e, dmg)) kill(best, q.b, q.depth); else { e.hp -= hitFor(e, dmg); e.flash = 0.1; }
     }
     G.boltQueue.length = 0;
   }
@@ -6205,8 +6210,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           if (d >= r + e.r) continue;
           const dmg = 1 + x.b, shielded = isImmune(e);
           if (!shielded) queueShock(e.x, e.y, x.b);
-          if (!shielded && e.hp <= dmg) { kill(i, x.b); continue; }
-          if (!shielded) { e.hp -= dmg; e.flash = 0.1; } else if (e.wl > 0) popShield(e);
+          if (!shielded && e.hp <= hitFor(e, dmg)) { kill(i, x.b); continue; }
+          if (!shielded) { e.hp -= hitFor(e, dmg); e.flash = 0.1; if (e.tankette) armourClank(e); } else if (e.wl > 0) popShield(e);
           e.hitCd = 0.12;
           const nx = d > 0 ? dx / d : 1, ny = d > 0 ? dy / d : 0, dot = x.vx * nx + x.vy * ny;
           if (dot < 0) { x.vx -= 2 * dot * nx; x.vy -= 2 * dot * ny; }
@@ -6391,12 +6396,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const dmg = 1 + ball.b, shielded = isImmune(e);
         if (!shielded) queueShock(e.x, e.y, ball.b);
         const rock = e.type === 'rock';
-        if (!shielded && e.hp <= dmg) {
+        if (!shielded && e.hp <= hitFor(e, dmg)) {
           kill(i, undefined, 0, ball);
           if (rock) { chargeBounce(ball); if (ball.state !== 'live') break; }
           continue;
         }
-        if (!shielded) { e.hp -= dmg; e.flash = 0.1; }
+        if (!shielded) { e.hp -= hitFor(e, dmg); e.flash = 0.1; if (e.tankette) armourClank(e); }
         e.hitCd = 0.12;
         const nx = d > 0 ? dx / d : 1, ny = d > 0 ? dy / d : 0;
         const dot = ball.vx * nx + ball.vy * ny;
@@ -7185,9 +7190,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const s = e.r * 1.25; ctx.strokeStyle = ECOL.monolith; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.75; ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.globalAlpha = 1;
       }
       if (e.crew) { drawCrew(e); ctx.restore(); continue; }
-      if (e.tankette) { // a little tank, its health in the middle like everyone else's
+      if (e.tankette) { // a tank, its armour plates as pips under it
         drawTankette(e, stroke);
-        if (e.hp > 1 && !VEC) { ctx.font = `700 ${e.r * 0.8}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = pierce ? heat(liveB) : COL.chalk; ctx.fillText(e.hp, 0, e.r * 0.05); }
+        for (let k = 0; k < e.maxHp; k++) { const on = k < e.hp, px = (k - (e.maxHp - 1) / 2) * 1.7; ctx.beginPath(); ctx.arc(px, e.r + 1.7, 0.6, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.2; ctx.stroke(); } // its armour plates left
         ctx.restore(); continue;
       }
       if (e.fromMaw) { // a Carrier fighter: its engine roars and it flickers white as it winds up to dash
