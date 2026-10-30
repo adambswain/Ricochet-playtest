@@ -513,7 +513,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them',
     9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tankettes are rolling in: something big is coming',
-    10: 'The Tank: smash its treads. Once it digs in, hit the reactor on its back. Its fuel drums explode',
+    10: 'The Tank: smash its treads. Once it digs in, hit the reactor on its back. Kill its repair crews. Its fuel drums explode',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
     30: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
@@ -3014,7 +3014,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       parts: { L: { hp: tr, max: tr, flash: 0 }, R: { hp: tr, max: tr, flash: 0 }, podL: { hp: pd, max: pd, flash: 0 }, podR: { hp: pd, max: pd, flash: 0 } },
       tiles: TANK_TILES.map(() => true), drums: TANK_DRUMS.map(() => true), open: false, dug: false, digT: 0, hp: tr * 2 + re,
       mode: 'drive', modeT: 0, ramT: TANK_RAM[0], fireT: 2.6, burst: 0, burstT: 0, sweepT: 2.5, sweep: null, nextPod: 'podL',
-      wx: AW / 2, wy: AH * 0.35, wT: 0, hitCd: 0, trickleT: TANK_TRICKLE[0], recoil: 0, tread: 0, fires: [] });
+      wx: AW / 2, wy: AH * 0.35, wT: 0, hitCd: 0, trickleT: TANK_TRICKLE[0], recoil: 0, tread: 0, fires: [], crewT: 4, doorT: 0, patch: {} });
   }
   // between the arena and the tank's own frame
   const tankFrame = B => { const f = B.th - Math.PI / 2; return [Math.cos(f), Math.sin(f)]; };
@@ -3128,6 +3128,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const k in B.parts) B.parts[k].flash -= dt;
     const da = wrapA(Math.atan2(p.y - B.y, p.x - B.x) - B.aim); B.aim += clamp(da, -(B.dug ? 2.4 : 1.5) * dt, (B.dug ? 2.4 : 1.5) * dt); // the turret tracks you
     if (p.inv <= 0) { const [lx, ly] = tankLocal(B, p.x, p.y); if (hitRect(lx, ly, PLAYER_R * 0.8 / TANK_S, TANK_BOX)) damagePlayer(); }
+    tankCrewCall(B, dt);
     if (B.dug) { // the gun emplacement
       if (B.digT > 0) { B.digT -= dt; return; }
       B.fireT -= dt; // the cannon: a 3-shell burst, telegraphed
@@ -3190,6 +3191,109 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const [mx, my] = tankMuzzle(B);
     G.bullets.push({ x: mx, y: my, vx: Math.cos(B.aim) * TANK_SHELL, vy: Math.sin(B.aim) * TANK_SHELL, r: 2.2, shell: true });
     B.recoil = 1; burst(mx, my, 10, COL.threat, 35, 0.4, 0.3); shake(1.2); sfx.blaster();
+  }
+  // The repair crew. Every CREW_GAP, if a working part is damaged, the back door blinks (CREW_DOOR) and a crew of
+  // CREW_N climb out, walk round to it and weld (CREW_WELD), each welder patching CREW_RATE of its health a second
+  // (a tread's patch goes back on the bar), then walk back in. Broken is broken: they never bring back a part you've
+  // knocked off, and never touch the reactor (in phase two they mend the gun pods). They ride along with the tank, die
+  // to one hit (counting toward chains), and your ship squashes them. Their state is in the tank's own frame.
+  const CREW_GAP = 12, CREW_DOOR = 0.9, CREW_WELD = 4, CREW_RATE = 0.6, CREW_WALK = 12, CREW_R = 3, CREW_OUT = 18.5, CREW_BACK = -16.5;
+  const tankCrew = () => G.enemies.filter(e => e.crew);
+  function tankCrewCall(B, dt) {
+    if (B.digT > 0) { B.crewT = Math.max(B.crewT, 4); B.doorT = 0; return; } // nobody comes out while it's digging in
+    if (B.doorT > 0) { B.doorT -= dt; if (B.doorT <= 0) tankCrewOut(B); return; }
+    B.crewT -= dt;
+    if (B.crewT > 0 || tankCrew().length) return;
+    if (!tankCrewJob(B)) return; // nothing to mend yet: they come as soon as there is
+    B.doorT = CREW_DOOR; B.crewT = CREW_GAP; sfx.field();
+  }
+  // The most damaged part they're allowed to mend: a tread before it digs in, a gun pod after.
+  function tankCrewJob(B) {
+    const keys = B.dug ? ['podL', 'podR'] : ['L', 'R'];
+    let best = null;
+    for (const k of keys) { const P = B.parts[k]; if (P.hp > 0 && P.hp < P.max && (!best || P.hp / P.max < B.parts[best].hp / B.parts[best].max)) best = k; }
+    return best;
+  }
+  function tankCrewOut(B) {
+    const key = tankCrewJob(B); if (!key) return;
+    const side = key === 'L' || key === 'podL' ? -1 : 1, n = 2 + (B.phase === 3 ? 1 : 0), cy = key === 'L' || key === 'R' ? 0 : TANK_PODS[key][1];
+    for (let i = 0; i < n; i++) {
+      const [x, y] = tankWorld(B, 0, CREW_BACK), e = makeEnemy('drifter', x, y);
+      Object.assign(e, { r: CREW_R, hp: 1, maxHp: 1, pts: 40, spawnT: 0.25,
+        crew: { key, side, st: 'out', lx: 0, ly: CREW_BACK, wait: i * 0.3, weld: 0, face: 0, step: 0,
+          path: [[side * CREW_OUT, CREW_BACK], [side * CREW_OUT, cy + (i - (n - 1) / 2) * (cy ? 4 : 5)]] } });
+      G.enemies.push(e);
+    }
+    const [dx, dy] = tankWorld(B, 0, CREW_BACK - 4);
+    burst(dx, dy, 8, ECOL.warden, 20, 0.5, 0.3); float(dx, dy - 4, 'Repair crew!', COL.threat, 3.2);
+    if (!G.crewTold) { G.crewTold = true; G.banner = { text: 'Repair crew!', sub: 'Kill them before they patch it up', t: 1.8, max: 1.8, top: true }; }
+  }
+  // One crewman: out the back door, round to his spot beside the part, weld, back in. His path is in the tank's frame.
+  function updateCrew(e, dt) {
+    const B = G.boss, C = e.crew;
+    if (!B || B.kind !== 'tank') return; // the tank's gone: he stands there till it blows
+    const P = B.parts[C.key], home = () => { C.st = 'back'; C.path = C.ly > CREW_BACK + 0.01 ? [[C.side * CREW_OUT, CREW_BACK], [0, CREW_BACK]] : [[0, CREW_BACK]]; };
+    if (C.st === 'weld' && (P.hp <= 0 || P.hp >= P.max || B.digT > 0)) home(); // broken, or done: back in
+    if (C.st === 'out' && (P.hp <= 0 || B.digT > 0)) home();
+    if (C.wait > 0) C.wait -= dt;
+    else if (C.st === 'weld') {
+      C.weld += dt; C.face = Math.atan2(0, -C.side); // facing the part
+      B.patch[C.key] = (B.patch[C.key] || 0) + CREW_RATE * (1 + B.cycle * 0.6) * dt;
+      if (B.patch[C.key] >= 1) { // a point of health back on
+        B.patch[C.key] -= 1; P.hp = Math.min(P.max, P.hp + 1);
+        if (C.key === 'L' || C.key === 'R') B.hp = Math.min(B.maxHp, B.hp + 1);
+        const [px, py] = tankPartAt(B, C.key); float(px, py - 6, '+1', COL.threat, 3);
+      }
+      if (C.weld >= CREW_WELD) home();
+    } else { // walking: corner by corner along his path
+      let go = CREW_WALK * dt;
+      while (go > 0 && C.path.length) {
+        const [tx, ty] = C.path[0], dx = tx - C.lx, dy = ty - C.ly, d = Math.hypot(dx, dy);
+        if (d <= go) { C.lx = tx; C.ly = ty; go -= d; C.step += d; C.path.shift(); continue; } // round the corner
+        C.lx += dx / d * go; C.ly += dy / d * go; C.face = Math.atan2(dy, dx); C.step += go; go = 0;
+      }
+      if (!C.path.length) {
+        if (C.st === 'out') C.st = 'weld';
+        else { e.gone = true; return; } // back inside
+      }
+    }
+    const [x, y] = tankWorld(B, C.lx, C.ly); e.x = clamp(x, e.r, AW - e.r); e.y = clamp(y, e.r, AH - e.r);
+    const [fx, fy] = tankDir(B, Math.cos(C.face), Math.sin(C.face)); e.face = Math.atan2(fy, fx);
+  }
+  // Your ship runs one over: no chain (that's the ball's job), but it's free.
+  function squashCrew(i) {
+    const e = G.enemies[i]; G.enemies.splice(i, 1);
+    const pts = Math.round(e.pts * G.mult); G.score += pts; float(e.x, e.y - 3, `${pts * scoreK(G.wave)}`, COL.chalk, 2.4);
+    burst(e.x, e.y, 10, ECOL.warden, 30, 0.5, 0.3); ring(e.x, e.y, 0.5, 4, 0.2, COL.chalk, 0.5); sfx.kill(0, e.x); shake(0.3);
+  }
+  // A crewman from above: helmet with a lamp, shoulders, his torch; welding, a white-hot point and sparks.
+  function drawCrew(e) {
+    const C = e.crew, fl = e.flash > 0, line = fl ? COL.chalk : ECOL.warden, t = G.time, weld = C.st === 'weld' && C.wait <= 0;
+    ctx.save(); ctx.rotate(e.face); ctx.scale(1.9, 1.9);
+    if (!weld && C.wait <= 0) { const sw = Math.sin(C.step * 1.6) * 0.7; ctx.beginPath(); ctx.moveTo(-0.3, -0.7); ctx.lineTo(-0.3 + sw, -0.7); ctx.moveTo(-0.3, 0.7); ctx.lineTo(-0.3 - sw, 0.7); ctx.strokeStyle = line; ctx.lineWidth = 0.5; ctx.lineCap = 'round'; ctx.stroke(); } // his feet
+    ctx.beginPath(); ctx.ellipse(-0.2, 0, 0.9, 1.6, 0, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 0.35; ctx.stroke(); // shoulders
+    ctx.beginPath(); ctx.moveTo(0.2, 0.9); ctx.lineTo(1.9, 0.5); ctx.strokeStyle = line; ctx.lineWidth = 0.4; ctx.stroke(); // his arm and torch
+    ctx.beginPath(); ctx.arc(0.1, 0, 0.85, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 0.35; ctx.stroke(); // helmet
+    ctx.beginPath(); ctx.arc(0.45, 0, 0.3, 0, Math.PI * 2); ctx.fillStyle = COL.threat; ctx.fill(); // its lamp
+    if (weld) {
+      const f = 0.6 + 0.4 * Math.random();
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = f; const g = ctx.createRadialGradient(2.2, 0.5, 0, 2.2, 0.5, 2.4); g.addColorStop(0, COL.chalk); g.addColorStop(0.35, GOLD()); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(2.2, 0.5, 2.4, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      ctx.beginPath(); for (let k = 0; k < 4; k++) { const a = rand(-2.2, 2.2) + Math.PI, l = rand(0.8, 2.2); ctx.moveTo(2.2, 0.5); ctx.lineTo(2.2 + Math.cos(a) * l, 0.5 + Math.sin(a) * l); } ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.15; ctx.globalAlpha = 0.9; ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+  // Over the tank, in its frame: how far each repair's got, so you can see one coming. A bar filling along the
+  // tread's outside edge, or a ring round the gun pod.
+  function drawCrewJobs(B) {
+    const jobs = {};
+    for (const e of G.enemies) if (e.crew && e.crew.st === 'weld' && e.crew.wait <= 0) jobs[e.crew.key] = Math.max(jobs[e.crew.key] || 0, e.crew.weld / CREW_WELD);
+    const a = 0.65 + 0.3 * Math.sin(G.time * 12);
+    for (const k in jobs) {
+      ctx.beginPath();
+      if (k === 'L' || k === 'R') { const x = (k === 'L' ? -1 : 1) * 15; ctx.moveTo(x, -15); ctx.lineTo(x, 15); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.3; ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, -15); ctx.lineTo(x, -15 + 30 * jobs[k]); }
+      else { const [px, py] = TANK_PODS[k]; ctx.arc(px, py, 4.6, 0, Math.PI * 2); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.3; ctx.stroke(); ctx.beginPath(); ctx.arc(px, py, 4.6, -Math.PI / 2, -Math.PI / 2 + jobs[k] * Math.PI * 2); }
+      ctx.lineWidth = 0.8; ctx.lineCap = 'round'; ctx.globalAlpha = a; ctx.stroke(); ctx.globalAlpha = 1;
+    }
   }
   // A tankette (an escort): a small tank seen from above, nose toward its heading, its turret on you.
   function drawTankette(e, col) {
@@ -3278,6 +3382,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     poly([[-6, 9], [6, 9], [5, 12.2], [-5, 12.2]]); ctx.fillStyle = `rgba(${H3.join(',')},0.18)`; ctx.fill(); stroke(W3, 0.7); // the glacis
     ctx.beginPath(); for (let k = 0; k < 5; k++) { ctx.moveTo(-5, -12.5 + k * 1.2); ctx.lineTo(5, -12.5 + k * 1.2); } stroke(W3, 0.6); // engine grille
     for (const ex of [-2.5, 2.5]) { ctx.beginPath(); ctx.arc(ex, -14, 0.9, 0, Math.PI * 2); fill(0.3); stroke(W2, 1); } // exhausts
+    { // the back door the repair crews come out of: its lamp blinks before they do
+      const open = B.doorT > 0 && !die, blink = open && Math.floor(t * 10) % 2;
+      ctx.beginPath(); ctx.rect(-1.2, -14.4, 2.4, 1.6); fill(open ? 0.05 : 0.3); stroke(W2, 1, blink ? COL.threat : col);
+      if (open) glow(() => { ctx.beginPath(); ctx.arc(0, -15.4, 2.2, 0, Math.PI * 2); ctx.fill(); }, COL.threat, blink ? 0.7 : 0.3);
+      ctx.beginPath(); ctx.arc(0, -15.2, 0.4, 0, Math.PI * 2); ctx.fillStyle = COL.threat; ctx.globalAlpha = open ? 1 : 0.35; ctx.fill(); ctx.globalAlpha = 1;
+    }
     if (B.open) { // the hatch blown off: its reactor glowing, the target
       const ry = -9.5; // behind the turret, on the engine deck
       glow(() => { const g = ctx.createRadialGradient(0, ry, 0, 0, ry, 7); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, COL.threat); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, ry, 7, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.75 + 0.25 * Math.sin(t * 6) + die);
@@ -3312,6 +3422,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (P.hp < P.max * 0.5) sparks(px + 1.5, py - 1.5);
       pips(px, py - 4.6, P.hp, P.max, 3);
     }
+    if (G.boss === B) drawCrewJobs(B);
     // the turret
     if (!B.noTurret) {
       const gc = col;
@@ -3337,7 +3448,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function tankDie(B) {
     G.tankDeath = { B: { ...B, parts: JSON.parse(JSON.stringify(B.parts)), tiles: [...B.tiles], drums: [...B.drums], fires: [...B.fires], bits: [], mode: 'drive', fireT: 9, burst: 0, sweep: null, digT: 0, flash: 0.2, open: true }, t: 0, blown: false, result: G.result, turret: null };
     G.result = null; G.bullets = G.bullets.filter(q => !q.shell && !q.mg);
-    for (const e of G.enemies) if (e.tankette) e.boomAt = rand(0.3, TANK_BLOW - 0.1); // its escorts go up with it
+    for (const e of G.enemies) if (e.tankette || e.crew) e.boomAt = rand(0.3, TANK_BLOW - 0.1); // its escorts go up with it
     G.freeze = Math.max(G.freeze, 0.18); shake(3); sfx.overload();
   }
   function updateTankDeath(dt) {
@@ -3347,7 +3458,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!D.blown) {
       shake(0.3 + 1.4 * k);
       if (D.t > TANK_DIE_HIT && Math.random() < dt * (6 + 22 * k)) { const [x, y] = tankWorld(B, rand(-12, 12), rand(-14, 14)); burst(x, y, 14, fire, 45, 0.6, 0.45); ring(x, y, 1, 8, 0.3, fire, 0.8); if (Math.random() < 0.4) sfx.brick(6); }
-      for (let i = G.enemies.length - 1; i >= 0; i--) { const e = G.enemies[i]; if (e.tankette && e.boomAt !== undefined && D.t >= e.boomAt) { burst(e.x, e.y, 16, fire, 40, 0.5, 0.4); G.enemies.splice(i, 1); sfx.brick(5); } }
+      for (let i = G.enemies.length - 1; i >= 0; i--) { const e = G.enemies[i]; if ((e.tankette || e.crew) && e.boomAt !== undefined && D.t >= e.boomAt) { burst(e.x, e.y, 16, fire, 40, 0.5, 0.4); G.enemies.splice(i, 1); sfx.brick(5); } }
       if (D.t >= TANK_BLOW) {
         D.blown = true; const x = B.x, y = B.y;
         for (let i = 0; i < 5; i++) ring(x, y, 2, 16 + i * 12, 0.5 + i * 0.14, i % 2 ? COL.chalk : i % 3 ? fire : COL.threat, 1.5);
@@ -6232,6 +6343,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         continue;
       }
       if (e.type === 'wax' || e.type === 'invader') continue; // its chunk (or the formation) moves it
+      if (e.crew) { updateCrew(e, dt); continue; } // the Tank's repair crew ride along with it
       if (e.mystery) { e.x += e.vx * dt; if (e.x < -10 || e.x > AW + 10) e.gone = true; continue; } // the mystery ship: straight across, no shots
 
       if (e.type === 'rock') { // straight lines, wrapping round the edges like the original
@@ -6371,6 +6483,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         else { a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push; }
       }
     }
+    for (let i = es.length - 1; i >= 0; i--) if (es[i].crew && Math.hypot(es[i].x - p.x, es[i].y - p.y) < PLAYER_R + es[i].r) squashCrew(i); // your ship runs the repair crew over
     if (p.inv <= 0) {
       for (let i = es.length - 1; i >= 0; i--) {
         const e = es[i];
@@ -6967,6 +7080,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (e.type === 'monolith' && e.st === 'warn' && Math.floor(G.time * 14) % 2) { // the block it's about to become
         const s = e.r * 1.25; ctx.strokeStyle = ECOL.monolith; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.75; ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.globalAlpha = 1;
       }
+      if (e.crew) { drawCrew(e); ctx.restore(); continue; }
       if (e.tankette) { // a little tank, its health in the middle like everyone else's
         drawTankette(e, stroke);
         if (e.hp > 1 && !VEC) { ctx.font = `700 ${e.r * 0.8}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = pierce ? heat(liveB) : COL.chalk; ctx.fillText(e.hp, 0, e.r * 0.05); }
