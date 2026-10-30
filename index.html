@@ -513,7 +513,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them',
     9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tankettes are rolling in: something big is coming',
-    10: 'The Tank: smash its treads. Once it digs in, hit the reactor on its back. Kill its repair crews. Its fuel drums explode',
+    10: 'The Tank: smash its treads. Once it digs in, every hit hurts it. Kill its repair crews. Its fuel drums explode',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
     30: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
@@ -2990,14 +2990,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // charge a hit), clanking off the armoured hull and the cannon.
   // Digging in: with both treads gone it slams down where it stopped (TANK_DIG): stabiliser legs stamp into the floor,
   // its hatch opens on the reactor, and two machine-gun pods come up on its flanks. Where you stopped it matters.
-  // The turret (phase two): the hull is the target now (the reactor, TANK_REACTOR). The cannon fires 3-shell bursts and
+  // The turret (phase two): the reactor's open (TANK_REACTOR) and every hit on the tank hurts it. The cannon fires 3-shell bursts and
   // turns faster; each gun pod (TANK_POD) sweeps an arc of bullets, its laser sight sweeping the same arc first
   // (TANK_SIGHT); break a pod and its sweeps stop. It calls in tankettes (small tanks) when a part breaks and in a
   // steady trickle (TANK_TRICKLE), never more than TANK_ESCORTS at once.
   // Both phases: four armour tiles across its front (one hit each) and two fuel drums on its back (one hit: they explode,
   // doing TANK_DRUM_DMG to every part within TANK_DRUM_R, and to the reactor once it's open, and wrecking escorts there).
-  // The bar is the treads and the reactor (TANK_TREAD × 2 ≈ 40% of it): the pods are optional.
-  const TANK_S = 1.45, TANK_TREAD = 14, TANK_REACTOR = 42, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 1.1, TANK_LIMP = 0.45;
+  // The bar is the treads and the reactor (TANK_TREAD × 2 ≈ a quarter of it): the pods are optional.
+  const TANK_S = 1.45, TANK_TREAD = 14, TANK_REACTOR = 90, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 1.1, TANK_LIMP = 0.45;
   const TANK_FIRE = [3.4, 2.8, 2.3], TANK_BURST = [3.4, 3, 2.5], TANK_AIM = 0.9, TANK_SHELL = 46, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
   const TANK_RAM = [9, 7.5, 6], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 4, TANK_TRICKLE = [10, 7];
   const TANK_SWEEP = [4.8, 4, 3.3], TANK_SIGHT = 1.1, TANK_SPRAY = 1, TANK_ARC = 1.1, TANK_MG = 50, TANK_MG_GAP = 0.09;
@@ -3060,7 +3060,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const [sx, sy] of TANK_LEGS) { const [fx, fy] = tankWorld(B, sx * 16, sy * 18); burst(fx, fy, 14, COL.dim, 30, 0.7, 0.5); ring(fx, fy, 1, 8, 0.35, ECOL.warden, 0.8); }
     for (let i = 0; i < 3; i++) ring(B.x, B.y, 4, 30 + i * 14, 0.5 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3);
     gridImpulse(B.x, B.y, Math.max(AW, AH) * 0.6, 220); shake(5); G.slowT = Math.max(G.slowT, 0.5); G.screenFlash = Math.max(G.screenFlash || 0, 0.25); sfx.boss(); sfx.overload();
-    G.banner = { text: 'It\'s dug in!', sub: 'Hit the reactor. Break its guns to make it safer', t: 2.2, max: 2.2, top: true };
+    G.banner = { text: 'It\'s dug in!', sub: 'Every hit hurts it now. Break its guns to make it safer', t: 2.6, max: 2.6, top: true };
   }
   // Call in tankettes from the edges (never more than TANK_ESCORTS on the field).
   function tankBackup(B, n) {
@@ -3090,6 +3090,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     };
     const circle = (cx, cy, rr) => { const dx = lx - cx, dy = ly - cy, d = Math.hypot(dx, dy); if (d >= rr + lr || d < 1e-6) return false; bounce(dx / d, dy / d, rr + lr - d); return true; };
     const strike = key => { if (B.hitCd > 0) { sfx.clank(); return; } B.hitCd = 0.1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); sfx.brick(b); tankHit(B, key, dmg, o.x, o.y); };
+    // Dug in, any hit on it hurts it (the reactor's open): the hull, the turret, the wrecks of its treads and guns
+    const core = () => { if (B.hitCd > 0) return; B.hitCd = 0.1; B.flash = 0.1; ring(o.x, o.y, 1, 8, 0.3, COL.threat, 0.9); burst(o.x, o.y, 10 + b, COL.threat, 35, 0.5, 0.35); sfx.boss(); damageBoss(dmg, o.x, o.y); };
+    const armour = () => { if (B.open) core(); else { B.armorT = 0.12; ring(o.x, o.y, 0.5, 4, 0.2, COL.chalk, 0.5); sfx.clank(); } };
     for (let i = 0; i < TANK_DRUMS.length; i++) if (B.drums[i] && circle(...TANK_DRUMS[i], TANK_DRUM_RR)) { tankDrum(B, i, o); return 'bounce'; }
     for (let i = 0; i < TANK_TILES.length; i++) {
       if (!B.tiles[i]) continue;
@@ -3098,24 +3101,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const T = TANK_TILES[i], [x, y] = tankWorld(B, (T.x0 + T.x1) / 2, (T.y0 + T.y1) / 2);
       burst(x, y, 14, ECOL.warden, 40, 0.5, 0.4); burst(x, y, 6, heat(MAX_CHARGE * 0.75), 30, 0.4, 0.3); ring(x, y, 1, 6, 0.25, heat(b), 0.6); sfx.brick(b); shake(0.5);
       G.score += Math.round(30 * (1 + b) * G.mult); chainCredit(o, x, y, b);
+      if (B.open) core();
       return 'bounce';
     }
-    if (B.dug) for (const key of ['podL', 'podR']) if (B.digT <= TANK_DIG * 0.5 && circle(...TANK_PODS[key], TANK_POD_R)) { if (B.parts[key].hp > 0) strike(key); else sfx.clank(); return 'bounce'; }
+    if (B.dug) for (const key of ['podL', 'podR']) if (B.digT <= TANK_DIG * 0.5 && circle(...TANK_PODS[key], TANK_POD_R)) { if (B.parts[key].hp > 0) strike(key); else armour(); return 'bounce'; }
     { // the barrel, a capsule out from the turret: armour (it clanks)
       const [x0, y0, bx, by, L] = tankBarrel(B), t = clamp((lx - x0) * bx + (ly - y0) * by, 0, L), qx = x0 + bx * t, qy = y0 + by * t, dx = lx - qx, dy = ly - qy, d = Math.hypot(dx, dy);
-      if (d < TANK_BARREL_R + lr && d > 1e-6 && t > 6) { bounce(dx / d, dy / d, TANK_BARREL_R + lr - d); sfx.clank(); return 'bounce'; }
+      if (d < TANK_BARREL_R + lr && d > 1e-6 && t > 6) { bounce(dx / d, dy / d, TANK_BARREL_R + lr - d); if (B.open) core(); else sfx.clank(); return 'bounce'; }
     }
     for (const key of ['L', 'R']) {
       const h = hitRect(lx, ly, lr, TANK_TREADS[key]); if (!h) continue;
       bounce(h.nx, h.ny, h.depth);
-      if (B.parts[key].hp > 0) strike(key); else sfx.clank();
+      if (B.parts[key].hp > 0) strike(key); else armour();
       return 'bounce';
     }
     const h = hitRect(lx, ly, lr, TANK_HULL);
     if (h) {
       bounce(h.nx, h.ny, h.depth);
-      if (B.open && B.hitCd <= 0) { B.hitCd = 0.1; B.flash = 0.1; ring(o.x, o.y, 1, 8, 0.3, COL.threat, 0.9); burst(o.x, o.y, 10 + b, COL.threat, 35, 0.5, 0.35); sfx.boss(); damageBoss(dmg, o.x, o.y); }
-      else if (!B.open) { B.armorT = 0.12; ring(o.x, o.y, 0.5, 4, 0.2, COL.chalk, 0.5); sfx.clank(); } // armour: it clanks off
+      armour(); // armour till it digs in: it clanks off
       return 'bounce';
     }
     return '';
