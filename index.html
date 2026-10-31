@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Oct 31 03:11 UTC · f3607ff";</script>
+<script>window.RICOCHET_BUILD = "Oct 31 03:31 UTC · 0135472";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -520,23 +520,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     10: 'Clanktank: smash its treads to immobilize it, then every hit hurts it. Don\'t let the repair crew get it moving again',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
-    30: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
-    36: 'Bees! The Hive\'s scouts are out. Something big is buzzing nearby',
-    29: 'Crusher II: the walls close in from all four sides now, and faster',
+    40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
+    46: 'Bees! The Hive\'s scouts are out. Something big is buzzing nearby',
+    39: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
     13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
-    15: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts, and it strikes',
-    18: 'Invasion: break the formation before it lands. The top rows are tougher: charge your ball off the walls and bunkers to punch through',
-    17: 'Fighter squadrons: one hit each. Put your ball through the formation',
-    19: 'A Brute Wall marches in partway through this wave. Fighters overhead: something big is coming',
-    20: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
-    40: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. When she cages you, break out before it hatches',
+    20: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts, and it strikes',
+    28: 'Invasion: break the formation before it lands. The top rows are tougher: charge your ball off the walls and bunkers to punch through',
+    27: 'Fighter squadrons: one hit each. Put your ball through the formation',
+    19: 'A Brute Wall marches in partway through this wave',
+    29: 'Fighters overhead: something big is coming',
+    30: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
+    50: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. When she cages you, break out before it hatches',
     23: 'Swarm Storm: hold out for 25 seconds while swarm after swarm blows in. Chain them',
     26: 'Titans close in from every side. When one stomps, get clear. Each cracks into brutes, and each brute into splinters',
-    28: 'Crusher: brick walls close in. Break them to push them back',
+    38: 'Crusher: brick walls close in. Break them to push them back',
   };
   // Set pieces, at the same waves in every loop (bigger each time round).
-  const SET_AT = { 5: 'bonus', 13: 'coins', 18: 'invaders', 23: 'storm', 26: 'titans', 28: 'crusher', 29: 'crusher2', 35: 'lucky' };
+  const SET_AT = { 5: 'bonus', 13: 'coins', 23: 'storm', 26: 'titans', 28: 'invaders', 35: 'lucky', 38: 'crusher', 39: 'crusher2' };
   const SET_NAMES = { bonus: 'Pinball', coins: 'Coin Rush', invaders: 'Invasion', storm: 'Swarm Storm', titans: 'Titans', crusher: 'Crusher', crusher2: 'Crusher II', lucky: 'Lucky Blocks' };
   const setPiece = n => SET_AT[inLoop(n)] || null;
   const monolithIntro = () => G && G.asteroidWave === 14 ? 16 : 14; // the first normal wave with Monoliths
@@ -892,7 +893,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const WING_DELAY = 0.15, WING_HOME = 170, WING_SCALE = 0.8;
   const hottest = () => liveBalls().reduce((m, o) => !m || o.b > m.b ? o : m, null);
   const BALLS_MAX = 3;
-  const ballsFor = n => n > 20 ? 3 : n > 10 ? 2 : 1;
+  const ballsFor = n => n > 30 ? 3 : n > 10 ? 2 : 1; // wingmen from Clanktank (10) and the Carrier (30)
   const ballSpeed = b => BALL_BASE + BALL_STEP * b;
   const toWorld = (cx, cy) => ({ x: (cx - AX) / U, y: (cy - AY) / U });
 
@@ -1044,17 +1045,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //   the doors open to a gap narrower than the bay, so a ball that gets in rattles around. A ball shut in stays
   //   trapped until the doors open again; inside the bay it heats only to just under the warning.
   // Bosses: the Core at 10, the Serpent at 15, the Maw at 20; after that one every ten waves in turn, harder each lap.
-  const BOSSES = ['tank', 'maw', 'geode', 'hive'];
+  const BOSSES = ['tank', 'serpent', 'maw', 'geode', 'hive']; // a boss every 10 waves: 10, 20, 30, 40, and the finale at 50
   // The game runs in loops of LOOP_LEN waves. Each loop replays the first one's structure (the same set pieces and
   // bosses at the same waves) in Overdrive: everything that comes at you runs faster and every point counts more. The
   // last wave of a loop is its finale: beating it brings up the victory screen.
-  const LOOP_LEN = 40;
+  const LOOP_LEN = 50;
   const loopOf = n => Math.max(0, Math.floor((n - 1) / LOOP_LEN)); // 0 for the first loop
   const inLoop = n => (Math.max(1, n) - 1) % LOOP_LEN + 1;          // the wave's place in its loop, 1 to LOOP_LEN
   const overdrive = n => 1 + 0.25 * Math.min(2, loopOf(n));         // speed of enemies, their shots and bosses
   const scoreK = n => 1 + loopOf(n);                                 // points count double in Loop 2, triple in Loop 3...
-  const bossFor = n => { const k = inLoop(n); return k === 15 ? 'serpent' : k % 10 === 0 ? BOSSES[(k / 10 - 1) % BOSSES.length] : null; };
-  // how many times this boss has come before (the Serpent's wave-15 visit counts), so each visit is harder than its last
+  const bossFor = n => { const k = inLoop(n); return k % 10 === 0 ? BOSSES[(k / 10 - 1) % BOSSES.length] : null; };
+  // how many times this boss has come before, so each visit is harder than its last
   const bossCycle = n => loopOf(n);
   const BOSS_NAMES = { core: 'The Core', tank: 'Clanktank', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'The Hive' };
   const BOSS_TITLES = { geode: 'the Jailer' }; // shown under the name as it lands
@@ -1089,17 +1090,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The fighters are big dashers (MAW_SHIP_R), the same docked as launched. The racks: the box each sits in, the gaps
   // between them (wider than a hot ball), the empty chamber in front of the throat, the clear stretch inside the doors.
   // In landscape the arena zooms out to MAW_ARENA for the fight so the bay fits.
-  const MAW_SHIP_R = 4.2, MAW_BRICK_W = 8.4, MAW_BRICK_H = 8.4, MAW_GAP_X = 8, MAW_GAP_Y = 7.5, MAW_CHAMBER = 12, MAW_MOUTH = 11, MAW_ARENA = 172, MAW_STEEP = 0.35, MAW_ROWS = 5, MAW_JITTER = 2.5;
-  const MAW_GUN_WARN = 0.8;
+  const MAW_SHIP_R = 4.2, MAW_BRICK_W = 8.4, MAW_BRICK_H = 8.4, MAW_GAP_X = 8, MAW_GAP_Y = 7.5, MAW_CHAMBER = 12, MAW_MOUTH = 11, MAW_ARENA = 172, MAW_STEEP = 0.35, MAW_ROWS = 6, MAW_JITTER = 2.5;
+  const MAW_GUN_WARN = 0.8, MAW_IN = 0.8; // it drops in over the first MAW_IN of its warning, solid from then on
   // The hull: each side runs from the stern on the wall to a prong MAW_PRONG past the doors, with an angled bow and a gun
   // pod on it. Between hull and bay a pylon (MAW_PYLON wide) the ball bounces off. Each side's top is an open flight deck:
-  // the ball flies in over its edge (the ship can't), and jets are parked there, MAW_DECK_GAP apart: one hit wrecks one
-  // (it doesn't hurt the Carrier, but it counts toward the chain). Every MAW_DECK_LAND seconds a jet flies in from off the
+  // the ball flies in over its edge (the ship can't), and jets are parked there, MAW_DECK_GAP apart: the ball wrecks
+  // one and flies straight on through it, so one run across a deck can take a whole row (they don't hurt the Carrier,
+  // but they count toward the chain). Each launch, MAW_DECK_LAUNCH of them take off from the decks too. Every MAW_DECK_LAND seconds a jet flies in from off the
   // arena and lands on an empty spot (MAW_LAND_T to land). The right deck has the island, a tower the ball bounces off.
   const MAW_PRONG = 9, MAW_PYLON = 1.6, MAW_DECK_GAP = 13.5, MAW_DECK_LAND = [2.4, 2, 1.6], MAW_LAND_T = 1.4;
-  const MAW_THROAT_D = 7, MAW_THROAT_HP = 210, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 3, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [4, 5, 6], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
+  const MAW_THROAT_D = 7, MAW_THROAT_HP = 189, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 2, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [3, 4, 4], MAW_DECK_LAUNCH = [1, 1, 2], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
 
-  // The Hive (wave 40, the finale): Queen Vexa, in a loop. The dig: HIVE_RINGS rings of hexagonal wax cells round a
+  // The Hive (wave 50, the finale): Queen Vexa, in a loop. The dig: HIVE_RINGS rings of hexagonal wax cells round a
   // royal cell. The ball always bounces off a cell (1 damage, 2 when hot), so it digs tunnels; every few seconds an
   // outer cell flashes and hatches HIVE_BEES bees. Breaking the royal cell cracks the hive open: the comb crumbles and
   // Vexa comes out, huge, and hangs from the top of the arena, head up, her glowing abdomen hanging down. Her abdomen
@@ -1198,7 +1200,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (kind === 'maw') {
       // hull spans x = bx ± W/2 and y = 0..D from the top wall; the hangar bay is MW wide in the middle
       const py = MAW_BRICK_H + MAW_GAP_Y, deep = MAW_TOP + MAW_CHAMBER + MAW_ROWS * py - MAW_GAP_Y + MAW_MOUTH + MAW_JAW_T; // a full wall's depth
-      const W = Math.min(AW * 0.92, Math.max(AW * 0.8, 120)), D = Math.min(deep, clamp(AH * 0.55, 62, 110)), MW = Math.min(W * 0.68, 140);
+      const W = Math.min(AW * 0.92, Math.max(AW * 0.8, 120)), D = Math.min(deep, clamp(AH * 0.58, 62, 126)), MW = Math.min(W * 0.68, 140);
       Object.assign(B, { W, D, MW, bx: AW / 2, x: AW / 2, y: D / 2, r: 20, st: 'closed', stT: 2.5, gunT: 1.25, open: 0, gunA: Math.PI / 2, bricks: [] });
       // racks of fighters, staggered row to row, with gaps wider than the ball and an empty chamber behind: the ball gets
       // in among them and through to the throat. Each rack sits a little off the grid, so there's no clean diagonal lane.
@@ -1539,11 +1541,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
                              { x0: B.bx + B.MW / 2 - half, x1: B.bx + B.MW / 2, y0: B.D - MAW_JAW_T, y1: B.D, jaw: true });
     return out;
   }
+  const mawIn = B => B.kind === 'maw' && B.enter <= BOSS_ENTER - MAW_IN; // the Carrier's in place (and solid) before its warning's over
   const inRect = (R0, x, y) => x > R0.x0 && x < R0.x1 && y > R0.y0 && y < R0.y1;
   const inMawBay = o => !!(G.boss && G.boss.kind === 'maw' && (inRect(mawCavity(G.boss), o.x, o.y) || inConvex(mawWing(G.boss, -1), o.x, o.y) || inConvex(mawWing(G.boss, 1), o.x, o.y))); // the bay or a deck
 
   function damageBoss(dmg, x, y) {
-    const B = G.boss; if (!B || B.hp <= 0 || B.enter > 0) return;
+    const B = G.boss; if (!B || B.hp <= 0 || (B.enter > 0 && !mawIn(B))) return;
     if (B.kind === 'serpent') { B.x = x; B.y = y; } // so its defeat goes off where the last blow landed
     B.hp = Math.max(0, B.hp - dmg); B.flash = 0.15;
     const pts = Math.round(50 * dmg * G.mult); G.score += pts;
@@ -1817,7 +1820,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Ball against the boss body. Returns 'bounce' when it came off a solid part (the caller adds charge).
   function ballBoss(o, r, b) {
-    const B = G.boss; if (!B || B.enter > 0) return '';
+    const B = G.boss; if (!B || (B.enter > 0 && !mawIn(B))) return '';
     if (B.kind === 'maw') return ballMaw(B, o, r, b);
     if (B.kind === 'serpent') return ballSerpent(B, o, r, b);
     if (B.kind === 'hive') return ballHive(B, o, r, b);
@@ -1877,15 +1880,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       sfx.clank();
       break;
     }
-    for (const d of B.decks) { // a jet parked on a deck: the ball bounces off it and wrecks it
+    for (const d of B.decks) { // a jet parked on a deck: the ball wrecks it and flies on through
       if (!d.alive) continue;
       const [sx, sy] = mawDeckAt(B, d), dx = o.x - sx, dy = o.y - sy, dd = Math.hypot(dx, dy), rr = MAW_SHIP_R * 0.9;
       if (dd >= rr + r || dd < 1e-6) continue;
-      const nx = dx / dd, ny = dy / dd; o.x = sx + nx * (rr + r); o.y = sy + ny * (rr + r);
-      const dot = o.vx * nx + o.vy * ny;
-      if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
-      mawDeckBreak(B, d, b, o);
-      return 'bounce';
+      mawDeckBreak(B, d, b, o); // straight on through: the next one in line is next
     }
     return res;
   }
@@ -1947,7 +1946,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       shake(0.15 + 0.5 * (1 - B.enter / BOSS_ENTER)); // a rumble that builds
       if (B.kind === 'tank') { B.tread += dt * 14; if (Math.random() < dt * 25) { const y = B.y - (B.y + 32) * Math.pow(B.enter / BOSS_ENTER, 1.6); burst(B.x + rand(-1, 1) * 18, y - 20, 2, COL.dim, 14, 0.6, 0.35); } } // dust kicked up as it rolls in
       if (B.kind === 'maw' && Math.random() < dt * 30) { // grit shaken off its underside as it slides in
-        const y = B.D - (B.D + 8) * Math.pow(B.enter / BOSS_ENTER, 2.2);
+        const y = B.D - (B.D + 8) * Math.pow(Math.max(0, 1 - (BOSS_ENTER - B.enter) / MAW_IN), 2.2);
         burst(B.bx + rand(-0.5, 0.5) * B.W, y, 2, COL.dim, 14, 0.6, 0.35);
       }
       if (B.enter <= 0) { // it's here
@@ -2029,6 +2028,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           const [sx, sy] = mawShip(B, br), mx = B.bx + (go.length > 1 ? (k / (go.length - 1) - 0.5) * gap : 0);
           br.alive = false; br.pick = false;
           B.launching.push({ rx: sx - B.bx, sy, mx: mx - B.bx, hp: br.hp, t: -k * MAW_LAUNCH_GAP });
+        });
+        // and a jet or two takes off from the decks, from the bow end, out and down at you
+        const out = G.enemies.filter(e => e.fromMaw).length + B.launching.length;
+        const parked = B.decks.filter(d => d.alive && !d.landing).sort((a, c) => c.y - a.y).slice(0, Math.max(0, Math.min(MAW_DECK_LAUNCH[B.phase - 1], MAW_FIGHTERS - out)));
+        parked.forEach((d, k) => {
+          const [x, y] = mawDeckAt(B, d), e = makeEnemy('dasher', clamp(x, 6, AW - 6), y);
+          d.alive = false;
+          Object.assign(e, { r: MAW_SHIP_R, hp: 1, maxHp: 1, fromMaw: true, spawnT: 0, vx: d.side * 12, vy: 40, stT: 0.6 + k * 0.3 });
+          G.enemies.push(e); burst(x, y, 10, ECOL.dasher, 30, 0.5, 0.3); sfx.launch(x);
         });
         B.st = 'hold'; B.stT = Math.max(0.7, go.length * MAW_LAUNCH_GAP + MAW_LAUNCH_T + 0.2); // the doors stay open until the last one is out
       } else if (B.st === 'hold' && B.stT <= 0) { B.st = 'closed'; B.stT = [3, 2.5, 2][B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1); B.gunT = B.stT * 0.5; }
@@ -2777,7 +2785,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.save();
       if (B.kind === 'core') { const d = B.enter / BOSS_DROP, sc = 1 + 1.8 * d * d; ctx.translate(B.x, B.y); ctx.scale(sc, sc); ctx.translate(-B.x, -B.y); } // falls in toward you
       else if (B.kind === 'tank') { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.y + 32) * Math.pow(1 - k, 1.6)); } // the Tank rolls in from the top over the whole warning
-      else { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.D + 8) * Math.pow(1 - k, 2.2)); } // the Carrier slides down out of the top over the whole warning
+      else { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.D + 8) * Math.pow(Math.max(0, 1 - k * BOSS_ENTER / MAW_IN), 2.2)); } // the Carrier drops down out of the top, then hangs there through the warning, solid
       B.enter = 0; drawBoss(); B.enter = e0; // the boss as it will look, just not solid yet
       ctx.restore();
       return;
@@ -3754,11 +3762,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   /* ---------- the Carrier's fighters, ahead of it ---------- */
-  // Waves 17 and 19: squadrons of the Carrier's own jets. Chevrons flag where one comes in at the top (SQUAD_WARN);
+  // Waves 27 and 29: squadrons of the Carrier's own jets. Chevrons flag where one comes in at the top (SQUAD_WARN);
   // then a V of them flies down into the arena in formation, holds a moment, and peels off one at a time, each diving
-  // at you like the ones from its bay. One hit each, packed tight: a ball through the V is a chain. Wave 19 also has
+  // at you like the ones from its bay. One hit each, packed tight: a ball through the V is a chain. Wave 29 also has
   // the Carrier's shadow sliding over the arena (SHADOW_TIME), up above, out of sight.
-  const SQUAD_PLAN = { 17: [3], 19: [3, 13] }, SQUAD_SIZE = { 17: 5, 19: 6 }, SQUAD_WARN = 1.1, SQUAD_SPEED = 24, SQUAD_HOLD = 0.7, SQUAD_PEEL = 0.4;
+  const SQUAD_PLAN = { 27: [3], 29: [3, 13] }, SQUAD_SIZE = { 27: 5, 29: 6 }, SQUAD_WARN = 1.1, SQUAD_SPEED = 24, SQUAD_HOLD = 0.7, SQUAD_PEEL = 0.4;
   const SHADOW_AT = 7, SHADOW_TIME = 11;
   function updateSquads(dt) {
     const P = G.squadPlan;
@@ -3817,7 +3825,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   /* ---------- the Geode ---------- */
-  // Wave 30. A big alien, in a loop of four states:
+  // Wave 40. A big alien, in a loop of four states:
   //  - shell: he sits in the middle of the arena in a shell of crystals while enemies stream in. Crystals can't hurt you
   //    and breaking them doesn't hurt him, but every one you break is gone (a hot ball cracks the ones round its hit too,
   //    one more per 5 charge), opening gaps; a ball that gets through one hits him (1 + the ball's charge, with a meaty
@@ -5264,7 +5272,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // S.depth. Two skins and rule sets:
   //  - 'brick' (Crusher II, wave 29): the Crusher's rules. A ball smashes through a brick its damage covers, otherwise it
   //    chips it and bounces (+1 charge); pinned by the walls, you take a hit and blow a hole.
-  //  - 'crystal' (the Geode, wave 30): crystals can't hurt you. The ball always bounces off (+1 charge) and breaks the
+  //  - 'crystal' (the Geode, wave 40): crystals can't hurt you. The ball always bounces off (+1 charge) and breaks the
   //    crystal it hits, and every crystal hit refills an overloading ball's countdown; pinned, you just shatter free. Some
   //    cells are the Geode's orbs: hitting one pops it and hurts him.
   const SIEGE_CELL = 5.6, SIEGE_GAP = 0.25;
@@ -5564,7 +5572,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G = newGame();
     G.wave = startAt - 1; G.arenaTarget = arenaShort; G.skipBonus = startAt > 1;
     G.winShown = G.wave; // starting just past a finale doesn't celebrate it
-    if (startAt > 15) G.hullMax = HULL_MAX + (startAt > 30 ? 2 : 1); // starting past a Serpent brings the hull slots it gives (one at 15, one at 30)
+    if (startAt > 20) G.hullMax = HULL_MAX + (startAt > 40 ? 2 : 1); // starting past the Serpent (20) and Gorp (40) brings the hull slots they give
     if (startAt > 1) G.continued = 1; // skipping ahead is practice: it doesn't count toward Best
     while (G.balls.length < ballsFor(startAt)) G.balls.push(Object.assign(makeBall(), { wing: true })); // starting later brings the wingmen earned by then
     mode = 'play';
@@ -5695,10 +5703,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const drifters = Math.max(2, total - brutes - G.wallCount - dashers - splitters - turrets - magnets - bulwarks - blinkers - monoliths) + (m >= 9 ? 4 : 0);
       add('drifter', f(drifters)); add('brute', f(brutes)); add('dasher', f(dashers)); add('splitter', f(splitters)); add('magnet', f(magnets));
       add('bulwark', f(bulwarks)); add('blinker', f(blinkers)); add('monolith', f(monoliths));
-      const bees = inLoop(n) >= 36 && inLoop(n) <= 39; // the Hive's scouts are out in the waves before it: bee swarms in place of the usual ones, and more of them
+      const bees = inLoop(n) >= 46 && inLoop(n) <= 49; // the Hive's scouts are out in the waves before it: bee swarms in place of the usual ones, and more of them
       add(bees ? 'bees' : 'swarm', swarms + (bees ? 1 + (inLoop(n) >= 38 ? 1 : 0) : 0));
       if (inLoop(n) === 8 || inLoop(n) === 9) add('tankette', inLoop(n) === 8 ? 2 : 3); // the Tank's scouts roll in ahead of it
-      if (SQUAD_PLAN[inLoop(n)]) G.squadPlan = { at: [...SQUAD_PLAN[inLoop(n)]], t: 0, n: SQUAD_SIZE[inLoop(n)], shadow: inLoop(n) === 19 }; // the Carrier's fighters are out ahead of it
+      if (SQUAD_PLAN[inLoop(n)]) G.squadPlan = { at: [...SQUAD_PLAN[inLoop(n)]], t: 0, n: SQUAD_SIZE[inLoop(n)], shadow: inLoop(n) === 29 }; // the Carrier's fighters are out ahead of it
       if (DRUM_CLUSTERS[inLoop(n)]) G.drumWave = { n: DRUM_CLUSTERS[inLoop(n)], t: DRUM_RESTOCK, first: true }; // and its fuel drums stand about
       shuffle();
       if (wall) q.splice(Math.floor(q.length / 2), 0, 'wall');
@@ -8296,7 +8304,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const startSel = $('startWave');
   startSel.add(new Option('Wave 1', '1'));
   startSel.add(new Option('Asteroid Field', 'ast'));
-  for (let n = 2; n <= 40; n++) {
+  for (let n = 2; n <= LOOP_LEN; n++) {
     const tag = bossFor(n) ? BOSS_NAMES[bossFor(n)] : setPiece(n) ? SET_NAMES[setPiece(n)] : '';
     startSel.add(new Option(`Wave ${n}${tag ? ' · ' + tag : ''}`, String(n)));
   }
