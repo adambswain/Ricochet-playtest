@@ -389,7 +389,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Later loops run hot: the arena's own colours (grid, lines, blocks, the dark of the field) all take one deep ember
   // hue, the same in every look, a little less saturated so it reads as heat rather than alarm.
   let tintLoop = 0;
-  const LOOP_HUE = 348, LOOP_SAT = 0.75;
+  const LOOP_HUE = 268, LOOP_SAT = 0.42; // later loops tint the arena violet: a shift you notice, not a wash that fights the threat red
   function setLoopTint(k) { if (k !== tintLoop) { tintLoop = k; readLook(); } }
   function setHue(h, hue, sk) {
     const [r, g, b] = hex(h).map(v => v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
@@ -509,7 +509,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     3: 'Dashers wind up, then lunge',
     4: 'Blocks bounce the ball and add charge. Splitters break in two',
     5: 'Pinball! No overloads here: rattle the bumpers, and drop all four targets for the jackpot',
-    6: 'Turrets fire slow shots. Your ball destroys them',
+    6: 'Turrets fire slow shots. Hit them, or bank your ball off the wall right beside one',
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them. Fuel drums: hit one to blow up everything near it',
     9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tanks are rolling in: something big is coming',
@@ -551,7 +551,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     dasher:   { r: 2.4, hp: 2, spd: 9,   pts: 25 },
     splitter: { r: 3.4, hp: 3, spd: 10,  pts: 30 },
     mini:     { r: 1.9, hp: 1, spd: 17,  pts: 5 },
-    turret:   { r: 4.6, hp: 4, spd: 0,   pts: 40 },
+    turret:   { r: 4.6, hp: 3, spd: 0,   pts: 40 },
     magnet:   { r: 3.2, hp: 5, spd: 9,   pts: 50 },
     tankette: { r: 3.8, hp: TANK_ARMOUR, spd: 10, pts: 60 }, // a tank: spawned as a drifter that looks like a little tank and takes TANK_ARMOUR hits
     swarm:    { r: 1.4, hp: 1, spd: 21,  pts: 8 },
@@ -6045,7 +6045,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // overload is off during the bonus rounds and pinball: the ball tops out at full speed, with no overload warnings
   const safeRound = () => !!(G && (G.bonus || G.coins || G.table || G.lucky));
   // wall: 'L' | 'R' | 'T' | 'B' for arena walls (lights the wall at the impact), omitted for blocks
+  // Turrets are easy to miss on the wall: the ball's reach on one is TURRET_REACH of its size, and a bounce off the
+  // wall within TURRET_BANK of one hits it too (full damage, on the chain).
+  const TURRET_REACH = 1.45, TURRET_BANK = 2.4;
+  const turretReach = e => e.type === 'turret' ? e.r * TURRET_REACH : e.r;
+  function turretBank(ball, wall) {
+    const side = { T: 0, R: 1, B: 2, L: 3 }[wall];
+    for (let i = G.enemies.length - 1; i >= 0; i--) {
+      const e = G.enemies[i];
+      if (e.type !== 'turret' || e.side !== side || e.hitCd > 0 || e.spawnT > 0) continue;
+      const along = side === 0 || side === 2 ? Math.abs(ball.x - e.x) : Math.abs(ball.y - e.y);
+      if (along > e.r * TURRET_BANK) continue;
+      const dmg = 1 + ball.b; e.hitCd = 0.12;
+      if (e.hp <= dmg) kill(i, undefined, 0, ball); else { e.hp -= dmg; e.flash = 0.12; e.recoil = 1; sfx.clank(); }
+    }
+  }
   function chargeBounce(ball, wall) {
+    if (wall && ball.state === 'live') turretBank(ball, wall);
     if (G.powers.over > 0) ball.b = Math.min(MAX_CHARGE, ball.b + 2);
     else if (inMawBay(ball)) { if (ball.b < WARN - 1) ball.b++; } // inside the Maw the ball heats only to just under the warning, so it comes out catchable
     else if (ball.b >= MAX_CHARGE) { if (ball.lit && ball.fuse <= 0) { overload(ball); return; } } // primed: this bounce blows it
@@ -6421,7 +6437,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           }
           if (e.hitCd > 0) continue;
           const dx = x.x - e.x, dy = x.y - e.y, d = Math.hypot(dx, dy);
-          if (d >= r + e.r) continue;
+          if (d >= r + turretReach(e)) continue;
           const dmg = 1 + x.b, shielded = isImmune(e);
           if (!shielded) queueShock(e.x, e.y, x.b);
           if (!shielded && e.hp <= hitFor(e, dmg)) { kill(i, x.b); continue; }
@@ -6605,8 +6621,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         }
         if (e.hitCd > 0) continue;
         const dx = ball.x - e.x, dy = ball.y - e.y, d = Math.hypot(dx, dy);
-        const rr = ballR(ball.b) * bigK();
-        if (d >= rr + e.r) continue;
+        const rr = ballR(ball.b) * bigK(), er = turretReach(e);
+        if (d >= rr + er) continue;
         const dmg = 1 + ball.b, shielded = isImmune(e);
         if (!shielded) queueShock(e.x, e.y, ball.b);
         const rock = e.type === 'rock';
@@ -6620,7 +6636,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const nx = d > 0 ? dx / d : 1, ny = d > 0 ? dy / d : 0;
         const dot = ball.vx * nx + ball.vy * ny;
         if (dot < 0) { ball.vx -= 2 * dot * nx; ball.vy -= 2 * dot * ny; }
-        ball.x = e.x + nx * (e.r + rr + 0.05); ball.y = e.y + ny * (e.r + rr + 0.05);
+        ball.x = e.x + nx * (er + rr + 0.05); ball.y = e.y + ny * (er + rr + 0.05);
         e.vx -= nx * 28; e.vy -= ny * 28;
         if (shielded) {
           e.vx = 0; e.vy = 0;
@@ -6693,10 +6709,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         continue;
       }
       if (e.type === 'turret') {
-        e.aim = Math.atan2(dy, dx);
+        e.aim = Math.atan2(dy, dx); e.recoil = Math.max(0, (e.recoil || 0) - dt * 5);
         e.fire -= dt;
         if (e.fire <= 0) {
           G.bullets.push({ x: e.x + ux * (e.r + 1.4), y: e.y + uy * (e.r + 1.4), vx: ux * BULLET_SPEED, vy: uy * BULLET_SPEED, r: BULLET_R });
+          e.recoil = 1; burst(e.x + ux * (e.r + 1.4), e.y + uy * (e.r + 1.4), 5, COL.threat, 22, 0.3, 0.2);
           e.fire = Math.max(TURRET_FIRE_MIN, TURRET_FIRE - Math.max(0, G.wave - 5) * 0.06);
           sfx.shoot(e.x);
         }
@@ -6917,6 +6934,42 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   };
   const dasherAngle = e => e.st === 'walk' ? Math.atan2(e.vy, e.vx) : Math.atan2(e.dy, e.dx);
   const wallNormal = e => [Math.PI / 2, Math.PI, -Math.PI / 2, 0][e.side];
+  // A turret: an armoured dome bolted to the wall (rivets round it, its health in it), and on it a gun head that turns
+  // to follow you: twin barrels that kick back when it fires, a sensor eye that glows hotter as it charges and flashes
+  // white just before the shot, and a faint dashed sight down the line it's about to fire along.
+  function drawTurret(e, col, pierce) {
+    const n = wallNormal(e), r = e.r, fl = e.flash > 0, line = fl ? COL.chalk : col, H3 = hex(COL.hull), t = G.time;
+    const charge = clamp(1 - e.fire / 0.6, 0, 1), soon = e.fire < 0.25 && Math.floor(t * 16) % 2;
+    const fill = (a = 0.22) => { ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},${a})`; ctx.fill(); };
+    if (charge > 0) { // its sight, down the line it'll fire along
+      ctx.save(); ctx.setLineDash([1.4, 1.2]); ctx.lineDashOffset = -t * 10; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.15 + 0.45 * charge; ctx.lineWidth = 0.3;
+      ctx.beginPath(); ctx.moveTo(Math.cos(e.aim) * r * 1.9, Math.sin(e.aim) * r * 1.9); ctx.lineTo(Math.cos(e.aim) * r * 9, Math.sin(e.aim) * r * 9); ctx.stroke(); ctx.restore();
+    }
+    ctx.save(); ctx.rotate(n - Math.PI / 2); // the wall along x, the arena toward +y
+    ctx.beginPath(); ctx.moveTo(-r * 1.35, 0); ctx.lineTo(r * 1.35, 0); ctx.lineTo(r * 1.1, r * 0.35); ctx.lineTo(-r * 1.1, r * 0.35); ctx.closePath(); fill(0.3); ctx.strokeStyle = line; ctx.lineWidth = 0.4; ctx.stroke(); // the base plate
+    ctx.fillStyle = line; for (const sx of [-1, 1]) { ctx.beginPath(); ctx.arc(sx * r * 1.12, r * 0.15, 0.32, 0, Math.PI * 2); ctx.fill(); } // its bolts
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI); ctx.closePath(); fill(0.26); // the dome
+    if (fl) { ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 1; }
+    ctx.strokeStyle = line; ctx.lineWidth = 0.75; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0.15, Math.PI - 0.15); ctx.strokeStyle = line; ctx.lineWidth = 0.25; ctx.globalAlpha = 0.6; ctx.stroke(); ctx.globalAlpha = 1; // an armour seam
+    ctx.fillStyle = line; for (let k = 1; k < 6; k++) { const a = k / 6 * Math.PI; ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86, 0.22, 0, Math.PI * 2); ctx.fill(); } // rivets
+    ctx.restore();
+    // the gun head on top, turned to you
+    const hx = Math.cos(n) * r * 0.45, hy = Math.sin(n) * r * 0.45;
+    ctx.save(); ctx.translate(hx, hy); ctx.rotate(e.aim);
+    const kick = (e.recoil || 0) * 0.9;
+    for (const o of [-0.55, 0.55]) { ctx.beginPath(); ctx.roundRect(r * 0.3 - kick, o * 1 - 0.38, r * 1.15, 0.76, 0.25); fill(0.35); ctx.strokeStyle = line; ctx.lineWidth = 0.3; ctx.stroke(); } // twin barrels
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2); fill(0.34); ctx.strokeStyle = line; ctx.lineWidth = 0.5; ctx.stroke(); // the head
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35 + 0.6 * charge; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(r * 0.18, 0, 0.9 + 1.2 * charge, 0, Math.PI * 2); ctx.fill(); ctx.restore(); // the eye's glow
+    ctx.beginPath(); ctx.arc(r * 0.18, 0, 0.55, 0, Math.PI * 2); ctx.fillStyle = soon ? COL.chalk : COL.threat; ctx.fill();
+    if (charge > 0.4) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = charge * 0.8; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(r * 1.45 - kick, 0, 0.6 + charge * 1.1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); } // the muzzle, heating
+    ctx.restore();
+    if (e.hp > 1 && !VEC) { // its health, in the dome
+      const tx = Math.cos(n) * r * 0.42 - Math.cos(n) * r * 0.05, ty = Math.sin(n) * r * 0.42;
+      ctx.font = `700 ${r * 0.55}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = pierce ? heat(liveB) : COL.chalk; ctx.fillText(e.hp, tx + Math.cos(n + Math.PI / 2) * r * 0.62, ty + Math.sin(n + Math.PI / 2) * r * 0.62);
+    }
+  }
   // Outline of an enemy around the origin, scaled by k (k > 1 draws the killable rim just outside it).
   // Stretch the drawing along an axis (local to the enemy) to show what it's doing; the hitbox is unchanged.
   function squash(e) {
@@ -7402,16 +7455,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (e.core) { ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(0, 0, s2 * 0.3, 0, Math.PI * 2); ctx.fill(); }
         ctx.restore(); continue;
       }
-      if (e.type === 'turret') {
-        const charging = e.fire < 0.5, bx = Math.cos(e.aim) * e.r * 1.6, by = Math.sin(e.aim) * e.r * 1.6;
-        ctx.strokeStyle = charging && Math.floor(G.time * 16) % 2 ? COL.chalk : col; ctx.lineWidth = 1; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(bx, by); ctx.stroke();
-        if (charging) {
-          ctx.fillStyle = COL.threat; ctx.globalAlpha = 1 - e.fire / 0.5;
-          ctx.beginPath(); ctx.arc(bx, by, BULLET_R * (1 - e.fire / 0.5), 0, Math.PI * 2); ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-      }
+      if (e.type === 'turret') { drawTurret(e, col, pierce); ctx.restore(); continue; }
       if (isStone(e)) { // a block: same language as the arena's obstacles, with a slab outline and cracks
         const s = e.r * 1.25, left = e.stT;
         ctx.fillStyle = COL.block; ctx.fillRect(-s, -s, s * 2, s * 2);
