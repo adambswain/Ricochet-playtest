@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Oct 31 03:31 UTC · 0135472";</script>
+<script>window.RICOCHET_BUILD = "Oct 31 14:36 UTC · 8744518";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -407,7 +407,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   Object.assign(COL, { ink: tok('--ink'), arena: tok('--arena'), line: tok('--line'), chalk: tok('--chalk'), dim: tok('--dim'), lilac: tok('--lilac'), block: tok('--block'), blockEdge: tok('--block-edge'), bricks: [tok('--brick-1'), tok('--brick-2'), tok('--brick-3')], threat: tok('--threat'), hull: tok('--hull'), wall: tok('--wall'), grid: tok('--grid'), gridMajor: tok('--grid-major') });
   Object.assign(ECOL, { drifter: tok('--e-drifter'), brute: tok('--e-brute'), dasher: tok('--e-dasher'), splitter: tok('--e-splitter'),
                  mini: tok('--e-splitter'), turret: tok('--threat'), magnet: tok('--threat'),
-                 swarm: tok('--e-swarm'), bulwark: tok('--e-bulwark'), blinker: tok('--e-blinker'), warden: tok('--e-warden'), target: tok('--e-target'), monolith: tok('--e-monolith'), rock: tok('--e-rock'), saucer: tok('--threat'), titan: tok('--e-brute') });
+                 swarm: tok('--e-swarm'), bulwark: tok('--e-bulwark'), blinker: tok('--e-blinker'), warden: tok('--e-warden'), target: tok('--e-target'), monolith: tok('--e-monolith'), rock: tok('--e-rock'), saucer: tok('--threat'), titan: tok('--e-brute'), walker: tok('--e-warden'), micro: tok('--threat') });
   for (const k in PICK) PICK[k].color = tok(PICK[k].tok);
   HEAT.splice(0, 3, hex(tok('--cool')), hex(tok('--gold')), hex(tok('--hot')));
   FONT = tok('--arena-font') || tok('--display'); CORNERS = tok('--corners') !== '0';
@@ -531,6 +531,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     19: 'A Brute Wall marches in partway through this wave',
     29: 'Fighters overhead: something big is coming',
     30: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
+    57: 'Walkers fire rockets at you. Hit a rocket with your ball to send it back',
+    58: 'Micro-missiles ring you, spin, then close in. Blast a gap and get out, or pop them as they bunch up',
+    59: 'Something huge is coming. Feel that?',
+    60: 'Goliath: break its four weapons, then its knees, then its reactor. Hit its rockets back at it',
     50: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. When she cages you, break out before it hatches',
     23: 'Swarm Storm: hold out for 25 seconds while swarm after swarm blows in. Chain them',
     26: 'Titans close in from every side. When one stomps, get clear. Each cracks into brutes, and each brute into splinters',
@@ -564,7 +568,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     blinker:  { r: 2.4, hp: 2, spd: 11,  pts: 30 },
     warden:   { r: 4.6, hp: 12, spd: 6,  pts: 200 },
     monolith: { r: 3.6, hp: 5, spd: 8,   pts: 60 },
-    titan:    { r: 8.5, hp: 14, spd: 6.3, pts: 400 }, // Titans set piece: huge, slow, cracks into two brutes
+    titan:    { r: 8.5, hp: 14, spd: 6.3, pts: 400 },
+    walker:   { r: 4.2, hp: 4, spd: 7, pts: 80 },   // a little war machine that fires heavy rockets (Goliath's scouts)
+    micro:    { r: 1.5, hp: 1, spd: 0, pts: 15 },   // a micro-missile in a ring (Goliath's) // Titans set piece: huge, slow, cracks into two brutes
     rock:     { r: 7.5, hp: 3, spd: 0,   pts: 20 },  // Asteroid Field: size 3 / 2 / 1 set on spawn
     invader:  { r: 2.6, hp: 1, spd: 0,   pts: 15 },  // Invasion: moved by the formation (updateInvaders)
     saucer:   { r: 3.4, hp: 2, spd: 0,   pts: 200 },
@@ -1045,11 +1051,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //   the doors open to a gap narrower than the bay, so a ball that gets in rattles around. A ball shut in stays
   //   trapped until the doors open again; inside the bay it heats only to just under the warning.
   // Bosses: the Core at 10, the Serpent at 15, the Maw at 20; after that one every ten waves in turn, harder each lap.
-  const BOSSES = ['tank', 'serpent', 'maw', 'geode', 'hive']; // a boss every 10 waves: 10, 20, 30, 40, and the finale at 50
+  const BOSSES = ['tank', 'serpent', 'maw', 'geode', 'hive', 'mech']; // a boss every 10 waves: 10, 20, 30, 40, 50, and the finale at 60
   // The game runs in loops of LOOP_LEN waves. Each loop replays the first one's structure (the same set pieces and
   // bosses at the same waves) in Overdrive: everything that comes at you runs faster and every point counts more. The
   // last wave of a loop is its finale: beating it brings up the victory screen.
-  const LOOP_LEN = 50;
+  const LOOP_LEN = 60;
   const loopOf = n => Math.max(0, Math.floor((n - 1) / LOOP_LEN)); // 0 for the first loop
   const inLoop = n => (Math.max(1, n) - 1) % LOOP_LEN + 1;          // the wave's place in its loop, 1 to LOOP_LEN
   const overdrive = n => 1 + 0.25 * Math.min(2, loopOf(n));         // speed of enemies, their shots and bosses
@@ -1057,7 +1063,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const bossFor = n => { const k = inLoop(n); return k % 10 === 0 ? BOSSES[(k / 10 - 1) % BOSSES.length] : null; };
   // how many times this boss has come before, so each visit is harder than its last
   const bossCycle = n => loopOf(n);
-  const BOSS_NAMES = { core: 'The Core', tank: 'Clanktank', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'The Hive' };
+  const BOSS_NAMES = { core: 'The Core', tank: 'Clanktank', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'The Hive', mech: 'Goliath' };
   const BOSS_TITLES = { geode: 'the Jailer' }; // shown under the name as it lands
   const RAM_AIM = 1.2, RAM_LOCK = 0.35, RAM_SPEED = 110, RAM_STUN = 2.4;
   const CORE_R = 16, CORE_SPEED = 9, BOMB_R = 3.6, BOMB_SPEED = 16, BOMB_RETURN = 90, BOMB_FUSE = 10, BOMB_FUSE_BLAST = 14, BOMB_MAX = 4;
@@ -1196,6 +1202,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (kind === 'hive') setupHive(B, cycle);
     if (kind === 'geode') setupGeode(B, cycle);
     if (kind === 'tank') setupTank(B, cycle);
+    if (kind === 'mech') setupMech(B, cycle);
     if (kind === 'core') Object.assign(B, { r: CORE_R, hp: Math.round(60 * (1 + cycle * 0.6)), fireT: 2.5, aim: Math.PI / 2, vx: 0, vy: 0, wx: AW / 2, wy: AH / 2, wT: 0, mode: 'drift', ramT: 7, modeT: 0, ramA: 0, hitCd: 0 });
     else if (kind === 'maw') {
       // hull spans x = bx ± W/2 and y = 0..D from the top wall; the hangar bay is MW wide in the middle
@@ -1218,7 +1225,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     B.maxHp = B.hp;
     G.boss = B; G.bombs = [];
-    G.banner = { text: 'Warning', sub: `${BOSS_NAMES[kind]} incoming`, t: BOSS_ENTER, max: BOSS_ENTER, top: kind !== 'tank', low: kind === 'tank' }; // Clanktank drives in from the top: its warning sits below it
+    G.banner = { text: 'Warning', sub: `${BOSS_NAMES[kind]} incoming`, t: BOSS_ENTER, max: BOSS_ENTER, top: kind !== 'tank' && kind !== 'mech', low: kind === 'tank' || kind === 'mech' }; // Clanktank drives in from the top: its warning sits below it
     sfx.field();
   }
   // The warning is over: the boss is solid. Shove the ship (and anything else) clear rather than hurting it.
@@ -1237,6 +1244,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const dx = p.x - B.x, dy = p.y - B.y, d = Math.hypot(dx, dy);
       if (d < B.r + PLAYER_R + 2) { const nx = d > 0.01 ? dx / d : 0, ny = d > 0.01 ? dy / d : 1; p.x = B.x + nx * (B.r + PLAYER_R + 3); p.y = B.y + ny * (B.r + PLAYER_R + 3); keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); }
     } else if (B.kind === 'tank') { if (pushOutTank(B, p, PLAYER_R + 3)) { keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); } }
+    else if (B.kind === 'mech') { const px = p.x, py = p.y; pushOutMech(B, p, PLAYER_R + 3); if (p.x !== px || p.y !== py) { keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); } }
     else if (p.y < B.D + PLAYER_R && Math.abs(p.x - B.bx) < B.W / 2 + PLAYER_R) { p.y = B.D + PLAYER_R + 3; p.inv = Math.max(p.inv, 1); }
     ring(B.x, B.y, 2, (B.r || 20) * 2.2, 0.5, COL.threat, 1.2); gridImpulse(B.x, B.y, Math.max(AW, AH) * 0.5, 180);
     shake(3); sfx.boss();
@@ -1541,7 +1549,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
                              { x0: B.bx + B.MW / 2 - half, x1: B.bx + B.MW / 2, y0: B.D - MAW_JAW_T, y1: B.D, jaw: true });
     return out;
   }
-  const mawIn = B => B.kind === 'maw' && B.enter <= BOSS_ENTER - MAW_IN; // the Carrier's in place (and solid) before its warning's over
+  const mawIn = B => (B.kind === 'maw' || B.kind === 'mech') && B.enter <= BOSS_ENTER - MAW_IN; // the Carrier (and Goliath) is in place, and solid, before its warning's over
   const inRect = (R0, x, y) => x > R0.x0 && x < R0.x1 && y > R0.y0 && y < R0.y1;
   const inMawBay = o => !!(G.boss && G.boss.kind === 'maw' && (inRect(mawCavity(G.boss), o.x, o.y) || inConvex(mawWing(G.boss, -1), o.x, o.y) || inConvex(mawWing(G.boss, 1), o.x, o.y))); // the bay or a deck
 
@@ -1568,6 +1576,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return;
     }
     if (B.kind === 'geode') { blastGeode(B, x, y, rad, dmg); return; }
+    if (B.kind === 'mech') { // a blast hurts every part it reaches that can be hurt
+      const hit = new Set();
+      for (const [cx, cy, cr, key, hurts] of mechCircles(B)) if (hurts && !hit.has(key) && Math.hypot(cx - x, cy - y) < rad + cr) { hit.add(key); mechHit(B, key, dmg, cx, cy); }
+      return;
+    }
     if (B.kind === 'tank') { // a blast hurts every part it reaches, sets off the drums, strips the tiles, and hurts the reactor once it's open
       for (const key of ['L', 'R', 'podL', 'podR']) { if (!tankLive(B, key)) continue; const [px, py] = tankPartAt(B, key); if (Math.hypot(px - x, py - y) < rad + 8) tankHit(B, key, dmg, px, py); }
       TANK_DRUMS.forEach((d, i) => { if (B.drums[i] && G.boss === B) { const [dx, dy] = tankWorld(B, ...d); if (Math.hypot(dx - x, dy - y) < rad + 3) tankDrum(B, i); } });
@@ -1603,9 +1616,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
   }
   function defeatBoss() {
-    const B = G.boss, bonus = B.kind === 'hive' ? Math.round(HIVE_FINALE * G.mult) * (B.cycle + 1) : 5000 * (B.cycle + 1); // the finale pays by your multiplier
+    const B = G.boss, bonus = B.kind === 'hive' || B.kind === 'mech' ? Math.round(HIVE_FINALE * G.mult) * (B.cycle + 1) * (B.kind === 'mech' ? 2 : 1) : 5000 * (B.cycle + 1); // the finale pays by your multiplier
     G.score += bonus;
-    const own = B.kind === 'geode' || B.kind === 'hive' || B.kind === 'maw' || B.kind === 'tank'; // Gorp, Vexa and the Carrier have their own deaths: the bang (and the reward) comes later
+    const own = B.kind === 'geode' || B.kind === 'hive' || B.kind === 'maw' || B.kind === 'tank' || B.kind === 'mech'; // Gorp, Vexa and the Carrier have their own deaths: the bang (and the reward) comes later
     if (!own) {
       for (let i = 0; i < 4; i++) ring(B.x, B.y, 2, B.r + 10 + i * 9, 0.5 + i * 0.15, i % 2 ? ECOL.warden : COL.threat, 1.2);
       burst(B.x, B.y, 90, ECOL.warden, 90, 1.1, 1.0); burst(B.x, B.y, 60, COL.threat, 70, 0.9, 0.8);
@@ -1614,7 +1627,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     G.result = { text: `${BOSS_NAMES[B.kind]} destroyed`, sub: `+${bonus.toLocaleString()}`, t: 3, max: 3 };
     if (!own) for (let i = 0; i < 3; i++) spawnPickup(B.x + rand(-6, 6), B.y + rand(-6, 6)); // Gorp's come out when he pops
-    if (B.kind === 'geode' || B.kind === 'maw' || B.kind === 'tank') { /* the reward comes with the bang (geoPop, mawBlow, the Tank's blow) */ }
+    if (B.kind === 'mech') G.result = { text: 'Goliath has fallen', sub: `+${bonus.toLocaleString()} (×${G.mult.toFixed(1)})`, t: 4, max: 4 };
+    if (B.kind === 'geode' || B.kind === 'maw' || B.kind === 'tank' || B.kind === 'mech') { /* the reward comes with the bang (geoPop, mawBlow, the Tank's blow) */ }
     else if (B.kind === 'hive') { // the finale's reward (the hull repaired to full) comes when she bursts (vexaPop)
       G.result = { text: 'The Hive has fallen', sub: `+${bonus.toLocaleString()} (×${G.mult.toFixed(1)})`, t: 4, max: 4 };
       for (const e of G.enemies) if (e.bee || e.type === 'egg' || e.type === 'wax') e.gone = true; // the swarm dies with its queen
@@ -1626,6 +1640,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'geode') geoDie(B);
     if (B.kind === 'maw') mawDie(B);
     if (B.kind === 'tank') tankDie(B);
+    if (B.kind === 'mech') mechDie(B);
     if (B.kind === 'hive') vexaDie(B);
     for (const bm of G.bombs) burst(bm.x, bm.y, 8, COL.threat, 20, 0.5, 0.3);
     G.bombs = []; G.boss = null;
@@ -1826,6 +1841,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'hive') return ballHive(B, o, r, b);
     if (B.kind === 'geode') return ballGeode(B, o, r, b);
     if (B.kind === 'tank') return ballTank(B, o, r, b);
+    if (B.kind === 'mech') return ballMech(B, o, r, b);
     const dx = o.x - B.x, dy = o.y - B.y, d = Math.hypot(dx, dy) || 1e-6, nx = dx / d, ny = dy / d;
     if (d - r < B.r) {
       o.x = B.x + nx * (B.r + r + 0.05); o.y = B.y + ny * (B.r + r + 0.05);
@@ -1963,6 +1979,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'hive') { updateHive(B, dt); return; }
     if (B.kind === 'geode') { updateGeode(B, dt); return; }
     if (B.kind === 'tank') { updateTank(B, dt); return; }
+    if (B.kind === 'mech') { updateMech(B, dt); return; }
     if (B.phase >= 2 && B.kind !== 'maw' && B.kind !== 'hive') { B.nextEscort -= dt; if (B.nextEscort <= 0) { B.nextEscort = B.phase === 3 ? 7 : 11; for (let i = 0; i < (B.phase === 3 ? 4 : 2); i++) G.spawnQueue.push(B.phase === 3 && i % 2 ? 'dasher' : 'drifter'); } }
     if (B.kind === 'core') {
       B.hitCd -= dt;
@@ -2773,7 +2790,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (c) drawCrown(c.x, c.y, c.a, c.u, clamp(1 - (at - VEXA_AFTER + 0.8) / 0.8, 0, 1));
   }
   function drawBoss() {
-    drawVexaDeath(); drawMawDeath(); drawTankDeath();
+    drawVexaDeath(); drawMawDeath(); drawTankDeath(); drawMechDeath();
     const B = G.boss;
     if (B && B.enter > 0) {
       const k = 1 - B.enter / BOSS_ENTER;
@@ -2784,6 +2801,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const e0 = B.enter;
       ctx.save();
       if (B.kind === 'core') { const d = B.enter / BOSS_DROP, sc = 1 + 1.8 * d * d; ctx.translate(B.x, B.y); ctx.scale(sc, sc); ctx.translate(-B.x, -B.y); } // falls in toward you
+      else if (B.kind === 'mech') { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.y + 36 * B.s) * Math.pow(Math.max(0, 1 - k * BOSS_ENTER / MAW_IN), 2.2)); } // Goliath strides down out of the top, then stands there, solid
       else if (B.kind === 'tank') { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.y + 32) * Math.pow(1 - k, 1.6)); } // the Tank rolls in from the top over the whole warning
       else { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.D + 8) * Math.pow(Math.max(0, 1 - k * BOSS_ENTER / MAW_IN), 2.2)); } // the Carrier drops down out of the top, then hangs there through the warning, solid
       B.enter = 0; drawBoss(); B.enter = e0; // the boss as it will look, just not solid yet
@@ -2814,6 +2832,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'hive') { drawHive(B); return; }
     if (B.kind === 'geode') { drawGeodeFg(B); return; }
     if (B.kind === 'tank') { drawTank(B); return; }
+    if (B.kind === 'mech') { drawMech(B); return; }
     if (B.kind === 'serpent') { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); drawSerpent(B); ctx.restore(); return; } // it lives beyond the walls too: only show what's inside
     const col = B.flash > 0 ? COL.chalk : ECOL.warden;
     ctx.save(); ctx.translate(B.x, B.y);
@@ -3824,6 +3843,530 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.restore(); ctx.globalAlpha = 1;
   }
 
+  /* ---------- Goliath ---------- */
+  // Wave 60, the finale: a war machine, front on, in three phases.
+  //  - Arsenal: it stands at the top of the arena striding side to side. Its body is armour (the ball clanks off,
+  //    gaining charge); its four weapons are the targets, each with its own health, each with its own attack, each
+  //    flagged first: the gatling (left arm) sweeps an arc of bullets behind a laser sight; the rocket claw (right arm)
+  //    locks on and fires heavy rockets that curve after you (hit one with the ball and it turns round and flies back
+  //    at the nearest part you can hurt: MECH_ROCKET_DMG); the missile rack (left shoulder) throws a ring of
+  //    micro-missiles round you; the launch rail (right shoulder) sends jets. Every weapon you break makes the rest
+  //    angrier (MECH_RAGE faster each) and drops its wreck on the floor: debris the ball bounces off (MECH_DEBRIS).
+  //    Tanks trickle in.
+  //  - The transformation: the last weapon goes; it staggers, tears off its chest plate, fires its thrusters, rises
+  //    and slams down onto the arena floor (everything else there is crushed). "Goliath unleashed".
+  //  - Unleashed: it walks the floor at you, a step at a time; each foot's landing spot shows as a shadow first and
+  //    lands with a shockwave (MECH_STOMP_R). Its exposed reactor charges and sweeps a beam across you; launchers on
+  //    its back fire rocket salvos. Its knees are the targets: one gone and it limps (slower, angrier); both and it
+  //    crashes to its knees. Jets come in Vs.
+  //  - Last stand: on its knees, the cockpit open (its pilot glaring out), the reactor bare and the only target. It
+  //    beams, fires salvos and rings of micro-missiles, and calls in backup from every boss (tanks, jets, bees) in
+  //    turn. Below MECH_CRIT it goes critical: everything faster.
+  // Micro-missiles: a ring of them streams out to circle you (centred where you were), spins there as the warning, then
+  // closes in; reaching the middle, the ring detonates. Each dies in one hit and blows up (MECH_MICRO_AOE), taking any
+  // within reach with it: further than the spacing of a fresh ring, so a hit pops a few, but as the ring closes they
+  // bunch up and go off in chains. Touching one hurts. The bar: ARSENAL | LEGS | REACTOR.
+  const MECH_W = { gun: 22, claw: 22, rack: 22, rail: 22 }, MECH_KNEE = 40, MECH_CORE = 100, MECH_RAGE = 0.2, MECH_CRIT = 0.1;
+  const MECH_ROCKET_V = 26, MECH_ROCKET_TURN = 1.1, MECH_ROCKET_HOME = 2.8, MECH_ROCKET_BACK = 75, MECH_ROCKET_DMG = 12, MECH_ROCKET_R = 2.4;
+  const MECH_MICRO_SPACE = 7.5, MECH_MICRO_AOE = 6.5, MECH_MICRO_FLY = 0.7, MECH_MICRO_SPIN = 1.2, MECH_MICRO_CLOSE = 4.2, MECH_MICRO_BOOM = 9;
+  const MECH_STOMP_R = 13, MECH_STEP = [1.0, 1.5], MECH_STEP_WARN = 0.55, MECH_BEAM_CHARGE = 1.0, MECH_BEAM_SWEEP = 1.4, MECH_BEAM_ARC = 1.1;
+  const MECH_DEBRIS = 10, MECH_TRANSFORM = 4;
+  const mechS = () => clamp(Math.min(AW / 136, AH / 230), 0.72, 1.3); // its size: a third of a portrait arena's height at most
+  // Its parts, in its own units (x across, y down from the middle of its chest), standing.
+  const MECH_PARTS = { gun: [-27, 11, 7], claw: [27, 11, 7], rack: [-16, -18, 6], rail: [16, -19, 6] };
+  const MECH_ARMOUR = [[0, -1, 11], [0, -14, 5.5]]; // solid: its chest and head (the shoulders and arms are drawn, not in the way, so there's a clear lane up to every weapon)
+  function setupMech(B, cycle) {
+    const k = 1 + cycle * 0.6, s = mechS(), parts = {};
+    for (const key in MECH_W) parts[key] = { hp: Math.round(MECH_W[key] * k), max: Math.round(MECH_W[key] * k), flash: 0 };
+    for (const key of ['kneeL', 'kneeR']) parts[key] = { hp: Math.round(MECH_KNEE * k), max: Math.round(MECH_KNEE * k), flash: 0 };
+    const core = Math.round(MECH_CORE * k);
+    Object.assign(B, { s, x: AW / 2, y: 33 * s, x0: AW / 2, y0: 33 * s, r: 30 * s, parts, core, coreMax: core, hp: core + Object.values(parts).reduce((a, q) => a + q.hp, 0),
+      st: 'arsenal', t: 0, stT: 0, hitCd: 0, rage: 1, crit: false, timers: { gun: 2.5, claw: 4.5, rack: 7, rail: 5.5, backup: 10, beam: 3, salvo: 2.5, micro: 6 },
+      sweep: null, lockT: 0, beam: null, walk: { foot: 0, t: 0.8, from: null, to: null, land: null }, kneel: 0, open: 0, lift: 0, plate: null, roster: 0, pose: 0 });
+  }
+  const mechBroken = (B, key) => B.parts[key].hp <= 0;
+  const mechWeapons = B => ['gun', 'claw', 'rack', 'rail'].filter(k => !mechBroken(B, k));
+  // Where a point of its body is in the arena (kneeling lowers the chest; the legs fold).
+  const mechAt = (B, lx, ly) => [B.x + lx * B.s, B.y + (ly + (ly < 12 ? B.kneel * 9 : 0)) * B.s];
+  const mechLift = (B, side) => B.walk && B.walk.lift && B.walk.foot === (side < 0 ? 0 : 1) ? B.walk.lift : 0;
+  function mechKnee(B, side) { return [B.x + side * (10 + B.kneel * 3) * B.s, B.y + (21 - mechLift(B, side) * 3 + B.kneel * 8) * B.s]; } // kneeling: knees on the floor
+  function mechFoot(B, side) { return [B.x + side * (12 + B.kneel * 5) * B.s, B.y + (31 - mechLift(B, side) * 5 + B.kneel * 1) * B.s]; }
+  // Everything solid, as circles: [x, y, r, key or null (armour), hits hurt it?]
+  function mechCircles(B) {
+    const out = [], s = B.s;
+    for (const [lx, ly, r] of MECH_ARMOUR) { if (B.st === 'kneel' && !ly) continue; const [x, y] = mechAt(B, lx, ly); out.push([x, y, r * s, null, false]); } // on its knees its chest is the target, not armour
+    for (const key in MECH_PARTS) { const [lx, ly, r] = MECH_PARTS[key], [x, y] = mechAt(B, lx, ly), live = !mechBroken(B, key);
+      out.push([x, y, (live ? r * 1.25 : r * 0.55) * s, key, live && B.st === 'arsenal']); } // generous reach on the live ones
+    for (const side of [-1, 1]) { const key = side < 0 ? 'kneeL' : 'kneeR', [x, y] = mechKnee(B, side), live = !mechBroken(B, key);
+      out.push([x, y, (B.st === 'walk' && live ? 5.5 : 4.5) * s, key, live && B.st === 'walk']);
+      const [fx, fy] = mechFoot(B, side); out.push([fx, fy, 4 * s, null, false]); }
+    if (B.st === 'kneel') { const [x, y] = mechAt(B, 0, 1); out.unshift([x, y, 10.5 * s, 'core', true]); } // the bare reactor: the whole chest
+    return out;
+  }
+  // Damage to a part (a weapon or a knee), or to the reactor; the bar is the sum of everything.
+  function mechHit(B, key, dmg, x, y) {
+    if (key === 'core') { if (B.st === 'kneel') { B.core = Math.max(0, B.core - dmg); damageBoss(dmg, x, y); } return; }
+    const P = B.parts[key]; if (!P || P.hp <= 0) return;
+    const d = Math.min(dmg, P.hp); P.hp -= d; P.flash = 0.15; damageBoss(d, x, y);
+    if (P.hp <= 0 && G.boss === B) mechBreak(B, key);
+  }
+  function mechBreak(B, key) {
+    const knee = key === 'kneeL' || key === 'kneeR', [lx, ly] = knee ? [key === 'kneeL' ? -10 : 10, 21] : MECH_PARTS[key], [x, y] = mechAt(B, lx, ly), fire = heat(MAX_CHARGE * 0.75);
+    for (let i = 0; i < 4; i++) ring(x, y, 1, 10 + i * 8, 0.4 + i * 0.1, i % 2 ? COL.chalk : fire, 1.3);
+    burst(x, y, 50, fire, 70, 1, 0.7); burst(x, y, 24, ECOL.warden, 50, 0.8, 0.5); burst(x, y, 12, COL.chalk, 40, 0.5, 0.4);
+    gridImpulse(x, y, 50, 200); shake(4); G.freeze = Math.max(G.freeze, 0.1); sfx.overload(); sfx.brick(12);
+    float(x, y - 10, { gun: 'Gatling down!', claw: 'Claw down!', rack: 'Rack down!', rail: 'Rail down!', kneeL: 'Knee shattered!', kneeR: 'Knee shattered!' }[key], COL.chalk, 3.8);
+    if (!knee) { // its wreck falls to the floor: debris
+      B.rage += MECH_RAGE; if (B.sweep && key === 'gun') B.sweep = null;
+      G.debris.push({ x, y, vy: -20, vx: rand(-10, 10), floor: clamp(y + rand(22, 40), 12, AH - 14), r: 4.5 * B.s, a: rand(0, 6), va: rand(-6, 6), t: 0, life: MECH_DEBRIS, down: false });
+      if (!mechWeapons(B).length) { B.st = 'transform'; B.stT = 0; B.sweep = null; B.beam = null; }
+      else G.banner = { text: 'It\'s angrier!', sub: 'Its other weapons fire faster', t: 1.4, max: 1.4, at: 0.45 };
+    } else if (mechBroken(B, 'kneeL') && mechBroken(B, 'kneeR')) { // both knees: down it goes
+      B.st = 'kneel'; B.stT = 0; B.beam = null; B.timers.salvo = 2; B.timers.micro = 3.5; B.timers.backup = 1.5; B.timers.beam = 4;
+      shake(6); G.slowT = Math.max(G.slowT, 0.5); gridImpulse(B.x, B.y, Math.max(AW, AH), 260); sfx.boss();
+      G.banner = { text: 'It\'s down!', sub: 'Hit the reactor. Here comes everything', t: 2, max: 2, at: 0.45 };
+    } else { B.rage += 0.25; G.banner = { text: 'It\'s limping!', sub: 'Slower, angrier: break the other knee', t: 1.4, max: 1.4, at: 0.45 }; }
+  }
+  // Backup: tanks, a V of jets, or bees, from the edges (never too many at once).
+  function mechBackup(B, kind) {
+    if (G.enemies.length + G.tele.length > 26) return;
+    if (kind === 'tanks') for (let i = 0; i < 2; i++) G.tele.push({ ...spawnPoint(), type: 'tankette', t: 0.8 + i * 0.25 });
+    else if (kind === 'jets') spawnSquad(rand(AW * 0.25, AW * 0.75), 4 + B.cycle);
+    else for (let i = 0; i < 3; i++) { const q = spawnPoint(); spawnBees(q.x, q.y, 4); }
+    float(B.x, B.y + 34 * B.s, 'Backup!', COL.threat, 3.2);
+  }
+  // A heavy rocket from (x, y) at you
+  function mechRocket(x, y, spread = 0, from = null) {
+    const p = G.player, a = Math.atan2(p.y - y, p.x - x) + spread;
+    G.rockets.push({ x, y, vx: Math.cos(a) * MECH_ROCKET_V, vy: Math.sin(a) * MECH_ROCKET_V, t: 0, life: 7, friendly: false, from });
+    burst(x, y, 8, COL.threat, 25, 0.4, 0.3); sfx.launch(x);
+  }
+  // A ring (or two) of micro-missiles streaming out from (sx, sy) to circle you
+  function mechMicros(sx, sy, rings) {
+    const p = G.player, cx = clamp(p.x, 10, AW - 10), cy = clamp(p.y, 10, AH - 10), id = (G.microId = (G.microId || 0) + 1);
+    rings.forEach((R, j) => {
+      const n = Math.max(8, Math.floor(Math.PI * 2 * R / MECH_MICRO_SPACE)), a0 = rand(0, Math.PI * 2), w = (j % 2 ? -1 : 1) * 0.6;
+      for (let i = 0; i < n; i++) {
+        const e = makeEnemy('micro', sx, sy);
+        Object.assign(e, { spawnT: 0, micro: { id, cx, cy, R, R0: R, a: a0 + i / n * Math.PI * 2, w, st: 'fly', t: 0, sx, sy, d: i * 0.012 } });
+        G.enemies.push(e);
+      }
+    });
+    sfx.blasterCharge();
+  }
+  // One micro-missile: out to its place in the ring, spinning there, then closing in; at the middle the ring goes up.
+  function updateMicro(e, dt) {
+    const M = e.micro; M.t += dt;
+    if (M.st === 'fly') {
+      const k = clamp((M.t - M.d) / MECH_MICRO_FLY, 0, 1), ez = k * k * (3 - 2 * k), tx = M.cx + Math.cos(M.a) * M.R, ty = M.cy + Math.sin(M.a) * M.R;
+      e.x = M.sx + (tx - M.sx) * ez; e.y = M.sy + (ty - M.sy) * ez; e.face = Math.atan2(ty - M.sy, tx - M.sx);
+      if (k >= 1) { M.st = 'spin'; M.t = 0; }
+      return;
+    }
+    M.a += M.w * dt * (M.st === 'close' ? 1 + (1 - M.R / M.R0) * 2.5 : 1);
+    if (M.st === 'spin' && M.t >= MECH_MICRO_SPIN) { M.st = 'close'; M.t = 0; }
+    if (M.st === 'close') M.R = Math.max(0, M.R0 * (1 - M.t / MECH_MICRO_CLOSE));
+    e.x = M.cx + Math.cos(M.a) * M.R; e.y = M.cy + Math.sin(M.a) * M.R; e.face = M.a + Math.PI / 2 * Math.sign(M.w) + (M.st === 'close' ? Math.PI / 2 * Math.sign(M.w) * 0.6 : 0);
+    if (M.st === 'close' && M.R < 3.5) { // the ring meets in the middle and goes up together
+      const p = G.player;
+      for (const o of G.enemies) if (o.micro && o.micro.id === M.id) o.gone = true;
+      for (let k = 0; k < 3; k++) ring(M.cx, M.cy, 1, MECH_MICRO_BOOM * (0.6 + k * 0.35), 0.3 + k * 0.08, k % 2 ? COL.chalk : COL.threat, 1.2);
+      burst(M.cx, M.cy, 40, COL.threat, 60, 0.8, 0.5); gridImpulse(M.cx, M.cy, MECH_MICRO_BOOM * 2.5, 180); shake(2); sfx.overload();
+      if (p.inv <= 0 && Math.hypot(p.x - M.cx, p.y - M.cy) < MECH_MICRO_BOOM + PLAYER_R * 0.6) damagePlayer();
+    }
+  }
+  // A micro-missile's blast when it's killed: it takes the ones within reach with it, a beat later (a chain)
+  function microBlast(x, y, src) {
+    ring(x, y, 0.5, MECH_MICRO_AOE, 0.22, heat(MAX_CHARGE * 0.75), 0.9); burst(x, y, 10, heat(MAX_CHARGE * 0.75), 35, 0.5, 0.3);
+    G.microQueue = G.microQueue || [];
+    G.microQueue.push({ x, y, t: 0.07, src });
+  }
+  function updateMicroQueue(dt) {
+    const Q = G.microQueue; if (!Q || !Q.length) return;
+    for (let i = Q.length - 1; i >= 0; i--) {
+      const q = Q[i]; q.t -= dt; if (q.t > 0) continue;
+      Q.splice(i, 1);
+      for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (e.micro && !e.gone && Math.hypot(e.x - q.x, e.y - q.y) < MECH_MICRO_AOE + e.r) kill(j, 4, 0, q.src && q.src.state ? q.src : G.balls[0]); }
+    }
+  }
+  // Heavy rockets: theirs curve after you for a while; hit one with a ball and it's yours, homing on what you can hurt
+  function rocketTarget(o) {
+    if (o.from && G.enemies.includes(o.from)) return [o.from.x, o.from.y]; // a walker's own rocket goes back to it
+    const B = G.boss;
+    if (B && B.kind === 'mech' && B.st !== 'transform') {
+      let best = null, bd = 1e9;
+      for (const [x, y, r, key, hurts] of mechCircles(B)) if (hurts) { const d = Math.hypot(x - o.x, y - o.y); if (d < bd) { bd = d; best = [x, y]; } }
+      if (best) return best;
+    }
+    let best = null, bd = 1e9;
+    for (const e of G.enemies) if (!e.micro && !isStone(e)) { const d = Math.hypot(e.x - o.x, e.y - o.y); if (d < bd) { bd = d; best = [e.x, e.y]; } }
+    return best;
+  }
+  function updateRockets(dt) {
+    const p = G.player;
+    for (let i = G.rockets.length - 1; i >= 0; i--) {
+      const o = G.rockets[i]; o.t += dt;
+      const sp = Math.hypot(o.vx, o.vy) || 1;
+      let a = Math.atan2(o.vy, o.vx), want = null;
+      if (!o.friendly && o.t < MECH_ROCKET_HOME) want = Math.atan2(p.y - o.y, p.x - o.x);
+      if (o.friendly) { const T = rocketTarget(o); if (T) want = Math.atan2(T[1] - o.y, T[0] - o.x); }
+      if (want !== null) { let da = want - a; da = Math.atan2(Math.sin(da), Math.cos(da)); a += clamp(da, -(o.friendly ? 4 : MECH_ROCKET_TURN) * dt, (o.friendly ? 4 : MECH_ROCKET_TURN) * dt); }
+      o.vx = Math.cos(a) * sp; o.vy = Math.sin(a) * sp; o.x += o.vx * dt; o.y += o.vy * dt;
+      if (Math.random() < dt * 40) G.parts.length < 900 && burst(o.x - o.vx / sp * 2.5, o.y - o.vy / sp * 2.5, 1, o.friendly ? heat(10) : COL.threat, 8, 0.4, 0.25); // its exhaust
+      const pop = (big) => { burst(o.x, o.y, big ? 30 : 12, o.friendly ? heat(12) : COL.threat, big ? 60 : 35, 0.6, 0.4); ring(o.x, o.y, 1, big ? 12 : 6, 0.3, o.friendly ? heat(12) : COL.threat, 0.9); shake(big ? 2 : 0.6); sfx.overload(); G.rockets.splice(i, 1); };
+      if (o.x < -4 || o.x > AW + 4 || o.y < -4 || o.y > AH + 4 || o.t > o.life) { G.rockets.splice(i, 1); continue; }
+      if (!o.friendly) {
+        let hitBy = null;
+        for (const b of G.balls.concat(G.extras)) if (b.state === 'live' && Math.hypot(b.x - o.x, b.y - o.y) < MECH_ROCKET_R + ballR(b.b || 0) + 0.8) { hitBy = b; break; }
+        if (hitBy) { // knocked back: it's yours now
+          o.friendly = true; o.src = hitBy; o.t = 0; o.life = 4;
+          const T = rocketTarget(o), a2 = T ? Math.atan2(T[1] - o.y, T[0] - o.x) : Math.atan2(-o.vy, -o.vx);
+          o.vx = Math.cos(a2) * MECH_ROCKET_BACK; o.vy = Math.sin(a2) * MECH_ROCKET_BACK;
+          ring(o.x, o.y, 1, 8, 0.25, heat(hitBy.b || 0), 0.9); float(o.x, o.y - 4, 'Sent back!', COL.chalk, 2.8); sfx.bump(); G.freeze = Math.max(G.freeze, 0.04);
+          continue;
+        }
+        if (p.inv <= 0 && Math.hypot(p.x - o.x, p.y - o.y) < MECH_ROCKET_R + PLAYER_R * 0.85) { pop(false); damagePlayer(); continue; }
+        continue;
+      }
+      // yours: it blows up on the first thing it reaches
+      const B = G.boss;
+      if (B && B.kind === 'mech') {
+        let hit = null;
+        for (const c of mechCircles(B)) if (Math.hypot(c[0] - o.x, c[1] - o.y) < c[2] + MECH_ROCKET_R) { if (!hit || c[4]) hit = c; if (c[4]) break; }
+        if (hit) { if (hit[4]) mechHit(B, hit[3], MECH_ROCKET_DMG * (1 + B.cycle * 0.5), o.x, o.y); else sfx.clank(); pop(true); continue; }
+      }
+      let hitE = -1;
+      for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (!e.gone && Math.hypot(e.x - o.x, e.y - o.y) < e.r + MECH_ROCKET_R) { hitE = j; break; } }
+      if (hitE >= 0) {
+        const src = o.src && o.src.state ? o.src : G.balls[0];
+        kill(hitE, 6, 0, src);
+        for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (!isStone(e) && Math.hypot(e.x - o.x, e.y - o.y) < 7 + e.r) kill(j, 6, 0, src); }
+        pop(true);
+      }
+    }
+  }
+  function drawRockets() {
+    for (const o of G.rockets) {
+      const a = Math.atan2(o.vy, o.vx), c = o.friendly ? heat(12) : COL.threat;
+      ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(a);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; const g = ctx.createLinearGradient(-9, 0, -1, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, c); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-1.5, -1); ctx.lineTo(-9 - Math.random() * 2, 0); ctx.lineTo(-1.5, 1); ctx.fill(); ctx.restore(); // its flame
+      ctx.beginPath(); ctx.moveTo(3, 0); ctx.lineTo(1.4, -1.1); ctx.lineTo(-2, -1.1); ctx.lineTo(-2.6, -1.9); ctx.lineTo(-2.6, 1.9); ctx.lineTo(-2, 1.1); ctx.lineTo(1.4, 1.1); ctx.closePath();
+      ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = c; ctx.lineWidth = 0.45; ctx.stroke();
+      ctx.fillStyle = Math.floor(G.time * 12) % 2 ? COL.chalk : c; ctx.beginPath(); ctx.arc(1.8, 0, 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      if (!o.friendly) { ctx.globalAlpha = 0.35; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.25; ctx.beginPath(); ctx.arc(o.x, o.y, MECH_ROCKET_R + 2.2, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; } // hit it!
+    }
+  }
+  // A micro-missile (drawn in the enemy loop, at its spot): a dart, lit at the tail; flashing as the ring closes
+  function drawMicro(e) {
+    const M = e.micro, close = M.st === 'close', spin = M.st === 'spin', hot = close && Math.floor(G.time * (8 + (1 - M.R / M.R0) * 20)) % 2;
+    ctx.rotate(e.face || 0);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; ctx.fillStyle = heat(MAX_CHARGE * 0.75); ctx.beginPath(); ctx.moveTo(-1, -0.5); ctx.lineTo(-3.4 - Math.random(), 0); ctx.lineTo(-1, 0.5); ctx.fill(); ctx.restore();
+    ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(-1.2, -0.9); ctx.lineTo(-0.7, 0); ctx.lineTo(-1.2, 0.9); ctx.closePath();
+    ctx.fillStyle = hot ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.stroke();
+    if (spin) { ctx.globalAlpha = 0.4; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.2; ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
+  }
+  // The rings' centre, as they close: where they'll meet
+  function drawMicroCentres() {
+    const seen = new Set();
+    for (const e of G.enemies) if (e.micro && !seen.has(e.micro.id)) {
+      seen.add(e.micro.id); const M = e.micro; if (M.st === 'fly') continue;
+      const k = M.st === 'close' ? 1 - M.R / M.R0 : 0;
+      ctx.globalAlpha = 0.15 + 0.35 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.arc(M.cx, M.cy, MECH_MICRO_BOOM, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.06 + 0.12 * k; ctx.fillStyle = COL.threat; ctx.fill(); ctx.globalAlpha = 1;
+    }
+  }
+  // Debris: wrecked weapons falling to the floor, then lying there for a while (the ball bounces off them)
+  function updateDebris(dt) {
+    for (let i = G.debris.length - 1; i >= 0; i--) {
+      const d = G.debris[i]; d.t += dt;
+      if (!d.down) { d.vy += 140 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; if (d.y >= d.floor) { d.y = d.floor; d.down = true; burst(d.x, d.y, 16, COL.dim, 30, 0.6, 0.4); shake(1.5); sfx.clank(); } }
+      if (d.t > d.life) { burst(d.x, d.y, 10, COL.dim, 20, 0.5, 0.3); G.debris.splice(i, 1); }
+    }
+  }
+  function debrisHit(o, r) {
+    for (const d of G.debris) {
+      if (!d.down) continue;
+      const dx = o.x - d.x, dy = o.y - d.y, dd = Math.hypot(dx, dy);
+      if (dd >= d.r + r || dd < 1e-6) continue;
+      const nx = dx / dd, ny = dy / dd; o.x = d.x + nx * (d.r + r + 0.05); o.y = d.y + ny * (d.r + r + 0.05);
+      const dot = o.vx * nx + o.vy * ny; if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
+      sfx.clank(); return true;
+    }
+    return false;
+  }
+  function drawDebris() {
+    const H3 = hex(COL.hull);
+    for (const d of G.debris) {
+      const fade = clamp((d.life - d.t) / 1.2, 0, 1);
+      ctx.save(); ctx.globalAlpha = fade; ctx.translate(d.x, d.y); ctx.rotate(d.a);
+      ctx.beginPath(); ctx.moveTo(d.r, 0); ctx.lineTo(d.r * 0.4, -d.r * 0.9); ctx.lineTo(-d.r * 0.7, -d.r * 0.6); ctx.lineTo(-d.r, d.r * 0.2); ctx.lineTo(-d.r * 0.2, d.r * 0.9); ctx.lineTo(d.r * 0.7, d.r * 0.6); ctx.closePath();
+      ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.5; ctx.stroke();
+      ctx.restore();
+      if (d.down && Math.random() < 0.3) burst(d.x + rand(-1, 1), d.y - 1, 1, COL.dim, 6, 0.5, 0.5); // smoke
+      ctx.globalAlpha = 1;
+    }
+  }
+  function updateMech(B, dt) {
+    const p = G.player, T = B.timers, rage = B.rage * (B.crit ? 1.4 : 1);
+    B.hitCd -= dt; B.t += dt; for (const k in B.parts) B.parts[k].flash -= dt;
+    if (!B.crit && B.st === 'kneel' && B.hp <= B.maxHp * MECH_CRIT) { B.crit = true; G.banner = { text: 'Reactor critical!', sub: 'Finish it!', t: 1.6, max: 1.6, at: 0.45 }; shake(3); sfx.boss(); }
+    // its touch hurts, and nothing passes through it
+    if (p.inv <= 0) for (const [x, y, r] of mechCircles(B)) if (Math.hypot(p.x - x, p.y - y) < r + PLAYER_R * 0.8) { damagePlayer(); break; }
+    if (B.plate) { const q = B.plate; q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; if (q.y > AH + 40) B.plate = null; }
+    if (B.st === 'arsenal') { // striding side to side along the top, firing what it's got
+      B.pose += dt * 1.6; B.x = B.x0 + Math.sin(B.t * 0.35) * Math.max(0, AW / 2 - 36 * B.s);
+      const go = (key, base) => !mechBroken(B, key) && (T[key] -= dt * rage) <= 0 && ((T[key] = base), true);
+      if (go('gun', 5)) { const [gx, gy] = mechAt(B, ...MECH_PARTS.gun), c = Math.atan2(p.y - gy, p.x - gx), dir = Math.random() < 0.5 ? -1 : 1; B.sweep = { t: 0, a0: c - dir * 0.5, a1: c + dir * 0.5, a: c - dir * 0.5, shotT: 0 }; sfx.blasterCharge(); }
+      if (B.sweep) {
+        const S = B.sweep; S.t += dt; S.a = S.a0 + (S.a1 - S.a0) * clamp(S.t < TANK_SIGHT ? S.t / TANK_SIGHT : (S.t - TANK_SIGHT) / TANK_SPRAY, 0, 1);
+        if (S.t >= TANK_SIGHT) { S.shotT -= dt; if (S.shotT <= 0) { S.shotT = 0.13; const [gx, gy] = mechAt(B, MECH_PARTS.gun[0], MECH_PARTS.gun[1] + 5); G.bullets.push({ x: gx, y: gy, vx: Math.cos(S.a) * 42, vy: Math.sin(S.a) * 42, r: 1.1, mg: true }); if (Math.random() < 0.5) sfx.shoot(gx); } }
+        if (S.t >= TANK_SIGHT + TANK_SPRAY || mechBroken(B, 'gun')) B.sweep = null;
+      }
+      if (!mechBroken(B, 'claw')) { if (B.lockT > 0) { B.lockT -= dt; if (B.lockT <= 0) { const [cx, cy] = mechAt(B, MECH_PARTS.claw[0], MECH_PARTS.claw[1] + 5); const n = rage > 1.3 ? 3 : 2; for (let i = 0; i < n; i++) mechRocket(cx, cy, (i - (n - 1) / 2) * 0.35); } }
+        else if (go('claw', 6)) { B.lockT = 0.8; sfx.blasterCharge(); } }
+      if (go('rack', 11)) { const [rx, ry] = mechAt(B, ...MECH_PARTS.rack); mechMicros(rx, ry, [30]); }
+      if (go('rail', 9)) { const [rx, ry] = mechAt(B, ...MECH_PARTS.rail); for (let i = 0; i < 3; i++) { const e = makeEnemy('dasher', clamp(rx + (i - 1) * 6, 6, AW - 6), ry + 6); Object.assign(e, { r: MAW_SHIP_R * 0.9, hp: 1, maxHp: 1, pts: 40, spawnT: 0, jet: { sq: null }, vx: (i - 1) * 14, vy: 30, stT: 0.5 + i * 0.2 }); G.enemies.push(e); } sfx.launch(rx); }
+      if ((T.backup -= dt) <= 0) { T.backup = 12; if (G.enemies.filter(e => e.tankette).length < 2) mechBackup(B, 'tanks'); }
+      return;
+    }
+    if (B.st === 'transform') { // stagger, tear off the chest plate, thrusters, up, and down onto the floor
+      B.stT += dt; const t = B.stT;
+      if (t < 1.2) { shake(0.6); if (Math.random() < dt * 20) { const [x, y] = mechAt(B, rand(-14, 14), rand(-14, 12)); burst(x, y, 8, heat(MAX_CHARGE * 0.75), 30, 0.5, 0.3); } }
+      if (t >= 1.2 && !B.plateGone) { B.plateGone = true; const [x, y] = mechAt(B, 0, 0); B.plate = { x, y, vx: rand(-20, 20), vy: -40, a: 0, va: rand(-4, 4) }; burst(x, y, 40, COL.chalk, 60, 0.7, 0.5); shake(3); sfx.overload(); G.banner = { text: 'It\'s transforming!', sub: '', t: 1.2, max: 1.2, at: 0.45 }; }
+      if (t >= 1.2 && t < 2.4) { B.lift = Math.min(1, (t - 1.2) / 1.2); B.y = B.y0 - 6 * B.s * B.lift; }
+      if (t >= 2.4 && t < 3) { const k = (t - 2.4) / 0.6, y1 = clamp(AH * 0.38, 46 * B.s, AH - 40 * B.s); B.y = (B.y0 - 6 * B.s) + (y1 - (B.y0 - 6 * B.s)) * k * k; }
+      if (t >= 3 && !B.slammed) {
+        B.slammed = true; B.y = clamp(AH * 0.38, 46 * B.s, AH - 40 * B.s); B.lift = 0;
+        for (let i = 0; i < 5; i++) ring(B.x, B.y + 30 * B.s, 2, 20 + i * 16, 0.5 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.4);
+        burst(B.x, B.y + 30 * B.s, 80, COL.dim, 90, 1, 0.7); gridImpulse(B.x, B.y, Math.max(AW, AH), 300); shake(8); G.slowT = Math.max(G.slowT, 0.6); G.screenFlash = 0.4; sfx.boss(); sfx.overload();
+        for (const e of G.enemies) { e.gone = true; burst(e.x, e.y, 8, COL.dim, 30, 0.5, 0.3); } G.tele.length = 0; G.rockets.length = 0; // crushed
+        if (Math.hypot(p.x - B.x, p.y - B.y) < 40 * B.s) { const a = Math.atan2(p.y - B.y, p.x - B.x) || Math.PI / 2; p.x = B.x + Math.cos(a) * 42 * B.s; p.y = B.y + Math.sin(a) * 42 * B.s; keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); }
+        G.bossCard = { text: 'GOLIATH UNLEASHED', t: 2, max: 2 };
+      }
+      if (t >= MECH_TRANSFORM) { B.st = 'walk'; B.rage = 1; B.walk = { foot: 0, t: 0.6, lift: 0 }; T.beam = 3; T.salvo = 2; T.backup = 6; } // a fresh start: its anger was its weapons'
+      return;
+    }
+    // walking (or on its knees): beam, salvos, and the rest
+    const beamEvery = B.st === 'kneel' ? 7 : 6, salvoEvery = B.st === 'kneel' ? 6.5 : 4.5;
+    if (!B.beam && (T.beam -= dt * rage) <= 0) { T.beam = beamEvery; const [cx, cy] = mechAt(B, 0, 1), c = Math.atan2(p.y - cy, p.x - cx), dir = Math.random() < 0.5 ? -1 : 1; B.beam = { t: 0, a0: c - dir * MECH_BEAM_ARC / 2, a1: c + dir * MECH_BEAM_ARC / 2 }; sfx.blasterCharge(); }
+    if (B.beam) {
+      const Bm = B.beam; Bm.t += dt; Bm.a = Bm.a0 + (Bm.a1 - Bm.a0) * clamp((Bm.t - MECH_BEAM_CHARGE) / MECH_BEAM_SWEEP, 0, 1);
+      if (Bm.t >= MECH_BEAM_CHARGE && p.inv <= 0) { const [cx, cy] = mechAt(B, 0, 1), ux = Math.cos(Bm.a), uy = Math.sin(Bm.a), along = (p.x - cx) * ux + (p.y - cy) * uy; if (along > 0 && Math.abs((p.x - cx) * uy - (p.y - cy) * ux) < 2.6 + PLAYER_R * 0.6) damagePlayer(); }
+      if (Bm.t >= MECH_BEAM_CHARGE + MECH_BEAM_SWEEP) B.beam = null;
+    }
+    if ((T.salvo -= dt * rage) <= 0) { T.salvo = salvoEvery; for (const sd of [-1, 0, 1]) { const [x, y] = mechAt(B, sd * 15, -12); mechRocket(x, y, sd * 0.3); } }
+    if (B.st === 'walk') {
+      const W = B.walk, limp = mechBroken(B, 'kneeL') || mechBroken(B, 'kneeR'), stepT = MECH_STEP[limp ? 1 : 0];
+      W.t -= dt;
+      if (!W.land && W.t <= MECH_STEP_WARN) { // plan the step: toward you (not too close), the lifted foot's landing spot shown
+        const d = Math.hypot(p.x - B.x, p.y - B.y) || 1, go = d > 38 * B.s ? Math.min(9 * B.s, d - 38 * B.s) : 0, nx = (p.x - B.x) / d, ny = (p.y - B.y) / d;
+        W.from = [B.x, B.y]; W.to = [clamp(B.x + nx * go, 36 * B.s, AW - 36 * B.s), clamp(B.y + ny * go, 25 * B.s, AH - 34 * B.s)];
+        const side = W.foot ? 1 : -1; W.land = [W.to[0] + side * 12 * B.s, W.to[1] + 31 * B.s];
+      }
+      if (W.land) { const k = clamp(1 - W.t / MECH_STEP_WARN, 0, 1); W.lift = Math.sin(k * Math.PI); B.x = W.from[0] + (W.to[0] - W.from[0]) * k; B.y = W.from[1] + (W.to[1] - W.from[1]) * k; }
+      if (W.t <= 0) { // the foot comes down
+        const [fx, fy] = W.land;
+        ring(fx, fy, 1, MECH_STOMP_R, 0.3, COL.threat, 1); burst(fx, fy, 20, COL.dim, 40, 0.6, 0.4); gridImpulse(fx, fy, MECH_STOMP_R * 2.2, 160); shake(2); sfx.clank(); sfx.rockBoom(2);
+        if (p.inv <= 0 && Math.hypot(p.x - fx, p.y - fy) < MECH_STOMP_R + PLAYER_R * 0.6) damagePlayer();
+        W.land = null; W.lift = 0; W.foot ^= 1; W.t = stepT;
+      }
+      if ((T.backup -= dt) <= 0) { T.backup = 10; mechBackup(B, 'jets'); }
+      return;
+    }
+    // on its knees: everything it has left, and backup from every boss in turn
+    B.kneel = Math.min(1, B.kneel + dt * 2); B.open = Math.min(1, B.open + dt * 0.8);
+    if ((T.micro -= dt * rage) <= 0) { T.micro = 11; const [rx, ry] = mechAt(B, -15, -10); mechMicros(rx, ry, B.crit ? [26, 34] : [30]); } // two rings once it's critical
+    if ((T.backup -= dt * rage) <= 0) { T.backup = 6; mechBackup(B, ['tanks', 'jets', 'bees'][B.roster++ % 3]); }
+  }
+  function ballMech(B, o, r, b) {
+    if (G.debris.length && debrisHit(o, r)) return 'bounce';
+    let best = null, bd = 0;
+    for (const c of mechCircles(B)) { const d = Math.hypot(o.x - c[0], o.y - c[1]), over = c[2] + r - d; if (over > 0 && (over > bd || (c[4] && !(best && best[4])))) { best = c; bd = over; } }
+    if (!best) return '';
+    const [x, y, rr, key, hurts] = best, d = Math.hypot(o.x - x, o.y - y) || 1e-6, nx = (o.x - x) / d, ny = (o.y - y) / d;
+    o.x = x + nx * (rr + r + 0.05); o.y = y + ny * (rr + r + 0.05);
+    const dot = o.vx * nx + o.vy * ny; if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
+    if (hurts && B.hitCd <= 0 && B.st !== 'transform') { B.hitCd = 0.1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); sfx.brick(b); mechHit(B, key, 1 + b, o.x, o.y); }
+    else { ring(o.x, o.y, 0.5, 4, 0.2, COL.chalk, 0.5); sfx.clank(); }
+    return 'bounce';
+  }
+  function pushOutMech(B, o, r) {
+    for (const [x, y, rr] of mechCircles(B)) { const dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy) || 1e-6; if (d < rr + r) { o.x = x + dx / d * (rr + r); o.y = y + dy / d * (rr + r); } }
+  }
+  // Goliath, front on. Armour in the hull's colours; its targets glow, each ringed and with its health as pips; broken
+  // weapons are sparking stumps. Phase two: the chest plate gone (the reactor glowing through its grille, armoured
+  // still), the knees lit as targets, a foot's landing shadow, the beam. On its knees: the visor split open on its
+  // pilot, the reactor bare and blazing.
+  function drawMech(B) {
+    const s = B.s, t = G.time, H3 = hex(COL.hull), I3 = hex(COL.ink), fire = heat(MAX_CHARGE * 0.75), die = B.die || 0, col = B.flash > 0 ? COL.chalk : ECOL.warden;
+    const W1 = 0.8, W2 = 0.4, W3 = 0.2;
+    const fill = (a = 0.24) => { ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},${a})`; ctx.fill(); };
+    const stroke = (w, a = 1, c = col) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.globalAlpha = a; ctx.stroke(); ctx.globalAlpha = 1; };
+    const glow = (fn, c, a) => { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a; ctx.fillStyle = c; ctx.strokeStyle = c; fn(); ctx.restore(); };
+    const poly = P => { ctx.beginPath(); P.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); };
+    const shade = (path, cx, cy, r) => { ctx.save(); path(); ctx.clip(); const g = ctx.createRadialGradient(cx - r * 0.45, cy - r * 0.5, r * 0.1, cx, cy, r * 1.3); g.addColorStop(0, `rgba(${H3.join(',')},0.3)`); g.addColorStop(1, `rgba(${I3.join(',')},0.55)`); ctx.fillStyle = g; ctx.fillRect(cx - r * 2, cy - r * 2, r * 4, r * 4); ctx.restore(); };
+    const sparks = (x, y, n = 5) => { if (Math.floor(t * 8 + x) % 3) return; ctx.beginPath(); for (let k = 0; k < n; k++) { const a = k * 2.4 + Math.floor(t * 12), l = 1 + (k * 7 + Math.floor(t * 12)) % 3; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); } stroke(0.3, 0.9, COL.chalk); };
+    const pips = (x, y, P, n = 5) => { for (let i = 0; i < n; i++) { const on = P.hp / P.max > i / n + 1e-6; ctx.beginPath(); ctx.arc(x + (i - (n - 1) / 2) * 1.6, y, 0.6, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.18; ctx.stroke(); } };
+    const target = (x, y, r, P) => { // a live target: a pulsing ring round it, so you know where to aim
+      const pulse = 0.5 + 0.5 * Math.sin(t * 5 + x);
+      ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); stroke(0.35, 0.35 + 0.35 * pulse, P.flash > 0 ? COL.chalk : COL.threat);
+      for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + t * 0.8; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r * 1.35, y + Math.sin(a) * r * 1.35); ctx.lineTo(x + Math.cos(a) * r * 1.6, y + Math.sin(a) * r * 1.6); stroke(0.35, 0.7, COL.threat); }
+    };
+    // telegraphs first, under it: the gatling's sight, the beam, the landing shadow
+    if (B.sweep && !die) { const [gx, gy] = mechAt(B, MECH_PARTS.gun[0], MECH_PARTS.gun[1] + 5), S = B.sweep, firing = S.t >= TANK_SIGHT, L = Math.hypot(AW, AH);
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
+      ctx.beginPath(); ctx.moveTo(gx, gy); ctx.arc(gx, gy, 30, S.a0, S.a1, S.a1 < S.a0); ctx.closePath(); ctx.fillStyle = COL.threat; ctx.globalAlpha = firing ? 0.05 : 0.09; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + Math.cos(S.a) * L, gy + Math.sin(S.a) * L); ctx.strokeStyle = firing ? COL.chalk : COL.threat; ctx.lineWidth = firing ? 0.25 : 0.4; ctx.globalAlpha = firing ? 0.35 : 0.85; ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1; }
+    if (B.beam && !die) { const [cx, cy] = mechAt(B, 0, 1), Bm = B.beam, on = Bm.t >= MECH_BEAM_CHARGE, a = on ? Bm.a : Bm.a0, L = Math.hypot(AW, AH) * 1.2, k = clamp(Bm.t / MECH_BEAM_CHARGE, 0, 1);
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
+      if (!on) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, 34, Bm.a0, Bm.a1, Bm.a1 < Bm.a0); ctx.closePath(); ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.06 + 0.06 * k; ctx.fill(); ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); ctx.setLineDash([2, 1.6]); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.4 + 0.5 * k; ctx.stroke(); ctx.setLineDash([]); }
+      else { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.35; ctx.lineWidth = 7; ctx.stroke(); ctx.globalAlpha = 0.9; ctx.lineWidth = 2.4; ctx.stroke(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.9; ctx.stroke(); }
+      ctx.restore(); ctx.globalAlpha = 1; }
+    if (B.walk && B.walk.land && !die) { const [lx, ly] = B.walk.land, k = clamp(1 - B.walk.t / MECH_STEP_WARN, 0, 1);
+      ctx.globalAlpha = 0.12 + 0.18 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(lx, ly, 6 * s, 2.6 * s, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.3 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.arc(lx, ly, MECH_STOMP_R * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
+    const shakeK = die * 0.8 + (B.st === 'transform' && B.stT < 1.2 ? 0.5 : 0);
+    ctx.save(); ctx.translate(B.x + rand(-shakeK, shakeK), B.y + rand(-shakeK, shakeK)); ctx.scale(s, s); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const kn = B.kneel * 9; // kneeling lowers everything above the knees
+    ctx.fillStyle = `rgba(${I3.join(',')},0.45)`; ctx.beginPath(); ctx.ellipse(0, 34 + B.kneel * 3, 26, 5, 0, 0, Math.PI * 2); ctx.fill(); // its shadow
+    if (B.st === 'transform' && B.stT >= 1.2 && B.stT < 3) glow(() => { for (const sx of [-1, 1]) { const g = ctx.createRadialGradient(sx * 13, -2, 0, sx * 13, 6, 12); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(sx * 13, 6, 4, 12, 0, 0, Math.PI * 2); ctx.fill(); } }, fire, 0.9); // thrusters
+    // legs: thigh to knee to shin to a heavy foot
+    for (const side of [-1, 1]) {
+      const key = side < 0 ? 'kneeL' : 'kneeR', P = B.parts[key], live = P.hp > 0, L = mechLift(B, side);
+      const hx = side * 6, hy = 10 + kn, kx = side * (10 + B.kneel * 3), ky = 21 - L * 3 + B.kneel * 8, fx = side * (12 + B.kneel * 5), fy = 31 - L * 5 + B.kneel * 1;
+      ctx.beginPath(); ctx.moveTo(hx - 2.6, hy); ctx.lineTo(kx - 2.4, ky); ctx.lineTo(kx + 2.4, ky); ctx.lineTo(hx + 2.6, hy); ctx.closePath(); fill(0.24); stroke(W1 * 0.9); // thigh
+      ctx.beginPath(); ctx.moveTo(kx - 2.2, ky); ctx.lineTo(fx - 2, fy - 2); ctx.lineTo(fx + 2, fy - 2); ctx.lineTo(kx + 2.2, ky); ctx.closePath(); fill(0.24); stroke(W1 * 0.9); // shin
+      ctx.beginPath(); ctx.roundRect(fx - 5, fy - 2.2, 10, 3.6, 1); fill(0.3); stroke(W1); // foot
+      ctx.beginPath(); ctx.arc(kx, ky, 3.4, 0, Math.PI * 2); fill(0.3);
+      if (live && B.st === 'walk') { glow(() => { ctx.beginPath(); ctx.arc(kx, ky, 3.6, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.45 + 0.2 * Math.sin(t * 6)); stroke(W1, 1, P.flash > 0 ? COL.chalk : COL.threat); }
+      else stroke(W1);
+      if (!live) { glow(() => { ctx.beginPath(); ctx.arc(kx, ky, 3, 0, Math.PI * 2); ctx.fill(); }, fire, 0.6 + 0.3 * Math.sin(t * 20)); sparks(kx, ky); }
+    }
+    // the torso: broad chest, shoulders, waist
+    const chest = () => poly([[-11, -10 + kn], [11, -10 + kn], [14, -3 + kn], [10, 10 + kn], [-10, 10 + kn], [-14, -3 + kn]]);
+    chest(); fill(0.24); shade(chest, 0, kn, 12);
+    // the reactor through its grille (glowing more once the plate's off; bare and blazing on its knees)
+    const rk = B.plateGone ? (B.st === 'kneel' ? 1 : 0.6) : 0.25;
+    glow(() => { const g = ctx.createRadialGradient(0, 1 + kn, 0, 0, 1 + kn, 8); g.addColorStop(0, COL.chalk); g.addColorStop(0.35, COL.threat); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 1 + kn, 8, 0, Math.PI * 2); ctx.fill(); }, COL.threat, rk * (0.75 + 0.25 * Math.sin(t * 6)) + die + (B.crit ? 0.3 * (Math.floor(t * 10) % 2) : 0));
+    ctx.beginPath(); ctx.arc(0, 1 + kn, 5, 0, Math.PI * 2); stroke(W2 * 1.4, 1, B.st === 'kneel' ? COL.threat : col);
+    if (B.st !== 'kneel') { ctx.beginPath(); for (let k = -2; k <= 2; k++) { ctx.moveTo(k * 1.8, -3.4 + kn); ctx.lineTo(k * 1.8, 5.4 + kn); } stroke(W3 * 1.5, 0.8); } // its grille
+    if (!B.plateGone) { ctx.beginPath(); ctx.roundRect(-8, -6 + kn, 16, 13, 2); fill(0.34); stroke(W2 * 1.4); ctx.beginPath(); ctx.moveTo(-8, 0.5 + kn); ctx.lineTo(8, 0.5 + kn); stroke(W3, 0.6); for (const bx of [-6.6, 6.6]) for (const by of [-4.6, 5.6]) { ctx.beginPath(); ctx.arc(bx, by + kn, 0.35, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill(); } } // the chest plate, bolted on
+    if (B.st === 'kneel') { glow(() => { ctx.beginPath(); ctx.arc(0, 1 + kn, 11.5, 0, Math.PI * 2); ctx.lineWidth = 0.5; ctx.stroke(); }, COL.threat, 0.4 + 0.3 * Math.sin(t * 5)); }
+    chest(); stroke(W1, 1);
+    // the head: a cockpit with a visor slit that tracks you; on its knees the visor splits on its pilot
+    const p = G.player, look = clamp((p.x - B.x) / 60, -1, 1);
+    ctx.beginPath(); ctx.roundRect(-5, -19 + kn, 10, 8, 2); fill(0.3); stroke(W1);
+    if (B.open > 0) { // the pilot: a hunched little alien in goggles, glaring
+      ctx.save(); ctx.beginPath(); ctx.rect(-4, -18 + kn, 8, 5.5); ctx.clip();
+      ctx.beginPath(); ctx.arc(0, -14.6 + kn, 2.6, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.splitter; ctx.lineWidth = 0.35; ctx.stroke();
+      for (const ex of [-1, 1]) { ctx.beginPath(); ctx.arc(ex * 1.05 + look * 0.5, -15.2 + kn, 0.75, 0, Math.PI * 2); ctx.fillStyle = COL.chalk; ctx.fill(); ctx.beginPath(); ctx.arc(ex * 1.05 + look * 0.7, -15.1 + kn, 0.32, 0, Math.PI * 2); ctx.fillStyle = COL.threat; ctx.fill(); }
+      ctx.beginPath(); ctx.moveTo(-1, -13.4 + kn); ctx.lineTo(1, -13.6 + kn); stroke(0.25, 1, ECOL.splitter); ctx.restore();
+      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.roundRect(sd < 0 ? -5 - B.open * 2 : 1 + B.open * 2, -19.4 + kn, 4, 3, 0.8); fill(0.35); stroke(W2); } // the visor halves, split apart
+    } else { glow(() => { ctx.beginPath(); ctx.roundRect(-3.6 + look, -16.4 + kn, 7.2, 1.6, 0.8); ctx.fill(); }, COL.threat, 0.6 + 0.3 * Math.sin(t * 3)); ctx.beginPath(); ctx.roundRect(-3.6 + look, -16.4 + kn, 7.2, 1.6, 0.8); ctx.fillStyle = COL.threat; ctx.fill(); }
+    // shoulders, arms and the four weapons
+    const W = (key, draw) => { const P = B.parts[key], [lx, ly, r] = MECH_PARTS[key], live = P.hp > 0, pc = P.flash > 0 ? COL.chalk : col;
+      ctx.save(); ctx.translate(lx, ly + (ly < 12 ? kn : kn)); draw(live, pc, r); ctx.restore();
+      if (!live) { glow(() => { ctx.beginPath(); ctx.arc(lx, ly + kn, 2.6, 0, Math.PI * 2); ctx.fill(); }, fire, 0.5 + 0.4 * Math.sin(t * 18 + lx)); sparks(lx, ly + kn); }
+    };
+    for (const sd of [-1, 1]) { // arm: shoulder pad, upper arm, elbow
+      ctx.beginPath(); ctx.moveTo(sd * 13, -6 + kn); ctx.lineTo(sd * 23, 1 + kn); ctx.lineTo(sd * 27, 8 + kn); ctx.lineWidth = 4.2; ctx.strokeStyle = COL.ink; ctx.stroke(); ctx.lineWidth = 2.6; ctx.strokeStyle = `rgba(${H3.join(',')},0.35)`; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sd * 13, -6 + kn); ctx.lineTo(sd * 23, 1 + kn); ctx.lineTo(sd * 27, 8 + kn); stroke(W2, 0.7);
+      ctx.beginPath(); ctx.arc(sd * 22, 1 + kn, 3.4, 0, Math.PI * 2); fill(0.3); stroke(W1 * 0.9);
+      const pad = () => poly([[sd * 9, -12 + kn], [sd * 19, -13 + kn], [sd * 21, -6 + kn], [sd * 17, -2 + kn], [sd * 10, -4 + kn]]);
+      pad(); fill(0.3); shade(pad, sd * 15, -8 + kn, 6); pad(); stroke(W1);
+    }
+    W('gun', (live, pc, r) => { // a six-barrel gatling, its muzzles toward you, spinning as it fires
+      if (!live) { ctx.beginPath(); ctx.roundRect(-3, -3, 6, 5, 1); fill(0.2); stroke(W2, 0.8); return; }
+      const spin = t * (B.sweep && B.sweep.t >= TANK_SIGHT ? 30 : 2);
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); fill(0.3); stroke(W1, 1, pc);
+      for (let k = 0; k < 6; k++) { const a = spin + k * Math.PI / 3; ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55, r * 0.2, 0, Math.PI * 2); ctx.fillStyle = B.sweep ? COL.threat : COL.ink; ctx.fill(); ctx.strokeStyle = pc; ctx.lineWidth = W3 * 1.5; ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.22, 0, Math.PI * 2); stroke(W2, 1, pc);
+    });
+    W('claw', (live, pc, r) => { // a rocket claw: three talons round a launch tube that glows as it locks
+      if (!live) { ctx.beginPath(); ctx.roundRect(-3, -3, 6, 5, 1); fill(0.2); stroke(W2, 0.8); return; }
+      const lockK = B.lockT > 0 ? 1 - B.lockT / 0.8 : 0;
+      for (let k = 0; k < 3; k++) { const a = Math.PI / 2 + (k - 1) * 0.8; ctx.beginPath(); ctx.moveTo(Math.cos(a - 0.2) * r * 0.6, Math.sin(a - 0.2) * r * 0.6); ctx.lineTo(Math.cos(a) * r * 1.35, Math.sin(a) * r * 1.35); ctx.lineTo(Math.cos(a + 0.2) * r * 0.6, Math.sin(a + 0.2) * r * 0.6); fill(0.3); stroke(W2 * 1.3, 1, pc); }
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, Math.PI * 2); fill(0.32); stroke(W1, 1, pc);
+      glow(() => { ctx.beginPath(); ctx.arc(0, 0, r * (0.35 + 0.4 * lockK), 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.5 + 0.5 * lockK);
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2); ctx.fillStyle = lockK > 0.7 && Math.floor(t * 16) % 2 ? COL.chalk : COL.threat; ctx.fill();
+    });
+    W('rack', (live, pc, r) => { // a missile rack: a box of tubes, the micro-missiles' noses showing
+      if (!live) { ctx.beginPath(); ctx.roundRect(-3, -2, 6, 4, 1); fill(0.2); stroke(W2, 0.8); return; }
+      ctx.beginPath(); ctx.roundRect(-r, -r * 0.8, r * 2, r * 1.6, 1.2); fill(0.32); stroke(W1, 1, pc);
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { ctx.beginPath(); ctx.arc((i - 1) * r * 0.62, (j - 0.5) * r * 0.75, r * 0.22, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = pc; ctx.lineWidth = W3 * 1.4; ctx.stroke(); ctx.beginPath(); ctx.arc((i - 1) * r * 0.62, (j - 0.5) * r * 0.75, r * 0.09, 0, Math.PI * 2); ctx.fillStyle = COL.threat; ctx.fill(); }
+    });
+    W('rail', (live, pc, r) => { // a launch rail: a ramp with a jet on it, nose out
+      if (!live) { ctx.beginPath(); ctx.roundRect(-2.5, -3, 5, 6, 1); fill(0.2); stroke(W2, 0.8); return; }
+      ctx.beginPath(); ctx.roundRect(-r * 0.75, -r, r * 1.5, r * 2, 1.2); fill(0.32); stroke(W1, 1, pc);
+      ctx.save(); ctx.rotate(Math.PI / 2); ctx.scale(0.55, 0.55); drawFighter(MAW_SHIP_R, 1, 1, 0, B.timers.rail < 1.2 && Math.floor(t * 12) % 2, B.timers.rail < 1.2 ? 1 : 0.3, null); ctx.restore();
+    });
+    ctx.restore();
+    // the live weapons, ringed as targets, their health as pips (drawn unscaled, over the top)
+    if (B.st === 'walk' && !die) for (const side of [-1, 1]) { const P = B.parts[side < 0 ? 'kneeL' : 'kneeR']; if (P.hp <= 0) continue; const [x, y] = mechKnee(B, side); target(x, y, 5.5 * s, P); pips(x, y + 8 * s, P, 5); }
+    if (B.st === 'arsenal' && !die) for (const key in MECH_PARTS) { const P = B.parts[key]; if (P.hp <= 0) continue; const [lx, ly, r] = MECH_PARTS[key], [x, y] = mechAt(B, lx, ly); target(x, y, r * s, P); pips(x, y + (r + 3.2) * s, P, 5); }
+    if (B.plate) { const q = B.plate; ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.a); ctx.scale(s, s); ctx.beginPath(); ctx.roundRect(-8, -6.5, 16, 13, 2); fill(0.34); stroke(W1); ctx.restore(); }
+  }
+  // Goliath's death: the hit, then explosions chain across its body as the reactor goes white-hot; the blow: a white
+  // flash and a shockwave that wrecks everything left in the arena (every one on your chain), its wreck burning out.
+  const MECH_DIE_HIT = 0.3, MECH_BLOW = 2.2, MECH_AFTER = 2.6;
+  function mechDie(B) {
+    G.mechDeath = { B: { ...B, parts: JSON.parse(JSON.stringify(B.parts)), beam: null, sweep: null, flash: 0.2 }, t: 0, blown: false, result: G.result };
+    G.result = null; G.rockets = []; G.bullets = G.bullets.filter(q => !q.mg);
+    G.freeze = Math.max(G.freeze, 0.2); shake(3); sfx.overload();
+  }
+  function updateMechDeath(dt) {
+    const D = G.mechDeath; if (!D) return;
+    D.t += dt; const B = D.B, k = clamp((D.t - MECH_DIE_HIT) / (MECH_BLOW - MECH_DIE_HIT), 0, 1), fire = heat(MAX_CHARGE * 0.75);
+    B.flash -= dt; B.die = k;
+    if (!D.blown) {
+      shake(0.4 + 1.6 * k);
+      if (D.t > MECH_DIE_HIT && Math.random() < dt * (8 + 26 * k)) { const [x, y] = mechAt(B, rand(-28, 28), rand(-20, 30)); burst(x, y, 16, fire, 50, 0.6, 0.45); ring(x, y, 1, 9, 0.3, fire, 0.8); if (Math.random() < 0.4) sfx.brick(8); }
+      if (D.t >= MECH_BLOW) {
+        D.blown = true; const [x, y] = mechAt(B, 0, 1);
+        for (let i = 0; i < 6; i++) ring(x, y, 2, 20 + i * 18, 0.6 + i * 0.15, i % 2 ? COL.chalk : i % 3 ? fire : COL.threat, 1.6);
+        burst(x, y, 160, fire, 120, 1.4, 1.1); burst(x, y, 80, COL.threat, 90, 1.2, 0.9); burst(x, y, 60, COL.chalk, 70, 0.8, 0.6);
+        gridImpulse(x, y, Math.max(AW, AH) * 1.2, 340); G.freeze = Math.max(G.freeze, 0.15); G.screenFlash = 0.8; shake(9);
+        sfx.overload(); sfx.shatter(); sfx.boss();
+        const src = G.balls[0]; // the shockwave: everything left goes, on your chain
+        for (let j = G.enemies.length - 1; j >= 0; j--) if (!isStone(G.enemies[j])) kill(j, MAX_CHARGE, 0, src);
+        G.tele.length = 0; G.debris.length = 0;
+        G.result = D.result; for (let i = 0; i < 5; i++) spawnPickup(x + rand(-10, 10), y + rand(-10, 10));
+      }
+    } else if (D.t > MECH_BLOW + MECH_AFTER) G.mechDeath = null;
+    else if (Math.random() < dt * 10) { const [x, y] = mechAt(B, rand(-14, 14), rand(-8, 10)); burst(x, y, 2, fire, 15, 0.6, 0.4); }
+  }
+  function drawMechDeath() {
+    const D = G.mechDeath; if (!D) return;
+    const B = D.B, fade = D.blown ? clamp(1 - (D.t - MECH_BLOW - MECH_AFTER + 1) / 1, 0, 1) : 1;
+    ctx.save(); ctx.globalAlpha = fade;
+    if (!D.blown) drawMech(B); else faded(0.55 * fade, () => drawMech({ ...B, die: 0, open: 1 }));
+    ctx.restore();
+  }
+  // The set-up waves. A walker: a little war machine of its own that plods at you and every few seconds stops, locks
+  // on (its launcher glowing) and fires a heavy rocket you can knock back. Footsteps (wave 59): the ground shakes,
+  // louder each time, as something huge comes. Micro-missile rings (waves 58-59): from off the top, every so often.
+  function updateWalker(e, dt) {
+    if (e.wfire === undefined) e.wfire = rand(2, 3.5);
+    e.wfire -= dt; e.step = (e.step || 0) + dt * 3;
+    if (e.wfire < 0.7) { const k = Math.exp(-8 * dt); e.vx *= k; e.vy *= k; e.x += e.vx * dt; e.y += e.vy * dt; if (e.wfire <= 0) { e.wfire = rand(3.5, 5); mechRocket(e.x, e.y - e.r, 0, e); } return true; }
+    return false;
+  }
+  function drawWalker(e, col) {
+    const r = e.r, fl = e.flash > 0, line = fl ? COL.chalk : col, aim = e.wfire !== undefined && e.wfire < 0.7, H3 = hex(COL.hull), sw = Math.sin(e.step || 0) * 0.5;
+    const f = () => { ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.25)`; ctx.fill(); };
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * r * 0.3, r * 0.3); ctx.lineTo(sd * r * 0.55, r * (0.85 + (sd > 0 ? sw : -sw) * 0.25)); ctx.strokeStyle = line; ctx.lineWidth = 0.6; ctx.stroke(); ctx.beginPath(); ctx.roundRect(sd * r * 0.55 - r * 0.25, r * (0.85 + (sd > 0 ? sw : -sw) * 0.25) - 0.3, r * 0.5, 0.7, 0.3); ctx.fillStyle = line; ctx.fill(); }
+    ctx.beginPath(); ctx.roundRect(-r * 0.6, -r * 0.5, r * 1.2, r * 0.95, 0.6); f(); if (fl) { ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 1; } ctx.strokeStyle = line; ctx.lineWidth = 0.4; ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(-r * 0.45, -r * 0.35, r * 0.9, r * 0.25, 0.2); ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.8; ctx.fill(); ctx.globalAlpha = 1; // its visor
+    ctx.beginPath(); ctx.roundRect(r * 0.25, -r * 1.05, r * 0.55, r * 0.6, 0.3); f(); ctx.strokeStyle = line; ctx.lineWidth = 0.35; ctx.stroke(); // its launcher
+    if (aim) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.5 + 0.5 * Math.sin(G.time * 30); ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(r * 0.52, -r * 0.95, r * 0.45, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+  }
+  function updateMechSetup(dt) {
+    const S = G.mechSetup; if (!S) return;
+    if (S.micro) { S.microT -= dt; if (S.microT <= 0) { S.microT = rand(8, 10); mechMicros(rand(AW * 0.2, AW * 0.8), -4, [28]); } }
+    if (S.steps) { S.stepT -= dt; if (S.stepT <= 0) { S.n = (S.n || 0) + 1; S.stepT = 2.4; const k = Math.min(1, S.n / 8); shake(0.6 + 2 * k); gridImpulse(AW / 2, 0, Math.max(AW, AH) * (0.4 + 0.5 * k), 100 + 120 * k); sfx.rockBoom(1 + Math.round(k * 2)); } }
+  }
+
   /* ---------- the Geode ---------- */
   // Wave 40. A big alien, in a loop of four states:
   //  - shell: he sits in the middle of the arena in a shell of crystals while enemies stream in. Crystals can't hurt you
@@ -4439,6 +4982,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!maw) ctx.fillText((B.kind === 'hive' ? 'Queen Vexa' : BOSS_NAMES[B.kind]).toUpperCase(), cx, y - 2.6);
     if (royal) { ctx.fillStyle = COL.block; ctx.fillRect(x + w * 0.3, y + 2, w * 0.4, 0.8); ctx.fillStyle = GOLD(); ctx.fillRect(x + w * 0.3, y + 2, w * 0.4 * royal.hp / royal.max, 0.8); } // the royal cell
     if (B.kind === 'tank') { drawTankBar(B, x, y, w); return; }
+    if (B.kind === 'mech') { drawMechBar(B, x, y, w); return; }
     ctx.fillStyle = COL.block; ctx.fillRect(x, y, w, 1.4);
     ctx.fillStyle = COL.threat; ctx.fillRect(x, y, w * f, 1.4);
     ctx.strokeStyle = COL.line; ctx.lineWidth = 0.2; ctx.strokeRect(x, y, w, 1.4);
@@ -4446,6 +4990,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The Tank's bar comes in two: its treads (drawn a third of the way across, more than their share, so breaking them
   // shows) and its reactor. The one you can't hurt yet is dimmed; the crew's repairs fill the treads back up.
   const TANK_BAR_TREADS = 1 / 3, TANK_BAR_GAP = 1.2;
+  // Goliath's bar in three: its weapons, its knees, its reactor; the one you can hurt now lit
+  function drawMechBar(B, x, y, w) {
+    const P = B.parts, sum = ks => ks.reduce((a, k) => a + Math.max(0, P[k].hp), 0), max = ks => ks.reduce((a, k) => a + P[k].max, 0);
+    const segs = [[sum(['gun', 'claw', 'rack', 'rail']) / max(['gun', 'claw', 'rack', 'rail']), B.st === 'arsenal', 'ARSENAL', 0.34], [sum(['kneeL', 'kneeR']) / max(['kneeL', 'kneeR']), B.st === 'walk', 'LEGS', 0.26], [B.core / B.coreMax, B.st === 'kneel', 'REACTOR', 0.4]];
+    let sx = x;
+    for (const [f, live, label, share] of segs) {
+      const sw = w * share - TANK_BAR_GAP * 2 / 3;
+      ctx.globalAlpha = live ? 1 : 0.4;
+      ctx.fillStyle = COL.block; ctx.fillRect(sx, y, sw, 1.4); ctx.fillStyle = COL.threat; ctx.fillRect(sx, y, sw * clamp(f, 0, 1), 1.4);
+      ctx.strokeStyle = COL.line; ctx.lineWidth = 0.2; ctx.strokeRect(sx, y, sw, 1.4);
+      ctx.font = `600 1.9px ${FONT}`; ctx.fillStyle = ECOL.warden; ctx.fillText(label, sx + sw / 2, y + 3.1); ctx.globalAlpha = 1;
+      sx += sw + TANK_BAR_GAP;
+    }
+  }
   function drawTankBar(B, x, y, w) {
     const T = B.parts.L.max + B.parts.R.max, t = Math.max(0, B.parts.L.hp) + Math.max(0, B.parts.R.hp), re = B.hp - t, reMax = B.maxHp - T;
     const w1 = w * TANK_BAR_TREADS - TANK_BAR_GAP / 2, x2 = x + w1 + TANK_BAR_GAP, w2 = w - w1 - TANK_BAR_GAP;
@@ -5514,6 +6072,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     else if (G.boss && G.boss.kind === 'geode') pushOutGeode(G.boss, o, r);
     else if (G.boss && G.boss.kind === 'tank') pushOutTank(G.boss, o, r);
+    else if (G.boss && G.boss.kind === 'mech') pushOutMech(G.boss, o, r);
     else if (G.boss && G.boss.kind === 'maw') { // the wings, and the bay as a block (only the ball goes in)
       const B = G.boss;
       for (const S of [mawWing(B, -1), mawWing(B, 1), mawCavity(B)]) {
@@ -5553,7 +6112,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       attract, score: 0, mult: 1, wave: 0, between: null, spawnQueue: [], spawnTimer: 0,
       player: { x: AW / 2, y: AH * 0.6, hull: 3, inv: 0, fx: 0, fy: -1, shield: 0, mvx: 0, mvy: 0 },
       balls: [Object.assign(makeBall(), { x: AW / 2, y: AH * 0.6 })],
-      enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null, storm: null, squads: [], squadWarn: [], squadPlan: null, shadow: null,
+      enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null, storm: null, rockets: [], debris: [], microQueue: [], mechSetup: null, mechDeath: null, squads: [], squadWarn: [], squadPlan: null, shadow: null,
       shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, lucky: null, table: null, siege: null, asteroidWave: ASTEROID_WAVES[Math.floor(Math.random() * ASTEROID_WAVES.length)], inv: null, result: null, boss: null, bombs: [],
       pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [],
       arenaTarget: ARENA_START, layoutPending: null, lastLayout: null,
@@ -5707,6 +6266,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       add(bees ? 'bees' : 'swarm', swarms + (bees ? 1 + (inLoop(n) >= 38 ? 1 : 0) : 0));
       if (inLoop(n) === 8 || inLoop(n) === 9) add('tankette', inLoop(n) === 8 ? 2 : 3); // the Tank's scouts roll in ahead of it
       if (SQUAD_PLAN[inLoop(n)]) G.squadPlan = { at: [...SQUAD_PLAN[inLoop(n)]], t: 0, n: SQUAD_SIZE[inLoop(n)], shadow: inLoop(n) === 29 }; // the Carrier's fighters are out ahead of it
+      if (inLoop(n) === 57 || inLoop(n) === 59) add('walker', inLoop(n) === 57 ? 4 + cycle : 3 + cycle); // Goliath's scouts
+      if (inLoop(n) === 58 || inLoop(n) === 59) G.mechSetup = { micro: true, microT: inLoop(n) === 58 ? 4 : 6, steps: inLoop(n) === 59, stepT: 1 }; // its micro-missiles; and its footsteps
       if (DRUM_CLUSTERS[inLoop(n)]) G.drumWave = { n: DRUM_CLUSTERS[inLoop(n)], t: DRUM_RESTOCK, first: true }; // and its fuel drums stand about
       shuffle();
       if (wall) q.splice(Math.floor(q.length / 2), 0, 'wall');
@@ -5890,7 +6451,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   function makeEnemy(type, x, y) {
     const d = ENEMY[type], s = 1 + Math.min(G.wave, SPEED_CAP_WAVE) * 0.025;
-    const hp = type === 'mini' || type === 'swarm' ? 1 : Math.max(d.hp, Math.round(d.hp * hpScale(G.wave)));
+    const hp = type === 'mini' || type === 'swarm' || type === 'micro' ? 1 : type === 'walker' ? d.hp : Math.max(d.hp, Math.round(d.hp * hpScale(G.wave)));
     return { type, x, y, vx: 0, vy: 0, r: d.r, hp, maxHp: hp, spd: d.spd * s, pts: d.pts, hitCd: 0, flash: 0,
              seed: rand(0, 10), rot: rand(0, 6), st: 'walk', stT: rand(1.4, 2.6), dx: 0, dy: 0, fire: rand(1.4, 2.4), aim: 0, spawnT: 0.25, face: 0, wl: 0, wcd: WARD_FORM, sFlash: 0 };
   }
@@ -5929,7 +6490,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.between === null) {
-      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm) {
+      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm && !G.mechDeath) {
         if (inLoop(G.wave) === LOOP_LEN && G.winShown !== G.wave && !G.attract) { // the loop's finale is down
           if (!G.result) showWin(); // once its banner has had its moment
           return;
@@ -5940,7 +6501,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.arenaTarget = arenaFor(next);
         crumbleBricks(); crumbleSiege(); finishInvaders();
         G.drumWave = null; for (const d of G.drums) d.gone = true; // the fuel drums fade away
-        G.squadPlan = null; G.squadWarn = []; G.shadow = null;
+        G.squadPlan = null; G.squadWarn = []; G.shadow = null; G.mechSetup = null; G.rockets = []; G.debris = [];
         if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
         if (G.wave > 0 && !G.skipBonus) {
           const bonus = 100 * G.wave;
@@ -6311,6 +6872,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function kill(i, chargeOverride, depth = 0, src = G.balls[0]) {
     const e = G.enemies[i], b = chargeOverride ?? src.b;
     G.enemies.splice(i, 1);
+    if (e.micro) microBlast(e.x, e.y, src); // a micro-missile goes up, and takes its neighbours
     const pts = Math.round(e.pts * (1 + b) * G.mult);
     G.score += pts;
     float(e.x, e.y - e.r - 1, `${pts * scoreK(G.wave)}`, heat(b), 2.4 + Math.min(b, MAX_CHARGE) * 0.08);
@@ -6783,6 +7345,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (e.type === 'wax' || e.type === 'invader') continue; // its chunk (or the formation) moves it
       if (e.crew) { updateCrew(e, dt); continue; } // the Tank's repair crew ride along with it
+      if (e.micro) { updateMicro(e, dt); continue; } // flown by its ring
+      if (e.type === 'walker' && updateWalker(e, dt)) continue; // planted, firing
       if (e.type === 'titan' && titanStomp(e, dt)) { const k = Math.exp(-6 * dt); e.vx *= k; e.vy *= k; e.x += e.vx * dt; e.y += e.vy * dt; keepIn(e, e.r); continue; } // planted for a stomp
       if (e.formWait > 0) { // a formation's bee, buzzing where it starts before it goes
         e.formWait -= dt; const k = 0.5 + 0.3 * Math.sin(G.time * 40 + e.seed); e.x = e.hx + rand(-k, k); e.y = e.hy + rand(-k, k); e.vx = e.vy = 0;
@@ -7020,7 +7584,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.inv) updateInvaders(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
-    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt); updateDrums(dt); updateSquads(dt); updateStorm(dt);
+    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt); updateDrums(dt); updateSquads(dt); updateStorm(dt); updateRockets(dt); updateDebris(dt); updateMicroQueue(dt); updateMechDeath(dt); updateMechSetup(dt);
     updateBullets(dt * ws);
     updateWaves(dt);
     if (scoreK(G.wave) > 1) G.score += Math.round((scoreK(G.wave) - 1) * (G.score - score0)); // later loops: every point counts more
@@ -7530,6 +8094,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
     if (G.shadow) drawShadow();
     if (G.drums.length) drawDrums();
+    if (G.debris.length) drawDebris();
+    if (G.enemies.some(e => e.micro)) drawMicroCentres();
     if (G.squadWarn.length) drawSquadWarn();
     // enemies, clipped to the arena
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
@@ -7576,6 +8142,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.globalAlpha = 0.5 + 0.4 * k; ctx.strokeStyle = k > 0.7 && fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.arc(0, 0, TITAN_STOMP_R, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
       }
       if (e.crew) { drawCrew(e); ctx.restore(); continue; }
+      if (e.micro) { drawMicro(e); ctx.restore(); continue; }
+      if (e.type === 'walker') { drawWalker(e, stroke); for (let k = 0; k < e.maxHp; k++) { const on = k < e.hp, px = (k - (e.maxHp - 1) / 2) * 1.7; ctx.beginPath(); ctx.arc(px, e.r + 2.2, 0.6, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.2; ctx.stroke(); } ctx.restore(); continue; }
       if (e.tankette) { // a tank, its armour plates as pips under it
         drawTankette(e, stroke);
         for (let k = 0; k < e.maxHp; k++) { const on = k < e.hp, px = (k - (e.maxHp - 1) / 2) * 1.7; ctx.beginPath(); ctx.arc(px, e.r + 1.7, 0.6, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.2; ctx.stroke(); } // its armour plates left
@@ -7612,6 +8180,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.restore();
     drawBoss();
 
+    if (G.rockets.length) drawRockets();
     // turret shots
     ctx.fillStyle = COL.threat; ctx.shadowColor = COL.threat; ctx.shadowBlur = 6 * DPR;
     for (const b of G.bullets) if (!b.geo && !b.sting) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); }
@@ -8380,15 +8949,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
                : B.kind === 'hive' ? Array.isArray(B.cells) && typeof B.st === 'string' && Number.isFinite(B.comb0)
                : B.kind === 'geode' ? Array.isArray(B.links) && Array.isArray(B.slots) && Array.isArray(B.fly) && typeof B.st === 'string'
                : B.kind === 'serpent' ? Array.isArray(B.segs) && B.segs.length > 0 && B.segs.length <= SERP_N && B.next && Array.isArray(B.next.n)
+               : B.kind === 'mech' ? !!B.parts && !!B.parts.kneeL && typeof B.st === 'string' && Number.isFinite(B.core) && !!B.timers
                : B.kind === 'tank' ? !!B.parts && Array.isArray(B.tiles) && Array.isArray(B.drums) && Number.isFinite(B.th) && Number.isFinite(B.crewT)
                : B.kind === 'core' && B.r === CORE_R && typeof B.mode === 'string';
-      if (!ok) setupBoss(['core', 'tank', 'maw', 'serpent', 'geode', 'hive'].includes(B.kind) ? B.kind : 'tank', B.cycle || 0);
+      if (!ok) setupBoss(['core', 'tank', 'maw', 'serpent', 'geode', 'hive', 'mech'].includes(B.kind) ? B.kind : 'tank', B.cycle || 0);
     }
     G.bombs = (G.bombs || []).filter(bm => Number.isFinite(bm.vx) && Number.isFinite(bm.vy));
     G.ghosts = G.ghosts || [];
     G.drums = G.drums || []; G.drumWave = G.drumWave || null; // saved before the fuel drums
     if (G.boss && G.boss.kind === 'serpent' && G.boss.twin) Object.setPrototypeOf(G.boss.twin, G.boss); // its twin shares the boss's health and the rest
-    G.storm = G.storm || null;
+    G.storm = G.storm || null; G.rockets = G.rockets || []; G.debris = G.debris || []; G.microQueue = []; G.mechSetup = G.mechSetup || null; G.mechDeath = null;
     if (G.boss && G.boss.kind === 'hive' && G.boss.st === 'retreat') { G.boss.st = 'queen'; G.boss.cells = G.boss.cells.filter(() => false); } // saved as she hid in the hive, which she doesn't now
     G.squads = []; G.squadWarn = []; G.squadPlan = G.squadPlan || null; G.shadow = null; for (const e of G.enemies) if (e.jet) e.jet.sq = null; // squadrons don't survive a save: their jets carry on alone
     if (G.siege && !Array.isArray(G.siege.cols)) G.siege = null; // saved with the old walls
