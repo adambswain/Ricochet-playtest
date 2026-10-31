@@ -1093,8 +1093,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Vexa comes out, huge, and hangs from the top of the arena, head up, her glowing abdomen hanging down. Her abdomen
   // is the target (1 + charge a hit); her head and thorax are armour. She launches bee formations (a column sweeping in
   // from a side, a row rising from the bottom, each with a gap; a V dropping from her), aims her stinger down a lane
-  // (it glows, locks, then fires a needle), and throws honeycomb. Each formation is flagged first at the edge it comes
-  // from (FORM_WARN), with its gap (near you) marked. Once she's taken VEXA_TRIP of her health she cages you: a gold
+  // (it glows, locks, then fires a needle), and throws honeycomb. A formation's bees appear first where it starts (at
+  // the edge it'll come from, or under her) and buzz there, shaking, for FORM_WARN, then fly; its gap is near you. Once she's taken VEXA_TRIP of her health she cages you: a gold
   // ring closes on where you are (CAGE_WARN; get clear and it's nothing), then a ring of wax cells grows there. Break
   // out (shoot a cell out and slip through) before CAGE_TIME runs out, or every cell left hatches a bee in there with
   // you. She holds her fire while you're caged. Below VEXA_BERSERK of her health she's furious: no more cages, and
@@ -1111,7 +1111,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
   const VEXA_BODY = [[0.82, 0.5, false], [0, 0.5, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
   const QUEEN_R = 9.5, QUEEN_HP = 280, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
-  const FORM_WARN = { column: 1.3, row: 1.7, v: 1.0 }, FORM_GAP = { column: 20, row: 24 };
+  const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 18, row: 20 };
   const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [6.5, 5.5, 5, 5];
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
   function setupHive(B, cycle) {
@@ -1393,35 +1393,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     B.recoil = Math.max(0, (B.recoil || 0) - dt * 4);
-    // bee formations: flagged at their entry edge, then they fly straight across
+    // bee formations: the bees appear where they'll start and buzz there (FORM_WARN), then fly straight across
     B.formT -= dt;
     if (B.formT <= 0) {
       B.formT = VEXA_FORM[ph2];
       const kinds = ['column', 'row', 'v'], kind = kinds[Math.floor(Math.random() * kinds.length)];
-      B.forms.push({ kind, t: FORM_WARN[kind], max: FORM_WARN[kind], side: Math.random() < 0.5 ? -1 : 1, gx: clamp(p.x + rand(-18, 18), 14, AW - 14), gy: clamp(p.y + rand(-15, 15), 14, AH - 14), x: clamp(p.x + rand(-15, 15), 15, AW - 15) });
-      sfx.field();
+      vexaFormation(B, kind, ph2);
     }
-    for (const f of B.forms) {
-      f.t -= dt;
-      if (f.t > 0) continue;
-      f.done = true;
-      const v = VEXA_BEE_V[ph2], gapW = FORM_GAP[f.kind] || 15, add = (x, y, vx, vy) => {
-        const m = makeEnemy('swarm', x, y);
-        Object.assign(m, { bee: true, form: { vx, vy }, seed: rand(0, 6), vx, vy, spawnT: 0 }); G.enemies.push(m);
-      };
-      if (f.kind === 'column') { // from a side, top to bottom, with a gap to fly through
-        const x0 = f.side < 0 ? -3 : AW + 3, gy = f.gy;
-        for (let y = 5; y < AH - 4; y += 5.5) if (Math.abs(y - gy) > gapW / 2) add(x0, y, -f.side * v, 0);
-      } else if (f.kind === 'row') { // rising from the bottom, side to side, with a gap
-        const gx = f.gx;
-        for (let x = 5; x < AW - 4; x += 5.5) if (Math.abs(x - gx) > gapW / 2) add(x, AH + 3, 0, -v * 0.9);
-      } else { // a V dropped from her abdomen, at where you are
-        const [tx, ty] = vexaTip(B), n = 5 + ph2;
-        for (let k = -n; k <= n; k++) add(tx + k * 4.5, ty + 4 - Math.abs(k) * 3.5, (f.x - tx) * 0.35, v * 0.9);
-      }
-      sfx.march(0);
-    }
-    B.forms = B.forms.filter(f => !f.done);
     B.combT -= dt;
     if (B.combT <= 0 && B.combs.length < COMB_MAX) { B.combT = VEXA_COMB[ph2]; const [tx, ty] = vexaTip(B); throwComb(B, tx, ty + 6); }
   }
@@ -1661,6 +1639,26 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     return VEXA_BODY.map(([lx, rr, hurts]) => [B.x + c * lx * r, B.y + sn * lx * r, rr * r, hurts]);
   }
   const vexaTip = B => { const r = vexaR(), c = Math.cos(B.face ?? -Math.PI / 2), sn = Math.sin(B.face ?? -Math.PI / 2); return [B.x - c * 2.6 * r, B.y - sn * 2.6 * r]; };
+  // A formation: its bees appear at once where they start, shaking (formWait), then fly. Never one right on you.
+  function vexaFormation(B, kind, ph2) {
+    const p = G.player, v = VEXA_BEE_V[ph2], gapW = FORM_GAP[kind] || 15, wait = FORM_WARN[kind], side = Math.random() < 0.5 ? -1 : 1;
+    const add = (x, y, vx, vy) => {
+      if (Math.hypot(x - p.x, y - p.y) < PLAYER_R + 5) return;
+      const m = makeEnemy('swarm', x, y);
+      Object.assign(m, { bee: true, form: { vx, vy }, formWait: wait, hx: x, hy: y, seed: rand(0, 6), vx: 0, vy: 0, spawnT: 0.2 }); G.enemies.push(m);
+    };
+    if (kind === 'column') { // at a side, top to bottom, with a gap near you; then across
+      const x0 = side < 0 ? 2.5 : AW - 2.5, gy = clamp(p.y + rand(-15, 15), 14, AH - 14);
+      for (let y = 5; y < AH - 4; y += 5.5) if (Math.abs(y - gy) > gapW / 2) add(x0, y, -side * v, 0);
+    } else if (kind === 'row') { // along the bottom, with a gap near you; then up
+      const gx = clamp(p.x + rand(-18, 18), 14, AW - 14);
+      for (let x = 5; x < AW - 4; x += 5.5) if (Math.abs(x - gx) > gapW / 2) add(x, AH - 2.5, 0, -v * 0.9);
+    } else { // a V under her abdomen; then down at where you are
+      const [tx, ty] = vexaTip(B), n = 5 + ph2, fx = clamp(p.x + rand(-15, 15), 15, AW - 15);
+      for (let k = -n; k <= n; k++) add(tx + k * 4.5, ty + 4 - Math.abs(k) * 3.5, (fx - tx) * 0.35, v * 0.9);
+    }
+    sfx.field();
+  }
   // Her cage: a gold ring closes on where you are; if you're still inside when it shuts, a ring of wax cells grows there.
   function vexaCage(B) {
     const p = G.player;
@@ -1731,35 +1729,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.globalAlpha = c.flash > 0 || soon ? 0.85 : 0.25 + 0.25 * c.hp / c.max; ctx.fillStyle = c.flash > 0 || soon ? COL.chalk : gold; ctx.fill(); ctx.globalAlpha = 1;
       ctx.strokeStyle = c.flash > 0 ? COL.chalk : gold; ctx.lineWidth = 0.5; ctx.lineJoin = 'round'; ctx.stroke();
       ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.5 + 0.5 * (1 - k); ctx.beginPath(); ctx.arc(c.x, c.y, 0.5 + 0.6 * (1 - k), 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // the bee inside, waking
-    }
-  }
-  // Her formations, flagged at the edge they'll come from, the gap (where to be) marked in white
-  function drawVexaForms(B) {
-    const gold = GOLD(), t = G.time;
-    for (const f of B.forms) {
-      const k = 1 - f.t / f.max, blink = Math.floor(t * 10) % 2, a = 0.45 + 0.45 * k;
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      if (f.kind === 'row' || f.kind === 'column') {
-        const row = f.kind === 'row', g = row ? f.gx : f.gy, gw = (FORM_GAP[f.kind] || 15) / 2, L = row ? AW : AH;
-        ctx.strokeStyle = blink ? COL.chalk : gold; ctx.lineWidth = 0.75; ctx.globalAlpha = a;
-        for (let u = 5; u < L - 4; u += 5.5) { // a chevron for each bee, pointing the way it'll fly
-          if (Math.abs(u - g) <= gw) continue;
-          ctx.beginPath();
-          if (row) for (const dy of [0, 3]) { const y = AH - 3 - dy - k * 3; ctx.moveTo(u - 2.4, y + 1.6); ctx.lineTo(u, y - 0.8); ctx.lineTo(u + 2.4, y + 1.6); }
-          else for (const dx of [0, 3]) { const sx = f.side < 0 ? 1 : -1, x = (f.side < 0 ? 3 + dx + k * 3 : AW - 3 - dx - k * 3); ctx.moveTo(x - sx * 1.6, u - 2.4); ctx.lineTo(x + sx * 0.8, u); ctx.lineTo(x - sx * 1.6, u + 2.4); }
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 0.12 + 0.12 * k; ctx.fillStyle = COL.chalk; // the safe lane through the gap
-        if (row) ctx.fillRect(g - gw, 0, gw * 2, AH); else ctx.fillRect(0, g - gw, AW, gw * 2);
-        ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.6; ctx.beginPath();
-        if (row) { ctx.moveTo(g - gw, AH); ctx.lineTo(g - gw, AH - 8); ctx.moveTo(g + gw, AH); ctx.lineTo(g + gw, AH - 8); }
-        else { const x = f.side < 0 ? 0 : AW, d = f.side < 0 ? 8 : -8; ctx.moveTo(x, g - gw); ctx.lineTo(x + d, g - gw); ctx.moveTo(x, g + gw); ctx.lineTo(x + d, g + gw); }
-        ctx.stroke(); ctx.globalAlpha = 1;
-      } else { // the V: a dotted line from her abdomen to where it'll come down
-        const [tx, ty] = vexaTip(B);
-        ctx.save(); ctx.setLineDash([1.5, 1.5]); ctx.lineDashOffset = -t * 12; ctx.strokeStyle = blink ? COL.chalk : gold; ctx.lineWidth = 0.5; ctx.globalAlpha = a;
-        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(f.x, AH); ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1;
-      }
     }
   }
   function ballHive(B, o, r, b) {
@@ -2280,7 +2249,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return;
     }
     drawQueen(B);
-    if (B.st === 'queen') { drawVexaForms(B); if (B.cage) drawCage(B); }
+    if (B.st === 'queen' && B.cage) drawCage(B);
   }
   // Queen Vexa, front on: she hangs head-up facing you, posed rather than symmetrical: her head tilts (toward you), one
   // mantis foreleg is raised by her face, the other folded at her chest, her antennae differ. A bee's head: big
@@ -3755,9 +3724,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // and cracks the crystal it meets (a shot fired from over his walls flies clear of them before it can hit one). He holds
   // his fire while his muzzle is within GEO_NEAR of you. As he walls you in, every enemy left is crushed, and none come
   // while the walls are up. Everything speeds up as he weakens.
+  // From the background (wall) his shots are bank shots: each is aimed to pass through where you are after bouncing off
+  // his walls (GEO_BANKS: how many bounces, by phase, one shot each), the targeting laser showing its whole path. The
+  // rings ricochet off the walls (they don't crack them) and pop at the first bounce after they've passed you.
   const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 350, GEO_ORB = 1.5, GEO_TRIP = 0.2, GEO_BARE = 0.1, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 25, GEO_THIN = 0.3;
   const GEO_PUSH = [2.6, 2.1, 1.6], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 32, GEO_RISE = 1.1, GEO_RETURN = 1.3;
   const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
+  const GEO_BANKS = [[1], [1, 2], [2, 1]], GEO_BANK_SHOT = [2.8, 2.5, 2.2], GEO_BANK_CHARGE = 1.1, GEO_BANK_R = 2, GEO_BANK_V = 32;
   const geoScale = () => Math.min(AW, AH) / 38; // how big he looms in the background
   const geoEase = k => k * k * (3 - 2 * k);
   function setupGeode(B, cycle) {
@@ -3774,6 +3747,53 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const geoMuzzle = B => { const k = B.sc, sx = B.x + B.side * GEO_R * 0.8 * k, sy = B.y + GEO_R * 0.06 * k, L = (GEO_R * 1.31 - B.recoil * 1.3) * k; return [sx + Math.cos(B.gunA) * L, sy + Math.sin(B.gunA) * L]; };
   // Where the next shot comes from: the muzzle (kept just inside the arena when his gun reaches past its edge).
   function geoShotFrom(B) { const [x, y] = geoMuzzle(B); return [clamp(x, 3, AW - 3), clamp(y, 3, AH - 3)]; }
+  // A ring's path from (x, y) (out in the open) at angle a: bouncing off the arena's edges and his walls, up to n
+  // bounces or len units. pts: the corners (start, each bounce, end); hits: where it passes by.
+  function geoTrace(x, y, a, n, len) {
+    let vx = Math.cos(a), vy = Math.sin(a), clear = true, b = 0, d = 0;
+    const r = GEO_BANK_R, step = 1, pts = [[x, y]], samples = [];
+    while (d < len && b <= n) {
+      x += vx * step; y += vy * step; d += step;
+      let nx = 0, ny = 0;
+      if (x < r) { x = r; nx = 1; } else if (x > AW - r) { x = AW - r; nx = -1; }
+      if (y < r) { y = r; ny = 1; } else if (y > AH - r) { y = AH - r; ny = -1; }
+      if (!nx && !ny && G.siege) {
+        let h = null; siegeNear(G.siege, x, y, r, (side, c, k, cell, R0) => (h = hitRect(x, y, r, R0)));
+        if (!h) clear = true; else if (clear) { x += h.nx * h.depth; y += h.ny * h.depth; nx = h.nx; ny = h.ny; }
+      }
+      if (nx || ny) { const l = Math.hypot(nx, ny), ux = nx / l, uy = ny / l, dot = vx * ux + vy * uy; if (dot < 0) { vx -= 2 * dot * ux; vy -= 2 * dot * uy; b++; pts.push([x, y]); } }
+      samples.push([x, y, b]);
+    }
+    pts.push([x, y]);
+    return { pts, samples };
+  }
+  // Pick the volley: for each shot, an angle whose path passes through you after exactly that many bounces (the
+  // shortest way there), each well apart from the others. Straight at you if nothing's found.
+  // Where his rings come out: the first open point on the line from his muzzle (often over his walls) to you.
+  function geoBankFrom(x, y) {
+    const p = G.player, d = Math.hypot(p.x - x, p.y - y) || 1, ux = (p.x - x) / d, uy = (p.y - y) / d;
+    for (let t = 0; t < d; t += 1) {
+      const qx = x + ux * t, qy = y + uy * t; let hit = false;
+      if (G.siege) siegeNear(G.siege, qx, qy, GEO_BANK_R + 0.5, (side, c, k, cell, R0) => (hit = !!hitRect(qx, qy, GEO_BANK_R + 0.5, R0)));
+      if (!hit) return [qx, qy];
+    }
+    return [p.x, p.y];
+  }
+  function geoBankPlan(B, x, y, want) {
+    const p = G.player, plan = [];
+    for (const n of want) {
+      let best = null;
+      for (let i = 0; i < 180; i++) {
+        const a = i / 180 * Math.PI * 2;
+        if (plan.some(q => Math.abs(Math.atan2(Math.sin(a - q.a), Math.cos(a - q.a))) < 0.3)) continue;
+        const T = geoTrace(x, y, a, n, 260);
+        let k = -1; for (let j = 0; j < T.samples.length; j++) { const [sx, sy, sb] = T.samples[j]; if (sb === n && Math.hypot(sx - p.x, sy - p.y) < PLAYER_R + GEO_BANK_R) { k = j; break; } if (sb > n) break; }
+        if (k >= 0 && (!best || k < best.k)) best = { a, k, n };
+      }
+      plan.push(best || { a: Math.atan2(p.y - y, p.x - x), k: 0, n: 0 });
+    }
+    return plan;
+  }
   function geoBreak(B, sl, b, scored) {
     sl.on = false;
     const [x, y] = geoSlot(B, sl);
@@ -3853,7 +3873,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const [mx, my] = geoMuzzle(B), want = Math.atan2(p.y - my, p.x - mx);
     if (B.shotT > GEO_LOCK) { let d = want - B.gunA; d = Math.atan2(Math.sin(d), Math.cos(d)); B.gunA += clamp(d, -dt * 3, dt * 3); }
     if (Math.cos(B.gunA) > 0.3) B.side = 1; else if (Math.cos(B.gunA) < -0.3) B.side = -1;
-    if (B.st !== 'crack') {
+    if (B.st === 'wall') { // from the background: bank shots, their whole paths shown first
+      const [mx0, my0] = geoShotFrom(B);
+      B.shotT -= dt; B.aimX = mx0; B.aimY = my0;
+      if (B.shotT < GEO_BANK_CHARGE && !B.plan) { const [ox, oy] = geoBankFrom(mx0, my0); B.plan = geoBankPlan(B, ox, oy, GEO_BANKS[ph]); B.planFrom = [ox, oy]; sfx.blasterCharge(); }
+      const [fx0, fy0] = B.planFrom || [mx0, my0];
+      if (B.plan) for (const q of B.plan) q.path = [[mx0, my0], ...geoTrace(fx0, fy0, q.a, q.n + 1, 260).pts]; // from his muzzle to where it comes out of the wall, then bouncing; it follows the walls as they move
+      B.chg = B.shotT < GEO_BANK_CHARGE ? 1 - B.shotT / GEO_BANK_CHARGE : 0;
+      if (B.shotT <= 0) {
+        B.shotT = GEO_BANK_SHOT[ph]; B.chg = 0; B.recoil = 1;
+        for (const q of B.plan || []) G.bullets.push({ x: fx0, y: fy0, vx: Math.cos(q.a) * GEO_BANK_V, vy: Math.sin(q.a) * GEO_BANK_V, r: GEO_BANK_R, geo: true, bank: true, clear: true, bounces: q.n, life: 5 });
+        B.plan = null; B.planFrom = null; ring(fx0, fy0, 1, 7, 0.25, COL.threat, 0.9); sfx.blaster();
+      }
+    } else if (B.st !== 'crack') {
+      B.plan = null; B.planFrom = null;
       const [fx0, fy0] = geoShotFrom(B), close = Math.hypot(fx0 - p.x, fy0 - p.y) < GEO_NEAR;
       B.shotT = close ? Math.max(B.shotT - dt, GEO_LOCK + 0.01) : B.shotT - dt; // too close to you: he holds at full charge, still tracking
       B.chg = B.shotT < GEO_CHARGE ? 1 - B.shotT / GEO_CHARGE : 0;
@@ -4094,9 +4127,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const k = B.chg, x = B.aimX, y = B.aimY, p = G.player, locked = B.shotT <= GEO_LOCK, ca = Math.cos(B.gunA), sa = Math.sin(B.gunA);
     const L = Math.hypot(p.x - x, p.y - y) + 6, flick = locked ? (Math.floor(G.time * 30) % 2 ? 1 : 0.55) : 1;
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
-    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.strokeStyle = locked ? COL.chalk : COL.threat; ctx.globalAlpha = (locked ? 0.95 : 0.25 + 0.5 * k) * flick; ctx.lineWidth = locked ? 0.7 : 0.3 + 0.3 * k;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + ca * L, y + sa * L); ctx.stroke();
+    ctx.beginPath();
+    if (B.plan) for (const q of B.plan) { (q.path || []).forEach(([px, py], i) => i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); } // each bank shot's path, bounces and all
+    else { ctx.moveTo(x, y); ctx.lineTo(x + ca * L, y + sa * L); }
+    ctx.stroke();
     ctx.globalAlpha = 0.25 * k * flick; ctx.lineWidth = 2.2; ctx.strokeStyle = COL.threat; ctx.stroke(); // its glow
     const gr = 1.6 + 4 * k;
     ctx.globalAlpha = 0.55 + 0.35 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(x, y, gr, 0, Math.PI * 2); ctx.fill();
@@ -6609,6 +6645,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (e.type === 'wax' || e.type === 'invader') continue; // its chunk (or the formation) moves it
       if (e.crew) { updateCrew(e, dt); continue; } // the Tank's repair crew ride along with it
+      if (e.formWait > 0) { // a formation's bee, buzzing where it starts before it goes
+        e.formWait -= dt; const k = 0.5 + 0.3 * Math.sin(G.time * 40 + e.seed); e.x = e.hx + rand(-k, k); e.y = e.hy + rand(-k, k); e.vx = e.vy = 0;
+        if (e.formWait <= 0) { e.x = e.hx; e.y = e.hy; e.vx = e.form.vx; e.vy = e.form.vy; if (Math.random() < 0.1) sfx.march(0); }
+        continue;
+      }
       if (e.jet && e.jet.sq) continue; // a fighter in formation: its squadron flies it
       if (e.mystery) { e.x += e.vx * dt; if (e.x < -10 || e.x > AW + 10) e.gone = true; continue; } // the mystery ship: straight across, no shots
 
@@ -6765,16 +6806,29 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
   }
 
+  // The Geode's bank shots ricochet off the arena's edges and his walls (once clear of the wall they started over)
+  function bankBounce(b, dt) {
+    b.life -= dt;
+    let nx = 0, ny = 0;
+    if (b.x < b.r) { b.x = b.r; nx = 1; } else if (b.x > AW - b.r) { b.x = AW - b.r; nx = -1; }
+    if (b.y < b.r) { b.y = b.r; ny = 1; } else if (b.y > AH - b.r) { b.y = AH - b.r; ny = -1; }
+    if (!nx && !ny && G.siege) {
+      let h = null; siegeNear(G.siege, b.x, b.y, b.r, (side, c, k, cell, R0) => { const hh = hitRect(b.x, b.y, b.r, R0); if (hh) h = [hh, cell]; return !!hh; });
+      if (!h) b.clear = true; else if (b.clear) { const [hh, cell] = h; b.x += hh.nx * hh.depth; b.y += hh.ny * hh.depth; nx = hh.nx; ny = hh.ny; cell.flash = 0.15; }
+    }
+    if (nx || ny) { const l = Math.hypot(nx, ny), ux = nx / l, uy = ny / l, dot = b.vx * ux + b.vy * uy; if (dot < 0) { b.vx -= 2 * dot * ux; b.vy -= 2 * dot * uy; b.bounces--; ring(b.x, b.y, 0.5, 4, 0.2, COL.threat, 0.6); if (b.bounces >= 0) sfx.clank(); } }
+  }
   function updateBullets(dt) {
     const p = G.player;
     for (let i = G.bullets.length - 1; i >= 0; i--) {
       const b = G.bullets[i];
       b.x += b.vx * dt; b.y += b.vy * dt;
       if (b.grow) b.r = Math.min(b.rMax, b.r + b.grow * Math.hypot(b.vx, b.vy) * dt); // the Geode's rings widen as they fly
-      let dead = b.x < b.r || b.x > AW - b.r || b.y < b.r || b.y > AH - b.r;
+      if (b.bank) bankBounce(b, dt);
+      let dead = b.bank ? b.bounces < 0 || b.life <= 0 : b.x < b.r || b.x > AW - b.r || b.y < b.r || b.y > AH - b.r;
       if (!dead) for (const o of G.obstacles) if (!o.dying && hitObs(b.x, b.y, b.r, o)) { dead = true; break; }
       if (!dead && G.crush) nearBricks(b.x, b.y, (side, c, k) => (dead = !!hitRect(b.x, b.y, b.r, brickRect(side, c, k))));
-      if (!dead && G.siege) { // a wall stops a shot; the Geode's shots crack the crystal they hit, once they've flown clear of the wall they started over
+      if (!dead && G.siege && !b.bank) { // a wall stops a shot; the Geode's shots crack the crystal they hit, once they've flown clear of the wall they started over
         let hw = null; siegeNear(G.siege, b.x, b.y, b.r, (side, c, k, cell, R0) => (hw = hitRect(b.x, b.y, b.r, R0) ? [side, c, k, cell] : null));
         if (!hw) b.clear = true;
         else if (!b.geo || b.clear) {
