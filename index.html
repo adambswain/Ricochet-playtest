@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Oct 31 18:34 UTC · 200628a";</script>
+<script>window.RICOCHET_BUILD = "Oct 31 19:44 UTC · ed49134";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3859,8 +3859,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    arena now and then: it fires them up, blasts off out of the top and comes over in bombing runs, its shadow
   //    crossing the arena in a band (shown first, on you), bombs falling behind it, crosswise and lengthwise in turn;
   //    then it drops back in (its landing shown first). Break them and it's grounded.
-  //  - Its reactor grows desperate with every part you break: its beam (all the way round but for one safe gap,
-  //    shown as it charges) comes more often, and more backup comes in.
+  //  - Its reactor grows desperate with every part you break: its beam (all the way round but for one safe gap;
+  //    as it charges, its path shows: where it starts, chevrons running the way it'll turn, where it stops, SAFE) comes more often, and more backup comes in.
   //  - Break them all and the reactor's bare: on its knees, its helmet split on a great red machine eye, it beams and
   //    calls in backup from every boss in turn (tanks, jets, bees) while you finish it. Below MECH_CRIT it goes
   //    critical. The bar: ARSENAL | LEGS | THRUSTERS | REACTOR.
@@ -3868,12 +3868,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // then close in; reaching the middle, the ring detonates. Each dies in one hit and blows up (MECH_MICRO_AOE), taking
   // any within reach with it: further than the spacing of a fresh ring, so a hit pops a few, but as the ring closes
   // they bunch up and go off in chains. Touching one hurts.
-  const MECH_W = { gun: 38, claw: 38, rack: 38, rail: 38 }, MECH_KNEE = 65, MECH_CORE = 170, MECH_CRIT = 0.1;
+  const MECH_W = { gun: 58, claw: 58, rack: 58, rail: 58 }, MECH_KNEE = 100, MECH_CORE = 250, MECH_CRIT = 0.1;
   const MECH_ROCKET_V = 30, MECH_ROCKET_TURN = 1.1, MECH_ROCKET_HOME = 2.8, MECH_ROCKET_BACK = 75, MECH_ROCKET_DMG = 12, MECH_ROCKET_R = 2.4;
   const MECH_MICRO_SPACE = 9, MECH_MICRO_AOE = 6.5, MECH_MICRO_FLY = 0.9, MECH_MICRO_SPIN = 1.2, MECH_MICRO_CLOSE = 4.2, MECH_MICRO_BOOM = 9;
-  const MECH_STOMP_R = 16, MECH_STEP = [0.85, 1.3], MECH_STEP_WARN = 0.55, MECH_BEAM_CHARGE = 1.3, MECH_BEAM_SWEEP = 3, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
+  const MECH_STOMP_R = 16, MECH_STEP = [0.85, 1.3], MECH_STEP_WARN = 0.55, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
   const MECH_DEBRIS = 10;
-  const MECH_JETS = 55, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
+  const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
   const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.1, MECH_FLY_UP = 0.75, MECH_FLY_DOWN = 1.5, MECH_FLY_DROP = 0.4;
   const MECH_RUNS = 5, MECH_RUN_GAP = 0.95, MECH_RUN_WARN = 0.85, MECH_RUN_V = 150, MECH_RUN_HALF = 11, MECH_BOMB_FALL = 0.32, MECH_BOMB_R = 7, MECH_LAND_R = 24;
   const mechS = () => clamp(Math.min(AW / 120, AH / 200), 0.8, 1.5); // its size: it all but spans a portrait arena
@@ -3914,7 +3914,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Damage to a part (a weapon or a knee), or to the reactor; the bar is the sum of everything.
   function mechHit(B, key, dmg, x, y) {
-    if (key === 'core') { if (B.st === 'core') { B.core = Math.max(0, B.core - dmg); damageBoss(dmg, x, y); } return; }
+    if (key === 'core') { if (B.st === 'core') { B.core = Math.max(0, B.core - dmg); B.coreFlash = 0.15; damageBoss(dmg, x, y); } return; }
     const P = B.parts[key]; if (!P || P.hp <= 0) return;
     const d = Math.min(dmg, P.hp); P.hp -= d; P.flash = 0.15; damageBoss(d, x, y);
     if (P.hp <= 0 && G.boss === B) mechBreak(B, key);
@@ -3951,7 +3951,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       B.st = 'core'; B.beam = null; B.sweep = null; B.timers.beam = 3; B.timers.backup = 1.5;
       if (!B.plateGone) { B.plateGone = true; const [px, py] = mechAt(B, ...MECH_CORE_AT); B.plate = { x: px, y: py, vx: rand(-20, 20), vy: -40, a: 0, va: rand(-4, 4) }; }
       shake(5); G.screenFlash = Math.max(G.screenFlash || 0, 0.35); sfx.boss();
-      G.banner = { text: 'Reactor exposed!', sub: 'Finish it', t: 2, max: 2, at: 0.45 };
+      G.banner = { text: 'Reactor exposed!', sub: 'Hit the reactor in its chest', t: 2.4, max: 2.4, at: 0.45 };
     }
   }
   // What's left to break before the reactor's bare, for the banners
@@ -4166,7 +4166,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateMech(B, dt) {
     const p = G.player, T = B.timers, broken = ['gun', 'claw', 'rack', 'rail', 'kneeL', 'kneeR', 'jets'].filter(k => mechBroken(B, k)).length;
     const desp = 1 + broken * 0.12 + (B.crit ? 0.4 : 0); // its reactor grows desperate with every part you break
-    B.hitCd -= dt; B.t += dt; for (const k in B.parts) B.parts[k].flash -= dt;
+    B.hitCd -= dt; B.t += dt; B.coreFlash = (B.coreFlash || 0) - dt; for (const k in B.parts) B.parts[k].flash -= dt;
     if (!B.crit && B.st === 'core' && B.hp <= B.maxHp * MECH_CRIT) { B.crit = true; G.banner = { text: 'Reactor critical!', sub: 'Finish it!', t: 1.6, max: 1.6, at: 0.45 }; shake(3); sfx.boss(); }
     // its touch hurts, and nothing passes through it
     if (p.inv <= 0) for (const [x, y, r] of mechCircles(B)) if (Math.hypot(p.x - x, p.y - y) < r + PLAYER_R * 0.8) { damagePlayer(); break; }
@@ -4401,16 +4401,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + Math.cos(S.a) * L, gy + Math.sin(S.a) * L); ctx.strokeStyle = firing ? COL.chalk : COL.threat; ctx.lineWidth = firing ? 0.25 : 0.4; ctx.globalAlpha = firing ? 0.35 : 0.85; ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1; }
     if (B.beam && !die) { const [cx, cy] = mechAt(B, ...MECH_CORE_AT), Bm = B.beam, on = Bm.t >= MECH_BEAM_CHARGE, a = on ? Bm.a : Bm.a0, L = Math.hypot(AW, AH) * 1.2, k = clamp(Bm.t / MECH_BEAM_CHARGE, 0, 1);
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
-      if (!on) { // charging: the safe gap glows (get into it), the start line, and which way it'll turn
-        const gap = Math.PI * 2 - MECH_BEAM_ARC, R = Math.max(AW, AH);
-        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, Bm.g - gap / 2, Bm.g + gap / 2); ctx.closePath(); ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.06 + 0.08 * k; ctx.fill();
-        ctx.beginPath(); ctx.moveTo(cx + Math.cos(Bm.g - gap / 2) * 14, cy + Math.sin(Bm.g - gap / 2) * 14); ctx.lineTo(cx + Math.cos(Bm.g - gap / 2) * R, cy + Math.sin(Bm.g - gap / 2) * R); ctx.moveTo(cx + Math.cos(Bm.g + gap / 2) * 14, cy + Math.sin(Bm.g + gap / 2) * 14); ctx.lineTo(cx + Math.cos(Bm.g + gap / 2) * R, cy + Math.sin(Bm.g + gap / 2) * R);
-        ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.3 + 0.4 * k; ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); ctx.setLineDash([2, 1.6]); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.4 + 0.5 * k; ctx.stroke(); ctx.setLineDash([]);
-        ctx.beginPath(); ctx.arc(cx, cy, 22, a, a + Bm.dir * 1.2, Bm.dir < 0); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.7; ctx.globalAlpha = 0.5 + 0.4 * k; ctx.stroke(); // the way it'll turn
-        const ea = a + Bm.dir * 1.2; ctx.beginPath(); ctx.moveTo(cx + Math.cos(ea) * 22, cy + Math.sin(ea) * 22); ctx.lineTo(cx + Math.cos(ea - Bm.dir * 0.18) * 19.5, cy + Math.sin(ea - Bm.dir * 0.18) * 19.5); ctx.lineTo(cx + Math.cos(ea - Bm.dir * 0.18) * 24.5, cy + Math.sin(ea - Bm.dir * 0.18) * 24.5); ctx.closePath(); ctx.fillStyle = COL.threat; ctx.fill();
-      }
-      else { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.35; ctx.lineWidth = 8; ctx.stroke(); ctx.globalAlpha = 0.9; ctx.lineWidth = 2.8; ctx.stroke(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 1; ctx.stroke(); }
+      const gap = Math.PI * 2 - MECH_BEAM_ARC, R = Math.max(AW, AH), ray = (ang, r0 = 14) => { ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0); ctx.lineTo(cx + Math.cos(ang) * L, cy + Math.sin(ang) * L); };
+      const left = on ? clamp(1 - (Bm.t - MECH_BEAM_CHARGE) / MECH_BEAM_SWEEP, 0, 1) : 1; // how much of its path is still to come
+      // the gap it never reaches: SAFE
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, Bm.g - gap / 2, Bm.g + gap / 2); ctx.closePath(); ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.035 + 0.05 * k; ctx.fill();
+      // where it stops
+      ctx.beginPath(); ray(Bm.a1); ctx.setLineDash([1.6, 1.4]); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.5; ctx.stroke(); ctx.setLineDash([]);
+      if (on) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.35; ctx.lineWidth = 8; ctx.stroke(); ctx.globalAlpha = 0.9; ctx.lineWidth = 2.8; ctx.stroke(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 1; ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; }
       ctx.restore(); ctx.globalAlpha = 1; }
     if (B.walk && B.walk.land && !die) { const [lx, ly] = B.walk.land, k = clamp(1 - B.walk.t / MECH_STEP_WARN, 0, 1);
       ctx.globalAlpha = 0.14 + 0.2 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(lx, ly, 11 * s, 3.6 * s, 0, 0, Math.PI * 2); ctx.fill();
@@ -4553,11 +4550,34 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     ctx.restore();
+    if (B.beam && !die) { // the beam's path, over it: where it starts, chevrons running round the way it'll turn, SAFE
+      const [cx, cy] = mechAt(B, ...MECH_CORE_AT), Bm = B.beam, on = Bm.t >= MECH_BEAM_CHARGE, L = Math.hypot(AW, AH) * 1.2, k = clamp(Bm.t / MECH_BEAM_CHARGE, 0, 1);
+      const ray = (ang, r0 = 14) => { ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0); ctx.lineTo(cx + Math.cos(ang) * L, cy + Math.sin(ang) * L); };
+      const left = on ? clamp(1 - (Bm.t - MECH_BEAM_CHARGE) / MECH_BEAM_SWEEP, 0, 1) : 1;
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
+      { const gap = Math.PI * 2 - MECH_BEAM_ARC, side = Math.sin(Bm.g + gap / 2) > Math.sin(Bm.g - gap / 2) ? 1 : -1, ang = Bm.g + side * gap * 0.28, ux = Math.cos(ang), uy = Math.sin(ang); // in the open: toward the wedge's lower edge, well out from it
+        const edge = Math.min(ux > 0 ? (AW - cx) / ux : ux < 0 ? -cx / ux : 1e9, uy > 0 ? (AH - cy) / uy : 1e9), d = Math.max(14, Math.min(edge - 7, 90 * s)), lx = clamp(cx + ux * d, 8, AW - 8), ly = clamp(cy + uy * d, 6, AH - 6);
+        ctx.font = `700 ${3.4}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.55 + 0.35 * k * (0.7 + 0.3 * Math.sin(t * 8)); ctx.fillText('SAFE', lx, ly); }
+      // its path: chevrons running round it the way it'll turn, over everything it's still to sweep
+      const rr = 30 * s, step = 0.26, drift = (t * 0.9) % step, span = MECH_BEAM_ARC * left, from = on ? Bm.a : Bm.a0;
+      for (let u = drift; u < span; u += step) {
+        const th = from + Bm.dir * u, px = cx + Math.cos(th) * rr, py = cy + Math.sin(th) * rr, tx = -Math.sin(th) * Bm.dir, ty = Math.cos(th) * Bm.dir, nx = Math.cos(th), ny = Math.sin(th);
+        ctx.beginPath(); ctx.moveTo(px - tx * 1.4 + nx * 1.8, py - ty * 1.4 + ny * 1.8); ctx.lineTo(px + tx * 1.2, py + ty * 1.2); ctx.lineTo(px - tx * 1.4 - nx * 1.8, py - ty * 1.4 - ny * 1.8);
+        ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.55; ctx.globalAlpha = (on ? 0.45 : 0.25 + 0.55 * k) * (1 - 0.6 * u / Math.max(span, 1e-3)); ctx.stroke();
+      }
+      if (!on) { // charging: where it starts, brightening
+        ctx.beginPath(); ray(Bm.a0, 10); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.5 + 1.6 * k; ctx.globalAlpha = 0.35 + 0.55 * k * (0.75 + 0.25 * Math.sin(t * 20)); ctx.stroke();
+        ctx.beginPath(); ray(Bm.a0, 10); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.25; ctx.globalAlpha = 0.6 * k; ctx.stroke();
+      }
+      ctx.restore(); ctx.globalAlpha = 1;
+    }
     if (wear > 0.25 && !die && Math.random() < wear * 0.5) { const [x, y] = mechAt(B, rand(-34, 34), rand(-28, 20)); burst(x, y, 1, Math.random() < 0.25 ? fire : COL.dim, 10, 0.6, 0.9); } // smoke and embers
     if (wear > 0.45 && !die && Math.random() < wear * 0.12) { const [x, y] = mechAt(B, rand(-30, 30), rand(-24, 24)); burst(x, y, 4, COL.chalk, 30, 0.25, 0.25); } // sparks
     // its live targets, ringed, with their health (drawn over it, unscaled)
     if (B.st === 'fight' && !die) for (const key in MECH_PARTS) { const P = B.parts[key]; if (P.hp <= 0) continue; const [lx, ly, r] = MECH_PARTS[key], [x, y] = mechAt(B, lx, ly); target(x, y, r * 1.1 * s, P); pips(x, y + (r * 1.45 + 2.2) * s, P, 5); }
     if (B.st === 'fight' && !die) for (const side of [-1, 1]) { const P = B.parts[side < 0 ? 'kneeL' : 'kneeR']; if (P.hp <= 0) continue; const [x, y] = mechKnee(B, side); target(x, y, 7.5 * s, P); pips(x, y + 11 * s, P, 5); }
+    if (B.st === 'core' && !die) { const [x, y] = mechAt(B, ...MECH_CORE_AT), P = { hp: B.core, max: B.coreMax, flash: B.coreFlash || 0 }; target(x, y, 15 * s, P); pips(x, y + 23 * s, P, 10); // the reactor: the target now
+      if (P.flash > 0) glow(() => { ctx.beginPath(); ctx.arc(x, y, 9 * s, 0, Math.PI * 2); ctx.fill(); }, COL.chalk, 0.8); }
     if (B.st === 'fight' && !die && B.parts.jets.hp > 0 && !(B.fly && B.fly.air)) for (const side of [-1, 1]) { const P = B.parts.jets, [x, y] = mechAt(B, side * MECH_JET_AT[0], MECH_JET_AT[1]); target(x, y, MECH_JET_R * 1.15 * s, P); pips(x, y + (MECH_JET_R * 1.6 + 3) * s, P, 5); } // one health between the two
     if (B.plate) { const q = B.plate; ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.a); ctx.scale(s, s); plate([[0, -11], [7, -5], [7, 7], [0, 11], [-7, 7], [-7, -5]], { lit: 0.42 }); ctx.restore(); }
   }
