@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Oct 31 19:44 UTC · ed49134";</script>
+<script>window.RICOCHET_BUILD = "Oct 31 20:07 UTC · 6f9351b";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3860,7 +3860,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    crossing the arena in a band (shown first, on you), bombs falling behind it, crosswise and lengthwise in turn;
   //    then it drops back in (its landing shown first). Break them and it's grounded.
   //  - Its reactor grows desperate with every part you break: its beam (all the way round but for one safe gap;
-  //    as it charges, its path shows: where it starts, chevrons running the way it'll turn, where it stops, SAFE) comes more often, and more backup comes in.
+  //    as it charges, its path shows: a red warning zone over all it'll sweep, where it starts, chevrons running the way it'll turn, where it stops) comes more often, and more backup comes in.
   //  - Break them all and the reactor's bare: on its knees, its helmet split on a great red machine eye, it beams and
   //    calls in backup from every boss in turn (tanks, jets, bees) while you finish it. Below MECH_CRIT it goes
   //    critical. The bar: ARSENAL | LEGS | THRUSTERS | REACTOR.
@@ -4403,8 +4403,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
       const gap = Math.PI * 2 - MECH_BEAM_ARC, R = Math.max(AW, AH), ray = (ang, r0 = 14) => { ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0); ctx.lineTo(cx + Math.cos(ang) * L, cy + Math.sin(ang) * L); };
       const left = on ? clamp(1 - (Bm.t - MECH_BEAM_CHARGE) / MECH_BEAM_SWEEP, 0, 1) : 1; // how much of its path is still to come
-      // the gap it never reaches: SAFE
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, Bm.g - gap / 2, Bm.g + gap / 2); ctx.closePath(); ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.035 + 0.05 * k; ctx.fill();
+      // the warning zone: everything it's still to sweep, tinted red; the gap it never reaches stays clear
+      { const from = on ? Bm.a : Bm.a0, to = Bm.a1; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, from, to, Bm.dir < 0); ctx.closePath(); ctx.fillStyle = COL.threat; ctx.globalAlpha = on ? 0.08 : (0.04 + 0.08 * k) * (0.8 + 0.2 * Math.sin(t * 12)); ctx.fill(); }
       // where it stops
       ctx.beginPath(); ray(Bm.a1); ctx.setLineDash([1.6, 1.4]); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.5; ctx.stroke(); ctx.setLineDash([]);
       if (on) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.35; ctx.lineWidth = 8; ctx.stroke(); ctx.globalAlpha = 0.9; ctx.lineWidth = 2.8; ctx.stroke(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 1; ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; }
@@ -4550,14 +4550,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     ctx.restore();
-    if (B.beam && !die) { // the beam's path, over it: where it starts, chevrons running round the way it'll turn, SAFE
+    if (B.beam && !die) { // the beam's path, over it: where it starts, chevrons running round the way it'll turn
       const [cx, cy] = mechAt(B, ...MECH_CORE_AT), Bm = B.beam, on = Bm.t >= MECH_BEAM_CHARGE, L = Math.hypot(AW, AH) * 1.2, k = clamp(Bm.t / MECH_BEAM_CHARGE, 0, 1);
       const ray = (ang, r0 = 14) => { ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0); ctx.lineTo(cx + Math.cos(ang) * L, cy + Math.sin(ang) * L); };
       const left = on ? clamp(1 - (Bm.t - MECH_BEAM_CHARGE) / MECH_BEAM_SWEEP, 0, 1) : 1;
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
-      { const gap = Math.PI * 2 - MECH_BEAM_ARC, side = Math.sin(Bm.g + gap / 2) > Math.sin(Bm.g - gap / 2) ? 1 : -1, ang = Bm.g + side * gap * 0.28, ux = Math.cos(ang), uy = Math.sin(ang); // in the open: toward the wedge's lower edge, well out from it
-        const edge = Math.min(ux > 0 ? (AW - cx) / ux : ux < 0 ? -cx / ux : 1e9, uy > 0 ? (AH - cy) / uy : 1e9), d = Math.max(14, Math.min(edge - 7, 90 * s)), lx = clamp(cx + ux * d, 8, AW - 8), ly = clamp(cy + uy * d, 6, AH - 6);
-        ctx.font = `700 ${3.4}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.55 + 0.35 * k * (0.7 + 0.3 * Math.sin(t * 8)); ctx.fillText('SAFE', lx, ly); }
       // its path: chevrons running round it the way it'll turn, over everything it's still to sweep
       const rr = 30 * s, step = 0.26, drift = (t * 0.9) % step, span = MECH_BEAM_ARC * left, from = on ? Bm.a : Bm.a0;
       for (let u = drift; u < span; u += step) {
