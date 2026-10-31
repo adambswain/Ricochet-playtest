@@ -523,9 +523,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
     15: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts',
     18: 'Invasion: break the formation before it lands. The top rows are tougher: charge your ball off the walls and bunkers to punch through',
-    19: 'A Brute Wall marches in partway through this wave',
+    17: 'Fighter squadrons: one hit each. Put your ball through the formation',
+    19: 'A Brute Wall marches in partway through this wave. Fighters overhead: something big is coming',
     20: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
-    40: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. She hides back in the hive to rebuild it: dig her out again',
+    40: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. When she cages you, break out before it hatches',
     23: 'Swarm Storm',
     26: 'Titans: huge and slow. Each one cracks open into two brutes',
     28: 'Crusher: brick walls close in. Break them to push them back',
@@ -1092,9 +1093,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Vexa comes out, huge, and hangs from the top of the arena, head up, her glowing abdomen hanging down. Her abdomen
   // is the target (1 + charge a hit); her head and thorax are armour. She launches bee formations (a column sweeping in
   // from a side, a row rising from the bottom, each with a gap; a V dropping from her), aims her stinger down a lane
-  // (it glows, locks, then fires a needle), and throws honeycomb. Once she's taken VEXA_TRIP of her health she ducks
-  // back into the hive and the comb regrows, a ring thinner each time; dig her out again. Below VEXA_BERSERK of her
-  // health she stays out for good and everything comes faster.
+  // (it glows, locks, then fires a needle), and throws honeycomb. Each formation is flagged first at the edge it comes
+  // from (FORM_WARN), with its gap (near you) marked. Once she's taken VEXA_TRIP of her health she cages you: a gold
+  // ring closes on where you are (CAGE_WARN; get clear and it's nothing), then a ring of wax cells grows there. Break
+  // out (shoot a cell out and slip through) before CAGE_TIME runs out, or every cell left hatches a bee in there with
+  // you. She holds her fire while you're caged. Below VEXA_BERSERK of her health she's furious: no more cages, and
+  // everything comes faster.
   // Both halves throw honeycomb: a chunk of seven wax cells, flagged by a ring closing on an edge cell (or flung by the
   // queen), that flies and bounces off the walls COMB_BOUNCES times or for COMB_LIFE seconds, then crumbles. Its touch
   // hurts; each cell breaks in one hit and counts toward the chain, and breaking the core cell shatters the rest.
@@ -1106,7 +1110,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const VEXA_AIM = 0.9, VEXA_LOCK = 0.25, VEXA_NEEDLE = 105, VEXA_BEE_V = [30, 35, 40, 46], VEXA_COMB = [8, 7, 6, 5];
   // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
   const VEXA_BODY = [[0.82, 0.5, false], [0, 0.5, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
-  const QUEEN_R = 9.5, QUEEN_HP = 360, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
+  const QUEEN_R = 9.5, QUEEN_HP = 280, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
+  const FORM_WARN = { column: 1.3, row: 1.7, v: 1.0 }, FORM_GAP = { column: 20, row: 24 };
+  const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [6.5, 5.5, 5, 5];
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
   function setupHive(B, cycle) {
     const S = HIVE_CELL, cx = AW / 2, cy = clamp(AH * 0.36, S * 9, AH * 0.45), cells = [];
@@ -1368,19 +1374,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (B.modeT <= 0) { B.st = 'queen'; }
       return;
     }
-    if (B.st === 'retreat') { // back down into the hive while the comb grows back round her
-      B.modeT -= dt; const k = ease(1 - B.modeT / VEXA_RETREAT);
-      if (B.hx0 === undefined) { B.hx0 = B.x; B.hy0 = B.y; }
-      B.x = B.hx0 + (B.cx - B.hx0) * k; B.y = B.hy0 + (B.cy - B.hy0) * k;
-      for (const c of B.cells) c.grow = Math.min(1, c.grow + dt / (VEXA_RETREAT * 0.6));
-      if (B.modeT <= 0) { B.st = 'comb'; B.hx0 = undefined; for (const c of B.cells) c.grow = 1; B.hatchT = 2; B.mendT = HIVE_MEND[ph]; B.combT = 3; }
-      return;
-    }
     // Vexa, hanging over the arena
     B.x += (hang[0] - B.x) * Math.min(1, dt * 2); B.y += (hang[1] - B.y) * Math.min(1, dt * 2);
     const [tx0, ty0] = vexaTip(B), want = clamp(Math.atan2(p.y - ty0, p.x - tx0) - Math.PI / 2, -0.4, 0.4); // her abdomen leans toward you
     if (B.mode !== 'lock') B.face += (-Math.PI / 2 + want - B.face) * Math.min(1, dt * 2.5);
     if (p.inv <= 0) for (const [x, y, rr] of vexaBody(B)) if (Math.hypot(p.x - x, p.y - y) < rr + PLAYER_R * 0.8) { damagePlayer(); break; }
+    if (B.cage) { updateCage(B, dt, ph2); return; } // she holds her fire while you're caged
     // the sting: the abdomen leans in and glows down a lane, locks, and fires a needle
     B.stingT -= dt;
     if (B.mode === 'hang' && B.stingT <= 0) { B.mode = 'aim'; B.modeT = VEXA_AIM; sfx.blasterCharge(); }
@@ -1399,27 +1398,28 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.formT <= 0) {
       B.formT = VEXA_FORM[ph2];
       const kinds = ['column', 'row', 'v'], kind = kinds[Math.floor(Math.random() * kinds.length)];
-      B.forms.push({ kind, t: 0.9, side: Math.random() < 0.5 ? -1 : 1, gap: rand(0.2, 0.8), x: clamp(p.x + rand(-15, 15), 15, AW - 15) });
+      B.forms.push({ kind, t: FORM_WARN[kind], max: FORM_WARN[kind], side: Math.random() < 0.5 ? -1 : 1, gx: clamp(p.x + rand(-18, 18), 14, AW - 14), gy: clamp(p.y + rand(-15, 15), 14, AH - 14), x: clamp(p.x + rand(-15, 15), 15, AW - 15) });
+      sfx.field();
     }
     for (const f of B.forms) {
       f.t -= dt;
       if (f.t > 0) continue;
       f.done = true;
-      const v = VEXA_BEE_V[ph2], gapW = 15, add = (x, y, vx, vy) => {
+      const v = VEXA_BEE_V[ph2], gapW = FORM_GAP[f.kind] || 15, add = (x, y, vx, vy) => {
         const m = makeEnemy('swarm', x, y);
         Object.assign(m, { bee: true, form: { vx, vy }, seed: rand(0, 6), vx, vy, spawnT: 0 }); G.enemies.push(m);
       };
       if (f.kind === 'column') { // from a side, top to bottom, with a gap to fly through
-        const x0 = f.side < 0 ? -3 : AW + 3, gy = 8 + f.gap * (AH - 16);
+        const x0 = f.side < 0 ? -3 : AW + 3, gy = f.gy;
         for (let y = 5; y < AH - 4; y += 5.5) if (Math.abs(y - gy) > gapW / 2) add(x0, y, -f.side * v, 0);
       } else if (f.kind === 'row') { // rising from the bottom, side to side, with a gap
-        const gx = 8 + f.gap * (AW - 16);
+        const gx = f.gx;
         for (let x = 5; x < AW - 4; x += 5.5) if (Math.abs(x - gx) > gapW / 2) add(x, AH + 3, 0, -v * 0.9);
       } else { // a V dropped from her abdomen, at where you are
         const [tx, ty] = vexaTip(B), n = 5 + ph2;
         for (let k = -n; k <= n; k++) add(tx + k * 4.5, ty + 4 - Math.abs(k) * 3.5, (f.x - tx) * 0.35, v * 0.9);
       }
-      sfx.field();
+      sfx.march(0);
     }
     B.forms = B.forms.filter(f => !f.done);
     B.combT -= dt;
@@ -1661,18 +1661,106 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     return VEXA_BODY.map(([lx, rr, hurts]) => [B.x + c * lx * r, B.y + sn * lx * r, rr * r, hurts]);
   }
   const vexaTip = B => { const r = vexaR(), c = Math.cos(B.face ?? -Math.PI / 2), sn = Math.sin(B.face ?? -Math.PI / 2); return [B.x - c * 2.6 * r, B.y - sn * 2.6 * r]; };
-  // She ducks back into the hive: the comb regrows round her, a ring thinner each time she's been out.
-  function vexaRetreat(B) {
-    B.st = 'retreat'; B.modeT = VEXA_RETREAT; B.mode = 'hang'; B.forms = [];
-    const rings = Math.max(1, HIVE_RINGS - B.outs), S = HIVE_CELL, cells = [];
-    for (let q = -rings; q <= rings; q++) for (let r = -rings; r <= rings; r++) {
-      const d = Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r));
-      if (d > rings) continue;
-      const hp = d === 0 ? Math.max(4, 8 - B.outs * 2) + B.cycle * 3 : (d <= 2 ? 3 : 2) + B.cycle;
-      cells.push({ x: B.cx + S * Math.sqrt(3) * (q + r / 2), y: B.cy + S * 1.5 * r, d, hp, max: hp, flash: 0, hatch: 0, grow: -0.25 * (rings - d) });
+  // Her cage: a gold ring closes on where you are; if you're still inside when it shuts, a ring of wax cells grows there.
+  function vexaCage(B) {
+    const p = G.player;
+    B.cage = { st: 'warn', t: CAGE_WARN, x: clamp(p.x, CAGE_R + 4, AW - CAGE_R - 4), y: clamp(p.y, CAGE_R + 4, AH - CAGE_R - 4), cells: [] };
+    B.mode = 'hang'; B.forms = []; B.taken = 0;
+    G.banner = { text: 'Caged!', sub: 'Get clear, or break out before it hatches', t: 1.8, max: 1.8, at: 0.45 }; // mid-screen: she fills the top sfx.boss(); shake(1);
+  }
+  function updateCage(B, dt, ph2) {
+    const C = B.cage, p = G.player;
+    C.t -= dt;
+    if (C.st === 'warn') {
+      if (C.t > 0) return;
+      if (Math.hypot(p.x - C.x, p.y - C.y) > CAGE_R) { float(p.x, p.y - 6, 'Dodged!', COL.chalk, 3.2); B.cage = null; B.stingT = Math.max(B.stingT, 1.5); return; } // you got clear
+      const n = Math.ceil(Math.PI * 2 * CAGE_R / (CAGE_CELL * 1.85)), hp = 1 + B.cycle;
+      for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2; C.cells.push({ x: C.x + Math.cos(a) * CAGE_R, y: C.y + Math.sin(a) * CAGE_R, hp, max: hp, flash: 0, grow: -k * 0.02 }); }
+      C.st = 'up'; C.t = C.max = CAGE_TIME[ph2]; sfx.clank(); shake(1.5); gridImpulse(C.x, C.y, CAGE_R * 2, 120);
+      return;
     }
-    B.cells = cells; B.r = S * Math.sqrt(3) * (rings + 0.5);
-    G.banner = { text: 'She\'s hiding!', sub: 'Dig her out again', t: 1.6, max: 1.6, top: true }; sfx.boss(); shake(1.5);
+    for (const c of C.cells) { c.flash -= dt; c.grow = Math.min(1, c.grow + dt * 4); }
+    const live = C.cells.filter(c => c.hp > 0);
+    for (const c of live) { // the wax holds you in
+      const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy), m = CAGE_CELL + PLAYER_R;
+      if (d < m && d > 1e-6) { p.x = c.x + dx / d * m; p.y = c.y + dy / d * m; }
+    }
+    if (!live.length || Math.hypot(p.x - C.x, p.y - C.y) > CAGE_R + 2) { // you're out: the rest of it crumbles
+      for (const c of live) { burst(c.x, c.y, 8, GOLD(), 30, 0.5, 0.35); G.score += Math.round(20 * G.mult); }
+      ring(C.x, C.y, CAGE_R * 0.5, CAGE_R * 1.8, 0.4, GOLD(), 1); sfx.shatter(); shake(1);
+      float(p.x, p.y - 6, 'Broke free!', COL.chalk, 3.4); B.cage = null; B.stingT = Math.max(B.stingT, 1.5); B.formT = Math.max(B.formT, 1.5);
+      return;
+    }
+    if (C.t <= 0) { // too slow: every cell left hatches a bee, in there with you
+      for (const c of live) { spawnBees(c.x, c.y, 1); const e = G.enemies[G.enemies.length - 1]; if (e && e.bee) { const a = Math.atan2(C.y - c.y, C.x - c.x); e.vx = Math.cos(a) * 30; e.vy = Math.sin(a) * 30; } }
+      ring(C.x, C.y, 2, CAGE_R * 1.5, 0.4, COL.threat, 1); sfx.boss(); B.cage = null; B.stingT = Math.max(B.stingT, 2); B.formT = Math.max(B.formT, 2.5);
+    }
+  }
+  // The ball against the cage's cells: it bounces, and a cell breaks (1 hit, 2 when hot)
+  function ballCage(C, o, r, b) {
+    for (const c of C.cells) {
+      if (c.hp <= 0) continue;
+      const dx = o.x - c.x, dy = o.y - c.y, d = Math.hypot(dx, dy);
+      if (d >= CAGE_CELL + r || d < 1e-6) continue;
+      const nx = dx / d, ny = dy / d; o.x = c.x + nx * (CAGE_CELL + r + 0.05); o.y = c.y + ny * (CAGE_CELL + r + 0.05);
+      const dot = o.vx * nx + o.vy * ny; if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
+      c.hp -= b >= 8 ? 2 : 1; c.flash = 0.15;
+      if (c.hp <= 0) { burst(c.x, c.y, 12, GOLD(), 35, 0.6, 0.4); ring(c.x, c.y, 1, CAGE_CELL + 3, 0.25, GOLD(), 0.6); G.score += Math.round(40 * (1 + b) * G.mult); chainCredit(o, c.x, c.y, b); sfx.brick(b); shake(0.4); }
+      else sfx.clank();
+      return true;
+    }
+    return false;
+  }
+  // The cage: the ring closing on you, then the wax, and round it a countdown to the hatch
+  function drawCage(B) {
+    const C = B.cage, gold = GOLD(), t = G.time;
+    if (C.st === 'warn') {
+      const k = 1 - C.t / CAGE_WARN, r = CAGE_R * (2.4 - 1.4 * k);
+      ctx.save(); ctx.setLineDash([2, 1.5]); ctx.lineDashOffset = -t * 10; ctx.strokeStyle = Math.floor(t * 12) % 2 ? COL.chalk : gold; ctx.lineWidth = 0.6 + 0.4 * k; ctx.globalAlpha = 0.5 + 0.5 * k;
+      ctx.beginPath(); ctx.arc(C.x, C.y, r, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      ctx.globalAlpha = 0.08 + 0.12 * k; ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(C.x, C.y, CAGE_R, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+      return;
+    }
+    const k = C.t / C.max, soon = C.t < 1.5 && Math.floor(t * 12) % 2;
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.1 + 0.05 * Math.sin(t * 6); ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(C.x, C.y, CAGE_R, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(C.x, C.y, CAGE_R + CAGE_CELL + 2.2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.7; ctx.lineCap = 'round'; ctx.globalAlpha = 0.85; ctx.stroke(); ctx.globalAlpha = 1; // the countdown
+    for (const c of C.cells) {
+      if (c.hp <= 0 || c.grow <= 0) continue;
+      const s = CAGE_CELL * 1.08 * Math.min(1, c.grow);
+      hexPath(c.x, c.y, s); ctx.fillStyle = COL.ink; ctx.fill();
+      ctx.globalAlpha = c.flash > 0 || soon ? 0.85 : 0.25 + 0.25 * c.hp / c.max; ctx.fillStyle = c.flash > 0 || soon ? COL.chalk : gold; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = c.flash > 0 ? COL.chalk : gold; ctx.lineWidth = 0.5; ctx.lineJoin = 'round'; ctx.stroke();
+      ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.5 + 0.5 * (1 - k); ctx.beginPath(); ctx.arc(c.x, c.y, 0.5 + 0.6 * (1 - k), 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // the bee inside, waking
+    }
+  }
+  // Her formations, flagged at the edge they'll come from, the gap (where to be) marked in white
+  function drawVexaForms(B) {
+    const gold = GOLD(), t = G.time;
+    for (const f of B.forms) {
+      const k = 1 - f.t / f.max, blink = Math.floor(t * 10) % 2, a = 0.45 + 0.45 * k;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (f.kind === 'row' || f.kind === 'column') {
+        const row = f.kind === 'row', g = row ? f.gx : f.gy, gw = (FORM_GAP[f.kind] || 15) / 2, L = row ? AW : AH;
+        ctx.strokeStyle = blink ? COL.chalk : gold; ctx.lineWidth = 0.75; ctx.globalAlpha = a;
+        for (let u = 5; u < L - 4; u += 5.5) { // a chevron for each bee, pointing the way it'll fly
+          if (Math.abs(u - g) <= gw) continue;
+          ctx.beginPath();
+          if (row) for (const dy of [0, 3]) { const y = AH - 3 - dy - k * 3; ctx.moveTo(u - 2.4, y + 1.6); ctx.lineTo(u, y - 0.8); ctx.lineTo(u + 2.4, y + 1.6); }
+          else for (const dx of [0, 3]) { const sx = f.side < 0 ? 1 : -1, x = (f.side < 0 ? 3 + dx + k * 3 : AW - 3 - dx - k * 3); ctx.moveTo(x - sx * 1.6, u - 2.4); ctx.lineTo(x + sx * 0.8, u); ctx.lineTo(x - sx * 1.6, u + 2.4); }
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 0.12 + 0.12 * k; ctx.fillStyle = COL.chalk; // the safe lane through the gap
+        if (row) ctx.fillRect(g - gw, 0, gw * 2, AH); else ctx.fillRect(0, g - gw, AW, gw * 2);
+        ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.6; ctx.beginPath();
+        if (row) { ctx.moveTo(g - gw, AH); ctx.lineTo(g - gw, AH - 8); ctx.moveTo(g + gw, AH); ctx.lineTo(g + gw, AH - 8); }
+        else { const x = f.side < 0 ? 0 : AW, d = f.side < 0 ? 8 : -8; ctx.moveTo(x, g - gw); ctx.lineTo(x + d, g - gw); ctx.moveTo(x, g + gw); ctx.lineTo(x + d, g + gw); }
+        ctx.stroke(); ctx.globalAlpha = 1;
+      } else { // the V: a dotted line from her abdomen to where it'll come down
+        const [tx, ty] = vexaTip(B);
+        ctx.save(); ctx.setLineDash([1.5, 1.5]); ctx.lineDashOffset = -t * 12; ctx.strokeStyle = blink ? COL.chalk : gold; ctx.lineWidth = 0.5; ctx.globalAlpha = a;
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(f.x, AH); ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1;
+      }
+    }
   }
   function ballHive(B, o, r, b) {
     if (B.st === 'comb') {
@@ -1690,6 +1778,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return '';
     }
     if (B.st !== 'queen') return '';
+    if (B.cage && B.cage.st === 'up' && ballCage(B.cage, o, r, b)) return 'bounce';
     let hit = null, hd = 1e9;
     for (const q of vexaBody(B)) { const d = Math.hypot(o.x - q[0], o.y - q[1]) - q[2]; if (d < r && d < hd) { hit = q; hd = d; } }
     if (!hit) return '';
@@ -1701,8 +1790,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.hitCd <= 0) {
       B.hitCd = 0.12; B.flash = 0.08; B.hurt = 1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); burst(x + nx * rr, y + ny * rr, 8 + b, GOLD(), 30, 0.6, 0.35); sfx.splat(b);
       damageBoss(1 + b, o.x, o.y);
-      if (G.boss === B && B.hp > B.maxHp * VEXA_BERSERK) { B.taken += 1 + b; if (B.taken >= B.maxHp * VEXA_TRIP && B.hp > B.maxHp * (VEXA_BERSERK + 0.1)) vexaRetreat(B); } // not for a sliver
-      else if (G.boss === B && !B.berserk) { B.berserk = true; G.banner = { text: 'Vexa is furious!', sub: 'No more hiding', t: 1.8, max: 1.8, top: true }; shake(2); sfx.boss(); }
+      if (G.boss === B && B.hp > B.maxHp * VEXA_BERSERK) { B.taken += 1 + b; if (B.taken >= B.maxHp * VEXA_TRIP && B.hp > B.maxHp * (VEXA_BERSERK + 0.1) && !B.cage) vexaCage(B); } // not for a sliver
+      else if (G.boss === B && !B.berserk) { B.berserk = true; G.banner = { text: 'Vexa is furious!', sub: 'No more cages: everything comes faster', t: 1.8, max: 1.8, top: true }; shake(2); sfx.boss(); }
     }
     return 'bounce';
   }
@@ -2163,8 +2252,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (const [w, al] of [[g.r * 0.9, 0.06], [g.r * 0.35, 0.12]]) { ctx.globalAlpha = al; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.lineTo(g.x - g.vx / sp * 16, g.y - g.vy / sp * 16); ctx.stroke(); }
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     }
-    if (B.st === 'comb' || B.st === 'retreat') {
-      if (B.st === 'retreat') drawQueen(B); // she shrinks back into the hive as it grows round her
+    if (B.st === 'comb') {
       for (const e of G.enemies) if (e.mend) { // a worker's thread to the hole it's rebuilding, and the cell to come
         pulseLine(e.x, e.y, e.mend.x, e.mend.y, gold, 0.6, 0.25, 20);
         hexPath(e.mend.x, e.mend.y, HIVE_CELL * 0.95); ctx.strokeStyle = gold; ctx.lineWidth = 0.25; ctx.globalAlpha = 0.25 + 0.2 * Math.sin(G.time * 8); ctx.stroke(); ctx.globalAlpha = 1;
@@ -2192,6 +2280,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return;
     }
     drawQueen(B);
+    if (B.st === 'queen') { drawVexaForms(B); if (B.cage) drawCage(B); }
   }
   // Queen Vexa, front on: she hangs head-up facing you, posed rather than symmetrical: her head tilts (toward you), one
   // mantis foreleg is raised by her face, the other folded at her chest, her antennae differ. A bee's head: big
@@ -3581,6 +3670,69 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); ctx.arc(0, 0, DRUM_R * 0.2, 0, Math.PI * 2); ctx.fillStyle = hot ? COL.chalk : fire; ctx.fill();
       ctx.restore();
     }
+  }
+
+  /* ---------- the Carrier's fighters, ahead of it ---------- */
+  // Waves 17 and 19: squadrons of the Carrier's own jets. Chevrons flag where one comes in at the top (SQUAD_WARN);
+  // then a V of them flies down into the arena in formation, holds a moment, and peels off one at a time, each diving
+  // at you like the ones from its bay. One hit each, packed tight: a ball through the V is a chain. Wave 19 also has
+  // the Carrier's shadow sliding over the arena (SHADOW_TIME), up above, out of sight.
+  const SQUAD_PLAN = { 17: [3], 19: [3, 13] }, SQUAD_SIZE = { 17: 5, 19: 6 }, SQUAD_WARN = 1.1, SQUAD_SPEED = 24, SQUAD_HOLD = 0.7, SQUAD_PEEL = 0.4;
+  const SHADOW_AT = 7, SHADOW_TIME = 11;
+  function updateSquads(dt) {
+    const P = G.squadPlan;
+    if (P) {
+      P.t += dt;
+      while (P.at.length && P.t >= P.at[0]) { P.at.shift(); G.squadWarn.push({ x: rand(AW * 0.28, AW * 0.72), t: SQUAD_WARN, n: P.n }); sfx.field(); }
+      if (P.shadow && P.t >= SHADOW_AT) { P.shadow = false; G.shadow = { t: 0, dir: Math.random() < 0.5 ? 1 : -1 }; }
+    }
+    for (const w of G.squadWarn) { w.t -= dt; if (w.t <= 0) { w.done = true; spawnSquad(w.x, w.n); } }
+    G.squadWarn = G.squadWarn.filter(w => !w.done);
+    for (const q of G.squads) {
+      const left = G.enemies.filter(e => e.jet && e.jet.sq === q);
+      if (!left.length) { q.done = true; continue; }
+      if (q.st === 'fly') { q.y += SQUAD_SPEED * dt; if (q.y >= q.y1) { q.st = 'hold'; q.t = SQUAD_HOLD; } }
+      else { q.t -= dt; if (q.t <= 0) { q.st = 'peel'; q.t = SQUAD_PEEL; const e = left.sort((a, b) => a.jet.k - b.jet.k)[0]; peelJet(e); } }
+      for (const e of left) if (e.jet.sq === q) { e.x = q.x + e.jet.ox; e.y = q.y + e.jet.oy; e.vx = 0; e.vy = q.st === 'fly' ? SQUAD_SPEED : 0.01; }
+    }
+    G.squads = G.squads.filter(q => !q.done);
+    if (G.shadow) { G.shadow.t += dt; if (G.shadow.t >= SHADOW_TIME) G.shadow = null; else if (Math.random() < dt * 3) gridImpulse(shadowX() , AH * 0.3, 30, 25); }
+  }
+  // A V of n jets: the leader out front (lowest), the rest trailing back up either side.
+  function spawnSquad(x, n) {
+    const q = { x, y: -6, y1: AH * (AH > AW ? 0.24 : 0.3), st: 'fly', t: 0 };
+    G.squads.push(q);
+    for (let k = 0; k < n; k++) {
+      const rank = Math.ceil(k / 2), side = k % 2 ? -1 : 1, ox = rank * side * 9, oy = -rank * 8;
+      const e = makeEnemy('dasher', x + ox, q.y + oy);
+      Object.assign(e, { r: MAW_SHIP_R * 0.9, hp: 1, maxHp: 1, pts: 40, spawnT: 0, jet: { sq: q, ox, oy, k }, vx: 0, vy: SQUAD_SPEED });
+      G.enemies.push(e);
+    }
+  }
+  function peelJet(e) { // out of formation: a dasher now, winding up at you almost at once
+    e.jet.sq = null; e.st = 'walk'; e.stT = rand(0.15, 0.45);
+    burst(e.x, e.y - 2, 6, ECOL.dasher, 20, 0.4, 0.3); sfx.launch(e.x);
+  }
+  const shadowX = () => { const S = G.shadow, k = S.t / SHADOW_TIME, from = -AW * 0.75, to = AW * 1.75; return S.dir > 0 ? from + (to - from) * k : to + (from - to) * k; };
+  // Chevrons at the top edge where a squadron's coming in
+  function drawSquadWarn() {
+    for (const w of G.squadWarn) {
+      const k = 1 - w.t / SQUAD_WARN, a = 0.45 + 0.45 * (Math.floor(G.time * 10) % 2);
+      ctx.strokeStyle = ECOL.dasher; ctx.lineWidth = 0.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = a;
+      ctx.lineWidth = 0.7; for (let i = 0; i < 3; i++) { const y = 2.5 + i * 3.6 + k * 4; ctx.beginPath(); ctx.moveTo(w.x - 6, y); ctx.lineTo(w.x, y + 3.4); ctx.lineTo(w.x + 6, y); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    }
+  }
+  // The Carrier's shadow, sliding across: its two decks and their prongs either side of the bay, soft-edged
+  function drawShadow() {
+    const S = G.shadow, x = shadowX(), y = AH * 0.3, W = Math.min(AW * 1.1, 150), H = W * 0.55, fade = Math.min(1, S.t / 1.5, (SHADOW_TIME - S.t) / 1.5);
+    const P = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.2], [0.42, 0.5], [0.33, 0.24], [0.13, 0.24], [0.13, 0.08], [-0.13, 0.08], [-0.13, 0.24], [-0.33, 0.24], [-0.42, 0.5], [-0.5, 0.2]];
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
+    for (const [grow, a] of [[1.08, 0.12], [1.04, 0.18], [1, 0.5]]) {
+      ctx.beginPath(); P.forEach(([px, py], i) => { const X = x + px * W * grow, Y = y + py * H * grow; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath();
+      ctx.fillStyle = COL.ink; ctx.globalAlpha = a * fade; ctx.fill();
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
   }
 
   /* ---------- the Geode ---------- */
@@ -5242,7 +5394,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       attract, score: 0, mult: 1, wave: 0, between: null, spawnQueue: [], spawnTimer: 0,
       player: { x: AW / 2, y: AH * 0.6, hull: 3, inv: 0, fx: 0, fy: -1, shield: 0, mvx: 0, mvy: 0 },
       balls: [Object.assign(makeBall(), { x: AW / 2, y: AH * 0.6 })],
-      enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null,
+      enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null, squads: [], squadWarn: [], squadPlan: null, shadow: null,
       shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, lucky: null, table: null, siege: null, asteroidWave: ASTEROID_WAVES[Math.floor(Math.random() * ASTEROID_WAVES.length)], inv: null, result: null, boss: null, bombs: [],
       pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [],
       arenaTarget: ARENA_START, layoutPending: null, lastLayout: null,
@@ -5394,6 +5546,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const bees = inLoop(n) >= 36 && inLoop(n) <= 39; // the Hive's scouts are out in the waves before it: bee swarms in place of the usual ones, and more of them
       add(bees ? 'bees' : 'swarm', swarms + (bees ? 1 + (inLoop(n) >= 38 ? 1 : 0) : 0));
       if (inLoop(n) === 8 || inLoop(n) === 9) add('tankette', inLoop(n) === 8 ? 2 : 3); // the Tank's scouts roll in ahead of it
+      if (SQUAD_PLAN[inLoop(n)]) G.squadPlan = { at: [...SQUAD_PLAN[inLoop(n)]], t: 0, n: SQUAD_SIZE[inLoop(n)], shadow: inLoop(n) === 19 }; // the Carrier's fighters are out ahead of it
       if (DRUM_CLUSTERS[inLoop(n)]) G.drumWave = { n: DRUM_CLUSTERS[inLoop(n)], t: DRUM_RESTOCK, first: true }; // and its fuel drums stand about
       shuffle();
       if (wall) q.splice(Math.floor(q.length / 2), 0, 'wall');
@@ -5627,6 +5780,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.arenaTarget = arenaFor(next);
         crumbleBricks(); crumbleSiege(); finishInvaders();
         G.drumWave = null; for (const d of G.drums) d.gone = true; // the fuel drums fade away
+        G.squadPlan = null; G.squadWarn = []; G.shadow = null;
         if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
         if (G.wave > 0 && !G.skipBonus) {
           const bonus = 100 * G.wave;
@@ -6452,6 +6606,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (e.type === 'wax' || e.type === 'invader') continue; // its chunk (or the formation) moves it
       if (e.crew) { updateCrew(e, dt); continue; } // the Tank's repair crew ride along with it
+      if (e.jet && e.jet.sq) continue; // a fighter in formation: its squadron flies it
       if (e.mystery) { e.x += e.vx * dt; if (e.x < -10 || e.x > AW + 10) e.gone = true; continue; } // the mystery ship: straight across, no shots
 
       if (e.type === 'rock') { // straight lines, wrapping round the edges like the original
@@ -6668,7 +6823,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.inv) updateInvaders(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
-    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt); updateDrums(dt);
+    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt); updateDrums(dt); updateSquads(dt);
     updateBullets(dt * ws);
     updateWaves(dt);
     if (scoreK(G.wave) > 1) G.score += Math.round((scoreK(G.wave) - 1) * (G.score - score0)); // later loops: every point counts more
@@ -7140,7 +7295,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     ctx.globalAlpha = 1;
 
+    if (G.shadow) drawShadow();
     if (G.drums.length) drawDrums();
+    if (G.squadWarn.length) drawSquadWarn();
     // enemies, clipped to the arena
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
     ctx.lineJoin = 'round';
@@ -7195,7 +7352,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         for (let k = 0; k < e.maxHp; k++) { const on = k < e.hp, px = (k - (e.maxHp - 1) / 2) * 1.7; ctx.beginPath(); ctx.arc(px, e.r + 1.7, 0.6, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.2; ctx.stroke(); } // its armour plates left
         ctx.restore(); continue;
       }
-      if (e.fromMaw) { // a Carrier fighter: its engine roars and it flickers white as it winds up to dash
+      if (e.fromMaw || e.jet) { // a Carrier fighter: its engine roars and it flickers white as it winds up to dash
         ctx.save(); squash(e); ctx.rotate(dasherAngle(e));
         const wind = e.st === 'wind', th = e.st === 'dash' ? 1 : wind ? 0.6 + 0.4 * Math.random() : 0.3;
         drawFighter(e.r, e.hp, e.maxHp, e.flash, wind && Math.floor(G.time * 20) % 2, th, pierce && !VEC ? heat(liveB) : null);
@@ -7618,7 +7775,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.banner && !G.attract) {
       const k = G.banner.t / G.banner.max;
       ctx.globalAlpha = Math.min(1, k * 3, (1 - k) * 6);
-      const top = G.banner.top || G.banner.low, by = G.banner.low ? AH * 0.68 : top ? Math.min(16, AH * 0.12) : AH / 2, big = top ? Math.min(7, AW / 12) : Math.min(12, AW / 7);
+      const top = G.banner.top || G.banner.low || G.banner.at, by = G.banner.low ? AH * 0.68 : G.banner.at ? AH * G.banner.at : top ? Math.min(16, AH * 0.12) : AH / 2, big = top ? Math.min(7, AW / 12) : Math.min(12, AW / 7);
       ctx.fillStyle = COL.chalk; ctx.font = `700 ${big}px ${FONT}`;
       ctx.fillText(G.banner.text.toUpperCase(), AW / 2, by);
       if (G.banner.sub) { // wrapped to the arena: a long intro breaks onto more lines rather than running off the sides
@@ -7996,6 +8153,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.bombs = (G.bombs || []).filter(bm => Number.isFinite(bm.vx) && Number.isFinite(bm.vy));
     G.ghosts = G.ghosts || [];
     G.drums = G.drums || []; G.drumWave = G.drumWave || null; // saved before the fuel drums
+    if (G.boss && G.boss.kind === 'hive' && G.boss.st === 'retreat') { G.boss.st = 'queen'; G.boss.cells = G.boss.cells.filter(() => false); } // saved as she hid in the hive, which she doesn't now
+    G.squads = []; G.squadWarn = []; G.squadPlan = G.squadPlan || null; G.shadow = null; for (const e of G.enemies) if (e.jet) e.jet.sq = null; // squadrons don't survive a save: their jets carry on alone
     if (G.siege && !Array.isArray(G.siege.cols)) G.siege = null; // saved with the old walls
     if (G.ball) { G.balls = [G.ball]; delete G.ball; } // saved before extra balls: its one ball carries over
     if (G.player.hull > (G.hullMax || HULL_MAX)) G.player.hull = G.hullMax || HULL_MAX; // saved when the cap was 5
