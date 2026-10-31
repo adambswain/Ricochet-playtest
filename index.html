@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Oct 31 20:07 UTC · 6f9351b";</script>
+<script>window.RICOCHET_BUILD = "Oct 31 20:38 UTC · 8f7607d";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -534,7 +534,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     57: 'Walkers fire rockets at you. Hit a rocket with your ball to send it back',
     58: 'Micro-missiles ring you, spin, then close in. Blast a gap and get out, or pop them as they bunch up',
     59: 'Something huge is coming. Feel that?',
-    60: 'Goliath: knees pin it down, weapons silence it, thrusters ground it. Break them all, then its reactor. Hit its rockets back at it',
+    60: 'Goliath: knees pin it down, weapons silence it, thrusters ground it. Break them all, then hit it anywhere. Hit its rockets back at it',
     50: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. When she cages you, break out before it hatches',
     23: 'Swarm Storm: hold out for 25 seconds while swarm after swarm blows in. Chain them',
     26: 'Titans close in from every side. When one stomps, get clear. Each cracks into brutes, and each brute into splinters',
@@ -3846,9 +3846,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   /* ---------- Goliath ---------- */
   // Wave 60, the finale: a war machine, front on. It strides in and roars; then every part of it is a target at once.
-  //  - Its legs carry it: it walks the arena at you a step at a time (each foot's landing spot shows first and lands
-  //    with a shockwave, MECH_STOMP_R). Break a knee and it limps; break both and it crashes to its knees, pinned
-  //    where it stands.
+  //  - Its legs carry it: on both it roams the arena in big quick strides, down on you till it looms over you, then
+  //    back up and across (each foot's landing spot shows first and lands with a shockwave, MECH_STOMP_R). Break a
+  //    knee and it can only limp after you, a short dragging step at a time near the top; break both and it crashes
+  //    to its knees, pinned where it stands.
   //  - Its four weapons are its threats, each with its own health and attack, each flagged first: the gatling (left
   //    arm) sweeps an arc of bullets behind a laser sight; the rocket claw (right arm) locks on and fires heavy rockets
   //    that curve after you (hit one with the ball and it flies back at the nearest part you can hurt:
@@ -3861,17 +3862,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    then it drops back in (its landing shown first). Break them and it's grounded.
   //  - Its reactor grows desperate with every part you break: its beam (all the way round but for one safe gap;
   //    as it charges, its path shows: a red warning zone over all it'll sweep, where it starts, chevrons running the way it'll turn, where it stops) comes more often, and more backup comes in.
-  //  - Break them all and the reactor's bare: on its knees, its helmet split on a great red machine eye, it beams and
-  //    calls in backup from every boss in turn (tanks, jets, bees) while you finish it. Below MECH_CRIT it goes
+  //  - Break them all and the reactor's bare: on its knees, its helmet split on a great red machine eye, every hit
+  //    anywhere on it goes to the reactor (MECH_CORE) while it beams and calls in backup from every boss in turn (tanks, jets, bees) while you finish it. Below MECH_CRIT it goes
   //    critical. The bar: ARSENAL | LEGS | THRUSTERS | REACTOR.
   // Micro-missiles: they fly in from the edges to rings round you (centred where you were), spin there as the warning,
   // then close in; reaching the middle, the ring detonates. Each dies in one hit and blows up (MECH_MICRO_AOE), taking
   // any within reach with it: further than the spacing of a fresh ring, so a hit pops a few, but as the ring closes
   // they bunch up and go off in chains. Touching one hurts.
-  const MECH_W = { gun: 58, claw: 58, rack: 58, rail: 58 }, MECH_KNEE = 100, MECH_CORE = 250, MECH_CRIT = 0.1;
+  const MECH_W = { gun: 58, claw: 58, rack: 58, rail: 58 }, MECH_KNEE = 100, MECH_CORE = 800, MECH_CRIT = 0.1;
   const MECH_ROCKET_V = 30, MECH_ROCKET_TURN = 1.1, MECH_ROCKET_HOME = 2.8, MECH_ROCKET_BACK = 75, MECH_ROCKET_DMG = 12, MECH_ROCKET_R = 2.4;
   const MECH_MICRO_SPACE = 9, MECH_MICRO_AOE = 6.5, MECH_MICRO_FLY = 0.9, MECH_MICRO_SPIN = 1.2, MECH_MICRO_CLOSE = 4.2, MECH_MICRO_BOOM = 9;
-  const MECH_STOMP_R = 16, MECH_STEP = [0.85, 1.3], MECH_STEP_WARN = 0.55, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
+  const MECH_STOMP_R = 16, MECH_STEP = [0.62, 2.1], MECH_STRIDE = [15, 5], MECH_STEP_WARN = 0.5, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
   const MECH_DEBRIS = 10;
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
   const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.1, MECH_FLY_UP = 0.75, MECH_FLY_DOWN = 1.5, MECH_FLY_DROP = 0.4;
@@ -3909,7 +3910,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       out.push([x, y, (live ? 8 : 6) * s, key, live && B.st === 'fight']);
       const [fx, fy] = mechFoot(B, side); out.push([fx, fy, 6 * s, null, false]);
       const [jx, jy] = mechAt(B, side * MECH_JET_AT[0], MECH_JET_AT[1]), jl = !mechBroken(B, 'jets'); out.push([jx, jy, (jl ? MECH_JET_R * 1.25 : MECH_JET_R * 0.6) * s, 'jets', jl && B.st === 'fight']); }
-    if (B.st === 'core') { const [x, y] = mechAt(B, ...MECH_CORE_AT); out.unshift([x, y, 16 * s, 'core', true]); } // the bare reactor: the whole chest
+    if (B.st === 'core') { const [x, y] = mechAt(B, ...MECH_CORE_AT); out.unshift([x, y, 16 * s, 'core', true]); return out.map(c => [c[0], c[1], c[2], 'core', true]); } // its last stand: every bit of it is a way to hurt the reactor
     return out;
   }
   // Damage to a part (a weapon or a knee), or to the reactor; the bar is the sum of everything.
@@ -3951,7 +3952,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       B.st = 'core'; B.beam = null; B.sweep = null; B.timers.beam = 3; B.timers.backup = 1.5;
       if (!B.plateGone) { B.plateGone = true; const [px, py] = mechAt(B, ...MECH_CORE_AT); B.plate = { x: px, y: py, vx: rand(-20, 20), vy: -40, a: 0, va: rand(-4, 4) }; }
       shake(5); G.screenFlash = Math.max(G.screenFlash || 0, 0.35); sfx.boss();
-      G.banner = { text: 'Reactor exposed!', sub: 'Hit the reactor in its chest', t: 2.4, max: 2.4, at: 0.45 };
+      G.banner = { text: 'Reactor exposed!', sub: 'Hit it anywhere', t: 2.4, max: 2.4, at: 0.45 };
     }
   }
   // What's left to break before the reactor's bare, for the banners
@@ -4194,14 +4195,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // its legs: walking at you, a step at a time; one knee gone, limping; both, down on its knees where it stands
     if (B.down) B.kneel = Math.min(1, B.kneel + dt * 2);
     else {
-      const W = B.walk, limp = mechBroken(B, 'kneeL') || mechBroken(B, 'kneeR'), stepT = MECH_STEP[limp ? 1 : 0];
+      const W = B.walk, limp = mechBroken(B, 'kneeL') || mechBroken(B, 'kneeR'), stepT = MECH_STEP[limp ? 1 : 0], warn = MECH_STEP_WARN * (limp ? 1.6 : 1), stride = (limp ? MECH_STRIDE[1] : MECH_STRIDE[0]) * B.s;
       W.t -= dt;
-      if (!W.land && W.t <= MECH_STEP_WARN) { // plan the step: toward you (not too close), the lifted foot's landing spot shown
-        const d = Math.hypot(p.x - B.x, p.y - B.y) || 1, go2 = d > 58 * B.s ? Math.min(10 * B.s, d - 58 * B.s) : 0, nx = (p.x - B.x) / d, ny = (p.y - B.y) / d;
-        W.from = [B.x, B.y]; W.to = [AW < 108 * B.s ? AW / 2 : clamp(B.x + nx * go2, 54 * B.s, AW - 54 * B.s), clamp(B.y + ny * go2, 38 * B.s, Math.max(38 * B.s, AH * 0.45))];
+      if (!W.land && W.t <= warn) { // plan the step, its landing spot shown
+        // where it's headed. Whole, it roams: strides down on you (till it's looming over you), then back up and across, over and over.
+        // On one leg it drags itself after you, a short limping step at a time, never far from the top.
+        const s0 = B.s, xMin = 54 * s0, xMax = AW - 54 * s0, wide = xMax > xMin, yMin = 38 * s0, yMax = Math.max(B.y0, Math.min(AH * 0.5, AH - 96 * s0)), cx2 = x => wide ? clamp(x, xMin, xMax) : AW / 2;
+        if (limp) W.goal = [cx2(p.x), clamp(p.y - 62 * s0, yMin, Math.min(yMax, B.y0 + 20 * s0))];
+        else {
+          W.legs = (W.legs || 0) + 1;
+          const there = W.goal && Math.hypot(W.goal[0] - B.x, W.goal[1] - B.y) < stride * 0.5;
+          if (!W.goal || there || W.legs > 8) { W.mode = W.mode === 'in' ? 'out' : 'in'; W.legs = 0; }
+          W.goal = W.mode === 'in' ? [cx2(p.x), clamp(p.y - 62 * s0, yMin, yMax)] : [wide ? (W.goalX = W.legs ? W.goalX : rand(xMin, xMax)) : AW / 2, B.y0];
+        }
+        const dx = W.goal[0] - B.x, dy = W.goal[1] - B.y, d = Math.hypot(dx, dy), go2 = Math.min(stride, d);
+        W.from = [B.x, B.y]; W.to = d > 0.5 ? [cx2(B.x + dx / d * go2), clamp(B.y + dy / d * go2, yMin, yMax)] : [B.x, B.y]; W.warn = warn;
         const side = W.foot ? 1 : -1; W.land = [W.to[0] + side * 21 * B.s, W.to[1] + 51 * B.s];
       }
-      if (W.land) { const k = clamp(1 - W.t / MECH_STEP_WARN, 0, 1); W.lift = Math.sin(k * Math.PI); B.x = W.from[0] + (W.to[0] - W.from[0]) * k; B.y = W.from[1] + (W.to[1] - W.from[1]) * k; }
+      if (W.land) { const k = clamp(1 - W.t / (W.warn || MECH_STEP_WARN), 0, 1); W.lift = Math.sin(k * Math.PI); B.x = W.from[0] + (W.to[0] - W.from[0]) * k; B.y = W.from[1] + (W.to[1] - W.from[1]) * k; }
       if (W.t <= 0) { // the foot comes down
         const [fx, fy] = W.land;
         ring(fx, fy, 1, MECH_STOMP_R, 0.3, COL.threat, 1); burst(fx, fy, 20, COL.dim, 40, 0.6, 0.4); gridImpulse(fx, fy, MECH_STOMP_R * 2.2, 160); shake(2); sfx.clank(); sfx.rockBoom(2);
@@ -4409,7 +4420,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); ray(Bm.a1); ctx.setLineDash([1.6, 1.4]); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.5; ctx.stroke(); ctx.setLineDash([]);
       if (on) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.35; ctx.lineWidth = 8; ctx.stroke(); ctx.globalAlpha = 0.9; ctx.lineWidth = 2.8; ctx.stroke(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 1; ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; }
       ctx.restore(); ctx.globalAlpha = 1; }
-    if (B.walk && B.walk.land && !die) { const [lx, ly] = B.walk.land, k = clamp(1 - B.walk.t / MECH_STEP_WARN, 0, 1);
+    if (B.walk && B.walk.land && !die) { const [lx, ly] = B.walk.land, k = clamp(1 - B.walk.t / (B.walk.warn || MECH_STEP_WARN), 0, 1);
       ctx.globalAlpha = 0.14 + 0.2 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(lx, ly, 11 * s, 3.6 * s, 0, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 0.3 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.arc(lx, ly, MECH_STOMP_R * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
     const shakeK = die * 0.8;
@@ -4573,7 +4584,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // its live targets, ringed, with their health (drawn over it, unscaled)
     if (B.st === 'fight' && !die) for (const key in MECH_PARTS) { const P = B.parts[key]; if (P.hp <= 0) continue; const [lx, ly, r] = MECH_PARTS[key], [x, y] = mechAt(B, lx, ly); target(x, y, r * 1.1 * s, P); pips(x, y + (r * 1.45 + 2.2) * s, P, 5); }
     if (B.st === 'fight' && !die) for (const side of [-1, 1]) { const P = B.parts[side < 0 ? 'kneeL' : 'kneeR']; if (P.hp <= 0) continue; const [x, y] = mechKnee(B, side); target(x, y, 7.5 * s, P); pips(x, y + 11 * s, P, 5); }
-    if (B.st === 'core' && !die) { const [x, y] = mechAt(B, ...MECH_CORE_AT), P = { hp: B.core, max: B.coreMax, flash: B.coreFlash || 0 }; target(x, y, 15 * s, P); pips(x, y + 23 * s, P, 10); // the reactor: the target now
+    if (B.st === 'core' && !die) { const [x, y] = mechAt(B, ...MECH_CORE_AT), P = { hp: B.core, max: B.coreMax, flash: B.coreFlash || 0 }; pips(x, y + 23 * s, P, 10); // the reactor's health (anything you hit counts now)
       if (P.flash > 0) glow(() => { ctx.beginPath(); ctx.arc(x, y, 9 * s, 0, Math.PI * 2); ctx.fill(); }, COL.chalk, 0.8); }
     if (B.st === 'fight' && !die && B.parts.jets.hp > 0 && !(B.fly && B.fly.air)) for (const side of [-1, 1]) { const P = B.parts.jets, [x, y] = mechAt(B, side * MECH_JET_AT[0], MECH_JET_AT[1]); target(x, y, MECH_JET_R * 1.15 * s, P); pips(x, y + (MECH_JET_R * 1.6 + 3) * s, P, 5); } // one health between the two
     if (B.plate) { const q = B.plate; ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.a); ctx.scale(s, s); plate([[0, -11], [7, -5], [7, 7], [0, 11], [-7, 7], [-7, -5]], { lit: 0.42 }); ctx.restore(); }
