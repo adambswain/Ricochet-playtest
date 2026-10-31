@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Oct 31 20:38 UTC · 8f7607d";</script>
+<script>window.RICOCHET_BUILD = "Oct 31 21:10 UTC · 0b609a3";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3865,13 +3865,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //  - Break them all and the reactor's bare: on its knees, its helmet split on a great red machine eye, every hit
   //    anywhere on it goes to the reactor (MECH_CORE) while it beams and calls in backup from every boss in turn (tanks, jets, bees) while you finish it. Below MECH_CRIT it goes
   //    critical. The bar: ARSENAL | LEGS | THRUSTERS | REACTOR.
-  // Micro-missiles: they fly in from the edges to rings round you (centred where you were), spin there as the warning,
-  // then close in; reaching the middle, the ring detonates. Each dies in one hit and blows up (MECH_MICRO_AOE), taking
-  // any within reach with it: further than the spacing of a fresh ring, so a hit pops a few, but as the ring closes
-  // they bunch up and go off in chains. Touching one hurts.
+  // Micro-missiles: a swarm streams in from the arena's edges, one after another, into a huge ring round you that runs
+  // round the screen (where it's outside the arena they hug the walls); the ring keeps circling, its centre drifting
+  // after you (slower than you move: MECH_MICRO_FOLLOW), and slowly tightens; meeting in the middle, it detonates. Each
+  // dies in one hit and blows up (MECH_MICRO_AOE), taking any within reach with it: sparse at first, so a hit pops
+  // one, but as the ring tightens they bunch up and go off in chains. Touching one hurts.
   const MECH_W = { gun: 58, claw: 58, rack: 58, rail: 58 }, MECH_KNEE = 100, MECH_CORE = 800, MECH_CRIT = 0.1;
   const MECH_ROCKET_V = 30, MECH_ROCKET_TURN = 1.1, MECH_ROCKET_HOME = 2.8, MECH_ROCKET_BACK = 75, MECH_ROCKET_DMG = 12, MECH_ROCKET_R = 2.4;
-  const MECH_MICRO_SPACE = 9, MECH_MICRO_AOE = 6.5, MECH_MICRO_FLY = 0.9, MECH_MICRO_SPIN = 1.2, MECH_MICRO_CLOSE = 4.2, MECH_MICRO_BOOM = 9;
+  const MECH_MICRO_N = 30, MECH_MICRO_AOE = 6.5, MECH_MICRO_FLY = 0.9, MECH_MICRO_STREAM = 1.6, MECH_MICRO_CLOSE = 10, MECH_MICRO_FOLLOW = 13, MECH_MICRO_V = 16, MECH_MICRO_BOOM = 9;
   const MECH_STOMP_R = 16, MECH_STEP = [0.62, 2.1], MECH_STRIDE = [15, 5], MECH_STEP_WARN = 0.5, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
   const MECH_DEBRIS = 10;
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
@@ -3975,39 +3976,43 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     burst(x, y, 8, COL.threat, 25, 0.4, 0.3); sfx.launch(x);
   }
   // Rings of micro-missiles round you: they fly in from the edges of the arena, each to its place in its ring
-  function mechMicros(rings) {
-    const p = G.player, cx = clamp(p.x, 10, AW - 10), cy = clamp(p.y, 10, AH - 10), id = (G.microId = (G.microId || 0) + 1);
-    rings.forEach((R, j) => {
-      const n = Math.max(10, Math.floor(Math.PI * 2 * R / MECH_MICRO_SPACE)), a0 = rand(0, Math.PI * 2), w = (j % 2 ? -1 : 1) * 0.55;
-      for (let i = 0; i < n; i++) {
-        const a = a0 + i / n * Math.PI * 2, ux = Math.cos(a), uy = Math.sin(a);
-        const edge = Math.min(ux > 0 ? (AW - cx) / ux : ux < 0 ? -cx / ux : 1e9, uy > 0 ? (AH - cy) / uy : uy < 0 ? -cy / uy : 1e9); // how far to the arena's edge that way
-        const from = Math.max(edge, R) + 5, e = makeEnemy('micro', cx + ux * from, cy + uy * from);
-        Object.assign(e, { spawnT: 0, micro: { id, cx, cy, R, R0: R, a, w, st: 'fly', t: 0, sx: e.x, sy: e.y, d: j * 0.18 + rand(0, 0.2) } });
-        G.enemies.push(e);
-      }
-    });
+  function mechMicros(n = MECH_MICRO_N) {
+    const p = G.player, id = (G.microId = (G.microId || 0) + 1), R0 = Math.max(55, Math.hypot(AW, AH) * 0.42), dir = Math.random() < 0.5 ? -1 : 1;
+    const g = { id, cx: clamp(p.x, 10, AW - 10), cy: clamp(p.y, 10, AH - 10), R: R0, R0, a: rand(0, Math.PI * 2), w: dir * 0.45, t: 0, lastT: -1, boom: false };
+    for (let i = 0; i < n; i++) { // in from the edge, one after another round the ring
+      const a = g.a + i / n * Math.PI * 2, ux = Math.cos(a), uy = Math.sin(a);
+      const edge = Math.min(ux > 0 ? (AW - g.cx) / ux : ux < 0 ? -g.cx / ux : 1e9, uy > 0 ? (AH - g.cy) / uy : uy < 0 ? -g.cy / uy : 1e9);
+      const e = makeEnemy('micro', g.cx + ux * (edge + 5), g.cy + uy * (edge + 5));
+      Object.assign(e, { spawnT: 0, micro: { id, g, i, n, cx: g.cx, cy: g.cy, R: R0, R0, w: g.w, st: 'fly', t: 0, sx: e.x, sy: e.y, d: (dir > 0 ? i : n - i) / n * MECH_MICRO_STREAM } });
+      G.enemies.push(e);
+    }
     sfx.blasterCharge(); sfx.field();
   }
-  // One micro-missile: out to its place in the ring, spinning there, then closing in; at the middle the ring goes up.
+  // One micro-missile: in to its place in the ring, then round and round with it as it drifts after you and tightens;
+  // when the ring meets in the middle, it goes up. (The ring itself moves once a frame, whichever missile gets there first.)
   function updateMicro(e, dt) {
-    const M = e.micro; M.t += dt;
+    const M = e.micro, g = M.g; M.t += dt;
+    if (!g) { e.gone = true; return; } // from an older save
+    if (g.lastT !== G.time) { g.lastT = G.time; g.t += dt;
+      const p = G.player, dx = p.x - g.cx, dy = p.y - g.cy, d = Math.hypot(dx, dy);
+      if (d > 0.01) { const mv = Math.min(d, MECH_MICRO_FOLLOW * dt); g.cx += dx / d * mv; g.cy += dy / d * mv; }
+      const k = clamp((g.t - MECH_MICRO_STREAM - MECH_MICRO_FLY) / MECH_MICRO_CLOSE, 0, 1); g.R = g.R0 * (1 - k); g.a += Math.sign(g.w) * MECH_MICRO_V / Math.max(g.R, 14) * dt; // a steady speed round: slow round the screen, quicker as it tightens
+    }
+    M.cx = g.cx; M.cy = g.cy; M.R = g.R; M.R0 = g.R0;
+    const a = g.a + M.i / M.n * Math.PI * 2, tx = clamp(g.cx + Math.cos(a) * g.R, 3, AW - 3), ty = clamp(g.cy + Math.sin(a) * g.R, 3, AH - 3);
     if (M.st === 'fly') {
-      const k = clamp((M.t - M.d) / MECH_MICRO_FLY, 0, 1), ez = k * k * (3 - 2 * k), tx = M.cx + Math.cos(M.a) * M.R, ty = M.cy + Math.sin(M.a) * M.R;
+      const k = clamp((M.t - M.d) / MECH_MICRO_FLY, 0, 1), ez = k * k * (3 - 2 * k);
       e.x = M.sx + (tx - M.sx) * ez; e.y = M.sy + (ty - M.sy) * ez; e.face = Math.atan2(ty - M.sy, tx - M.sx);
-      if (k >= 1) { M.st = 'spin'; M.t = 0; }
+      if (k >= 1) { M.st = 'close'; M.t = 0; }
       return;
     }
-    M.a += M.w * dt * (M.st === 'close' ? 1 + (1 - M.R / M.R0) * 2.5 : 1);
-    if (M.st === 'spin' && M.t >= MECH_MICRO_SPIN) { M.st = 'close'; M.t = 0; }
-    if (M.st === 'close') M.R = Math.max(0, M.R0 * (1 - M.t / MECH_MICRO_CLOSE));
-    e.x = M.cx + Math.cos(M.a) * M.R; e.y = M.cy + Math.sin(M.a) * M.R; e.face = M.a + Math.PI / 2 * Math.sign(M.w) + (M.st === 'close' ? Math.PI / 2 * Math.sign(M.w) * 0.6 : 0);
-    if (M.st === 'close' && M.R < 3.5) { // the ring meets in the middle and goes up together
-      const p = G.player;
+    const nx = tx - e.x, ny = ty - e.y; if (nx * nx + ny * ny > 1e-4) e.face = Math.atan2(ny, nx); e.x = tx; e.y = ty;
+    if (g.R < 3.5 && !g.boom) { // the ring meets in the middle and goes up together
+      g.boom = true; const p = G.player;
       for (const o of G.enemies) if (o.micro && o.micro.id === M.id) o.gone = true;
-      for (let k = 0; k < 3; k++) ring(M.cx, M.cy, 1, MECH_MICRO_BOOM * (0.6 + k * 0.35), 0.3 + k * 0.08, k % 2 ? COL.chalk : COL.threat, 1.2);
-      burst(M.cx, M.cy, 40, COL.threat, 60, 0.8, 0.5); gridImpulse(M.cx, M.cy, MECH_MICRO_BOOM * 2.5, 180); shake(2); sfx.overload();
-      if (p.inv <= 0 && Math.hypot(p.x - M.cx, p.y - M.cy) < MECH_MICRO_BOOM + PLAYER_R * 0.6) damagePlayer();
+      for (let k = 0; k < 3; k++) ring(g.cx, g.cy, 1, MECH_MICRO_BOOM * (0.6 + k * 0.35), 0.3 + k * 0.08, k % 2 ? COL.chalk : COL.threat, 1.2);
+      burst(g.cx, g.cy, 40, COL.threat, 60, 0.8, 0.5); gridImpulse(g.cx, g.cy, MECH_MICRO_BOOM * 2.5, 180); shake(2); sfx.overload();
+      if (p.inv <= 0 && Math.hypot(p.x - g.cx, p.y - g.cy) < MECH_MICRO_BOOM + PLAYER_R * 0.6) damagePlayer();
     }
   }
   // A micro-missile's blast when it's killed: it takes the ones within reach with it, a beat later (a chain)
@@ -4094,7 +4099,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // A micro-missile (drawn in the enemy loop, at its spot): a dart, lit at the tail; flashing as the ring closes
   function drawMicro(e) {
-    const M = e.micro, close = M.st === 'close', spin = M.st === 'spin', hot = close && Math.floor(G.time * (8 + (1 - M.R / M.R0) * 20)) % 2;
+    const M = e.micro, tight = M.st === 'close' ? 1 - M.R / M.R0 : 0, spin = false, hot = tight > 0.5 && Math.floor(G.time * (8 + tight * 20)) % 2;
     ctx.rotate(e.face || 0);
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; ctx.fillStyle = heat(MAX_CHARGE * 0.75); ctx.beginPath(); ctx.moveTo(-1, -0.5); ctx.lineTo(-3.4 - Math.random(), 0); ctx.lineTo(-1, 0.5); ctx.fill(); ctx.restore();
     ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(-1.2, -0.9); ctx.lineTo(-0.7, 0); ctx.lineTo(-1.2, 0.9); ctx.closePath();
@@ -4106,7 +4111,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const seen = new Set();
     for (const e of G.enemies) if (e.micro && !seen.has(e.micro.id)) {
       seen.add(e.micro.id); const M = e.micro; if (M.st === 'fly') continue;
-      const k = M.st === 'close' ? 1 - M.R / M.R0 : 0;
+      const k = M.st === 'close' ? 1 - M.R / M.R0 : 0; if (k < 0.35) continue;
       ctx.globalAlpha = 0.15 + 0.35 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.arc(M.cx, M.cy, MECH_MICRO_BOOM, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 0.06 + 0.12 * k; ctx.fillStyle = COL.threat; ctx.fill(); ctx.globalAlpha = 1;
     }
@@ -4190,7 +4195,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (!mechBroken(B, 'claw')) { if (B.lockT > 0) { B.lockT -= dt; if (B.lockT <= 0) { const [cx, cy] = mechAt(B, MECH_PARTS.claw[0], MECH_PARTS.claw[1] + 8); for (let i = 0; i < 3; i++) mechRocket(cx, cy, (i - 1) * 0.35); } }
       else if (go('claw', 5)) { B.lockT = 0.8; sfx.blasterCharge(); } }
-    if (go('rack', 9.5)) { B.rackT = 1; mechMicros([40, 52]); } // its rack lights up, and the swarm comes in from all round
+    if (go('rack', 13) && !G.enemies.some(e => e.micro)) { B.rackT = 1; mechMicros(B.crit ? 36 : MECH_MICRO_N); } // its rack lights up, and the swarm comes in from all round (one swarm at a time)
     if (go('rail', 8)) { const [rx, ry] = mechAt(B, ...MECH_PARTS.rail); for (let i = 0; i < 4; i++) { const e = makeEnemy('dasher', clamp(rx + (i - 1) * 7, 6, AW - 6), ry + 10); Object.assign(e, { r: MAW_SHIP_R * 0.9, hp: 1, maxHp: 1, pts: 40, spawnT: 0, jet: { sq: null }, vx: (i - 1.5) * 14, vy: 30, stT: 0.5 + i * 0.2 }); G.enemies.push(e); } sfx.launch(rx); }
     // its legs: walking at you, a step at a time; one knee gone, limping; both, down on its knees where it stands
     if (B.down) B.kneel = Math.min(1, B.kneel + dt * 2);
@@ -4645,7 +4650,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function updateMechSetup(dt) {
     const S = G.mechSetup; if (!S) return;
-    if (S.micro) { S.microT -= dt; if (S.microT <= 0) { S.microT = rand(8, 10); mechMicros([36, 48]); } }
+    if (S.micro) { S.microT -= dt; if (S.microT <= 0) { S.microT = rand(12, 14); if (!G.enemies.some(e => e.micro)) mechMicros(24); } }
     if (S.steps) { S.stepT -= dt; if (S.stepT <= 0) { S.n = (S.n || 0) + 1; S.stepT = 2.4; const k = Math.min(1, S.n / 8); shake(0.6 + 2 * k); gridImpulse(AW / 2, 0, Math.max(AW, AH) * (0.4 + 0.5 * k), 100 + 120 * k); sfx.rockBoom(1 + Math.round(k * 2)); } }
   }
 
