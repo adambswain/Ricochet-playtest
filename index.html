@@ -527,7 +527,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     19: 'A Brute Wall marches in partway through this wave. Fighters overhead: something big is coming',
     20: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
     40: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. When she cages you, break out before it hatches',
-    23: 'Swarm Storm',
+    23: 'Swarm Storm: hold out for 25 seconds while swarm after swarm blows in. Chain them',
     26: 'Titans: huge and slow. Each one cracks open into two brutes',
     28: 'Crusher: brick walls close in. Break them to push them back',
   };
@@ -3561,6 +3561,26 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     ctx.restore();
   }
+  /* ---------- the Swarm Storm ---------- */
+  // Wave 23: it lasts STORM_TIME (the wave can't end before it's over). Every gust (STORM_GUST, quickening as it goes)
+  // blows two or three swarms in together from one edge, more later on; every third gust brings a pair of dashers
+  // too. No more than STORM_CAP swarm bugs at once, so it stays readable.
+  const STORM_TIME = 25, STORM_GUST = [2.6, 1.6], STORM_CAP = 72;
+  function updateStorm(dt) {
+    const S = G.storm; if (!S) return;
+    S.t -= dt; if (S.t <= 0) { G.storm = null; return; }
+    S.gustT -= dt;
+    if (S.gustT > 0) return;
+    const k = 1 - S.t / STORM_TIME; S.gustT = STORM_GUST[0] + (STORM_GUST[1] - STORM_GUST[0]) * k;
+    if (G.enemies.filter(e => e.type === 'swarm' && !e.bee).length + G.tele.filter(t => t.type === 'swarm').length * SWARM_SIZE > STORM_CAP) return;
+    S.n++;
+    const side = Math.floor(Math.random() * 4), n = 2 + (k > 0.5 ? 1 : 0) + S.cycle, m = 8, at = f => side === 0 ? [m, AH * f] : side === 1 ? [AW - m, AH * f] : side === 2 ? [AW * f, m] : [AW * f, AH - m];
+    const c = rand(0.25, 0.75);
+    for (let i = 0; i < n; i++) { const [x, y] = at(clamp(c + (i - (n - 1) / 2) * 0.14, 0.08, 0.92)); G.tele.push({ x, y, type: 'swarm', t: 0.7 + i * 0.12 }); }
+    if (S.n % 3 === 0) for (let i = 0; i < 2; i++) G.tele.push({ ...spawnPoint(), type: 'dasher', t: 0.9 + i * 0.2 });
+    sfx.field();
+  }
+
   /* ---------- fuel drums ---------- */
   // Waves 8 and 9, ahead of the Tank: fuel drums stand about in clusters (DRUM_CLUSTERS[wave]). The ball bounces off
   // one and sets it off: it wrecks every enemy within DRUM_BLAST (counting toward your chain) and sets off the drums
@@ -5433,7 +5453,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       attract, score: 0, mult: 1, wave: 0, between: null, spawnQueue: [], spawnTimer: 0,
       player: { x: AW / 2, y: AH * 0.6, hull: 3, inv: 0, fx: 0, fy: -1, shield: 0, mvx: 0, mvy: 0 },
       balls: [Object.assign(makeBall(), { x: AW / 2, y: AH * 0.6 })],
-      enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null, squads: [], squadWarn: [], squadPlan: null, shadow: null,
+      enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null, storm: null, squads: [], squadWarn: [], squadPlan: null, shadow: null,
       shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, lucky: null, table: null, siege: null, asteroidWave: ASTEROID_WAVES[Math.floor(Math.random() * ASTEROID_WAVES.length)], inv: null, result: null, boss: null, bombs: [],
       pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [],
       arenaTarget: ARENA_START, layoutPending: null, lastLayout: null,
@@ -5557,6 +5577,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     } else if (sp === 'storm') {
       add('bulwark', 2 + cycle); add('blinker', cycle * 2); shuffle();
       add('swarm', 3 + cycle);
+      G.storm = { t: STORM_TIME, gustT: 2, n: 0, cycle }; // then the gusts
     } else if (G.asteroidNext) {
       G.lastAsteroids = n; G.asteroidNext = false; forceAsteroids = false; G.saucerT = 9; G.fieldMax = 0;
       add('rock', Math.min(7, 4 + Math.floor((n - 7) / 5)));
@@ -5808,7 +5829,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.between === null) {
-      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath) {
+      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm) {
         if (inLoop(G.wave) === LOOP_LEN && G.winShown !== G.wave && !G.attract) { // the loop's finale is down
           if (!G.result) showWin(); // once its banner has had its moment
           return;
@@ -6880,7 +6901,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.inv) updateInvaders(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
-    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt); updateDrums(dt); updateSquads(dt);
+    updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt); updateDrums(dt); updateSquads(dt); updateStorm(dt);
     updateBullets(dt * ws);
     updateWaves(dt);
     if (scoreK(G.wave) > 1) G.score += Math.round((scoreK(G.wave) - 1) * (G.score - score0)); // later loops: every point counts more
@@ -7776,6 +7797,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = ECOL.target;
       ctx.fillText(`COIN RUSH  ${Math.ceil(G.coins.time)}s   ${G.coins.got}/${G.coins.total}`, AW / 2, 5);
     }
+    if (G.storm && !G.attract) {
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = ECOL.swarm;
+      ctx.fillText(`SWARM STORM  ${Math.ceil(G.storm.t)}s`, AW / 2, 5);
+    }
     if (G.lucky && !G.attract) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = ECOL.target;
       ctx.fillText(`LUCKY BLOCKS  ${Math.ceil(G.lucky.time)}s   ${G.lucky.coins} coins   ${G.lucky.spent}/${G.lucky.lucky} emptied`, AW / 2, 5);
@@ -8210,6 +8235,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.bombs = (G.bombs || []).filter(bm => Number.isFinite(bm.vx) && Number.isFinite(bm.vy));
     G.ghosts = G.ghosts || [];
     G.drums = G.drums || []; G.drumWave = G.drumWave || null; // saved before the fuel drums
+    G.storm = G.storm || null;
     if (G.boss && G.boss.kind === 'hive' && G.boss.st === 'retreat') { G.boss.st = 'queen'; G.boss.cells = G.boss.cells.filter(() => false); } // saved as she hid in the hive, which she doesn't now
     G.squads = []; G.squadWarn = []; G.squadPlan = G.squadPlan || null; G.shadow = null; for (const e of G.enemies) if (e.jet) e.jet.sq = null; // squadrons don't survive a save: their jets carry on alone
     if (G.siege && !Array.isArray(G.siege.cols)) G.siege = null; // saved with the old walls
