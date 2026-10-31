@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Oct 31 02:04 UTC · 3b3c038";</script>
+<script>window.RICOCHET_BUILD = "Oct 31 03:11 UTC · 2b02474";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -525,14 +525,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     29: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
     13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
-    15: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts',
+    15: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts, and it strikes',
     18: 'Invasion: break the formation before it lands. The top rows are tougher: charge your ball off the walls and bunkers to punch through',
     17: 'Fighter squadrons: one hit each. Put your ball through the formation',
     19: 'A Brute Wall marches in partway through this wave. Fighters overhead: something big is coming',
     20: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
     40: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. When she cages you, break out before it hatches',
     23: 'Swarm Storm: hold out for 25 seconds while swarm after swarm blows in. Chain them',
-    26: 'Titans: huge and slow. Each one cracks open into two brutes',
+    26: 'Titans close in from every side. When one stomps, get clear. Each cracks into brutes, and each brute into splinters',
     28: 'Crusher: brick walls close in. Break them to push them back',
   };
   // Set pieces, at the same waves in every loop (bigger each time round).
@@ -563,7 +563,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     blinker:  { r: 2.4, hp: 2, spd: 11,  pts: 30 },
     warden:   { r: 4.6, hp: 12, spd: 6,  pts: 200 },
     monolith: { r: 3.6, hp: 5, spd: 8,   pts: 60 },
-    titan:    { r: 8.5, hp: 14, spd: 4.2, pts: 400 }, // Titans set piece: huge, slow, cracks into two brutes
+    titan:    { r: 8.5, hp: 14, spd: 6.3, pts: 400 }, // Titans set piece: huge, slow, cracks into two brutes
     rock:     { r: 7.5, hp: 3, spd: 0,   pts: 20 },  // Asteroid Field: size 3 / 2 / 1 set on spawn
     invader:  { r: 2.6, hp: 1, spd: 0,   pts: 15 },  // Invasion: moved by the formation (updateInvaders)
     saucer:   { r: 3.4, hp: 2, spd: 0,   pts: 200 },
@@ -1071,8 +1071,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // enemies come while it's gone. Its body never hurts you: it's a solid obstacle the ball bounces off (+1 charge).
   // Breaking a segment's armour plate exposes a glowing core; hitting cores takes its health. Only the head hurts.
   // Small fry keep the arena busy the whole fight, SERP_CROWD of them at a time (by phase).
-  const SERP_HP = 90; // tuned for arriving with a wingman (the Core's reward)
-  const SERP_N = 14, SERP_GAP = 10.5, SERP_HEAD = 12, SERP_SPEED = [48, 56, 66], SERP_REST = [1.8, 1.4, 1.1], SERP_CROWD = [5, 6, 8];
+  // Once a pass, the head strikes: when it's in the arena and near you it slows and turns on you, a line showing
+  // where it'll go (SERP_AIM, locking for the last SERP_LOCK), then lunges (SERP_LUNGE at SERP_DASH × speed).
+  // At half health it splits at the middle of its body: the tail half grows a head (a little smaller) and swims off
+  // on passes of its own. Two serpents, one health bar. Barely a pause between passes.
+  const SERP_HP = 140;
+  const SERP_N = 14, SERP_GAP = 10.5, SERP_HEAD = 12, SERP_SPEED = [48, 56, 66], SERP_REST = [0.7, 0.5, 0.35], SERP_CROWD = [5, 6, 8];
+  const SERP_AIM = 0.8, SERP_LOCK = 0.25, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 70, SERP_SPLIT = 0.5;
+  // Both serpents: the boss itself, and once it's split, its twin (which shares its health, phase and the rest)
+  const serpents = B => B.twin ? [B, B.twin] : [B];
+  const serpHead = S => SERP_HEAD * (S.hs || 1);
   const MAW_JAW_T = 3.5, MAW_SLIDE = 16, MAW_GAP = 0.45, MAW_TOP = 9; // doors open to MAW_GAP of the bay's width; the bay's deck starts MAW_TOP down
   // The Maw is a carrier. Its hangar bay is racked with docked fighters (the armour) and only its throat, across the
   // back of the bay, takes damage. Fighters break in a hit or two; while the doors are shut it docks fresh ones into empty
@@ -1098,11 +1106,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // is the target (1 + charge a hit); her head and thorax are armour. She launches bee formations (a column sweeping in
   // from a side, a row rising from the bottom, each with a gap; a V dropping from her), aims her stinger down a lane
   // (it glows, locks, then fires a needle), and throws honeycomb. A formation's bees appear first where it starts (at
-  // the edge it'll come from, or under her) and buzz there, shaking, for FORM_WARN, then fly; its gap is near you. Once she's taken VEXA_TRIP of her health she cages you: a gold
+  // the edge it'll come from, or under her) and buzz there, shaking, for FORM_WARN, then fly; its gap is near you. At half her health (VEXA_CAGE_AT), once, she cages you: a gold
   // ring closes on where you are (CAGE_WARN; get clear and it's nothing), then a ring of wax cells grows there. Break
   // out (shoot a cell out and slip through) before CAGE_TIME runs out, or every cell left hatches a bee in there with
-  // you. She holds her fire while you're caged. Cages come as her health passes each mark, whatever hurt her. Below VEXA_BERSERK of her health she's furious: no more cages, and
-  // everything comes faster.
+  // you. While you're caged she flies up out of the arena; when it's over she swoops back down furious: everything
+  // comes faster, and her sting fires a spread of three. Below VEXA_BERSERK of her health, faster still.
   // Both halves throw honeycomb: a chunk of seven wax cells, flagged by a ring closing on an edge cell (or flung by the
   // queen), that flies and bounces off the walls COMB_BOUNCES times or for COMB_LIFE seconds, then crumbles. Its touch
   // hurts; each cell breaks in one hit and counts toward the chain, and breaking the core cell shatters the rest.
@@ -1110,7 +1118,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const COMB_SPEED = 50, COMB_BOUNCES = 3, COMB_LIFE = 7, COMB_MAX = 2, COMB_WARN = 0.7, COMB_EVERY = [6, 5, 4], WAX_S = 3;
   const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2, HIVE_FINALE = 25000;
   const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [5.5, 4.5, 3.5], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
-  const VEXA_SC = 1.5, VEXA_TRIP = 0.25, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [3.6, 3.0, 2.5, 2.0], VEXA_STING = [3.2, 2.7, 2.2, 1.8];
+  const VEXA_SC = 1.5, VEXA_CAGE_AT = 0.5, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [3.6, 3.0, 2.5, 2.0], VEXA_STING = [3.2, 2.7, 2.2, 1.8];
   const VEXA_AIM = 0.9, VEXA_LOCK = 0.25, VEXA_NEEDLE = 105, VEXA_BEE_V = [30, 35, 40, 46], VEXA_COMB = [8, 7, 6, 5];
   // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
   const VEXA_BODY = [[0.82, 0.5, false], [0, 0.5, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
@@ -1245,15 +1253,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function serpentStart(B) { // line the body up outside the entry wall, facing in
     const [ex, ey] = B.next.at, [tx, ty] = B.next.to, a = Math.atan2(ty - ey, tx - ex), m = SERP_HEAD + 3;
-    B.ha = a; B.hx = ex - Math.cos(a) * m; B.hy = ey - Math.sin(a) * m; B.st = 'pass'; B.passT = 0; B.wig = rand(0, 6); B.lock = false;
+    B.ha = a; B.hx = ex - Math.cos(a) * m; B.hy = ey - Math.sin(a) * m; B.st = 'pass'; B.passT = 0; B.wig = rand(0, 6); B.lock = false; B.struck = false; B.strike = null;
     B.segs.forEach((s2, i) => { s2.x = B.hx - Math.cos(a) * SERP_GAP * (i + 1); s2.y = B.hy - Math.sin(a) * SERP_GAP * (i + 1); });
     shake(1.5); gridImpulse(ex, ey, 30, 160); burst(ex, ey, 30, COL.threat, 60, 0.8, 0.5); sfx.boss();
   }
   const offArena = (x, y, m) => x < -m || x > AW + m || y < -m || y > AH + m;
   function updateSerpent(B, dt) {
-    const p = G.player;
-    B.hitCd -= dt;
-    for (const s2 of B.segs) { s2.cd -= dt; s2.flash -= dt; }
     B.crowdT -= dt; // keep a few small fry in the arena for the whole fight
     if (B.crowdT <= 0) {
       B.crowdT = 1.1;
@@ -1262,33 +1267,66 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.spawnQueue.push(pool[Math.floor(Math.random() * pool.length)]);
       }
     }
-    if (B.st === 'rest') { // gone: the cracks for the next pass glow
-      B.stT -= dt;
-      if (B.stT <= 0) serpentStart(B);
+    if (!B.twin && !B.split && B.hp <= B.maxHp * SERP_SPLIT && B.st === 'pass' && B.segs.length >= 8 && !offArena(B.segs[B.segs.length >> 1].x, B.segs[B.segs.length >> 1].y, -8)) serpentSplit(B);
+    for (const S of serpents(B)) serpentSwim(S, dt);
+  }
+  // Cut in two at the middle of its body: the tail half's front segment becomes a head, and it turns off on its own way.
+  function serpentSplit(B) {
+    B.split = true;
+    const k = B.segs.length >> 1, tail = B.segs.splice(k), front = tail.shift(), back = tail[0] || B.segs[B.segs.length - 1];
+    const T = Object.create(B);
+    Object.assign(T, { twin: null, segs: tail, hx: front.x, hy: front.y, hs: 0.8, st: 'pass', stT: 0, passT: 0, lock: false, wig: rand(0, 6), strike: null, struck: false, flash: 0.3, hitCd: 0 });
+    T.ha = Math.atan2(front.y - back.y, front.x - back.x) + (Math.random() < 0.5 ? -1 : 1) * 1.3;
+    serpentPlan(T); B.twin = T;
+    for (let i = 0; i < 4; i++) ring(front.x, front.y, 2, 14 + i * 9, 0.4 + i * 0.1, i % 2 ? COL.chalk : COL.threat, 1.3);
+    burst(front.x, front.y, 60, COL.threat, 70, 1, 0.7); burst(front.x, front.y, 24, COL.chalk, 50, 0.6, 0.4);
+    gridImpulse(front.x, front.y, Math.max(AW, AH) * 0.5, 200); shake(4); G.freeze = Math.max(G.freeze, 0.1); sfx.overload(); sfx.boss();
+    G.banner = { text: 'It splits!', sub: 'Two heads now: both bite, both bleed', t: 2, max: 2, top: true };
+  }
+  // One serpent: resting beyond the walls (its next way in glowing), or swimming a pass
+  function serpentSwim(S, dt) {
+    const p = G.player;
+    S.hitCd -= dt; if (S !== G.boss) S.flash -= dt;
+    for (const s2 of S.segs) { s2.cd -= dt; s2.flash -= dt; }
+    if (S.st === 'rest') { // gone: the cracks for the next pass glow
+      S.stT -= dt;
+      if (S.stT <= 0) serpentStart(S);
       return;
     }
     // swim: steer toward a point well past the exit wall with a slow wave, the body following link by link.
     // Once the head is out (or the pass drags on) it stops steering and dives straight out, so it can never
-    // circle a point on the wall.
-    const sp = SERP_SPEED[B.phase - 1] * (1 + B.cycle * 0.1), tx = B.next.to[0] + B.next.n[0] * 80, ty = B.next.to[1] + B.next.n[1] * 80;
-    B.passT += dt;
-    if (!B.lock && B.passT > 12) { B.lock = true; B.ha = Math.atan2(ty - B.hy, tx - B.hx); }
-    if (!B.lock && (B.hx - B.next.to[0]) * B.next.n[0] + (B.hy - B.next.to[1]) * B.next.n[1] > SERP_HEAD) B.lock = true; // out past the exit wall
-    if (!B.lock) {
-      let want = Math.atan2(ty - B.hy, tx - B.hx) + Math.sin(B.passT * 1.7 + B.wig) * 0.75, da = want - B.ha;
-      da = Math.atan2(Math.sin(da), Math.cos(da)); B.ha += clamp(da, -2.2 * dt, 2.2 * dt);
+    // circle a point on the wall. Once a pass, near you, it strikes.
+    let sp = SERP_SPEED[S.phase - 1] * (1 + S.cycle * 0.1);
+    const tx = S.next.to[0] + S.next.n[0] * 80, ty = S.next.to[1] + S.next.n[1] * 80, HR = serpHead(S);
+    S.passT += dt;
+    if (!S.struck && !S.strike && !S.lock && S.passT > 1.2 && !offArena(S.hx, S.hy, -10) && Math.hypot(p.x - S.hx, p.y - S.hy) < SERP_REACH) { S.strike = { st: 'aim', t: SERP_AIM }; sfx.blasterCharge(); }
+    if (S.strike) { // it rears and turns on you, locks, and lunges
+      const K = S.strike; K.t -= dt;
+      if (K.st === 'aim') {
+        sp *= 0.25;
+        if (K.t > SERP_LOCK) { let da = Math.atan2(p.y - S.hy, p.x - S.hx) - S.ha; da = Math.atan2(Math.sin(da), Math.cos(da)); S.ha += clamp(da, -5 * dt, 5 * dt); }
+        if (K.t <= 0) { K.st = 'lunge'; K.t = SERP_LUNGE; shake(1.5); sfx.boss(); }
+      } else { sp *= SERP_DASH; if (K.t <= 0) { S.strike = null; S.struck = true; } }
+    } else {
+      if (!S.lock && S.passT > 12) { S.lock = true; S.ha = Math.atan2(ty - S.hy, tx - S.hx); }
+      if (!S.lock && (S.hx - S.next.to[0]) * S.next.n[0] + (S.hy - S.next.to[1]) * S.next.n[1] > HR) S.lock = true; // out past the exit wall
+      if (!S.lock) {
+        let want = Math.atan2(ty - S.hy, tx - S.hx) + Math.sin(S.passT * 1.7 + S.wig) * 0.75, da = want - S.ha;
+        da = Math.atan2(Math.sin(da), Math.cos(da)); S.ha += clamp(da, -2.2 * dt, 2.2 * dt);
+      }
     }
-    B.hx += Math.cos(B.ha) * sp * dt; B.hy += Math.sin(B.ha) * sp * dt;
-    let px = B.hx, py = B.hy;
-    for (const s2 of B.segs) {
+    S.hx += Math.cos(S.ha) * sp * dt; S.hy += Math.sin(S.ha) * sp * dt;
+    let px = S.hx, py = S.hy;
+    for (const s2 of S.segs) {
       const dx = px - s2.x, dy = py - s2.y, d = Math.hypot(dx, dy) || 1;
       if (d > SERP_GAP) { s2.x += dx / d * (d - SERP_GAP); s2.y += dy / d * (d - SERP_GAP); }
       px = s2.x; py = s2.y;
     }
-    if (p.inv <= 0 && Math.hypot(p.x - B.hx, p.y - B.hy) < SERP_HEAD + PLAYER_R * 0.8) damagePlayer(); // only the head bites
-    // the pass is over once the head has crossed and the tail has left
-    if ((B.lock && offArena(B.hx, B.hy, SERP_HEAD + 2) && B.segs.every(s2 => offArena(s2.x, s2.y, s2.r + 2))) || B.passT > 30) {
-      B.st = 'rest'; B.stT = SERP_REST[B.phase - 1]; serpentPlan(B);
+    if (p.inv <= 0 && Math.hypot(p.x - S.hx, p.y - S.hy) < HR + PLAYER_R * 0.8) damagePlayer(); // only the head bites
+    // the pass is over once the head has crossed and the tail has left (a lunge can carry it out early, any wall)
+    const gone = offArena(S.hx, S.hy, HR + 2) && S.segs.every(s2 => offArena(s2.x, s2.y, s2.r + 2));
+    if ((gone && (S.lock || S.struck)) || S.passT > 30) {
+      S.st = 'rest'; S.stT = SERP_REST[S.phase - 1]; S.strike = null; serpentPlan(S);
     }
   }
   function updateHive(B, dt) {
@@ -1369,7 +1407,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       return;
     }
-    const ph2 = B.hp <= B.maxHp * VEXA_BERSERK ? 3 : ph; // berserk: the fastest of everything
+    const ph2 = B.mad ? (B.hp <= B.maxHp * VEXA_BERSERK ? 3 : 2) : ph; // back from caging you, furious: faster; at the end, the fastest of everything
     const hang = vexaHang(B), ease = k => k * k * (3 - 2 * k);
     B.face = B.face ?? -Math.PI / 2; B.hurt = Math.max(0, (B.hurt || 0) - dt * 5);
     if (B.st === 'emerge') { // up out of the royal cell to where she hangs, growing as she goes
@@ -1384,9 +1422,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.mode !== 'lock') B.face += (-Math.PI / 2 + want - B.face) * Math.min(1, dt * 2.5);
     if (p.inv <= 0) for (const [x, y, rr] of vexaBody(B)) if (Math.hypot(p.x - x, p.y - y) < rr + PLAYER_R * 0.8) { damagePlayer(); break; }
     if (B.cage) { updateCage(B, dt, ph2); return; } // she holds her fire while you're caged
-    B.cages = B.cages ?? 0; // she cages you as her health passes each VEXA_TRIP mark (75%, 50%), whatever did the damage; not past furious
-    if (B.hp <= B.maxHp * (1 - VEXA_TRIP * (B.cages + 1)) && B.hp > B.maxHp * VEXA_BERSERK) { B.cages++; vexaCage(B); return; }
-    while (B.hp <= B.maxHp * (1 - VEXA_TRIP * (B.cages + 1))) B.cages++; // marks skipped in one go don't stack up
+    if (!B.caged && B.hp <= B.maxHp * VEXA_CAGE_AT) { B.caged = true; vexaCage(B); return; } // once, at half health, whatever did the damage
     // the sting: the abdomen leans in and glows down a lane, locks, and fires a needle
     B.stingT -= dt;
     if (B.mode === 'hang' && B.stingT <= 0) { B.mode = 'aim'; B.modeT = VEXA_AIM; sfx.blasterCharge(); }
@@ -1395,7 +1431,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const [tx, ty] = vexaTip(B);
       if (B.modeT > VEXA_LOCK) B.aimA = Math.atan2(p.y - ty, p.x - tx); else B.mode = 'lock';
       if (B.modeT <= 0) {
-        G.bullets.push({ x: tx, y: ty, vx: Math.cos(B.aimA) * VEXA_NEEDLE, vy: Math.sin(B.aimA) * VEXA_NEEDLE, r: 1.6, sting: true });
+        for (const off of B.mad ? [-0.22, 0, 0.22] : [0]) G.bullets.push({ x: tx, y: ty, vx: Math.cos(B.aimA + off) * VEXA_NEEDLE, vy: Math.sin(B.aimA + off) * VEXA_NEEDLE, r: 1.6, sting: true }); // furious: a spread of three
         B.mode = 'hang'; B.stingT = VEXA_STING[ph2]; B.recoil = 1; shake(0.8); sfx.blaster();
       }
     }
@@ -1413,8 +1449,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Ball against the Serpent: the head is armour; a plate takes the ball's damage and breaks open when it runs out;
   // an open core takes damage off the health bar. Everything bounces the ball. Returns 'bounce' on contact.
   function ballSerpent(B, o, r, b) {
+    for (const S of serpents(B)) { const res = ballSerpentOne(S, o, r, b); if (res) return res; }
+    return '';
+  }
+  function ballSerpentOne(B, o, r, b) {
     if (B.st !== 'pass') return '';
-    const parts = [[B.hx, B.hy, SERP_HEAD, null], ...B.segs.map(s2 => [s2.x, s2.y, s2.r, s2])];
+    const parts = [[B.hx, B.hy, serpHead(B), null], ...B.segs.map(s2 => [s2.x, s2.y, s2.r, s2])];
     for (const [x, y, rr, s2] of parts) {
       const dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy);
       if (d >= rr + r || d < 1e-6) continue;
@@ -1514,9 +1554,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function blastBoss(x, y, rad, dmg) {
     const B = G.boss; if (!B) return;
     if (B.kind === 'serpent') { // a blast cracks every plate it reaches, and hurts if it reaches an open core
-      if (B.st !== 'pass') return;
       let hurt = null;
-      for (const s2 of B.segs) if (Math.hypot(s2.x - x, s2.y - y) < rad + s2.r) { if (s2.open) hurt = s2; else { s2.open = true; burst(s2.x, s2.y, 10, COL.wall, 30, 0.5, 0.3); } }
+      for (const S of serpents(B)) if (S.st === 'pass') for (const s2 of S.segs) if (Math.hypot(s2.x - x, s2.y - y) < rad + s2.r) { if (s2.open) hurt = s2; else { s2.open = true; burst(s2.x, s2.y, 10, COL.wall, 30, 0.5, 0.3); } }
       if (hurt) damageBoss(dmg, hurt.x, hurt.y);
       return;
     }
@@ -1576,7 +1615,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (B.kind === 'hive') { // the finale's reward (the hull repaired to full) comes when she bursts (vexaPop)
       G.result = { text: 'The Hive has fallen', sub: `+${bonus.toLocaleString()} (×${G.mult.toFixed(1)})`, t: 4, max: 4 };
       for (const e of G.enemies) if (e.bee || e.type === 'egg' || e.type === 'wax') e.gone = true; // the swarm dies with its queen
-    } else if (B.kind === 'serpent') { // the Serpent's reward (Gorp's too, when he pops): one more hull slot, and the hull repaired to full
+    } else if (B.kind === 'serpent') { // the Serpent's reward (its twin goes up with it)
+      if (B.twin && B.twin.st === 'pass') { const T = B.twin; for (const q of [[T.hx, T.hy], ...T.segs.map(s2 => [s2.x, s2.y])]) burst(q[0], q[1], 14, COL.threat, 50, 0.7, 0.5); ring(T.hx, T.hy, 2, 40, 0.6, COL.threat, 1.2); }
+      // the Serpent's reward (Gorp's too, when he pops): one more hull slot, and the hull repaired to full
       hullSlot();
     } else wreckReward(B.x, B.y);
     if (B.kind === 'geode') geoDie(B);
@@ -1639,7 +1680,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Where Vexa hangs: her head near the top of the arena, swaying side to side.
   const vexaR = () => QUEEN_R * VEXA_SC;
-  const vexaHang = B => [AW / 2 + Math.sin(B.t * 0.35) * AW * 0.16, vexaR() * 2.6];
+  const vexaHang = B => [AW / 2 + Math.sin(B.t * 0.35) * AW * 0.16, B.cage ? -vexaR() * 4 : vexaR() * 2.6]; // up out of the arena while you're caged
   // Her body in the arena: [x, y, radius, hurts?] for each of the circles along her length (she faces B.face).
   function vexaBody(B, k = 1) {
     const r = vexaR() * k, c = Math.cos(B.face ?? -Math.PI / 2), sn = Math.sin(B.face ?? -Math.PI / 2);
@@ -1673,12 +1714,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.mode = 'hang'; B.forms = []; B.taken = 0;
     G.banner = { text: 'Caged!', sub: 'Get clear, or break out before it hatches', t: 1.8, max: 1.8, at: 0.45 }; // mid-screen: she fills the top sfx.boss(); shake(1);
   }
+  // The cage is over: she swoops back down, furious.
+  function vexaReturn(B) {
+    B.mad = true; B.stingT = Math.max(B.stingT, 2.2); B.formT = Math.max(B.formT, 2.2); B.combT = Math.max(B.combT, 3);
+    G.banner = { text: 'Vexa returns!', sub: 'Furious: everything comes faster', t: 2, max: 2, at: 0.45 }; shake(2); sfx.boss();
+  }
   function updateCage(B, dt, ph2) {
     const C = B.cage, p = G.player;
     C.t -= dt;
     if (C.st === 'warn') {
       if (C.t > 0) return;
-      if (Math.hypot(p.x - C.x, p.y - C.y) > CAGE_R) { float(p.x, p.y - 6, 'Dodged!', COL.chalk, 3.2); B.cage = null; B.stingT = Math.max(B.stingT, 1.5); return; } // you got clear
+      if (Math.hypot(p.x - C.x, p.y - C.y) > CAGE_R) { float(p.x, p.y - 6, 'Dodged!', COL.chalk, 3.2); B.cage = null; vexaReturn(B); return; } // you got clear
       const n = Math.ceil(Math.PI * 2 * CAGE_R / (CAGE_CELL * 1.85)), hp = 1 + B.cycle;
       for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2; C.cells.push({ x: C.x + Math.cos(a) * CAGE_R, y: C.y + Math.sin(a) * CAGE_R, hp, max: hp, flash: 0, grow: -k * 0.02 }); }
       C.st = 'up'; C.t = C.max = CAGE_TIME[ph2]; sfx.clank(); shake(1.5); gridImpulse(C.x, C.y, CAGE_R * 2, 120);
@@ -1693,12 +1739,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!live.length || Math.hypot(p.x - C.x, p.y - C.y) > CAGE_R + 2) { // you're out: the rest of it crumbles
       for (const c of live) { burst(c.x, c.y, 8, GOLD(), 30, 0.5, 0.35); G.score += Math.round(20 * G.mult); }
       ring(C.x, C.y, CAGE_R * 0.5, CAGE_R * 1.8, 0.4, GOLD(), 1); sfx.shatter(); shake(1);
-      float(p.x, p.y - 6, 'Broke free!', COL.chalk, 3.4); B.cage = null; B.stingT = Math.max(B.stingT, 1.5); B.formT = Math.max(B.formT, 1.5);
+      float(p.x, p.y - 6, 'Broke free!', COL.chalk, 3.4); B.cage = null; vexaReturn(B);
       return;
     }
     if (C.t <= 0) { // too slow: every cell left hatches a bee, in there with you
       for (const c of live) { spawnBees(c.x, c.y, 1); const e = G.enemies[G.enemies.length - 1]; if (e && e.bee) { const a = Math.atan2(C.y - c.y, C.x - c.x); e.vx = Math.cos(a) * 30; e.vy = Math.sin(a) * 30; } }
-      ring(C.x, C.y, 2, CAGE_R * 1.5, 0.4, COL.threat, 1); sfx.boss(); B.cage = null; B.stingT = Math.max(B.stingT, 2); B.formT = Math.max(B.formT, 2.5);
+      ring(C.x, C.y, 2, CAGE_R * 1.5, 0.4, COL.threat, 1); sfx.boss(); B.cage = null; vexaReturn(B);
     }
   }
   // The ball against the cage's cells: it bounces, and a cell breaks (1 hit, 2 when hot)
@@ -1766,7 +1812,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.hitCd <= 0) {
       B.hitCd = 0.12; B.flash = 0.08; B.hurt = 1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); burst(x + nx * rr, y + ny * rr, 8 + b, GOLD(), 30, 0.6, 0.35); sfx.splat(b);
       damageBoss(1 + b, o.x, o.y);
-      if (G.boss === B && B.hp <= B.maxHp * VEXA_BERSERK && !B.berserk) { B.berserk = true; G.banner = { text: 'Vexa is furious!', sub: 'No more cages: everything comes faster', t: 1.8, max: 1.8, top: true }; shake(2); sfx.boss(); }
     }
     return 'bounce';
   }
@@ -2150,8 +2195,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     ctx.restore();
   }
-  function drawSerpent(B) {
+  function drawSerpent(B) { for (const S of serpents(B)) drawSerpentOne(S); }
+  function drawSerpentOne(B) {
     if (B.st === 'rest') { drawSerpentCracks(B, 1 - B.stT / SERP_REST[B.phase - 1]); return; }
+    if (B.strike && B.strike.st === 'aim') { // the line it's about to lunge down: brightening, then locked and flashing
+      const K = B.strike, locked = K.t <= SERP_LOCK, k = 1 - K.t / SERP_AIM, L = SERP_DASH * SERP_SPEED[B.phase - 1] * SERP_LUNGE + serpHead(B);
+      ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = locked && Math.floor(G.time * 20) % 2 ? COL.chalk : COL.threat; ctx.globalAlpha = 0.25 + 0.6 * k; ctx.lineWidth = locked ? 1.2 : 0.5;
+      if (!locked) { ctx.setLineDash([2, 1.6]); ctx.lineDashOffset = -G.time * 16; }
+      ctx.beginPath(); ctx.moveTo(B.hx, B.hy); ctx.lineTo(B.hx + Math.cos(B.ha) * L, B.hy + Math.sin(B.ha) * L); ctx.stroke();
+      ctx.globalAlpha = 0.12 * k; ctx.lineWidth = serpHead(B) * 1.6; ctx.setLineDash([]); ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1;
+    }
     const pts = [[B.hx, B.hy], ...B.segs.map(s2 => [s2.x, s2.y])];
     ctx.strokeStyle = COL.hull; ctx.lineWidth = 2.6; ctx.globalAlpha = 0.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; // spine
     ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); ctx.globalAlpha = 1;
@@ -2175,7 +2228,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     // the head: an armoured wedge with burning eyes
     ctx.save(); ctx.translate(B.hx, B.hy); ctx.rotate(B.ha);
-    const R = SERP_HEAD;
+    const R = serpHead(B), rear = B.strike && B.strike.st === 'aim' ? 1 + 0.12 * Math.sin(G.time * 40) : 1; // it rears as it aims
+    ctx.scale(rear, rear);
     ctx.beginPath(); ctx.moveTo(R * 1.7, 0); ctx.lineTo(R * 0.5, -R * 0.75); ctx.lineTo(-R * 0.4, -R * 1.15); ctx.lineTo(-R * 0.9, -R * 0.5);
     ctx.lineTo(-R * 0.6, 0); ctx.lineTo(-R * 0.9, R * 0.5); ctx.lineTo(-R * 0.4, R * 1.15); ctx.lineTo(R * 0.5, R * 0.75); ctx.closePath();
     ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = B.flash > 0 ? COL.chalk : ECOL.warden; ctx.lineWidth = R * 0.12; ctx.stroke();
@@ -2254,7 +2308,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       return;
     }
-    drawQueen(B);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); drawQueen(B); ctx.restore(); // she flies out of the arena while you're caged: not over the HUD
     if (B.st === 'queen' && B.cage) drawCage(B);
   }
   // Queen Vexa, front on: she hangs head-up facing you, posed rather than symmetrical: her head tilts (toward you), one
@@ -2509,7 +2563,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     const sc = 1 - Math.pow(1 - clamp(em, 0, 1), 2);
     if (sc <= 0.01) return;
-    drawVexa(B, 1, sc, { aim: aimK, hurt: B.hurt || 0, mad: B.st === 'queen' && B.hp <= B.maxHp * VEXA_BERSERK ? 1 : 0, rot: (B.face ?? -Math.PI / 2) + Math.PI / 2, curl: 0.4 });
+    drawVexa(B, 1, sc, { aim: aimK, hurt: B.hurt || 0, mad: B.st === 'queen' && B.mad ? 1 : 0, rot: (B.face ?? -Math.PI / 2) + Math.PI / 2, curl: 0.4 });
   }
   // The Carrier's death. The hit (MAW_DIE_HIT): a freeze and a flash. The chain (to MAW_BLOW): explosions go off all over
   // the hull, faster and faster, the docked and parked jets cook off one by one, the launched ones blow up in the air,
@@ -3567,6 +3621,38 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     ctx.restore();
   }
+  /* ---------- Titans ---------- */
+  // Wave 26: TITAN_COUNT titans arrive at once in a ring round the arena's edge and close in. Each stomps every few
+  // seconds: it stops and a ring shows how far the shockwave reaches (TITAN_WARN), then the ground shakes and
+  // anything of yours inside TITAN_STOMP_R is hurt. A titan cracks into two brutes; each of those into two splinters.
+  const TITAN_COUNT = 6, TITAN_WARN = 0.9, TITAN_STOMP_R = 25, TITAN_EVERY = [3, 4.5];
+  function titanRing(n) {
+    const p = G.player, a0 = rand(0, Math.PI * 2);
+    for (let i = 0; i < n; i++) {
+      let a = a0 + i / n * Math.PI * 2, x = AW / 2 + Math.cos(a) * (AW / 2 - 10), y = AH / 2 + Math.sin(a) * (AH / 2 - 10);
+      if (Math.hypot(x - p.x, y - p.y) < 30) { a += Math.PI / n; x = AW / 2 + Math.cos(a) * (AW / 2 - 10); y = AH / 2 + Math.sin(a) * (AH / 2 - 10); } // never right on you
+      G.tele.push({ x, y, type: 'titan', t: 0.9 + i * 0.12 });
+    }
+  }
+  // A titan's stomp: true while it's winding up (it stands still)
+  function titanStomp(e, dt) {
+    if (e.stompT === undefined) e.stompT = rand(2.5, 4.5);
+    if (e.stomp > 0) {
+      e.stomp -= dt;
+      if (e.stomp <= 0) {
+        const p = G.player;
+        for (let k = 0; k < 3; k++) ring(e.x, e.y, e.r, TITAN_STOMP_R * (0.7 + k * 0.2), 0.3 + k * 0.08, k % 2 ? COL.chalk : ECOL.titan, 1.1);
+        burst(e.x, e.y, 30, ECOL.titan, 50, 0.7, 0.5); gridImpulse(e.x, e.y, TITAN_STOMP_R * 2.2, 200); shake(2.5); sfx.overload();
+        if (p.inv <= 0 && Math.hypot(p.x - e.x, p.y - e.y) < TITAN_STOMP_R + PLAYER_R * 0.6) damagePlayer();
+        e.stompT = rand(TITAN_EVERY[0], TITAN_EVERY[1]);
+      }
+      return true;
+    }
+    e.stompT -= dt;
+    if (e.stompT <= 0 && e.spawnT <= 0) { e.stomp = TITAN_WARN; sfx.blasterCharge(); return true; }
+    return false;
+  }
+
   /* ---------- the Swarm Storm ---------- */
   // Wave 23: it lasts STORM_TIME (the wave can't end before it's over). Every gust (STORM_GUST, quickening as it goes)
   // blows two or three swarms in together from one edge, more later on; every third gust brings a pair of dashers
@@ -5406,7 +5492,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.boss && G.boss.enter > 0) { /* still arriving: not solid yet */ }
     else if (G.boss && G.boss.kind === 'serpent') { // the body is a solid obstacle while it's passing through
       const B = G.boss;
-      if (B.st === 'pass') for (const [x, y, rr] of [[B.hx, B.hy, SERP_HEAD], ...B.segs.map(s2 => [s2.x, s2.y, s2.r])]) {
+      for (const S of serpents(B)) if (S.st === 'pass') for (const [x, y, rr] of [[S.hx, S.hy, serpHead(S)], ...S.segs.map(s2 => [s2.x, s2.y, s2.r])]) {
         const dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy) || 1e-6;
         if (d < rr + r) { o.x = x + dx / d * (rr + r); o.y = y + dy / d * (rr + r); }
       }
@@ -5578,8 +5664,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     } else if (sp === 'invaders') {
       setupInvaders(cycle);
     } else if (sp === 'titans') {
-      add('drifter', 10 + cycle * 4); add('dasher', cycle * 2); shuffle(); // a ring of fodder to plow through
-      add('titan', 3 + cycle);                                            // the queue pops from the end: titans arrive first
+      add('dasher', cycle * 2); // a few to keep you moving in later loops
+      titanRing(TITAN_COUNT + cycle); // the titans come in all at once, a ring round the arena
     } else if (sp === 'storm') {
       add('bulwark', 2 + cycle); add('blinker', cycle * 2); shuffle();
       add('swarm', 3 + cycle);
@@ -6244,8 +6330,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (!G.attract && G.pickups.length < PICKUP_MAX && (chain === CHAIN_DROP || Math.random() < DROP_CHANCE)) spawnPickup(e.x, e.y, src);
       return;
     }
+    if (e.type === 'brute' && e.fromTitan) for (const s2 of [-1, 1]) { const m = makeEnemy('mini', e.x + s2 * 3, e.y); m.vx = s2 * 30; m.hitCd = 0.15; m.spawnT = 0; G.enemies.push(m); } // a titan's brute splinters in two
     if (e.type === 'titan') { // cracks open into two brutes
-      for (const s2 of [-1, 1]) { const m = makeEnemy('brute', e.x + s2 * 4, e.y); m.vx = s2 * 25; m.hitCd = 0.2; m.spawnT = 0; G.enemies.push(m); }
+      for (const s2 of [-1, 1]) { const m = makeEnemy('brute', e.x + s2 * 4, e.y); m.vx = s2 * 25; m.hitCd = 0.2; m.spawnT = 0; m.fromTitan = true; G.enemies.push(m); }
       shake(3); G.freeze = Math.max(G.freeze, 0.08);
     }
     if (e.type === 'brute' || e.type === 'titan') G.ghosts.push({ kind: 'implode', x: e.x, y: e.y, type: e.type, r: e.r, rot: e.rot, seed: e.seed, color: ECOL.brute, t: 0, max: 0.2 });
@@ -6688,6 +6775,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (e.type === 'wax' || e.type === 'invader') continue; // its chunk (or the formation) moves it
       if (e.crew) { updateCrew(e, dt); continue; } // the Tank's repair crew ride along with it
+      if (e.type === 'titan' && titanStomp(e, dt)) { const k = Math.exp(-6 * dt); e.vx *= k; e.vy *= k; e.x += e.vx * dt; e.y += e.vy * dt; keepIn(e, e.r); continue; } // planted for a stomp
       if (e.formWait > 0) { // a formation's bee, buzzing where it starts before it goes
         e.formWait -= dt; const k = 0.5 + 0.3 * Math.sin(G.time * 40 + e.seed); e.x = e.hx + rand(-k, k); e.y = e.hy + rand(-k, k); e.vx = e.vy = 0;
         if (e.formWait <= 0) { e.x = e.hx; e.y = e.hy; e.vx = e.form.vx; e.vy = e.form.vy; if (Math.random() < 0.1) sfx.march(0); }
@@ -7473,6 +7561,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (e.type === 'monolith' && e.st === 'warn' && Math.floor(G.time * 14) % 2) { // the block it's about to become
         const s = e.r * 1.25; ctx.strokeStyle = ECOL.monolith; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.75; ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.globalAlpha = 1;
+      }
+      if (e.type === 'titan' && e.stomp > 0) { // how far its stomp will reach, filling in as it winds up
+        const k = 1 - e.stomp / TITAN_WARN, fl = Math.floor(G.time * 14) % 2;
+        ctx.globalAlpha = 0.08 + 0.14 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(0, 0, TITAN_STOMP_R * k, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.5 + 0.4 * k; ctx.strokeStyle = k > 0.7 && fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.arc(0, 0, TITAN_STOMP_R, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
       }
       if (e.crew) { drawCrew(e); ctx.restore(); continue; }
       if (e.tankette) { // a tank, its armour plates as pips under it
@@ -8278,7 +8371,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const ok = B.kind === 'maw' ? Number.isFinite(B.W) && Number.isFinite(B.throatCd) && Array.isArray(B.bricks) && B.bricks.every(br => Number.isFinite(br.rx0) && typeof br.alive === 'boolean')
                : B.kind === 'hive' ? Array.isArray(B.cells) && typeof B.st === 'string' && Number.isFinite(B.comb0)
                : B.kind === 'geode' ? Array.isArray(B.links) && Array.isArray(B.slots) && Array.isArray(B.fly) && typeof B.st === 'string'
-               : B.kind === 'serpent' ? Array.isArray(B.segs) && B.segs.length === SERP_N && B.next && Array.isArray(B.next.n)
+               : B.kind === 'serpent' ? Array.isArray(B.segs) && B.segs.length > 0 && B.segs.length <= SERP_N && B.next && Array.isArray(B.next.n)
                : B.kind === 'tank' ? !!B.parts && Array.isArray(B.tiles) && Array.isArray(B.drums) && Number.isFinite(B.th) && Number.isFinite(B.crewT)
                : B.kind === 'core' && B.r === CORE_R && typeof B.mode === 'string';
       if (!ok) setupBoss(['core', 'tank', 'maw', 'serpent', 'geode', 'hive'].includes(B.kind) ? B.kind : 'tank', B.cycle || 0);
@@ -8286,6 +8379,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.bombs = (G.bombs || []).filter(bm => Number.isFinite(bm.vx) && Number.isFinite(bm.vy));
     G.ghosts = G.ghosts || [];
     G.drums = G.drums || []; G.drumWave = G.drumWave || null; // saved before the fuel drums
+    if (G.boss && G.boss.kind === 'serpent' && G.boss.twin) Object.setPrototypeOf(G.boss.twin, G.boss); // its twin shares the boss's health and the rest
     G.storm = G.storm || null;
     if (G.boss && G.boss.kind === 'hive' && G.boss.st === 'retreat') { G.boss.st = 'queen'; G.boss.cells = G.boss.cells.filter(() => false); } // saved as she hid in the hive, which she doesn't now
     G.squads = []; G.squadWarn = []; G.squadPlan = G.squadPlan || null; G.shadow = null; for (const e of G.enemies) if (e.jet) e.jet.sq = null; // squadrons don't survive a save: their jets carry on alone
