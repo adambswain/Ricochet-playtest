@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Oct 31 17:46 UTC · dc9d14b";</script>
+<script>window.RICOCHET_BUILD = "Oct 31 18:03 UTC · fc5c485";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -534,7 +534,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     57: 'Walkers fire rockets at you. Hit a rocket with your ball to send it back',
     58: 'Micro-missiles ring you, spin, then close in. Blast a gap and get out, or pop them as they bunch up',
     59: 'Something huge is coming. Feel that?',
-    60: 'Goliath: break its four weapons, then its knees, then its reactor. Hit its rockets back at it',
+    60: 'Goliath: break its knees to pin it down, its weapons to silence them. Break them all, then its reactor. Hit its rockets back at it',
     50: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. When she cages you, break out before it hatches',
     23: 'Swarm Storm: hold out for 25 seconds while swarm after swarm blows in. Chain them',
     26: 'Titans close in from every side. When one stomps, get clear. Each cracks into brutes, and each brute into splinters',
@@ -3845,33 +3845,30 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   /* ---------- Goliath ---------- */
-  // Wave 60, the finale: a war machine, front on, in three phases.
-  //  - Arsenal: it stands at the top of the arena striding side to side. Its body is armour (the ball clanks off,
-  //    gaining charge); its four weapons are the targets, each with its own health, each with its own attack, each
-  //    flagged first: the gatling (left arm) sweeps an arc of bullets behind a laser sight; the rocket claw (right arm)
-  //    locks on and fires heavy rockets that curve after you (hit one with the ball and it turns round and flies back
-  //    at the nearest part you can hurt: MECH_ROCKET_DMG); the missile rack (left shoulder) throws a ring of
-  //    micro-missiles round you; the launch rail (right shoulder) sends jets. Every weapon you break makes the rest
-  //    angrier (MECH_RAGE faster each) and drops its wreck on the floor: debris the ball bounces off (MECH_DEBRIS).
-  //    Tanks trickle in.
-  //  - The transformation: the last weapon goes; it staggers, tears off its chest plate, fires its thrusters, rises
-  //    and slams down onto the arena floor (everything else there is crushed). "Goliath unleashed".
-  //  - Unleashed: it walks the floor at you, a step at a time; each foot's landing spot shows as a shadow first and
-  //    lands with a shockwave (MECH_STOMP_R). Its exposed reactor charges and sweeps a beam across you; launchers on
-  //    its back fire rocket salvos. Its knees are the targets: one gone and it limps (slower, angrier); both and it
-  //    crashes to its knees. Jets come in Vs.
-  //  - Last stand: on its knees, the cockpit open (its pilot glaring out), the reactor bare and the only target. It
-  //    beams, fires salvos and rings of micro-missiles, and calls in backup from every boss (tanks, jets, bees) in
-  //    turn. Below MECH_CRIT it goes critical: everything faster.
-  // Micro-missiles: a ring of them streams out to circle you (centred where you were), spins there as the warning, then
-  // closes in; reaching the middle, the ring detonates. Each dies in one hit and blows up (MECH_MICRO_AOE), taking any
-  // within reach with it: further than the spacing of a fresh ring, so a hit pops a few, but as the ring closes they
-  // bunch up and go off in chains. Touching one hurts. The bar: ARSENAL | LEGS | REACTOR.
-  const MECH_W = { gun: 38, claw: 38, rack: 38, rail: 38 }, MECH_KNEE = 65, MECH_CORE = 170, MECH_RAGE = 0.2, MECH_CRIT = 0.1;
+  // Wave 60, the finale: a war machine, front on. It strides in and roars; then every part of it is a target at once.
+  //  - Its legs carry it: it walks the arena at you a step at a time (each foot's landing spot shows first and lands
+  //    with a shockwave, MECH_STOMP_R). Break a knee and it limps; break both and it crashes to its knees, pinned
+  //    where it stands.
+  //  - Its four weapons are its threats, each with its own health and attack, each flagged first: the gatling (left
+  //    arm) sweeps an arc of bullets behind a laser sight; the rocket claw (right arm) locks on and fires heavy rockets
+  //    that curve after you (hit one with the ball and it flies back at the nearest part you can hurt:
+  //    MECH_ROCKET_DMG); the missile rack (left shoulder) calls a swarm of micro-missiles in from the arena's edges to
+  //    ring you; the launch rail (right shoulder) sends jets. Break one and that attack is gone; its wreck drops to the
+  //    floor as debris the ball bounces off (MECH_DEBRIS). Break all four and it tears its chest plate off.
+  //  - Its reactor grows desperate with every part you break: its beam (all the way round but for one safe gap,
+  //    shown as it charges) comes more often, and more backup comes in.
+  //  - Break them all and the reactor's bare: on its knees, its helmet split on a great red machine eye, it beams and
+  //    calls in backup from every boss in turn (tanks, jets, bees) while you finish it. Below MECH_CRIT it goes
+  //    critical. The bar: ARSENAL | LEGS | REACTOR.
+  // Micro-missiles: they fly in from the edges to rings round you (centred where you were), spin there as the warning,
+  // then close in; reaching the middle, the ring detonates. Each dies in one hit and blows up (MECH_MICRO_AOE), taking
+  // any within reach with it: further than the spacing of a fresh ring, so a hit pops a few, but as the ring closes
+  // they bunch up and go off in chains. Touching one hurts.
+  const MECH_W = { gun: 38, claw: 38, rack: 38, rail: 38 }, MECH_KNEE = 65, MECH_CORE = 170, MECH_CRIT = 0.1;
   const MECH_ROCKET_V = 30, MECH_ROCKET_TURN = 1.1, MECH_ROCKET_HOME = 2.8, MECH_ROCKET_BACK = 75, MECH_ROCKET_DMG = 12, MECH_ROCKET_R = 2.4;
   const MECH_MICRO_SPACE = 9, MECH_MICRO_AOE = 6.5, MECH_MICRO_FLY = 0.9, MECH_MICRO_SPIN = 1.2, MECH_MICRO_CLOSE = 4.2, MECH_MICRO_BOOM = 9;
   const MECH_STOMP_R = 16, MECH_STEP = [0.85, 1.3], MECH_STEP_WARN = 0.55, MECH_BEAM_CHARGE = 1.3, MECH_BEAM_SWEEP = 3, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
-  const MECH_DEBRIS = 10, MECH_TRANSFORM = 4;
+  const MECH_DEBRIS = 10;
   const mechS = () => clamp(Math.min(AW / 120, AH / 200), 0.8, 1.5); // its size: it all but spans a portrait arena
   // Its parts, in its own units (x across, y down from the middle of its chest), standing.
   const MECH_PARTS = { gun: [-42, 18, 10], claw: [42, 18, 10], rack: [-29, -28, 8], rail: [29, -29, 8] };
@@ -3896,18 +3893,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Everything solid, as circles: [x, y, r, key or null (armour), hits hurt it?]
   function mechCircles(B) {
     const out = [], s = B.s;
-    for (const [lx, ly, r] of MECH_ARMOUR) { if (B.st === 'kneel' && ly !== -21) continue; const [x, y] = mechAt(B, lx, ly); out.push([x, y, r * s, null, false]); } // on its knees its chest is the target, not armour
+    for (const [lx, ly, r] of MECH_ARMOUR) { if (B.st === 'core' && ly !== -21) continue; const [x, y] = mechAt(B, lx, ly); out.push([x, y, r * s, null, false]); } // on its knees its chest is the target, not armour
     for (const key in MECH_PARTS) { const [lx, ly, r] = MECH_PARTS[key], [x, y] = mechAt(B, lx, ly), live = !mechBroken(B, key);
-      out.push([x, y, (live ? r * 1.25 : r * 0.55) * s, key, live && B.st === 'arsenal']); } // generous reach on the live ones
+      out.push([x, y, (live ? r * 1.25 : r * 0.55) * s, key, live && B.st === 'fight']); } // generous reach on the live ones
     for (const side of [-1, 1]) { const key = side < 0 ? 'kneeL' : 'kneeR', [x, y] = mechKnee(B, side), live = !mechBroken(B, key);
-      out.push([x, y, (B.st === 'walk' && live ? 8 : 6) * s, key, live && B.st === 'walk']);
+      out.push([x, y, (live ? 8 : 6) * s, key, live && B.st === 'fight']);
       const [fx, fy] = mechFoot(B, side); out.push([fx, fy, 6 * s, null, false]); }
-    if (B.st === 'kneel') { const [x, y] = mechAt(B, ...MECH_CORE_AT); out.unshift([x, y, 16 * s, 'core', true]); } // the bare reactor: the whole chest
+    if (B.st === 'core') { const [x, y] = mechAt(B, ...MECH_CORE_AT); out.unshift([x, y, 16 * s, 'core', true]); } // the bare reactor: the whole chest
     return out;
   }
   // Damage to a part (a weapon or a knee), or to the reactor; the bar is the sum of everything.
   function mechHit(B, key, dmg, x, y) {
-    if (key === 'core') { if (B.st === 'kneel') { B.core = Math.max(0, B.core - dmg); damageBoss(dmg, x, y); } return; }
+    if (key === 'core') { if (B.st === 'core') { B.core = Math.max(0, B.core - dmg); damageBoss(dmg, x, y); } return; }
     const P = B.parts[key]; if (!P || P.hp <= 0) return;
     const d = Math.min(dmg, P.hp); P.hp -= d; P.flash = 0.15; damageBoss(d, x, y);
     if (P.hp <= 0 && G.boss === B) mechBreak(B, key);
@@ -3918,16 +3915,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     burst(x, y, 50, fire, 70, 1, 0.7); burst(x, y, 24, ECOL.warden, 50, 0.8, 0.5); burst(x, y, 12, COL.chalk, 40, 0.5, 0.4);
     gridImpulse(x, y, 50, 200); shake(4); G.freeze = Math.max(G.freeze, 0.1); sfx.overload(); sfx.brick(12);
     float(x, y - 10, { gun: 'Gatling down!', claw: 'Claw down!', rack: 'Rack down!', rail: 'Rail down!', kneeL: 'Knee shattered!', kneeR: 'Knee shattered!' }[key], COL.chalk, 3.8);
-    if (!knee) { // its wreck falls to the floor: debris
-      B.rage += MECH_RAGE; if (B.sweep && key === 'gun') B.sweep = null;
+    if (!knee) { // its wreck falls to the floor: debris; that attack's gone
+      if (B.sweep && key === 'gun') B.sweep = null; if (key === 'claw') B.lockT = 0;
       G.debris.push({ x, y, vy: -20, vx: rand(-10, 10), floor: clamp(y + rand(26, 46), 12, AH - 14), r: 6 * B.s, a: rand(0, 6), va: rand(-6, 6), t: 0, life: MECH_DEBRIS, down: false });
-      if (!mechWeapons(B).length) { B.st = 'transform'; B.stT = 0; B.sweep = null; B.beam = null; }
-      else G.banner = { text: 'It\'s angrier!', sub: 'Its other weapons fire faster', t: 1.4, max: 1.4, at: 0.45 };
-    } else if (mechBroken(B, 'kneeL') && mechBroken(B, 'kneeR')) { // both knees: down it goes
-      B.st = 'kneel'; B.stT = 0; B.beam = null; B.timers.salvo = 2; B.timers.micro = 3.5; B.timers.backup = 1.5; B.timers.beam = 4;
-      shake(6); G.slowT = Math.max(G.slowT, 0.5); gridImpulse(B.x, B.y, Math.max(AW, AH), 260); sfx.boss();
-      G.banner = { text: 'It\'s down!', sub: 'Hit the reactor. Here comes everything', t: 2, max: 2, at: 0.45 };
-    } else { B.rage += 0.25; G.banner = { text: 'It\'s limping!', sub: 'Slower, angrier: break the other knee', t: 1.4, max: 1.4, at: 0.45 }; }
+      if (!mechWeapons(B).length && !B.plateGone) { // all four: it tears its own chest plate off
+        B.plateGone = true; const [px, py] = mechAt(B, ...MECH_CORE_AT); B.plate = { x: px, y: py, vx: rand(-20, 20), vy: -40, a: 0, va: rand(-4, 4) };
+        burst(px, py, 40, COL.chalk, 60, 0.7, 0.5); shake(4); sfx.overload();
+        G.banner = { text: 'Disarmed!', sub: mechBroken(B, 'kneeL') && mechBroken(B, 'kneeR') ? '' : 'Now take its legs', t: 1.6, max: 1.6, at: 0.45 };
+      }
+    } else if (mechBroken(B, 'kneeL') && mechBroken(B, 'kneeR')) { // both knees: down it goes, pinned where it stands
+      B.down = true; B.beam = null; shake(6); G.slowT = Math.max(G.slowT, 0.5); gridImpulse(B.x, B.y, Math.max(AW, AH), 260); sfx.boss();
+      G.banner = { text: 'It\'s down!', sub: mechWeapons(B).length ? 'It can\'t move now. Strip its weapons' : '', t: 1.8, max: 1.8, at: 0.45 };
+    } else G.banner = { text: 'It\'s limping!', sub: 'Break the other knee to pin it down', t: 1.4, max: 1.4, at: 0.45 };
+    if (!mechWeapons(B).length && B.down && B.st === 'fight') { // everything's broken: the reactor's bare
+      B.st = 'core'; B.beam = null; B.sweep = null; B.timers.beam = 3; B.timers.backup = 1.5;
+      if (!B.plateGone) { B.plateGone = true; const [px, py] = mechAt(B, ...MECH_CORE_AT); B.plate = { x: px, y: py, vx: rand(-20, 20), vy: -40, a: 0, va: rand(-4, 4) }; }
+      shake(5); G.screenFlash = Math.max(G.screenFlash || 0, 0.35); sfx.boss();
+      G.banner = { text: 'Reactor exposed!', sub: 'Finish it', t: 2, max: 2, at: 0.45 };
+    }
   }
   // Backup: tanks, a V of jets, or bees, from the edges (never too many at once).
   function mechBackup(B, kind) {
@@ -3997,7 +4002,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function rocketTarget(o) {
     if (o.from && G.enemies.includes(o.from)) return [o.from.x, o.from.y]; // a walker's own rocket goes back to it
     const B = G.boss;
-    if (B && B.kind === 'mech' && B.st !== 'transform') {
+    if (B && B.kind === 'mech') {
       let best = null, bd = 1e9;
       for (const [x, y, r, key, hurts] of mechCircles(B)) if (hurts) { const d = Math.hypot(x - o.x, y - o.y); if (d < bd) { bd = d; best = [x, y]; } }
       if (best) return best;
@@ -4131,70 +4136,38 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       gridImpulse(hx, hy, Math.max(AW, AH), 320); shake(7); G.screenFlash = Math.max(G.screenFlash || 0, 0.5); G.slowT = Math.max(G.slowT, 0.4); sfx.boss(); sfx.overload();
     }
     B.roar = Math.max(0, B.roar - dt * 0.8);
-    if (t >= MECH_IN_END) { B.st = 'arsenal'; B.walk = { foot: 0, t: 0.8, lift: 0 }; B.y = y1; B.t = 0; }
+    if (t >= MECH_IN_END) { B.st = 'fight'; B.walk = { foot: 0, t: 1.2, lift: 0 }; B.y = y1; B.t = 0; }
   }
-  const mechFloorY = B => clamp(AH * 0.34, 40 * B.s, Math.max(40 * B.s, AH * 0.45)); // where it lands to walk: its upper half
   function updateMech(B, dt) {
-    const p = G.player, T = B.timers, rage = B.rage * (B.crit ? 1.4 : 1);
+    const p = G.player, T = B.timers, broken = ['gun', 'claw', 'rack', 'rail', 'kneeL', 'kneeR'].filter(k => mechBroken(B, k)).length;
+    const desp = 1 + broken * 0.12 + (B.crit ? 0.4 : 0); // its reactor grows desperate with every part you break
     B.hitCd -= dt; B.t += dt; for (const k in B.parts) B.parts[k].flash -= dt;
-    if (!B.crit && B.st === 'kneel' && B.hp <= B.maxHp * MECH_CRIT) { B.crit = true; G.banner = { text: 'Reactor critical!', sub: 'Finish it!', t: 1.6, max: 1.6, at: 0.45 }; shake(3); sfx.boss(); }
+    if (!B.crit && B.st === 'core' && B.hp <= B.maxHp * MECH_CRIT) { B.crit = true; G.banner = { text: 'Reactor critical!', sub: 'Finish it!', t: 1.6, max: 1.6, at: 0.45 }; shake(3); sfx.boss(); }
     // its touch hurts, and nothing passes through it
     if (p.inv <= 0) for (const [x, y, r] of mechCircles(B)) if (Math.hypot(p.x - x, p.y - y) < r + PLAYER_R * 0.8) { damagePlayer(); break; }
     if (B.st === 'intro') { mechIntro(B, dt); return; }
     if (B.plate) { const q = B.plate; q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; if (q.y > AH + 40) B.plate = null; }
-    if (B.st === 'arsenal') { // striding side to side along the top, firing what it's got
-      B.pose += dt * 1.6; B.rackT = Math.max(0, (B.rackT || 0) - dt); B.x = B.x0 + Math.sin(B.t * 0.35) * Math.max(0, AW / 2 - 54 * B.s);
-      const go = (key, base) => !mechBroken(B, key) && (T[key] -= dt * rage) <= 0 && ((T[key] = base), true);
-      if (go('gun', 4.2)) { const [gx, gy] = mechAt(B, ...MECH_PARTS.gun), c = Math.atan2(p.y - gy, p.x - gx), dir = Math.random() < 0.5 ? -1 : 1; B.sweep = { t: 0, a0: c - dir * 0.5, a1: c + dir * 0.5, a: c - dir * 0.5, shotT: 0 }; sfx.blasterCharge(); }
-      if (B.sweep) {
-        const S = B.sweep; S.t += dt; S.a = S.a0 + (S.a1 - S.a0) * clamp(S.t < TANK_SIGHT ? S.t / TANK_SIGHT : (S.t - TANK_SIGHT) / TANK_SPRAY, 0, 1);
-        if (S.t >= TANK_SIGHT) { S.shotT -= dt; if (S.shotT <= 0) { S.shotT = 0.13; const [gx, gy] = mechAt(B, MECH_PARTS.gun[0], MECH_PARTS.gun[1] + 10); G.bullets.push({ x: gx, y: gy, vx: Math.cos(S.a) * 48, vy: Math.sin(S.a) * 48, r: 1.1, mg: true }); if (Math.random() < 0.5) sfx.shoot(gx); } }
-        if (S.t >= TANK_SIGHT + TANK_SPRAY || mechBroken(B, 'gun')) B.sweep = null;
-      }
-      if (!mechBroken(B, 'claw')) { if (B.lockT > 0) { B.lockT -= dt; if (B.lockT <= 0) { const [cx, cy] = mechAt(B, MECH_PARTS.claw[0], MECH_PARTS.claw[1] + 8); const n = rage > 1.3 ? 4 : 3; for (let i = 0; i < n; i++) mechRocket(cx, cy, (i - (n - 1) / 2) * 0.35); } }
-        else if (go('claw', 5)) { B.lockT = 0.8; sfx.blasterCharge(); } }
-      if (go('rack', 9.5)) { B.rackT = 1; mechMicros([40, 52]); } // its rack lights up, and the swarm comes in from all round
-      if (go('rail', 8)) { const [rx, ry] = mechAt(B, ...MECH_PARTS.rail); for (let i = 0; i < 4; i++) { const e = makeEnemy('dasher', clamp(rx + (i - 1) * 7, 6, AW - 6), ry + 10); Object.assign(e, { r: MAW_SHIP_R * 0.9, hp: 1, maxHp: 1, pts: 40, spawnT: 0, jet: { sq: null }, vx: (i - 1) * 14, vy: 30, stT: 0.5 + i * 0.2 }); G.enemies.push(e); } sfx.launch(rx); }
-      if ((T.backup -= dt) <= 0) { T.backup = 12; if (G.enemies.filter(e => e.tankette).length < 2) mechBackup(B, 'tanks'); }
-      return;
+    B.rackT = Math.max(0, (B.rackT || 0) - dt);
+    // its weapons: each one left keeps up its attack
+    const go = (key, base) => !mechBroken(B, key) && (T[key] -= dt) <= 0 && ((T[key] = base), true);
+    if (go('gun', 4.2)) { const [gx, gy] = mechAt(B, ...MECH_PARTS.gun), c = Math.atan2(p.y - gy, p.x - gx), dir = Math.random() < 0.5 ? -1 : 1; B.sweep = { t: 0, a0: c - dir * 0.5, a1: c + dir * 0.5, a: c - dir * 0.5, shotT: 0 }; sfx.blasterCharge(); }
+    if (B.sweep) {
+      const S = B.sweep; S.t += dt; S.a = S.a0 + (S.a1 - S.a0) * clamp(S.t < TANK_SIGHT ? S.t / TANK_SIGHT : (S.t - TANK_SIGHT) / TANK_SPRAY, 0, 1);
+      if (S.t >= TANK_SIGHT) { S.shotT -= dt; if (S.shotT <= 0) { S.shotT = 0.13; const [gx, gy] = mechAt(B, MECH_PARTS.gun[0], MECH_PARTS.gun[1] + 10); G.bullets.push({ x: gx, y: gy, vx: Math.cos(S.a) * 48, vy: Math.sin(S.a) * 48, r: 1.1, mg: true }); if (Math.random() < 0.5) sfx.shoot(gx); } }
+      if (S.t >= TANK_SIGHT + TANK_SPRAY || mechBroken(B, 'gun')) B.sweep = null;
     }
-    if (B.st === 'transform') { // stagger, tear off the chest plate, thrusters, up, and down onto the floor
-      B.stT += dt; const t = B.stT;
-      if (t < 1.2) { shake(0.6); if (Math.random() < dt * 20) { const [x, y] = mechAt(B, rand(-24, 24), rand(-24, 16)); burst(x, y, 8, heat(MAX_CHARGE * 0.75), 30, 0.5, 0.3); } }
-      if (t >= 1.2 && !B.plateGone) { B.plateGone = true; const [x, y] = mechAt(B, ...MECH_CORE_AT); B.plate = { x, y, vx: rand(-20, 20), vy: -40, a: 0, va: rand(-4, 4) }; burst(x, y, 40, COL.chalk, 60, 0.7, 0.5); shake(3); sfx.overload(); G.banner = { text: 'It\'s transforming!', sub: '', t: 1.2, max: 1.2, at: 0.45 }; }
-      if (t >= 1.2 && t < 2.4) { B.lift = Math.min(1, (t - 1.2) / 1.2); B.y = B.y0 - 6 * B.s * B.lift; }
-      if (t >= 2.4 && t < 3) { const k = (t - 2.4) / 0.6, y1 = mechFloorY(B); B.y = (B.y0 - 6 * B.s) + (y1 - (B.y0 - 6 * B.s)) * k * k; }
-      if (t >= 3 && !B.slammed) {
-        B.slammed = true; B.y = mechFloorY(B); B.lift = 0;
-        for (let i = 0; i < 5; i++) ring(B.x, B.y + 50 * B.s, 2, 20 + i * 16, 0.5 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.4);
-        burst(B.x, B.y + 50 * B.s, 80, COL.dim, 90, 1, 0.7); gridImpulse(B.x, B.y, Math.max(AW, AH), 300); shake(8); G.slowT = Math.max(G.slowT, 0.6); G.screenFlash = 0.4; sfx.boss(); sfx.overload();
-        for (const e of G.enemies) { e.gone = true; burst(e.x, e.y, 8, COL.dim, 30, 0.5, 0.3); } G.tele.length = 0; G.rockets.length = 0; // crushed
-        if (Math.hypot(p.x - B.x, p.y - B.y) < 60 * B.s) { const a = Math.atan2(p.y - B.y, p.x - B.x) || Math.PI / 2; p.x = B.x + Math.cos(a) * 62 * B.s; p.y = B.y + Math.sin(a) * 62 * B.s; keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); }
-        G.bossCard = { text: 'GOLIATH UNLEASHED', t: 2, max: 2 };
-      }
-      if (t >= MECH_TRANSFORM) { B.st = 'walk'; B.rage = 1; B.walk = { foot: 0, t: 0.6, lift: 0 }; T.beam = 3; T.salvo = 2; T.backup = 6; } // a fresh start: its anger was its weapons'
-      return;
-    }
-    // walking (or on its knees): beam, salvos, and the rest
-    const beamEvery = B.st === 'kneel' ? 8 : 7.5, salvoEvery = B.st === 'kneel' ? 5.5 : 4;
-    if (!B.beam && (T.beam -= dt * rage) <= 0) { // the sweep: round nearly the whole circle; the gap (shown as it charges) is somewhere below it, never where you are now
-      T.beam = beamEvery; const [cx, cy] = mechAt(B, ...MECH_CORE_AT), c = Math.atan2(p.y - cy, p.x - cx), dir = Math.random() < 0.5 ? -1 : 1, gap = Math.PI * 2 - MECH_BEAM_ARC;
-      const opts = []; for (let a = 0.3; a < Math.PI - 0.3; a += 0.1) if (Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c))) > 1.2) opts.push(a);
-      const g = opts.length ? opts[Math.floor(Math.random() * opts.length)] : c + Math.PI, a0 = g + dir * gap / 2;
-      B.beam = { t: 0, g, dir, a0, a1: a0 + dir * MECH_BEAM_ARC }; sfx.blasterCharge();
-    }
-    if (B.beam) {
-      const Bm = B.beam; Bm.t += dt; Bm.a = Bm.a0 + (Bm.a1 - Bm.a0) * clamp((Bm.t - MECH_BEAM_CHARGE) / MECH_BEAM_SWEEP, 0, 1);
-      if (Bm.t >= MECH_BEAM_CHARGE && p.inv <= 0) { const [cx, cy] = mechAt(B, ...MECH_CORE_AT), ux = Math.cos(Bm.a), uy = Math.sin(Bm.a), along = (p.x - cx) * ux + (p.y - cy) * uy; if (along > 0 && Math.abs((p.x - cx) * uy - (p.y - cy) * ux) < 2.6 + PLAYER_R * 0.6) damagePlayer(); }
-      if (Bm.t >= MECH_BEAM_CHARGE + MECH_BEAM_SWEEP) B.beam = null;
-    }
-    if ((T.salvo -= dt * rage) <= 0) { T.salvo = salvoEvery; for (const sd of [-1, 0, 1]) { const [x, y] = mechAt(B, sd * 26, -24); mechRocket(x, y, sd * 0.3); } }
-    if (B.st === 'walk') {
+    if (!mechBroken(B, 'claw')) { if (B.lockT > 0) { B.lockT -= dt; if (B.lockT <= 0) { const [cx, cy] = mechAt(B, MECH_PARTS.claw[0], MECH_PARTS.claw[1] + 8); for (let i = 0; i < 3; i++) mechRocket(cx, cy, (i - 1) * 0.35); } }
+      else if (go('claw', 5)) { B.lockT = 0.8; sfx.blasterCharge(); } }
+    if (go('rack', 9.5)) { B.rackT = 1; mechMicros([40, 52]); } // its rack lights up, and the swarm comes in from all round
+    if (go('rail', 8)) { const [rx, ry] = mechAt(B, ...MECH_PARTS.rail); for (let i = 0; i < 4; i++) { const e = makeEnemy('dasher', clamp(rx + (i - 1) * 7, 6, AW - 6), ry + 10); Object.assign(e, { r: MAW_SHIP_R * 0.9, hp: 1, maxHp: 1, pts: 40, spawnT: 0, jet: { sq: null }, vx: (i - 1.5) * 14, vy: 30, stT: 0.5 + i * 0.2 }); G.enemies.push(e); } sfx.launch(rx); }
+    // its legs: walking at you, a step at a time; one knee gone, limping; both, down on its knees where it stands
+    if (B.down) B.kneel = Math.min(1, B.kneel + dt * 2);
+    else {
       const W = B.walk, limp = mechBroken(B, 'kneeL') || mechBroken(B, 'kneeR'), stepT = MECH_STEP[limp ? 1 : 0];
       W.t -= dt;
       if (!W.land && W.t <= MECH_STEP_WARN) { // plan the step: toward you (not too close), the lifted foot's landing spot shown
-        const d = Math.hypot(p.x - B.x, p.y - B.y) || 1, go = d > 58 * B.s ? Math.min(10 * B.s, d - 58 * B.s) : 0, nx = (p.x - B.x) / d, ny = (p.y - B.y) / d;
-        W.from = [B.x, B.y]; W.to = [AW < 108 * B.s ? AW / 2 : clamp(B.x + nx * go, 54 * B.s, AW - 54 * B.s), clamp(B.y + ny * go, 38 * B.s, Math.max(38 * B.s, AH * 0.45))];
+        const d = Math.hypot(p.x - B.x, p.y - B.y) || 1, go2 = d > 58 * B.s ? Math.min(10 * B.s, d - 58 * B.s) : 0, nx = (p.x - B.x) / d, ny = (p.y - B.y) / d;
+        W.from = [B.x, B.y]; W.to = [AW < 108 * B.s ? AW / 2 : clamp(B.x + nx * go2, 54 * B.s, AW - 54 * B.s), clamp(B.y + ny * go2, 38 * B.s, Math.max(38 * B.s, AH * 0.45))];
         const side = W.foot ? 1 : -1; W.land = [W.to[0] + side * 21 * B.s, W.to[1] + 51 * B.s];
       }
       if (W.land) { const k = clamp(1 - W.t / MECH_STEP_WARN, 0, 1); W.lift = Math.sin(k * Math.PI); B.x = W.from[0] + (W.to[0] - W.from[0]) * k; B.y = W.from[1] + (W.to[1] - W.from[1]) * k; }
@@ -4204,13 +4177,25 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (p.inv <= 0 && Math.hypot(p.x - fx, p.y - fy) < MECH_STOMP_R + PLAYER_R * 0.6) damagePlayer();
         W.land = null; W.lift = 0; W.foot ^= 1; W.t = stepT;
       }
-      if ((T.backup -= dt) <= 0) { T.backup = 10; mechBackup(B, 'jets'); }
-      return;
     }
-    // on its knees: everything it has left, and backup from every boss in turn
-    B.kneel = Math.min(1, B.kneel + dt * 2); B.open = Math.min(1, B.open + dt * 0.8);
-    if ((T.micro -= dt * rage) <= 0) { T.micro = 9.5; mechMicros(B.crit ? [36, 48, 60] : [38, 50]); } // three rings once it's critical
-    if ((T.backup -= dt * rage) <= 0) { T.backup = 6; mechBackup(B, ['tanks', 'jets', 'bees'][B.roster++ % 3]); }
+    // the reactor's beam: round nearly the whole circle; the gap (shown as it charges) somewhere below it, never where you are now. More often the more you've broken
+    if (!B.beam && (T.beam -= dt * desp) <= 0) {
+      T.beam = Math.max(MECH_BEAM_CHARGE + MECH_BEAM_SWEEP + 1.5, B.st === 'core' ? 6.5 : 9); const [cx, cy] = mechAt(B, ...MECH_CORE_AT), c = Math.atan2(p.y - cy, p.x - cx), dir = Math.random() < 0.5 ? -1 : 1, gap = Math.PI * 2 - MECH_BEAM_ARC;
+      const opts = []; for (let a = 0.3; a < Math.PI - 0.3; a += 0.1) if (Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c))) > 1.2) opts.push(a);
+      const g = opts.length ? opts[Math.floor(Math.random() * opts.length)] : c + Math.PI, a0 = g + dir * gap / 2;
+      B.beam = { t: 0, g, dir, a0, a1: a0 + dir * MECH_BEAM_ARC }; sfx.blasterCharge();
+    }
+    if (B.beam) {
+      const Bm = B.beam; Bm.t += dt; Bm.a = Bm.a0 + (Bm.a1 - Bm.a0) * clamp((Bm.t - MECH_BEAM_CHARGE) / MECH_BEAM_SWEEP, 0, 1);
+      if (Bm.t >= MECH_BEAM_CHARGE && p.inv <= 0) { const [cx, cy] = mechAt(B, ...MECH_CORE_AT), ux = Math.cos(Bm.a), uy = Math.sin(Bm.a), along = (p.x - cx) * ux + (p.y - cy) * uy; if (along > 0 && Math.abs((p.x - cx) * uy - (p.y - cy) * ux) < 2.6 + PLAYER_R * 0.6) damagePlayer(); }
+      if (Bm.t >= MECH_BEAM_CHARGE + MECH_BEAM_SWEEP) B.beam = null;
+    }
+    // backup: tanks while it's whole; in its last stand, everyone's in turn
+    if ((T.backup -= dt * desp) <= 0) {
+      if (B.st === 'core') { T.backup = 6; mechBackup(B, ['tanks', 'jets', 'bees'][B.roster++ % 3]); }
+      else { T.backup = 12; if (G.enemies.filter(e => e.tankette).length < 2 + Math.floor(broken / 2)) mechBackup(B, broken >= 3 ? ['tanks', 'jets', 'bees'][B.roster++ % 3] : 'tanks'); }
+    }
+    if (B.st === 'core') B.open = Math.min(1, B.open + dt * 0.8); // its helmet splitting on the eye
   }
   function ballMech(B, o, r, b) {
     if (G.debris.length && debrisHit(o, r)) return 'bounce';
@@ -4220,7 +4205,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const [x, y, rr, key, hurts] = best, d = Math.hypot(o.x - x, o.y - y) || 1e-6, nx = (o.x - x) / d, ny = (o.y - y) / d;
     o.x = x + nx * (rr + r + 0.05); o.y = y + ny * (rr + r + 0.05);
     const dot = o.vx * nx + o.vy * ny; if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
-    if (hurts && B.hitCd <= 0 && B.st !== 'transform') { B.hitCd = 0.1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); sfx.brick(b); mechHit(B, key, 1 + b, o.x, o.y); }
+    if (hurts && B.hitCd <= 0) { B.hitCd = 0.1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); sfx.brick(b); mechHit(B, key, 1 + b, o.x, o.y); }
     else { ring(o.x, o.y, 0.5, 4, 0.2, COL.chalk, 0.5); sfx.clank(); }
     return 'bounce';
   }
@@ -4302,17 +4287,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.walk && B.walk.land && !die) { const [lx, ly] = B.walk.land, k = clamp(1 - B.walk.t / MECH_STEP_WARN, 0, 1);
       ctx.globalAlpha = 0.14 + 0.2 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(lx, ly, 11 * s, 3.6 * s, 0, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 0.3 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.arc(lx, ly, MECH_STOMP_R * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
-    const shakeK = die * 0.8 + (B.st === 'transform' && B.stT < 1.2 ? 0.6 : 0);
+    const shakeK = die * 0.8;
     const roarK = B.roar || 0, shk = shakeK + roarK * 0.8;
     ctx.save(); ctx.translate(B.x + rand(-shk, shk), B.y + rand(-shk, shk)); ctx.scale(s, s); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ctx.fillStyle = `rgba(${I3.join(',')},0.5)`; ctx.beginPath(); ctx.ellipse(0, 53, 40, 7, 0, 0, Math.PI * 2); ctx.fill(); // its shadow
     // exhaust stacks behind the pauldrons, venting embers
     for (const sd of [-1, 1]) {
       plate([[sd * 18, -38 + up], [sd * 23, -38 + up], [sd * 24, -24 + up], [sd * 17, -24 + up]], { lit: 0.22, w: W2 * 1.4 });
-      glow(() => { const g = ctx.createRadialGradient(sd * 20.5, -39 + up, 0, sd * 20.5, -41 + up, 5); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(sd * 20.5, -41 + up, 3, 5, 0, 0, Math.PI * 2); ctx.fill(); }, fire, 0.35 + 0.25 * Math.sin(t * 7 + sd) + (B.st === 'transform' ? 0.5 : 0));
+      glow(() => { const g = ctx.createRadialGradient(sd * 20.5, -39 + up, 0, sd * 20.5, -41 + up, 5); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(sd * 20.5, -41 + up, 3, 5, 0, 0, Math.PI * 2); ctx.fill(); }, fire, 0.35 + 0.25 * Math.sin(t * 7 + sd) );
       if (Math.random() < 0.08) { const [x, y] = mechAt(B, sd * 20.5, -40); burst(x, y - 1, 1, Math.random() < 0.5 ? fire : COL.dim, 12, 0.5, 0.6); }
     }
-    if (B.st === 'transform' && B.stT >= 1.2 && B.stT < 3) glow(() => { for (const sd of [-1, 1]) { const g = ctx.createRadialGradient(sd * 20, 0, 0, sd * 20, 12, 18); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(sd * 20, 12, 6, 18, 0, 0, Math.PI * 2); ctx.fill(); } }, fire, 0.9); // its thrusters
     // legs: a hip joint, a thigh plate, a piston to the knee, the knee cap (a target in phase two), the shin, a clawed foot
     for (const side of [-1, 1]) {
       const key = side < 0 ? 'kneeL' : 'kneeR', P = B.parts[key], live = P.hp > 0, L = mechLift(B, side);
@@ -4325,8 +4309,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (const tx of [-8, 0, 8]) { poly([[fx + tx - 1.6, fy + 2.4], [fx + tx + 1.6, fy + 2.4], [fx + tx, fy + 5]]); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W2); } // its toe claws
       joint(hx, hy, 3.2);
       if (live) { const cap = [[kx, ky - 6.5], [kx + 5.6, ky - 3], [kx + 5.6, ky + 3], [kx, ky + 6.5], [kx - 5.6, ky + 3], [kx - 5.6, ky - 3]];
-        if (B.st === 'walk') glow(() => { poly(cap); ctx.fill(); }, COL.threat, 0.35 + 0.2 * Math.sin(t * 6));
-        plate(cap, { col: B.st === 'walk' ? (P.flash > 0 ? COL.chalk : COL.threat) : col, flash: P.flash > 0, bolts: [[kx - 3, ky], [kx + 3, ky]] }); }
+        if (B.st === 'fight') glow(() => { poly(cap); ctx.fill(); }, COL.threat, 0.3 + 0.2 * Math.sin(t * 6));
+        plate(cap, { col: B.st === 'fight' ? (P.flash > 0 ? COL.chalk : COL.threat) : col, flash: P.flash > 0, bolts: [[kx - 3, ky], [kx + 3, ky]] }); }
       else { joint(kx, ky, 4); glow(() => { ctx.beginPath(); ctx.arc(kx, ky, 4, 0, Math.PI * 2); ctx.fill(); }, fire, 0.6 + 0.3 * Math.sin(t * 20 + side)); sparks(kx, ky); }
     }
     // the waist (pistons, segmented) and the pelvis plate
@@ -4347,10 +4331,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let k = 0; k < 2; k++) plate([[-9 + k, 2 + k * 3.4 + up], [9 - k, 2 + k * 3.4 + up], [8 - k, 5 + k * 3.4 + up], [-8 + k, 5 + k * 3.4 + up]], { lit: 0.26, w: W2 * 1.4 });
     for (const sd of [-1, 1]) plate([[sd * 5, -17 + up], [sd * 20, -16 + up], [sd * 21, -5 + up], [sd * 12, 3 + up], [sd * 5.5, 0 + up]].map(([x, y]) => sd < 0 ? [x, y] : [x, y]), { bolts: [[sd * 17, -13 + up], [sd * 16, -4 + up]] });
     for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * 14, -11 + up); ctx.lineTo(sd * 17, -8.5 + up); ctx.moveTo(sd * 15, -7 + up); ctx.lineTo(sd * 18.5, -5.5 + up); stroke(W3, 0.5); } // battle scratches
-    const [rcx, rcy] = [MECH_CORE_AT[0], MECH_CORE_AT[1] + up], rk = B.plateGone ? (B.st === 'kneel' ? 1 : 0.6) : 0.2;
+    const [rcx, rcy] = [MECH_CORE_AT[0], MECH_CORE_AT[1] + up], rk = B.plateGone ? (B.st === 'core' ? 1 : 0.6) : 0.2 + (die ? 0 : 0.05 * Math.min(6, Object.values(B.parts).filter(q => q.hp <= 0).length));
     glow(() => { const g = ctx.createRadialGradient(rcx, rcy, 0, rcx, rcy, 12); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, COL.threat); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(rcx, rcy, 12, 0, Math.PI * 2); ctx.fill(); }, COL.threat, rk * (0.75 + 0.25 * Math.sin(t * 6)) + die + (B.crit ? 0.35 * (Math.floor(t * 10) % 2) : 0));
-    ctx.beginPath(); ctx.arc(rcx, rcy, 5.5, 0, Math.PI * 2); ctx.fillStyle = `rgba(${I3.join(',')},${B.plateGone ? 0.2 : 0.7})`; ctx.fill(); stroke(W2 * 1.5, 1, B.st === 'kneel' ? COL.threat : col);
-    if (B.st === 'kneel') { ctx.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + t * 2; ctx.moveTo(rcx + Math.cos(a) * 7, rcy + Math.sin(a) * 7); ctx.lineTo(rcx + Math.cos(a) * 9.5, rcy + Math.sin(a) * 9.5); } stroke(W2, 0.9, COL.threat); glow(() => { ctx.beginPath(); ctx.arc(rcx, rcy, 16, 0, Math.PI * 2); ctx.lineWidth = 0.5; ctx.stroke(); }, COL.threat, 0.35 + 0.3 * Math.sin(t * 5)); }
+    ctx.beginPath(); ctx.arc(rcx, rcy, 5.5, 0, Math.PI * 2); ctx.fillStyle = `rgba(${I3.join(',')},${B.plateGone ? 0.2 : 0.7})`; ctx.fill(); stroke(W2 * 1.5, 1, B.st === 'core' ? COL.threat : col);
+    if (B.st === 'core') { ctx.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + t * 2; ctx.moveTo(rcx + Math.cos(a) * 7, rcy + Math.sin(a) * 7); ctx.lineTo(rcx + Math.cos(a) * 9.5, rcy + Math.sin(a) * 9.5); } stroke(W2, 0.9, COL.threat); glow(() => { ctx.beginPath(); ctx.arc(rcx, rcy, 16, 0, Math.PI * 2); ctx.lineWidth = 0.5; ctx.stroke(); }, COL.threat, 0.35 + 0.3 * Math.sin(t * 5)); }
     else { ctx.beginPath(); for (let k = -2; k <= 2; k++) { ctx.moveTo(rcx + k * 2, rcy - 4.6); ctx.lineTo(rcx + k * 2, rcy + 4.6); } stroke(W3 * 1.6, 0.85); } // its grille
     if (!B.plateGone) plate([[0, -16 + up], [7, -10 + up], [7, 2 + up], [0, 6 + up], [-7, 2 + up], [-7, -10 + up]], { lit: 0.42, bolts: [[-5, -9 + up], [5, -9 + up], [-5, 1 + up], [5, 1 + up]] }); // the chest plate, bolted over the reactor
     if (!B.plateGone) glow(() => { ctx.beginPath(); ctx.roundRect(-3.5, -5 + up, 7, 1.4, 0.6); ctx.fill(); }, COL.threat, 0.6 + 0.3 * Math.sin(t * 4));
@@ -4427,8 +4411,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (wear > 0.25 && !die && Math.random() < wear * 0.5) { const [x, y] = mechAt(B, rand(-34, 34), rand(-28, 20)); burst(x, y, 1, Math.random() < 0.25 ? fire : COL.dim, 10, 0.6, 0.9); } // smoke and embers
     if (wear > 0.45 && !die && Math.random() < wear * 0.12) { const [x, y] = mechAt(B, rand(-30, 30), rand(-24, 24)); burst(x, y, 4, COL.chalk, 30, 0.25, 0.25); } // sparks
     // its live targets, ringed, with their health (drawn over it, unscaled)
-    if (B.st === 'arsenal' && !die) for (const key in MECH_PARTS) { const P = B.parts[key]; if (P.hp <= 0) continue; const [lx, ly, r] = MECH_PARTS[key], [x, y] = mechAt(B, lx, ly); target(x, y, r * 1.1 * s, P); pips(x, y + (r * 1.45 + 2.2) * s, P, 5); }
-    if (B.st === 'walk' && !die) for (const side of [-1, 1]) { const P = B.parts[side < 0 ? 'kneeL' : 'kneeR']; if (P.hp <= 0) continue; const [x, y] = mechKnee(B, side); target(x, y, 7.5 * s, P); pips(x, y + 11 * s, P, 5); }
+    if (B.st === 'fight' && !die) for (const key in MECH_PARTS) { const P = B.parts[key]; if (P.hp <= 0) continue; const [lx, ly, r] = MECH_PARTS[key], [x, y] = mechAt(B, lx, ly); target(x, y, r * 1.1 * s, P); pips(x, y + (r * 1.45 + 2.2) * s, P, 5); }
+    if (B.st === 'fight' && !die) for (const side of [-1, 1]) { const P = B.parts[side < 0 ? 'kneeL' : 'kneeR']; if (P.hp <= 0) continue; const [x, y] = mechKnee(B, side); target(x, y, 7.5 * s, P); pips(x, y + 11 * s, P, 5); }
     if (B.plate) { const q = B.plate; ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.a); ctx.scale(s, s); plate([[0, -11], [7, -5], [7, 7], [0, 11], [-7, 7], [-7, -5]], { lit: 0.42 }); ctx.restore(); }
   }
   // Goliath's death: the hit, then explosions chain across its body as the reactor goes white-hot; the blow: a white
@@ -5117,7 +5101,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Goliath's bar in three: its weapons, its knees, its reactor; the one you can hurt now lit
   function drawMechBar(B, x, y, w) {
     const P = B.parts, sum = ks => ks.reduce((a, k) => a + Math.max(0, P[k].hp), 0), max = ks => ks.reduce((a, k) => a + P[k].max, 0);
-    const segs = [[sum(['gun', 'claw', 'rack', 'rail']) / max(['gun', 'claw', 'rack', 'rail']), B.st === 'arsenal', 'ARSENAL', 0.34], [sum(['kneeL', 'kneeR']) / max(['kneeL', 'kneeR']), B.st === 'walk', 'LEGS', 0.26], [B.core / B.coreMax, B.st === 'kneel', 'REACTOR', 0.4]];
+    const segs = [[sum(['gun', 'claw', 'rack', 'rail']) / max(['gun', 'claw', 'rack', 'rail']), B.st === 'fight', 'ARSENAL', 0.34], [sum(['kneeL', 'kneeR']) / max(['kneeL', 'kneeR']), B.st === 'fight', 'LEGS', 0.26], [B.core / B.coreMax, B.st === 'core', 'REACTOR', 0.4]];
     let sx = x;
     for (const [f, live, label, share] of segs) {
       const sw = w * share - TANK_BAR_GAP * 2 / 3;
