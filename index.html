@@ -14,6 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
+<script>window.RICOCHET_BUILD = "Oct 31 02:04 UTC · 3b3c038";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -179,6 +180,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; t
 .panel { width: 100%; max-width: 30rem; display: flex; flex-direction: column; gap: 18px; }
 .logo { margin: 0; font-family: var(--display); font-weight: 700; font-size: clamp(48px, 15vw, 96px); line-height: 0.9; letter-spacing: 0.04em; background: linear-gradient(90deg, var(--cool), var(--gold) 55%, var(--hot)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .tag { margin: 0; font-size: 15px; line-height: 1.5; color: var(--chalk); text-wrap: balance; }
+.buildTag { margin: 0; font-size: 11px; letter-spacing: 0.04em; color: var(--dim); opacity: 0.8; }
 .rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--dim); }
 .rules li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: baseline; }
 .rules b { font-family: var(--display); font-weight: 700; font-size: 13px; color: var(--chalk); letter-spacing: 0.06em; }
@@ -279,6 +281,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 <section class="ov" id="ov-title">
   <div class="panel title">
     <h1 class="logo">RICOCHET</h1>
+    <p class="buildTag" hidden></p>
     <p class="tag">Start with one ball. Each bounce adds 1 damage, at 15 it becomes unstable. Kill enemies to delay overload. Catch it to throw it again.</p>
     <button class="btn launch" id="play" type="button">Launch</button>
     <p class="hint"><span class="hintKeys">WASD to fly · click or Space to throw · hold to pull</span><span class="hintTouch">Left thumb flies · right thumb holds to pull and swipes to throw</span></p>
@@ -362,6 +365,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 <section class="ov" id="ov-pause" hidden>
   <div class="panel">
     <p class="big">Paused</p>
+    <p class="buildTag" hidden></p>
     <p class="pauseIntel" id="pauseIntel" hidden><span class="lbl" id="pauseIntelWave"></span><span id="pauseIntelText"></span></p>
     <div class="btnrow"><button class="btn" id="resume" type="button">Resume</button><button class="btn ghost menuBtn" type="button">Main menu</button></div>
     <div class="links left"><button class="linkbtn big2 setBtn" type="button">⚙ Settings</button><button class="linkbtn big2 powersBtn" type="button">Power-ups</button></div>
@@ -1097,7 +1101,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // the edge it'll come from, or under her) and buzz there, shaking, for FORM_WARN, then fly; its gap is near you. Once she's taken VEXA_TRIP of her health she cages you: a gold
   // ring closes on where you are (CAGE_WARN; get clear and it's nothing), then a ring of wax cells grows there. Break
   // out (shoot a cell out and slip through) before CAGE_TIME runs out, or every cell left hatches a bee in there with
-  // you. She holds her fire while you're caged. Below VEXA_BERSERK of her health she's furious: no more cages, and
+  // you. She holds her fire while you're caged. Cages come as her health passes each mark, whatever hurt her. Below VEXA_BERSERK of her health she's furious: no more cages, and
   // everything comes faster.
   // Both halves throw honeycomb: a chunk of seven wax cells, flagged by a ring closing on an edge cell (or flung by the
   // queen), that flies and bounces off the walls COMB_BOUNCES times or for COMB_LIFE seconds, then crumbles. Its touch
@@ -1380,6 +1384,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.mode !== 'lock') B.face += (-Math.PI / 2 + want - B.face) * Math.min(1, dt * 2.5);
     if (p.inv <= 0) for (const [x, y, rr] of vexaBody(B)) if (Math.hypot(p.x - x, p.y - y) < rr + PLAYER_R * 0.8) { damagePlayer(); break; }
     if (B.cage) { updateCage(B, dt, ph2); return; } // she holds her fire while you're caged
+    B.cages = B.cages ?? 0; // she cages you as her health passes each VEXA_TRIP mark (75%, 50%), whatever did the damage; not past furious
+    if (B.hp <= B.maxHp * (1 - VEXA_TRIP * (B.cages + 1)) && B.hp > B.maxHp * VEXA_BERSERK) { B.cages++; vexaCage(B); return; }
+    while (B.hp <= B.maxHp * (1 - VEXA_TRIP * (B.cages + 1))) B.cages++; // marks skipped in one go don't stack up
     // the sting: the abdomen leans in and glows down a lane, locks, and fires a needle
     B.stingT -= dt;
     if (B.mode === 'hang' && B.stingT <= 0) { B.mode = 'aim'; B.modeT = VEXA_AIM; sfx.blasterCharge(); }
@@ -1759,8 +1766,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.hitCd <= 0) {
       B.hitCd = 0.12; B.flash = 0.08; B.hurt = 1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); burst(x + nx * rr, y + ny * rr, 8 + b, GOLD(), 30, 0.6, 0.35); sfx.splat(b);
       damageBoss(1 + b, o.x, o.y);
-      if (G.boss === B && B.hp > B.maxHp * VEXA_BERSERK) { B.taken += 1 + b; if (B.taken >= B.maxHp * VEXA_TRIP && B.hp > B.maxHp * (VEXA_BERSERK + 0.1) && !B.cage) vexaCage(B); } // not for a sliver
-      else if (G.boss === B && !B.berserk) { B.berserk = true; G.banner = { text: 'Vexa is furious!', sub: 'No more cages: everything comes faster', t: 1.8, max: 1.8, top: true }; shake(2); sfx.boss(); }
+      if (G.boss === B && B.hp <= B.maxHp * VEXA_BERSERK && !B.berserk) { B.berserk = true; G.banner = { text: 'Vexa is furious!', sub: 'No more cages: everything comes faster', t: 1.8, max: 1.8, top: true }; shake(2); sfx.boss(); }
     }
     return 'bounce';
   }
@@ -8193,6 +8199,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   $('musicBtn').addEventListener('click', () => { audioInit(); toggleMusic(); $('musicBtn').blur(); });
   // Start at: any wave from 1 to 40 (bosses and set pieces named), or the Asteroid Field. A run that skips ahead is
   // practice and doesn't count toward Best. Play again restarts at the same place.
+  if (window.RICOCHET_BUILD) for (const el of document.querySelectorAll('.buildTag')) { el.textContent = 'Build ' + window.RICOCHET_BUILD; el.hidden = false; } // which version this is
   const startSel = $('startWave');
   startSel.add(new Option('Wave 1', '1'));
   startSel.add(new Option('Asteroid Field', 'ast'));
