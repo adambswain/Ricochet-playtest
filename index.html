@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Oct 31 22:09 UTC · 032357d";</script>
+<script>window.RICOCHET_BUILD = "Nov 01 14:28 UTC · 4538e86";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3860,6 +3860,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    arena now and then: it fires them up, blasts off out of the top and comes over in bombing runs, its shadow
   //    crossing the arena in a band (shown first, on you), bombs falling behind it, crosswise and lengthwise in turn;
   //    then it drops back in (its landing shown first). Break them and it's grounded.
+  //  - On its knees it can't sweep its beam round any more: its reactor fires a lance at you instead, its line
+  //    tracking you as it charges, then locking (the corridor it'll fire down flashes: sidestep), then firing.
   //  - Its reactor grows desperate with every part you break: its beam (all the way round but for one safe gap;
   //    as it charges, its path shows: a red warning zone over all it'll sweep, where it starts, chevrons running the way it'll turn, where it stops) comes more often, and more backup comes in.
   //  - Break them all and the reactor's bare: on its knees, its helmet split on a great red machine eye, every hit
@@ -3875,6 +3877,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_MICRO_N = 30, MECH_MICRO_AOE = 6.5, MECH_MICRO_ORBIT = 1.6, MECH_MICRO_OUT = 8, MECH_MICRO_CLOSE = 10, MECH_MICRO_FOLLOW = 13, MECH_MICRO_SPIN = 0.2, MECH_MICRO_BOOM = 9;
   const MECH_STOMP_R = 16, MECH_STEP = [0.62, 2.1], MECH_STRIDE = [15, 5], MECH_STEP_WARN = 0.5, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
   const MECH_DEBRIS = 10;
+  const MECH_LANCE_AIM = 1.1, MECH_LANCE_LOCK = 0.45, MECH_LANCE_FIRE = 0.3, MECH_LANCE_W = 3.2; // on its knees, its reactor's lance: tracking you, locked (sidestep now), fired down the line
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
   const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.1, MECH_FLY_UP = 0.75, MECH_FLY_DOWN = 1.5, MECH_FLY_DROP = 0.4;
   const MECH_RUNS = 5, MECH_RUN_GAP = 0.95, MECH_RUN_WARN = 0.85, MECH_RUN_V = 150, MECH_RUN_HALF = 11, MECH_BOMB_FALL = 0.32, MECH_BOMB_R = 7, MECH_LAND_R = 24;
@@ -4179,7 +4182,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.plate) { const q = B.plate; q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; if (q.y > AH + 40) B.plate = null; }
     B.rackT = Math.max(0, (B.rackT || 0) - dt);
     // its thrusters: now and then (when it isn't busy) it takes off and comes over in bombing runs
-    if (!B.fly && B.st === 'fight' && !mechBroken(B, 'jets') && (T.fly -= dt) <= 0 && !B.beam && !B.sweep && B.lockT <= 0 && !(B.walk && B.walk.land) && !G.enemies.some(e => e.micro)) {
+    if (!B.fly && B.st === 'fight' && !mechBroken(B, 'jets') && (T.fly -= dt) <= 0 && !B.beam && !B.lance && !B.sweep && B.lockT <= 0 && !(B.walk && B.walk.land) && !G.enemies.some(e => e.micro)) {
       B.fly = { ph: 'crouch', t: 0, air: false, hx: B.x, hy: B.y, runs: [], n: 0 }; sfx.blasterCharge(); float(B.x, B.y + 58 * B.s, 'Thrusters firing!', COL.threat, 3.4);
     }
     if (B.fly || B.bombs.length) updateMechFly(B, dt);
@@ -4225,7 +4228,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     // the reactor's beam: round nearly the whole circle; the gap (shown as it charges) somewhere below it, never where you are now. More often the more you've broken
-    if (!B.beam && (T.beam -= dt * desp) <= 0) {
+    if (!B.beam && !B.lance && (T.beam -= dt * desp) <= 0 && B.down) { // on its knees: the lance, aimed at you
+      T.beam = B.st === 'core' ? 3.2 : 3.8; B.lance = { t: 0, a: 0, locked: false, fired: false }; sfx.blasterCharge();
+    }
+    else if (!B.beam && !B.lance && T.beam <= 0) {
       T.beam = Math.max(MECH_BEAM_CHARGE + MECH_BEAM_SWEEP + 1.5, B.st === 'core' ? 6.5 : 9); const [cx, cy] = mechAt(B, ...MECH_CORE_AT), c = Math.atan2(p.y - cy, p.x - cx), dir = Math.random() < 0.5 ? -1 : 1, gap = Math.PI * 2 - MECH_BEAM_ARC;
       const opts = []; for (let a = 0.3; a < Math.PI - 0.3; a += 0.1) if (Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c))) > 1.2) opts.push(a);
       const g = opts.length ? opts[Math.floor(Math.random() * opts.length)] : c + Math.PI, a0 = g + dir * gap / 2;
@@ -4235,6 +4241,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const Bm = B.beam; Bm.t += dt; Bm.a = Bm.a0 + (Bm.a1 - Bm.a0) * clamp((Bm.t - MECH_BEAM_CHARGE) / MECH_BEAM_SWEEP, 0, 1);
       if (Bm.t >= MECH_BEAM_CHARGE && p.inv <= 0) { const [cx, cy] = mechAt(B, ...MECH_CORE_AT), ux = Math.cos(Bm.a), uy = Math.sin(Bm.a), along = (p.x - cx) * ux + (p.y - cy) * uy; if (along > 0 && Math.abs((p.x - cx) * uy - (p.y - cy) * ux) < 2.6 + PLAYER_R * 0.6) damagePlayer(); }
       if (Bm.t >= MECH_BEAM_CHARGE + MECH_BEAM_SWEEP) B.beam = null;
+    }
+    if (B.lance) { // the lance: tracking you, then locked, then fired down the line
+      const Ln = B.lance, [cx, cy] = mechAt(B, ...MECH_CORE_AT); Ln.t += dt;
+      if (Ln.t < MECH_LANCE_AIM) Ln.a = Math.atan2(p.y - cy, p.x - cx);
+      else if (!Ln.locked) { Ln.locked = true; sfx.clank(); }
+      if (Ln.t >= MECH_LANCE_AIM + MECH_LANCE_LOCK) {
+        const ux = Math.cos(Ln.a), uy = Math.sin(Ln.a);
+        if (!Ln.fired) { Ln.fired = true; sfx.overload(); shake(3.5); burst(cx, cy, 24, COL.threat, 60, 0.7, 0.4); ring(cx, cy, 2, 16 * B.s, 0.3, COL.chalk, 1.2); gridImpulse(cx + ux * 40, cy + uy * 40, 70, 200); }
+        if (p.inv <= 0) { const along = (p.x - cx) * ux + (p.y - cy) * uy; if (along > 0 && Math.abs((p.x - cx) * uy - (p.y - cy) * ux) < MECH_LANCE_W + PLAYER_R * 0.6) damagePlayer(); }
+      }
+      if (Ln.t >= MECH_LANCE_AIM + MECH_LANCE_LOCK + MECH_LANCE_FIRE) B.lance = null;
     }
     }
     // backup: tanks while it's whole; in its last stand, everyone's in turn
@@ -4565,6 +4582,26 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     ctx.restore();
+    if (B.lance && !die) { // the lance: its line tracking you (a reticle on you); locked, the corridor flashes; then the shot
+      const [cx, cy] = mechAt(B, ...MECH_CORE_AT), Ln = B.lance, L = Math.hypot(AW, AH) * 1.2, ux = Math.cos(Ln.a), uy = Math.sin(Ln.a), nx = -uy, ny = ux, ex = cx + ux * L, ey = cy + uy * L;
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
+      if (Ln.t < MECH_LANCE_AIM) {
+        const k = Ln.t / MECH_LANCE_AIM, P = G.player;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.setLineDash([2, 1.5]); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35 + 0.3 * k; ctx.globalAlpha = 0.35 + 0.45 * k; ctx.stroke(); ctx.setLineDash([]);
+        const rr = 7 - 4 * k; ctx.beginPath(); ctx.arc(P.x, P.y, rr, 0, Math.PI * 2); ctx.lineWidth = 0.45; ctx.globalAlpha = 0.6 + 0.3 * k; ctx.stroke();
+        ctx.beginPath(); for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + G.time * 2; ctx.moveTo(P.x + Math.cos(a) * (rr + 0.8), P.y + Math.sin(a) * (rr + 0.8)); ctx.lineTo(P.x + Math.cos(a) * (rr + 2.6), P.y + Math.sin(a) * (rr + 2.6)); } ctx.stroke();
+      } else if (Ln.t < MECH_LANCE_AIM + MECH_LANCE_LOCK) { // locked: the corridor it'll fire down
+        const fl = Math.floor(G.time * 16) % 2, w = MECH_LANCE_W;
+        ctx.beginPath(); ctx.moveTo(cx + nx * w, cy + ny * w); ctx.lineTo(ex + nx * w, ey + ny * w); ctx.lineTo(ex - nx * w, ey - ny * w); ctx.lineTo(cx - nx * w, cy - ny * w); ctx.closePath();
+        ctx.fillStyle = COL.threat; ctx.globalAlpha = fl ? 0.28 : 0.14; ctx.fill(); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.85; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.9; ctx.stroke();
+      } else { // the shot
+        const f = clamp(1 - (Ln.t - MECH_LANCE_AIM - MECH_LANCE_LOCK) / MECH_LANCE_FIRE, 0, 1);
+        ctx.globalCompositeOperation = 'lighter'; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey);
+        ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.4 * f; ctx.lineWidth = MECH_LANCE_W * 3.2; ctx.stroke(); ctx.globalAlpha = 0.95 * f; ctx.lineWidth = MECH_LANCE_W * 1.6; ctx.stroke(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = MECH_LANCE_W * 0.6; ctx.stroke(); ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.restore(); ctx.globalAlpha = 1;
+    }
     if (B.beam && !die) { // the beam's path, over it: where it starts, chevrons running round the way it'll turn
       const [cx, cy] = mechAt(B, ...MECH_CORE_AT), Bm = B.beam, on = Bm.t >= MECH_BEAM_CHARGE, L = Math.hypot(AW, AH) * 1.2, k = clamp(Bm.t / MECH_BEAM_CHARGE, 0, 1);
       const ray = (ang, r0 = 14) => { ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0); ctx.lineTo(cx + Math.cos(ang) * L, cy + Math.sin(ang) * L); };
