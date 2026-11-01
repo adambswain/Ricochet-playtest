@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 01 14:28 UTC · 4538e86";</script>
+<script>window.RICOCHET_BUILD = "Nov 01 14:45 UTC · f138cfd";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -688,6 +688,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const sfx = {
     march(k) { const f = [98, 87.3, 77.8, 73.4][k % 4]; voice({ type: 'square', f, f2: f * 0.97, dur: 0.09, vol: 0.16, filter: 'lowpass', ff: 420, q: 1.2 }); voice({ f, dur: 0.1, vol: 0.22 }); },
     invShot(x) { if (gate('invShot', 80)) voice({ type: 'square', f: 900, f2: 300, dur: 0.08, vol: 0.04, filter: 'lowpass', ff: 2500, pan: panOf(x) }); },
+    alarm() { voice({ type: 'square', f: 880, f2: 660, dur: 0.22, vol: 0.035, filter: 'lowpass', ff: 2400 }); voice({ type: 'square', f: 660, f2: 880, dur: 0.22, vol: 0.035, filter: 'lowpass', ff: 2400, at: 0.24 }); },
     rockBoom(size) {
       const [ff, ff2, dur, vol] = [[0, 0, 0, 0], [2400, 450, 0.2, 0.26], [1500, 260, 0.34, 0.32], [1000, 140, 0.55, 0.4]][size];
       voice({ noise: true, filter: 'lowpass', ff, ff2, q: 0.7, dur, vol });
@@ -3860,6 +3861,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    arena now and then: it fires them up, blasts off out of the top and comes over in bombing runs, its shadow
   //    crossing the arena in a band (shown first, on you), bombs falling behind it, crosswise and lengthwise in turn;
   //    then it drops back in (its landing shown first). Break them and it's grounded.
+  //  - On its knees it isn't still: it crawls after you, an arm reaching out and slamming down (where, shown first),
+  //    then dragging itself after it; and it hurls wreckage at you (a lob, its landing marked) that lies where it lands
+  //    for the ball to bounce off.
+  //  - Its last stand escalates. Its whole body is the target now (outlined hot, framed). Its reactor pulses: rings
+  //    with two gaps, turning as they spread (line up with a gap). Below MECH_OVER it's overcharged: its lance fires
+  //    twice, the second re-aimed at where you went. Below MECH_MELT, meltdown: alarms, cracks glowing all over it,
+  //    the pulses come faster.
   //  - On its knees it can't sweep its beam round any more: its reactor fires a lance at you instead, its line
   //    tracking you as it charges, then locking (the corridor it'll fire down flashes: sidestep), then firing.
   //  - Its reactor grows desperate with every part you break: its beam (all the way round but for one safe gap;
@@ -3877,6 +3885,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_MICRO_N = 30, MECH_MICRO_AOE = 6.5, MECH_MICRO_ORBIT = 1.6, MECH_MICRO_OUT = 8, MECH_MICRO_CLOSE = 10, MECH_MICRO_FOLLOW = 13, MECH_MICRO_SPIN = 0.2, MECH_MICRO_BOOM = 9;
   const MECH_STOMP_R = 16, MECH_STEP = [0.62, 2.1], MECH_STRIDE = [15, 5], MECH_STEP_WARN = 0.5, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
   const MECH_DEBRIS = 10;
+  const MECH_CRAWL_T = 1.6, MECH_CRAWL_REACH = 0.6, MECH_CRAWL_DRAG = 0.5, MECH_CRAWL_STEP = 9, MECH_HAND = 14, MECH_SLAM_R = 12; // on its knees: an arm reaches out and slams down, then it drags itself after it
+  const MECH_THROW_T = 6, MECH_THROW_FLY = 1.15, MECH_THROW_R = 7; // on its knees: wreckage hurled at you, lying where it lands
+  const MECH_PULSE_T = [4.6, 2.8], MECH_PULSE_WARN = 0.8, MECH_PULSE_V = 34, MECH_PULSE_GAP = 0.8, MECH_PULSE_W = 2.2, MECH_OVER = 0.66, MECH_MELT = 0.33; // its last stand: reactor pulses; overcharged, then meltdown
   const MECH_LANCE_AIM = 1.1, MECH_LANCE_LOCK = 0.45, MECH_LANCE_FIRE = 0.3, MECH_LANCE_W = 3.2; // on its knees, its reactor's lance: tracking you, locked (sidestep now), fired down the line
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
   const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.1, MECH_FLY_UP = 0.75, MECH_FLY_DOWN = 1.5, MECH_FLY_DROP = 0.4;
@@ -3893,8 +3904,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     parts.jets = { hp: Math.round(MECH_JETS * k), max: Math.round(MECH_JETS * k), flash: 0 };
     const core = Math.round(MECH_CORE * k);
     Object.assign(B, { s, x: AW / 2, y: 50 * s - 95 * s, x0: AW / 2, y0: 50 * s, introT: 0, roar: 0, r: 30 * s, parts, core, coreMax: core, hp: core + Object.values(parts).reduce((a, q) => a + q.hp, 0),
-      st: 'intro', t: 0, stT: 0, hitCd: 0, rage: 1, crit: false, timers: { gun: 2.5, claw: 4.5, rack: 7, rail: 5.5, backup: 10, beam: 3, fly: MECH_FLY_FIRST },
-      sweep: null, lockT: 0, beam: null, walk: { foot: 0, t: 0.8, from: null, to: null, land: null }, kneel: 0, open: 0, lift: 0, plate: null, roster: 0, pose: 0, fly: null, bombs: [] });
+      st: 'intro', t: 0, stT: 0, hitCd: 0, rage: 1, crit: false, timers: { gun: 2.5, claw: 4.5, rack: 7, rail: 5.5, backup: 10, beam: 3, fly: MECH_FLY_FIRST, throw: 3, pulse: 2.5 },
+      sweep: null, lockT: 0, beam: null, walk: { foot: 0, t: 0.8, from: null, to: null, land: null }, kneel: 0, open: 0, lift: 0, plate: null, roster: 0, pose: 0, fly: null, bombs: [], crawl: null, throws: [], pulses: [], pulseWarn: null });
   }
   const mechBroken = (B, key) => B.parts[key].hp <= 0;
   const mechWeapons = B => ['gun', 'claw', 'rack', 'rail'].filter(k => !mechBroken(B, k));
@@ -3908,7 +3919,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const out = [], s = B.s;
     if (B.fly && B.fly.air) return out; // up in the air: nothing to hit, nothing in the way
     for (const [lx, ly, r] of MECH_ARMOUR) { if (B.st === 'core' && ly !== -21) continue; const [x, y] = mechAt(B, lx, ly); out.push([x, y, r * s, null, false]); } // on its knees its chest is the target, not armour
-    for (const key in MECH_PARTS) { const [lx, ly, r] = MECH_PARTS[key], [x, y] = mechAt(B, lx, ly), live = !mechBroken(B, key);
+    for (const key in MECH_PARTS) { const [lx, ly, r] = MECH_PARTS[key], [x, y0] = mechAt(B, lx, ly), y = y0 + mechArmOff(B, key === 'gun' ? -1 : key === 'claw' ? 1 : 0) * s, live = !mechBroken(B, key);
       out.push([x, y, (live ? r * 1.25 : r * 0.55) * s, key, live && B.st === 'fight']); } // generous reach on the live ones
     for (const side of [-1, 1]) { const key = side < 0 ? 'kneeL' : 'kneeR', [x, y] = mechKnee(B, side), live = !mechBroken(B, key);
       out.push([x, y, (live ? 8 : 6) * s, key, live && B.st === 'fight']);
@@ -3949,11 +3960,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.banner = { text: 'Disarmed!', sub: mechLeft(B), t: 1.6, max: 1.6, at: 0.45 };
       }
     } else if (mechBroken(B, 'kneeL') && mechBroken(B, 'kneeR')) { // both knees: down it goes, pinned where it stands
-      B.down = true; B.beam = null; shake(6); G.slowT = Math.max(G.slowT, 0.5); gridImpulse(B.x, B.y, Math.max(AW, AH), 260); sfx.boss();
+      B.down = true; B.beam = null; B.timers.throw = 2.5; shake(6); G.slowT = Math.max(G.slowT, 0.5); gridImpulse(B.x, B.y, Math.max(AW, AH), 260); sfx.boss();
       G.banner = { text: 'It\'s down!', sub: mechLeft(B), t: 1.8, max: 1.8, at: 0.45 };
     } else G.banner = { text: 'It\'s limping!', sub: 'Break the other knee to pin it down', t: 1.4, max: 1.4, at: 0.45 };
     if (!mechWeapons(B).length && B.down && mechBroken(B, 'jets') && B.st === 'fight') { // everything's broken: the reactor's bare
-      B.st = 'core'; B.beam = null; B.sweep = null; B.timers.beam = 3; B.timers.backup = 1.5;
+      B.st = 'core'; B.beam = null; B.sweep = null; B.timers.beam = 3; B.timers.backup = 1.5; B.timers.pulse = 2;
       if (!B.plateGone) { B.plateGone = true; const [px, py] = mechAt(B, ...MECH_CORE_AT); B.plate = { x: px, y: py, vx: rand(-20, 20), vy: -40, a: 0, va: rand(-4, 4) }; }
       shake(5); G.screenFlash = Math.max(G.screenFlash || 0, 0.35); sfx.boss();
       G.banner = { text: 'Reactor exposed!', sub: 'Hit it anywhere', t: 2.4, max: 2.4, at: 0.45 };
@@ -4182,10 +4193,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.plate) { const q = B.plate; q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; if (q.y > AH + 40) B.plate = null; }
     B.rackT = Math.max(0, (B.rackT || 0) - dt);
     // its thrusters: now and then (when it isn't busy) it takes off and comes over in bombing runs
-    if (!B.fly && B.st === 'fight' && !mechBroken(B, 'jets') && (T.fly -= dt) <= 0 && !B.beam && !B.lance && !B.sweep && B.lockT <= 0 && !(B.walk && B.walk.land) && !G.enemies.some(e => e.micro)) {
+    if (!B.fly && B.st === 'fight' && !mechBroken(B, 'jets') && (T.fly -= dt) <= 0 && !B.beam && !B.lance && !B.sweep && B.lockT <= 0 && !(B.walk && B.walk.land) && !(B.crawl && B.crawl.ph !== 'rest') && !G.enemies.some(e => e.micro)) {
       B.fly = { ph: 'crouch', t: 0, air: false, hx: B.x, hy: B.y, runs: [], n: 0 }; sfx.blasterCharge(); float(B.x, B.y + 58 * B.s, 'Thrusters firing!', COL.threat, 3.4);
     }
     if (B.fly || B.bombs.length) updateMechFly(B, dt);
+    if (B.throws && B.throws.length) updateMechThrows(B, dt);
     if (!B.fly) {
     // its weapons: each one left keeps up its attack
     const go = (key, base) => !mechBroken(B, key) && (T[key] -= dt) <= 0 && ((T[key] = base), true);
@@ -4200,7 +4212,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (go('rack', 13) && !G.enemies.some(e => e.micro)) { B.rackT = 1; mechMicros(B.crit ? 36 : MECH_MICRO_N); } // its rack lights up, and the swarm comes in from all round (one swarm at a time)
     if (go('rail', 8)) { const [rx, ry] = mechAt(B, ...MECH_PARTS.rail); for (let i = 0; i < 4; i++) { const e = makeEnemy('dasher', clamp(rx + (i - 1) * 7, 6, AW - 6), ry + 10); Object.assign(e, { r: MAW_SHIP_R * 0.9, hp: 1, maxHp: 1, pts: 40, spawnT: 0, jet: { sq: null }, vx: (i - 1.5) * 14, vy: 30, stT: 0.5 + i * 0.2 }); G.enemies.push(e); } sfx.launch(rx); }
     // its legs: walking at you, a step at a time; one knee gone, limping; both, down on its knees where it stands
-    if (B.down) B.kneel = Math.min(1, B.kneel + dt * 2);
+    if (B.down) { // on its knees: it crawls after you, and hurls wreckage
+      B.kneel = Math.min(1, B.kneel + dt * 2);
+      if (B.kneel >= 1) mechCrawl(B, dt);
+      if ((T.throw -= dt * desp) <= 0 && !(B.crawl && B.crawl.ph === 'reach')) { T.throw = MECH_THROW_T; mechThrow(B); }
+    }
     else {
       const W = B.walk, limp = mechBroken(B, 'kneeL') || mechBroken(B, 'kneeR'), stepT = MECH_STEP[limp ? 1 : 0], warn = MECH_STEP_WARN * (limp ? 1.6 : 1), stride = (limp ? MECH_STRIDE[1] : MECH_STRIDE[0]) * B.s;
       W.t -= dt;
@@ -4242,6 +4258,27 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (Bm.t >= MECH_BEAM_CHARGE && p.inv <= 0) { const [cx, cy] = mechAt(B, ...MECH_CORE_AT), ux = Math.cos(Bm.a), uy = Math.sin(Bm.a), along = (p.x - cx) * ux + (p.y - cy) * uy; if (along > 0 && Math.abs((p.x - cx) * uy - (p.y - cy) * ux) < 2.6 + PLAYER_R * 0.6) damagePlayer(); }
       if (Bm.t >= MECH_BEAM_CHARGE + MECH_BEAM_SWEEP) B.beam = null;
     }
+    if (B.st === 'core') { // its last stand: reactor pulses, faster in meltdown
+      const pw = B.pulseWarn;
+      if (!pw && (T.pulse -= dt) <= 0) { T.pulse = MECH_PULSE_T[B.melt ? 1 : 0]; const [cx, cy] = mechAt(B, ...MECH_CORE_AT); B.pulseWarn = { t: 0, x: cx, y: cy, a: rand(0, Math.PI), w: (Math.random() < 0.5 ? -1 : 1) * 0.6 }; sfx.blasterCharge(); }
+      if (pw) { pw.t += dt; pw.a += pw.w * dt; const [cx, cy] = mechAt(B, ...MECH_CORE_AT); pw.x = cx; pw.y = cy;
+        if (pw.t >= MECH_PULSE_WARN) { (B.pulses || (B.pulses = [])).push({ x: pw.x, y: pw.y, r: 10 * B.s, a: pw.a, w: pw.w, hit: false }); B.pulseWarn = null; ring(pw.x, pw.y, 2, 18 * B.s, 0.3, COL.chalk, 1.2); shake(2); sfx.overload(); } }
+    }
+    for (let i = (B.pulses || []).length - 1; i >= 0; i--) { // the rings spreading, turning; the gaps are the way through
+      const q = B.pulses[i]; q.r += MECH_PULSE_V * dt; q.a += q.w * dt;
+      if (q.r > Math.hypot(AW, AH)) { B.pulses.splice(i, 1); continue; }
+      const d = Math.hypot(p.x - q.x, p.y - q.y);
+      if (!q.hit && p.inv <= 0 && Math.abs(d - q.r) < MECH_PULSE_W + PLAYER_R * 0.6) {
+        const ang = Math.atan2(p.y - q.y, p.x - q.x), off = g => Math.abs(Math.atan2(Math.sin(ang - g), Math.cos(ang - g)));
+        if (Math.min(off(q.a), off(q.a + Math.PI)) > MECH_PULSE_GAP / 2) { q.hit = true; damagePlayer(); }
+      }
+    }
+    if (B.st === 'core') { // escalating: overcharged, then meltdown
+      const cf = B.core / B.coreMax;
+      if (!B.over && cf <= MECH_OVER) { B.over = true; shake(4); sfx.boss(); G.banner = { text: 'Overcharged!', sub: 'Its lance fires twice now', t: 1.6, max: 1.6, at: 0.45 }; }
+      if (!B.melt && cf <= MECH_MELT) { B.melt = true; shake(6); G.screenFlash = Math.max(G.screenFlash || 0, 0.4); sfx.boss(); sfx.alarm(); G.banner = { text: 'Meltdown!', sub: 'Finish it before it blows', t: 1.8, max: 1.8, at: 0.45 }; }
+      if (B.melt) { B.alarmT = (B.alarmT || 0) - dt; if (B.alarmT <= 0) { B.alarmT = 1.4; sfx.alarm(); } }
+    }
     if (B.lance) { // the lance: tracking you, then locked, then fired down the line
       const Ln = B.lance, [cx, cy] = mechAt(B, ...MECH_CORE_AT); Ln.t += dt;
       if (Ln.t < MECH_LANCE_AIM) Ln.a = Math.atan2(p.y - cy, p.x - cx);
@@ -4251,7 +4288,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (!Ln.fired) { Ln.fired = true; sfx.overload(); shake(3.5); burst(cx, cy, 24, COL.threat, 60, 0.7, 0.4); ring(cx, cy, 2, 16 * B.s, 0.3, COL.chalk, 1.2); gridImpulse(cx + ux * 40, cy + uy * 40, 70, 200); }
         if (p.inv <= 0) { const along = (p.x - cx) * ux + (p.y - cy) * uy; if (along > 0 && Math.abs((p.x - cx) * uy - (p.y - cy) * ux) < MECH_LANCE_W + PLAYER_R * 0.6) damagePlayer(); }
       }
-      if (Ln.t >= MECH_LANCE_AIM + MECH_LANCE_LOCK + MECH_LANCE_FIRE) B.lance = null;
+      if (Ln.t >= MECH_LANCE_AIM + MECH_LANCE_LOCK + MECH_LANCE_FIRE) B.lance = B.over && !Ln.second ? { t: MECH_LANCE_AIM - 0.5, a: Ln.a, locked: false, fired: false, second: true } : null; // overcharged: a second shot, re-aimed
     }
     }
     // backup: tanks while it's whole; in its last stand, everyone's in turn
@@ -4260,6 +4297,88 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       else { T.backup = 12; if (G.enemies.filter(e => e.tankette).length < 2 + Math.floor(broken / 2)) mechBackup(B, broken >= 3 ? ['tanks', 'jets', 'bees'][B.roster++ % 3] : 'tanks'); }
     }
     if (B.st === 'core') B.open = Math.min(1, B.open + dt * 0.8); // its helmet splitting on the eye
+  }
+  // How far an arm is reaching out (its own units, down toward you) as it crawls: up and out, slammed down, then the
+  // body dragged up to it
+  function mechArmOff(B, side) {
+    const C = B.crawl; if (!side || !B.down || !C || C.side !== side) return 0;
+    return C.ph === 'reach' ? -9 * Math.sin(Math.PI * C.k) + MECH_HAND * C.k : C.ph === 'drag' ? MECH_HAND * (1 - C.k) : 0;
+  }
+  // On its knees, it crawls after you: one arm reaches out (where its hand will slam shown), slams down, and it drags
+  // itself up to it; then the other arm
+  function mechCrawl(B, dt) {
+    const C = B.crawl || (B.crawl = { t: 0.8, side: Math.random() < 0.5 ? -1 : 1, ph: 'rest', k: 0 }), p = G.player, s = B.s; C.t -= dt;
+    if (C.ph === 'rest') { C.k = 0;
+      if (C.t <= 0) {
+        const yMin = 38 * s, yMax = Math.max(B.y0, Math.min(AH * 0.5, AH - 96 * s)), wide = AW > 108 * s;
+        const gx = wide ? clamp(p.x, 54 * s, AW - 54 * s) : AW / 2, gy = clamp(p.y - 62 * s, yMin, yMax), dx = gx - B.x, dy = gy - B.y, d = Math.hypot(dx, dy), st = Math.min(MECH_CRAWL_STEP * s, d);
+        C.from = [B.x, B.y]; C.to = d > 0.5 ? [B.x + dx / d * st, B.y + dy / d * st] : [B.x, B.y];
+        C.side = -C.side; C.ph = 'reach'; C.t = MECH_CRAWL_REACH; C.k = 0;
+        const [hx, hy] = mechAt(B, C.side * 42, 18); C.spot = [hx, hy + (MECH_HAND + 4) * s];
+      }
+    } else if (C.ph === 'reach') { C.k = clamp(1 - C.t / MECH_CRAWL_REACH, 0, 1);
+      if (C.t <= 0) { // the hand comes down
+        const [x, y] = C.spot; ring(x, y, 1, MECH_SLAM_R, 0.3, COL.threat, 1.1); burst(x, y, 24, COL.dim, 45, 0.7, 0.5); gridImpulse(x, y, MECH_SLAM_R * 2.4, 180); shake(3); sfx.clank(); sfx.rockBoom(2);
+        if (p.inv <= 0 && Math.hypot(p.x - x, p.y - y) < MECH_SLAM_R + PLAYER_R * 0.6) damagePlayer();
+        C.ph = 'drag'; C.t = MECH_CRAWL_DRAG; C.k = 0;
+      }
+    } else { C.k = clamp(1 - C.t / MECH_CRAWL_DRAG, 0, 1); const e = C.k * C.k * (3 - 2 * C.k); // dragging itself up to its hand, knees scraping
+      B.x = C.from[0] + (C.to[0] - C.from[0]) * e; B.y = C.from[1] + (C.to[1] - C.from[1]) * e;
+      if (Math.random() < 0.5) for (const sd of [-1, 1]) { const [kx, ky] = mechKnee(B, sd); burst(kx, ky + 3 * s, 1, Math.random() < 0.3 ? COL.chalk : COL.dim, 20, 0.6, 0.4); }
+      if (C.t <= 0) { C.ph = 'rest'; C.t = Math.max(0.2, MECH_CRAWL_T - MECH_CRAWL_REACH - MECH_CRAWL_DRAG); C.k = 0; }
+    }
+  }
+  // It hurls wreckage at you: a lob from the hand on your side (a wreck lying close by, picked up, or a plate torn off
+  // itself), its landing marked; where it lands it lies, debris the ball bounces off
+  function mechThrow(B) {
+    const p = G.player, side = p.x < B.x ? -1 : 1, [hx, hy] = mechAt(B, side * 42, 18);
+    let near = -1, nd = 30 * B.s; G.debris.forEach((d, i) => { const dd = Math.hypot(d.x - hx, d.y - hy); if (d.down && dd < nd) { nd = dd; near = i; } });
+    if (near >= 0) { const d = G.debris.splice(near, 1)[0]; burst(d.x, d.y, 14, COL.dim, 30, 0.6, 0.4); } else burst(hx, hy, 14, COL.chalk, 40, 0.5, 0.35);
+    (B.throws || (B.throws = [])).push({ x0: hx, y0: hy, x1: clamp(p.x, 6, AW - 6), y1: clamp(p.y, 6, AH - 6), t: 0, a: rand(0, 6), va: rand(-8, 8) });
+    sfx.clank(); sfx.launch(hx);
+  }
+  function updateMechThrows(B, dt) {
+    const p = G.player;
+    for (let i = B.throws.length - 1; i >= 0; i--) { const q = B.throws[i]; q.t += dt; q.a += q.va * dt;
+      if (q.t < MECH_THROW_FLY) continue;
+      B.throws.splice(i, 1); // it lands: a crash, and there it lies
+      ring(q.x1, q.y1, 1, MECH_THROW_R + 2, 0.3, COL.threat, 1); burst(q.x1, q.y1, 24, COL.dim, 50, 0.8, 0.5); burst(q.x1, q.y1, 10, heat(MAX_CHARGE * 0.75), 40, 0.5, 0.3); gridImpulse(q.x1, q.y1, 30, 200); shake(2.5); sfx.rockBoom(2);
+      if (p.inv <= 0 && Math.hypot(p.x - q.x1, p.y - q.y1) < MECH_THROW_R + PLAYER_R * 0.6) damagePlayer();
+      G.debris.push({ x: q.x1, y: q.y1, vy: 0, vx: 0, floor: q.y1, r: 6 * B.s, a: q.a, va: 0, t: 0, life: MECH_DEBRIS, down: true });
+    }
+  }
+  // On its knees and in its last stand: the slam spot as an arm reaches, wreckage in the air (its landing marked), the
+  // reactor's pulse charging (where its gaps will be), the rings spreading
+  function drawMechDown(B, over) {
+    const s = B.s, t = G.time;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
+    if (!over) {
+      for (const q of B.throws || []) { const k = clamp(q.t / MECH_THROW_FLY, 0, 1); // where it'll land
+        ctx.globalAlpha = 0.15 + 0.3 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(q.x1, q.y1, MECH_THROW_R * (0.4 + 0.6 * k), MECH_THROW_R * 0.4 * (0.4 + 0.6 * k), 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.4 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.setLineDash([1.4, 1]); ctx.beginPath(); ctx.arc(q.x1, q.y1, MECH_THROW_R, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(q.x1, q.y1, MECH_THROW_R * (1 - k), 0, Math.PI * 2); ctx.stroke(); }
+      const pw = B.pulseWarn;
+      if (pw) { const k = clamp(pw.t / MECH_PULSE_WARN, 0, 1), L = Math.hypot(AW, AH); // charging: where its gaps will be
+        ctx.globalAlpha = 0.2 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.6 + k; ctx.beginPath(); ctx.arc(pw.x, pw.y, 10 * s + 6 * k, 0, Math.PI * 2); ctx.stroke();
+        for (const g of [pw.a, pw.a + Math.PI]) for (const e of [-1, 1]) { const a = g + e * MECH_PULSE_GAP / 2; ctx.beginPath(); ctx.moveTo(pw.x + Math.cos(a) * 12 * s, pw.y + Math.sin(a) * 12 * s); ctx.lineTo(pw.x + Math.cos(a) * L, pw.y + Math.sin(a) * L); ctx.setLineDash([1.6, 1.4]); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.25 + 0.5 * k; ctx.stroke(); ctx.setLineDash([]); } }
+      for (const q of B.pulses || []) { // a ring spreading, its two gaps the way through
+        for (const g of [q.a, q.a + Math.PI]) { const a0 = g + MECH_PULSE_GAP / 2, a1 = g + Math.PI - MECH_PULSE_GAP / 2;
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.beginPath(); ctx.arc(q.x, q.y, q.r, a0, a1); ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.35; ctx.lineWidth = MECH_PULSE_W * 2.6; ctx.stroke(); ctx.globalAlpha = 0.9; ctx.lineWidth = MECH_PULSE_W; ctx.stroke(); ctx.restore();
+          ctx.beginPath(); ctx.arc(q.x, q.y, q.r, a0, a1); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.9; ctx.stroke(); }
+      }
+    } else {
+      const C = B.crawl;
+      if (B.down && C && C.ph === 'reach' && C.spot) { const [x, y] = C.spot, k = C.k; // where its hand will slam down
+        ctx.globalAlpha = 0.12 + 0.12 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(x, y, MECH_SLAM_R * k, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 0.5 + 0.45 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.45; ctx.setLineDash([1.6, 1.2]); ctx.beginPath(); ctx.arc(x, y, MECH_SLAM_R, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
+    }
+    if (over) for (const q of B.throws || []) { // the wreckage in the air, over everything: a lob, tumbling
+      const k = clamp(q.t / MECH_THROW_FLY, 0, 1), x = q.x0 + (q.x1 - q.x0) * k, y = q.y0 + (q.y1 - q.y0) * k - Math.sin(Math.PI * k) * 34 * s, sc = (1 + Math.sin(Math.PI * k) * 0.5) * s;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(q.a); ctx.scale(sc, sc); ctx.globalAlpha = 1;
+      ctx.beginPath(); [[-5, -3], [-1, -5.5], [4.5, -3.5], [5.5, 1.5], [1.5, 5], [-4, 4]].forEach(([px, py], j) => j ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); ctx.closePath();
+      ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.6; ctx.stroke(); ctx.beginPath(); ctx.moveTo(-2, -1); ctx.lineTo(2.5, 1.5); ctx.strokeStyle = heat(MAX_CHARGE * 0.75); ctx.lineWidth = 0.4; ctx.stroke(); ctx.restore();
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
   }
   // The flight: it crouches as its thrusters roar up; blasts off out of the top; bombing runs, one after another, each
   // band centred on where you are when it's shown (crosswise, then lengthwise, in turn); then the drop back in, its
@@ -4381,9 +4500,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // chest plate gone, the reactor glowing through its grille; the knees lit. On its knees: the helmet splits on a
   // great red machine eye, the reactor bare and blazing.
   function drawMech(B) {
-    const s = B.s, t = G.time, H3 = hex(COL.hull), I3 = hex(COL.ink), fire = heat(MAX_CHARGE * 0.75), die = B.die || 0, col = B.flash > 0 ? COL.chalk : ECOL.warden;
+    const s = B.s, t = G.time, H3 = hex(COL.hull), I3 = hex(COL.ink), fire = heat(MAX_CHARGE * 0.75), die = B.die || 0, last = B.st === 'core' && !die, col = B.flash > 0 ? COL.chalk : last ? COL.threat : ECOL.warden; // its last stand: all of it outlined hot (all of it's the target)
     const W1 = 0.8, W2 = 0.4, W3 = 0.2, kn = B.kneel * MECH_KNEEL, bob = Math.sin(t * 2) * 0.35 * (1 - B.kneel), up = kn + bob; // the upper body drops as it kneels, and breathes
-    const wear = Math.max(die, 1 - B.hp / B.maxHp), hash = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); }; // how battered it is
+    const wear = Math.max(die, 1 - B.hp / B.maxHp, B.melt ? 1 : 0), hash = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); }; // how battered it is
     const stroke = (w, a = 1, c = col) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.globalAlpha = a; ctx.stroke(); ctx.globalAlpha = 1; };
     const glow = (fn, c, a) => { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.max(0, a); ctx.fillStyle = c; ctx.strokeStyle = c; fn(); ctx.restore(); };
     const poly = P => { ctx.beginPath(); P.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); };
@@ -4441,6 +4560,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); ray(Bm.a1); ctx.setLineDash([1.6, 1.4]); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.5; ctx.stroke(); ctx.setLineDash([]);
       if (on) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.35; ctx.lineWidth = 8; ctx.stroke(); ctx.globalAlpha = 0.9; ctx.lineWidth = 2.8; ctx.stroke(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 1; ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; }
       ctx.restore(); ctx.globalAlpha = 1; }
+    if (!die) drawMechDown(B, false);
+    if (last) { // the whole of it a target: a hot glow round every part of it, and a lock-on frame round it all
+      const cs = mechCircles(B), pulse = 0.5 + 0.5 * Math.sin(t * 4); let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (const [x, y, r] of cs) { x0 = Math.min(x0, x - r); y0 = Math.min(y0, y - r); x1 = Math.max(x1, x + r); y1 = Math.max(y1, y + r);
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.6); g.addColorStop(0, COL.threat); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.globalAlpha = (B.melt ? 0.16 + 0.14 * (Math.floor(t * 6) % 2) : 0.1) + 0.06 * pulse; ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+      const m = 4 + 2 * pulse, L = 9 * s; x0 -= m; y0 -= m; x1 += m; y1 += m;
+      ctx.strokeStyle = B.flash > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.7; ctx.globalAlpha = 0.6 + 0.35 * pulse; ctx.beginPath();
+      for (const [cx, cy, sx, sy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) { ctx.moveTo(cx + sx * L, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + sy * L); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
     if (B.walk && B.walk.land && !die) { const [lx, ly] = B.walk.land, k = clamp(1 - B.walk.t / (B.walk.warn || MECH_STEP_WARN), 0, 1);
       ctx.globalAlpha = 0.14 + 0.2 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(lx, ly, 11 * s, 3.6 * s, 0, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 0.3 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.arc(lx, ly, MECH_STOMP_R * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
@@ -4493,7 +4624,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     plate([[-13, 16 + up], [13, 16 + up], [11, 21 + up], [4, 25 + up], [-4, 25 + up], [-11, 21 + up]], { bolts: [[-9, 18 + up], [9, 18 + up]] });
     // arms: a shoulder joint, an upper arm plate on a piston, an elbow, a forearm plate (the weapons come after)
     for (const sd of [-1, 1]) {
-      const sx = sd * 24, sy = -12 + up, ex = sd * 37, ey = 5 + up, wx = sd * 42, wy = 13 + up;
+      const ao = mechArmOff(B, sd), sx = sd * 24, sy = -12 + up, ex = sd * 37, ey = 5 + up + ao * 0.5, wx = sd * 42, wy = 13 + up + ao; // an arm reaching out as it crawls
       piston(sx, sy, ex, ey, 3);
       plate([[sx + sd * 1, sy - 3], [sx + sd * 6, sy - 3], [ex + sd * 4, ey - 2], [ex - sd * 3, ey + 1]], { bolts: [[sx + sd * 4, sy]] });
       joint(ex, ey, 3.6);
@@ -4535,7 +4666,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); ctx.moveTo(sd * 22, -18 + up); ctx.lineTo(sd * 27, -16 + up); ctx.moveTo(sd * 24, -14 + up); ctx.lineTo(sd * 30, -13.5 + up); stroke(W3, 0.5); // scratches
     }
     // the weapons, each its own unit
-    const at = key => { const [lx, ly, r] = MECH_PARTS[key]; return [lx, ly + up, r]; };
+    const at = key => { const [lx, ly, r] = MECH_PARTS[key]; return [lx, ly + up + mechArmOff(B, key === 'gun' ? -1 : key === 'claw' ? 1 : 0), r]; };
     { // the gatling: a heavy drum of six barrels toward you, fed by an ammo belt; glowing as it fires
       const P = B.parts.gun, [x, y, r] = at('gun'), pc = P.flash > 0 ? COL.chalk : col;
       if (P.hp <= 0) torn(x, y - 3, r * 0.8);
@@ -4620,10 +4751,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       ctx.restore(); ctx.globalAlpha = 1;
     }
+    if (!die) drawMechDown(B, true);
+    if (B.melt && !die && Math.random() < 0.35) { const [x, y] = mechAt(B, rand(-36, 36), rand(-30, 30)); burst(x, y, 3, Math.random() < 0.5 ? COL.threat : COL.chalk, 35, 0.4, 0.3); } // meltdown: it's coming apart
     if (wear > 0.25 && !die && Math.random() < wear * 0.5) { const [x, y] = mechAt(B, rand(-34, 34), rand(-28, 20)); burst(x, y, 1, Math.random() < 0.25 ? fire : COL.dim, 10, 0.6, 0.9); } // smoke and embers
     if (wear > 0.45 && !die && Math.random() < wear * 0.12) { const [x, y] = mechAt(B, rand(-30, 30), rand(-24, 24)); burst(x, y, 4, COL.chalk, 30, 0.25, 0.25); } // sparks
     // its live targets, ringed, with their health (drawn over it, unscaled)
-    if (B.st === 'fight' && !die) for (const key in MECH_PARTS) { const P = B.parts[key]; if (P.hp <= 0) continue; const [lx, ly, r] = MECH_PARTS[key], [x, y] = mechAt(B, lx, ly); target(x, y, r * 1.1 * s, P); pips(x, y + (r * 1.45 + 2.2) * s, P, 5); }
+    if (B.st === 'fight' && !die) for (const key in MECH_PARTS) { const P = B.parts[key]; if (P.hp <= 0) continue; const [lx, ly, r] = MECH_PARTS[key], [x, y0] = mechAt(B, lx, ly), y = y0 + mechArmOff(B, key === 'gun' ? -1 : key === 'claw' ? 1 : 0) * s; target(x, y, r * 1.1 * s, P); pips(x, y + (r * 1.45 + 2.2) * s, P, 5); }
     if (B.st === 'fight' && !die) for (const side of [-1, 1]) { const P = B.parts[side < 0 ? 'kneeL' : 'kneeR']; if (P.hp <= 0) continue; const [x, y] = mechKnee(B, side); target(x, y, 7.5 * s, P); pips(x, y + 11 * s, P, 5); }
     if (B.st === 'core' && !die) { const [x, y] = mechAt(B, ...MECH_CORE_AT), P = { hp: B.core, max: B.coreMax, flash: B.coreFlash || 0 }; pips(x, y + 23 * s, P, 10); // the reactor's health (anything you hit counts now)
       if (P.flash > 0) glow(() => { ctx.beginPath(); ctx.arc(x, y, 9 * s, 0, Math.PI * 2); ctx.fill(); }, COL.chalk, 0.8); }
