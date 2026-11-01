@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 01 14:45 UTC · f138cfd";</script>
+<script>window.RICOCHET_BUILD = "Nov 01 15:25 UTC · 972e198";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3865,7 +3865,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    then dragging itself after it; and it hurls wreckage at you (a lob, its landing marked) that lies where it lands
   //    for the ball to bounce off.
   //  - Its last stand escalates. Its whole body is the target now (outlined hot, framed). Its reactor pulses: rings
-  //    with two gaps, turning as they spread (line up with a gap). Below MECH_OVER it's overcharged: its lance fires
+  //    with two gaps (one always opening a short dash from you), all the ring will hit marked red as it charges and as
+  //    it spreads; get into a gap. Below MECH_OVER it's overcharged: its lance fires
   //    twice, the second re-aimed at where you went. Below MECH_MELT, meltdown: alarms, cracks glowing all over it,
   //    the pulses come faster.
   //  - On its knees it can't sweep its beam round any more: its reactor fires a lance at you instead, its line
@@ -3887,7 +3888,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_DEBRIS = 10;
   const MECH_CRAWL_T = 1.6, MECH_CRAWL_REACH = 0.6, MECH_CRAWL_DRAG = 0.5, MECH_CRAWL_STEP = 9, MECH_HAND = 14, MECH_SLAM_R = 12; // on its knees: an arm reaches out and slams down, then it drags itself after it
   const MECH_THROW_T = 6, MECH_THROW_FLY = 1.15, MECH_THROW_R = 7; // on its knees: wreckage hurled at you, lying where it lands
-  const MECH_PULSE_T = [4.6, 2.8], MECH_PULSE_WARN = 0.8, MECH_PULSE_V = 34, MECH_PULSE_GAP = 0.8, MECH_PULSE_W = 2.2, MECH_OVER = 0.66, MECH_MELT = 0.33; // its last stand: reactor pulses; overcharged, then meltdown
+  const MECH_PULSE_T = [5, 3.4], MECH_PULSE_WARN = 1, MECH_PULSE_V = 24, MECH_PULSE_GAP = 1.1, MECH_PULSE_W = 2.2, MECH_OVER = 0.66, MECH_MELT = 0.33; // its last stand: reactor pulses; overcharged, then meltdown
   const MECH_LANCE_AIM = 1.1, MECH_LANCE_LOCK = 0.45, MECH_LANCE_FIRE = 0.3, MECH_LANCE_W = 3.2; // on its knees, its reactor's lance: tracking you, locked (sidestep now), fired down the line
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
   const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.1, MECH_FLY_UP = 0.75, MECH_FLY_DOWN = 1.5, MECH_FLY_DROP = 0.4;
@@ -4260,9 +4261,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (B.st === 'core') { // its last stand: reactor pulses, faster in meltdown
       const pw = B.pulseWarn;
-      if (!pw && (T.pulse -= dt) <= 0) { T.pulse = MECH_PULSE_T[B.melt ? 1 : 0]; const [cx, cy] = mechAt(B, ...MECH_CORE_AT); B.pulseWarn = { t: 0, x: cx, y: cy, a: rand(0, Math.PI), w: (Math.random() < 0.5 ? -1 : 1) * 0.6 }; sfx.blasterCharge(); }
-      if (pw) { pw.t += dt; pw.a += pw.w * dt; const [cx, cy] = mechAt(B, ...MECH_CORE_AT); pw.x = cx; pw.y = cy;
-        if (pw.t >= MECH_PULSE_WARN) { (B.pulses || (B.pulses = [])).push({ x: pw.x, y: pw.y, r: 10 * B.s, a: pw.a, w: pw.w, hit: false }); B.pulseWarn = null; ring(pw.x, pw.y, 2, 18 * B.s, 0.3, COL.chalk, 1.2); shake(2); sfx.overload(); } }
+      if (!pw && (T.pulse -= dt) <= 0 && !(B.lance && B.lance.t >= MECH_LANCE_AIM)) { // a gap always opens near you (a short dash away, never on you); its gaps are set now and don't turn
+        T.pulse = MECH_PULSE_T[B.melt ? 1 : 0]; const [cx, cy] = mechAt(B, ...MECH_CORE_AT), toYou = Math.atan2(p.y - cy, p.x - cx);
+        B.pulseWarn = { t: 0, x: cx, y: cy, a: toYou + (Math.random() < 0.5 ? -1 : 1) * rand(0.75, 1.1), w: 0 }; sfx.blasterCharge(); }
+      if (pw) { pw.t += dt; const [cx, cy] = mechAt(B, ...MECH_CORE_AT); pw.x = cx; pw.y = cy;
+        if (pw.t >= MECH_PULSE_WARN) { (B.pulses || (B.pulses = [])).push({ x: pw.x, y: pw.y, r: 10 * B.s, a: pw.a, w: 0, hit: false }); B.pulseWarn = null; ring(pw.x, pw.y, 2, 18 * B.s, 0.3, COL.chalk, 1.2); shake(2); sfx.overload(); } }
     }
     for (let i = (B.pulses || []).length - 1; i >= 0; i--) { // the rings spreading, turning; the gaps are the way through
       const q = B.pulses[i]; q.r += MECH_PULSE_V * dt; q.a += q.w * dt;
@@ -4357,10 +4360,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.globalAlpha = 0.15 + 0.3 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(q.x1, q.y1, MECH_THROW_R * (0.4 + 0.6 * k), MECH_THROW_R * 0.4 * (0.4 + 0.6 * k), 0, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 0.4 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.setLineDash([1.4, 1]); ctx.beginPath(); ctx.arc(q.x1, q.y1, MECH_THROW_R, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
         ctx.beginPath(); ctx.arc(q.x1, q.y1, MECH_THROW_R * (1 - k), 0, Math.PI * 2); ctx.stroke(); }
+      const R = Math.hypot(AW, AH) * 1.2, zone = (x, y, a, r0, alpha) => { // red over everything a ring will hit; its two gaps left clear, edged in chalk
+        ctx.fillStyle = COL.threat; ctx.globalAlpha = alpha;
+        for (const g of [a, a + Math.PI]) { ctx.beginPath(); ctx.moveTo(x + Math.cos(g + MECH_PULSE_GAP / 2) * r0, y + Math.sin(g + MECH_PULSE_GAP / 2) * r0); ctx.arc(x, y, R, g + MECH_PULSE_GAP / 2, g + Math.PI - MECH_PULSE_GAP / 2); ctx.arc(x, y, r0, g + Math.PI - MECH_PULSE_GAP / 2, g + MECH_PULSE_GAP / 2, true); ctx.closePath(); ctx.fill(); }
+        ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.35; ctx.setLineDash([1.6, 1.4]); ctx.globalAlpha = Math.min(0.85, alpha * 5);
+        for (const g of [a, a + Math.PI]) for (const e of [-1, 1]) { const b = g + e * MECH_PULSE_GAP / 2; ctx.beginPath(); ctx.moveTo(x + Math.cos(b) * r0, y + Math.sin(b) * r0); ctx.lineTo(x + Math.cos(b) * R, y + Math.sin(b) * R); ctx.stroke(); }
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      };
       const pw = B.pulseWarn;
-      if (pw) { const k = clamp(pw.t / MECH_PULSE_WARN, 0, 1), L = Math.hypot(AW, AH); // charging: where its gaps will be
-        ctx.globalAlpha = 0.2 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.6 + k; ctx.beginPath(); ctx.arc(pw.x, pw.y, 10 * s + 6 * k, 0, Math.PI * 2); ctx.stroke();
-        for (const g of [pw.a, pw.a + Math.PI]) for (const e of [-1, 1]) { const a = g + e * MECH_PULSE_GAP / 2; ctx.beginPath(); ctx.moveTo(pw.x + Math.cos(a) * 12 * s, pw.y + Math.sin(a) * 12 * s); ctx.lineTo(pw.x + Math.cos(a) * L, pw.y + Math.sin(a) * L); ctx.setLineDash([1.6, 1.4]); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.25 + 0.5 * k; ctx.stroke(); ctx.setLineDash([]); } }
+      if (pw) { const k = clamp(pw.t / MECH_PULSE_WARN, 0, 1); // charging: the zone it'll sweep, pulsing; a ring gathering round its chest
+        zone(pw.x, pw.y, pw.a, 12 * s, (0.05 + 0.09 * k) * (0.8 + 0.2 * Math.sin(t * 14)));
+        ctx.globalAlpha = 0.3 + 0.6 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.6 + 1.2 * k; ctx.beginPath(); ctx.arc(pw.x, pw.y, 10 * s + 8 * (1 - k), 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
+      for (const q of B.pulses || []) zone(q.x, q.y, q.a, q.r, 0.06); // a ring on its way: what's still ahead of it stays marked
       for (const q of B.pulses || []) { // a ring spreading, its two gaps the way through
         for (const g of [q.a, q.a + Math.PI]) { const a0 = g + MECH_PULSE_GAP / 2, a1 = g + Math.PI - MECH_PULSE_GAP / 2;
           ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.beginPath(); ctx.arc(q.x, q.y, q.r, a0, a1); ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.35; ctx.lineWidth = MECH_PULSE_W * 2.6; ctx.stroke(); ctx.globalAlpha = 0.9; ctx.lineWidth = MECH_PULSE_W; ctx.stroke(); ctx.restore();
@@ -4548,7 +4559,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if ((B.fly || B.bombs.length) && !die) drawMechFly(B);
     if (B.sweep && !die) { const [gx, gy] = mechAt(B, MECH_PARTS.gun[0], MECH_PARTS.gun[1] + 10), S = B.sweep, firing = S.t >= TANK_SIGHT, L = Math.hypot(AW, AH);
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
-      ctx.beginPath(); ctx.moveTo(gx, gy); ctx.arc(gx, gy, 34, S.a0, S.a1, S.a1 < S.a0); ctx.closePath(); ctx.fillStyle = COL.threat; ctx.globalAlpha = firing ? 0.05 : 0.09; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(gx, gy); ctx.arc(gx, gy, L, firing ? S.a : S.a0, S.a1, S.a1 < S.a0); ctx.closePath(); ctx.fillStyle = COL.threat; ctx.globalAlpha = firing ? 0.07 : (0.05 + 0.07 * clamp(S.t / TANK_SIGHT, 0, 1)) * (0.8 + 0.2 * Math.sin(G.time * 14)); ctx.fill(); // the whole arc it'll spray, marked red (while firing, what's still to come)
+      ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + Math.cos(S.a1) * L, gy + Math.sin(S.a1) * L); ctx.setLineDash([1.6, 1.4]); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.5; ctx.stroke(); ctx.setLineDash([]); // where it stops
       ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + Math.cos(S.a) * L, gy + Math.sin(S.a) * L); ctx.strokeStyle = firing ? COL.chalk : COL.threat; ctx.lineWidth = firing ? 0.25 : 0.4; ctx.globalAlpha = firing ? 0.35 : 0.85; ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1; }
     if (B.beam && !die) { const [cx, cy] = mechAt(B, ...MECH_CORE_AT), Bm = B.beam, on = Bm.t >= MECH_BEAM_CHARGE, a = on ? Bm.a : Bm.a0, L = Math.hypot(AW, AH) * 1.2, k = clamp(Bm.t / MECH_BEAM_CHARGE, 0, 1);
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
@@ -4574,7 +4586,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (B.walk && B.walk.land && !die) { const [lx, ly] = B.walk.land, k = clamp(1 - B.walk.t / (B.walk.warn || MECH_STEP_WARN), 0, 1);
       ctx.globalAlpha = 0.14 + 0.2 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(lx, ly, 11 * s, 3.6 * s, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.3 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.arc(lx, ly, MECH_STOMP_R * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
+      ctx.globalAlpha = 0.1 + 0.14 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(lx, ly, MECH_STOMP_R * k, 0, Math.PI * 2); ctx.fill(); // a red disk filling in to its reach
+      ctx.globalAlpha = 0.45 + 0.45 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.setLineDash([1.6, 1.2]); ctx.beginPath(); ctx.arc(lx, ly, MECH_STOMP_R, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
     const shakeK = die * 0.8;
     const roarK = B.roar || 0, shk = shakeK + roarK * 0.8;
     ctx.save(); ctx.translate(B.x + rand(-shk, shk), B.y + rand(-shk, shk)); ctx.scale(s, s); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -4713,6 +4726,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     ctx.restore();
+    if (B.lockT > 0 && !die && !mechBroken(B, 'claw')) { // the claw locking on: a line to you and a reticle closing in (three rockets are coming)
+      const [cx, cy0] = mechAt(B, ...MECH_PARTS.claw), cy = cy0 + mechArmOff(B, 1) * s, P = G.player, k = clamp(1 - B.lockT / 0.8, 0, 1), rr = 7 - 3.5 * k, fl = k > 0.7 && Math.floor(G.time * 16) % 2;
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(P.x, P.y); ctx.setLineDash([1.2, 1.6]); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.4 + 0.4 * k; ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.7 + 0.3 * k;
+      for (let q = 0; q < 3; q++) { const a = q * Math.PI * 2 / 3 - G.time * 3; ctx.beginPath(); ctx.arc(P.x, P.y, rr, a, a + 1.4); ctx.stroke(); } // three arcs: three rockets
+      ctx.restore(); ctx.globalAlpha = 1;
+    }
     if (B.lance && !die) { // the lance: its line tracking you (a reticle on you); locked, the corridor flashes; then the shot
       const [cx, cy] = mechAt(B, ...MECH_CORE_AT), Ln = B.lance, L = Math.hypot(AW, AH) * 1.2, ux = Math.cos(Ln.a), uy = Math.sin(Ln.a), nx = -uy, ny = ux, ex = cx + ux * L, ey = cy + uy * L;
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
