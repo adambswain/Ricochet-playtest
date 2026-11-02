@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 02 20:37 UTC · 1598ac6";</script>
+<script>window.RICOCHET_BUILD = "Nov 02 21:03 UTC · 3befcff";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3882,7 +3882,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //  - Its thrusters (jump-jet pods on its back, either side of the shoulders, one shared health) take it out of the
   //    arena now and then: it fires them up, blasts off out of the top and comes over in bombing runs, its shadow
   //    crossing the arena in a band (shown first, on you), bombs falling behind it, crosswise and lengthwise in turn;
-  //    then it drops back in (its landing shown first). Break them and it's grounded.
+  //    then it drops back in (its landing shown first). Break them and it's grounded. While it's up, a battery of
+  //    cannons drops onto the side walls and fires in a ripple (one after another, down the walls and back up), each
+  //    glowing and drawing a line to you first, then locking and firing; break them (MECH_CANNON_HP) to thin the ripple.
+  //    Its landing crushes whatever's left.
   //  - On its knees it isn't still: it crawls after you, an arm reaching out and slamming down (where, shown first),
   //    then dragging itself after it; and it hurls wreckage at you (a lob, its landing marked) that lies where it lands
   //    for the ball to bounce off.
@@ -3914,6 +3917,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_LANCE_AIM = 1.1, MECH_LANCE_LOCK = 0.45, MECH_LANCE_FIRE = 0.3, MECH_LANCE_W = 3.2; // on its knees, its reactor's lance: tracking you, locked (sidestep now), fired down the line
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
   const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.1, MECH_FLY_UP = 0.75, MECH_FLY_DOWN = 1.5, MECH_FLY_DROP = 0.4;
+  const MECH_CANNON_HP = 6, MECH_CANNON_CHARGE = 0.7, MECH_CANNON_LOCK = 0.22, MECH_CANNON_GAP = 0.38, MECH_CANNON_REST = 1.1, MECH_CANNON_V = 44; // his battery, while he's up: wall cannons firing in a ripple
   const MECH_RUNS = 5, MECH_RUN_GAP = 0.95, MECH_RUN_WARN = 0.85, MECH_RUN_V = 150, MECH_RUN_HALF = 11, MECH_BOMB_FALL = 0.32, MECH_BOMB_R = 7, MECH_LAND_R = 24;
   const mechS = () => clamp(Math.min(AW / 120, AH / 200), 0.8, 1.5); // its size: it all but spans a portrait arena
   // Its parts, in its own units (x across, y down from the middle of its chest), standing.
@@ -4424,12 +4428,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (q.snd) { sfx.rockBoom(2); shake(1.6); } B.bombs.splice(i, 1); }
     if (!F) return;
     F.t += dt;
+    if (B.battery) mechBatteryFire(B, dt);
     if (F.ph === 'crouch') { // the thrusters spool up: flame, dust off the floor, the ground shaking more and more
       const k = F.t / MECH_FLY_CROUCH; shake(0.5 + k * 1.5);
       if (Math.random() < 0.6) for (const sd of [-1, 1]) { const [x, y] = mechAt(B, sd * MECH_JET_AT[0], MECH_JET_AT[1] + 14); burst(x, y, 1, Math.random() < 0.5 ? fire : COL.chalk, 30, 0.5, 0.3); }
       if (Math.random() < 0.4) for (const sd of [-1, 1]) { const [x, y] = mechFoot(B, sd); burst(x + rand(-6, 6) * s, y, 1, COL.dim, 25, 0.8, 0.6); }
       if (F.t >= MECH_FLY_CROUCH) { // lift-off
-        F.ph = 'up'; F.t = 0; F.air = true; B.walk = { foot: 0, t: 1.2, lift: 0 };
+        F.ph = 'up'; F.t = 0; F.air = true; B.walk = { foot: 0, t: 1.2, lift: 0 }; mechBattery(B);
         for (const sd of [-1, 1]) { const [fx, fy] = mechFoot(B, sd); burst(fx, fy, 30, COL.dim, 60, 1, 0.7); burst(fx, fy, 16, fire, 50, 0.7, 0.4); }
         ring(B.x, B.y + 50 * s, 2, 40 * s, 0.6, COL.chalk, 1.2); gridImpulse(B.x, B.y + 45 * s, 90, 280); shake(5); sfx.launch(B.x); sfx.overload();
         if (!B.flown) { B.flown = true; G.banner = { text: 'Airstrike!', sub: 'Stay out of the marked lanes', t: 1.6, max: 1.6, at: 0.45 }; }
@@ -4463,15 +4468,43 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         for (const sd of [-1, 1]) { const [fx, fy] = mechFoot(B, sd); burst(fx, fy, 30, COL.dim, 60, 1, 0.7); }
         gridImpulse(lx, ly, Math.max(AW, AH), 300); shake(7); G.slowT = Math.max(G.slowT, 0.25); sfx.rockBoom(3); sfx.clank();
         if (p.inv <= 0 && Math.hypot(p.x - lx, p.y - ly) < MECH_LAND_R * s + PLAYER_R * 0.6) damagePlayer();
-        B.fly = null; T_fly(B);
+        for (let i = G.enemies.length - 1; i >= 0; i--) { const e = G.enemies[i]; if (!e.gol) continue; burst(e.x, e.y, 18, heat(MAX_CHARGE * 0.75), 45, 0.7, 0.4); burst(e.x, e.y, 10, COL.dim, 30, 0.6, 0.4); ring(e.x, e.y, 1, 9, 0.3, COL.chalk, 1); G.enemies.splice(i, 1); } // his landing crushes his battery
+        B.battery = null; B.fly = null; T_fly(B);
       }
     }
+  }
+  // His battery: cannons drop onto the side walls as he takes off (three a side in a tall arena, two in a wide one)
+  function mechBattery(B) {
+    const n = AH > AW ? 3 : 2, ws = n === 3 ? [0.34, 0.58, 0.82] : [0.42, 0.78], order = [];
+    for (let i = 0; i < n; i++) for (const side of [3, 1]) { // left, right, down the walls
+      const e = makeEnemy('turret', 0, 0); Object.assign(e, wallPos(side, ws[i]), { side, wt: ws[i], hp: MECH_CANNON_HP, maxHp: MECH_CANNON_HP, pts: 60, spawnT: 0.5, fire: 1e9, gol: { chg: 0, a: 0 } });
+      G.enemies.push(e); order.push(e); burst(e.x, e.y, 12, COL.threat, 30, 0.5, 0.3);
+    }
+    B.battery = { order, i: 0, dir: 1, t: 1.2 }; sfx.clank(); sfx.advance();
+  }
+  // The ripple: one cannon after another starts its charge (glowing, its line tracking you, then locked), then fires
+  function mechBatteryFire(B, dt) {
+    const Q = B.battery, p = G.player, live = Q.order.filter(e => G.enemies.includes(e));
+    for (const e of live) { const g = e.gol; if (g.chg <= 0) continue; g.chg -= dt;
+      if (g.chg > MECH_CANNON_LOCK) g.a = Math.atan2(p.y - e.y, p.x - e.x); // tracking you, then locked
+      if (g.chg <= 0) { const ux = Math.cos(g.a), uy = Math.sin(g.a), x = e.x + ux * (e.r + 1.6), y = e.y + uy * (e.r + 1.6);
+        G.bullets.push({ x, y, vx: ux * MECH_CANNON_V, vy: uy * MECH_CANNON_V, r: 1.6 }); e.recoil = 1; burst(x, y, 8, COL.threat, 30, 0.4, 0.25); sfx.shoot(e.x); } }
+    if (!live.length) return;
+    Q.t -= dt; if (Q.t > 0) return;
+    while (Q.i >= 0 && Q.i < Q.order.length && !live.includes(Q.order[Q.i])) Q.i += Q.dir; // skip the broken ones
+    if (Q.i < 0 || Q.i >= Q.order.length) { Q.dir = -Q.dir; Q.i = Q.dir > 0 ? 0 : Q.order.length - 1; Q.t = MECH_CANNON_REST; return; } // the end of a ripple: a breath, then back the other way
+    const e = Q.order[Q.i]; e.gol.chg = MECH_CANNON_CHARGE; e.gol.a = Math.atan2(p.y - e.y, p.x - e.x); sfx.blasterCharge();
+    Q.i += Q.dir; Q.t = MECH_CANNON_GAP;
   }
   const T_fly = B => { B.timers.fly = MECH_FLY_EVERY; B.timers.beam = Math.max(B.timers.beam, 2); B.timers.gun = Math.max(B.timers.gun, 1.2); B.timers.claw = Math.max(B.timers.claw, 1.6); B.timers.rack = Math.max(B.timers.rack, 3); B.timers.rail = Math.max(B.timers.rail, 2); };
   // While it's up: the runs' bands (shown first), its shadow crossing, the bombs falling; its landing spot
   function drawMechFly(B) {
     const F = B.fly, s = B.s, t = G.time;
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
+    for (const e of G.enemies) { if (!e.gol || e.gol.chg <= 0) continue; // a cannon charging: glowing, its line on you (locked: flashing)
+      const g = e.gol, k = clamp(1 - g.chg / MECH_CANNON_CHARGE, 0, 1), locked = g.chg <= MECH_CANNON_LOCK, fl = locked && Math.floor(t * 20) % 2, L = Math.hypot(G.player.x - e.x, G.player.y - e.y) + 14; // to just past you
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 + 0.5 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (1.1 + 0.6 * k), 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + Math.cos(g.a) * L, e.y + Math.sin(g.a) * L); ctx.setLineDash(locked ? [] : [1.6, 1.4]); ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = locked ? 0.55 : 0.35; ctx.globalAlpha = 0.35 + 0.55 * k; ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
     for (const q of B.bombs) { const k = clamp(q.t / q.at, 0, 1); // a bomb falling: its mark closing in, its shadow growing
       ctx.beginPath(); ctx.arc(q.x, q.y, MECH_BOMB_R * (1 - k * 0.7), 0, Math.PI * 2); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.5 + 0.5 * k; ctx.stroke();
       ctx.beginPath(); ctx.arc(q.x, q.y, 0.6 + k * 1.6, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.8; ctx.fill(); ctx.globalAlpha = 1; }
@@ -8123,7 +8156,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // A turret: an armoured dome bolted to the wall (rivets round it, its health in it), and on it a gun head that turns
   // to follow you: twin barrels that kick back when it fires, a sensor eye that glows hotter as it charges and flashes
   // white just before the shot, and a faint dashed sight down the line it's about to fire along.
-  function drawTurret(e, col, pierce) {
+  function drawTurret(e, col, pierce, liveB = 0) { // (liveB: the hottest live ball's charge, for its pierce colour)
     const n = wallNormal(e), r = e.r, fl = e.flash > 0, line = fl ? COL.chalk : col, H3 = hex(COL.hull), t = G.time;
     const charge = clamp(1 - e.fire / 0.6, 0, 1), soon = e.fire < 0.25 && Math.floor(t * 16) % 2;
     const fill = (a = 0.22) => { ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},${a})`; ctx.fill(); };
@@ -8643,7 +8676,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (e.core) { ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(0, 0, s2 * 0.3, 0, Math.PI * 2); ctx.fill(); }
         ctx.restore(); continue;
       }
-      if (e.type === 'turret') { drawTurret(e, col, pierce); ctx.restore(); continue; }
+      if (e.type === 'turret') { drawTurret(e, col, pierce, liveB); ctx.restore(); continue; }
       if (isStone(e)) { // a block: same language as the arena's obstacles, with a slab outline and cracks
         const s = e.r * 1.25, left = e.stT;
         ctx.fillStyle = COL.block; ctx.fillRect(-s, -s, s * 2, s * 2);
