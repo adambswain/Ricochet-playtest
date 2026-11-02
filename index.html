@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 02 17:28 UTC · a57a769";</script>
+<script>window.RICOCHET_BUILD = "Nov 02 19:31 UTC · f0e691a";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -689,6 +689,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     march(k) { const f = [98, 87.3, 77.8, 73.4][k % 4]; voice({ type: 'square', f, f2: f * 0.97, dur: 0.09, vol: 0.16, filter: 'lowpass', ff: 420, q: 1.2 }); voice({ f, dur: 0.1, vol: 0.22 }); },
     invShot(x) { if (gate('invShot', 80)) voice({ type: 'square', f: 900, f2: 300, dur: 0.08, vol: 0.04, filter: 'lowpass', ff: 2500, pan: panOf(x) }); },
     alarm() { voice({ type: 'square', f: 880, f2: 660, dur: 0.22, vol: 0.035, filter: 'lowpass', ff: 2400 }); voice({ type: 'square', f: 660, f2: 880, dur: 0.22, vol: 0.035, filter: 'lowpass', ff: 2400, at: 0.24 }); },
+    heartbeat() { voice({ f: 72, f2: 44, dur: 0.13, vol: 0.28, filter: 'lowpass', ff: 300 }); voice({ f: 64, f2: 40, dur: 0.15, vol: 0.22, filter: 'lowpass', ff: 260, at: 0.19 }); },
     rockBoom(size) {
       const [ff, ff2, dur, vol] = [[0, 0, 0, 0], [2400, 450, 0.2, 0.26], [1500, 260, 0.34, 0.32], [1000, 140, 0.55, 0.4]][size];
       voice({ noise: true, filter: 'lowpass', ff, ff2, q: 0.7, dur, vol });
@@ -6362,7 +6363,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     S.cols.forEach((cols, side) => cols.forEach((st, c) => { if (st.length < sLimit(S, side, c)) { const cell = sNewCell(S); st.unshift(cell); fresh.push(cell); n++; } }));
     if (S.orb && fresh.length) { // the Geode's orbs: a few at a time, set into the layer that's just come in
       let have = 0; S.cols.forEach(cols => cols.forEach(st => st.forEach(cell => { if (cell.orb) have++; })));
-      for (let k = have; k < S.orb && fresh.length; k++) fresh.splice(Math.floor(Math.random() * fresh.length), 1)[0].orb = true;
+      let born = 0; for (let k = have; k < S.orb && fresh.length; k++) { const cell = fresh.splice(Math.floor(Math.random() * fresh.length), 1)[0]; cell.orb = true; cell.orbAt = G.time; born++; }
+      if (born && !quiet) sfx.heartbeat(); // a heartbeat as his orbs come in
     }
     S.ref = null;
     if (n && !quiet) { if (S.skin === 'brick') { sfx.advance(); shake(0.5); } else { sfx.crystalGrow(); shake(0.35); } }
@@ -6472,13 +6474,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.globalAlpha = 0.25; ctx.beginPath(); for (const [R0] of plain) block(R0, 'face'); ctx.fill(); // the lighter top face
       ctx.globalAlpha = 0.55; ctx.lineWidth = 0.18; ctx.beginPath(); for (const [R0] of plain) block(R0, 'bevel'); ctx.stroke(); // the bevels
       ctx.globalAlpha = 0.55; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.22; ctx.beginPath(); for (const [R0] of plain) block(R0, 'glint'); ctx.stroke(); ctx.globalAlpha = 1;
-      for (const [R0] of orbs) { // his orbs: a fleshy pink core, bigger than its cell, beating like a heart
+      for (const [R0, cell] of orbs) { // his orbs: a fleshy pink core, bigger than its cell, beating like a heart
         const cx = (R0.x0 + R0.x1) / 2, cy = (R0.y0 + R0.y1) / 2, beat = Math.pow(Math.max(0, Math.sin(G.time * 5 + cx * 0.3)), 6), rr = Math.min(R0.x1 - R0.x0, R0.y1 - R0.y0) * (0.62 + 0.06 * beat);
         ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3 + 0.35 * beat; ctx.fillStyle = GEO_ORB_COL; ctx.beginPath(); ctx.arc(cx, cy, rr * (1.6 + 0.4 * beat), 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1; ctx.fillStyle = GEO_ORB_COL; ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.4; ctx.stroke();
         ctx.globalAlpha = 0.35; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(cx + rr * 0.15, cy + rr * 0.2, rr * 0.55, 0, Math.PI * 2); ctx.fill(); // a darker heart inside
         ctx.globalAlpha = 1; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(cx - rr * 0.38, cy - rr * 0.38, rr * 0.2, 0, Math.PI * 2); ctx.fill();
+        // alive: a ping out on every beat, and target brackets turning round it (the same as any target's)
+        const ph = (((G.time * 5 + cx * 0.3) / (Math.PI * 2) - 0.25) % 1 + 1) % 1, age = G.time - (cell.orbAt ?? -9);
+        ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = GEO_ORB_COL; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.55 * (1 - ph); ctx.beginPath(); ctx.arc(cx, cy, rr * (1.2 + 2.6 * ph), 0, Math.PI * 2); ctx.stroke();
+        const lock = clamp(age / 0.6, 0, 1), br = rr * (2.3 + 5 * Math.pow(1 - lock, 2)); // as it comes in, its brackets snap in from far out
+        ctx.globalAlpha = 0.5 + 0.4 * (1 - lock) + 0.1 * beat; ctx.lineWidth = 0.55;
+        for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + G.time * 0.9 + Math.PI / 4; ctx.beginPath(); ctx.arc(cx, cy, br, a - 0.3, a + 0.3); ctx.stroke(); }
+        if (age < 1.6) { // just in: a flash and rings bursting off it
+          const k = age / 1.6; ctx.fillStyle = COL.chalk; ctx.globalAlpha = Math.max(0, 0.7 - age * 2); ctx.beginPath(); ctx.arc(cx, cy, rr * 1.8, 0, Math.PI * 2); ctx.fill();
+          for (let i = 0; i < 3; i++) { const kk = clamp(k * 1.6 - i * 0.22, 0, 1); if (kk <= 0 || kk >= 1) continue; ctx.strokeStyle = i % 2 ? COL.chalk : GEO_ORB_COL; ctx.lineWidth = 0.8 * (1 - kk) + 0.2; ctx.globalAlpha = 0.9 * (1 - kk); ctx.beginPath(); ctx.arc(cx, cy, rr * (1.5 + 9 * kk), 0, Math.PI * 2); ctx.stroke(); }
+        }
+        ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
       }
     }
     ctx.lineWidth = 0.45; ctx.strokeStyle = COL.chalk; ctx.beginPath(); let fl = false; // hits flash; the outer layer blinks just before the next one pushes in
