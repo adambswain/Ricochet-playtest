@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 02 21:03 UTC · 3befcff";</script>
+<script>window.RICOCHET_BUILD = "Nov 02 21:10 UTC · e32a8d8";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3141,9 +3141,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // swings round to face you, locks on and charges, and is stunned when it hits the wall. Its treads (TANK_TREAD each)
   // are the target: one gone and it limps along in arcs at TANK_LIMP of its speed. The ball bounces off all of it (1 +
   // charge a hit), clanking off the armoured hull and the cannon.
-  // Digging in: with both treads gone it slams down where it stopped (TANK_DIG): stabiliser legs stamp into the floor,
-  // its hatch opens on the reactor, and two machine-gun pods come up on its flanks. Where you stopped it matters.
-  // The turret (phase two): the reactor's open (TANK_REACTOR) and every hit anywhere on the tank (legs and gun pods too) hurts it; it's drawn hot all over and framed so that reads. The cannon fires bursts and
+  // Immobilized: with both treads gone it slams down where it stopped (TANK_DIG), shoving itself in off the walls; its
+  // hatch opens on the reactor and two machine-gun pods come up on its flanks. (Internally: B.dug.)
+  // The turret (phase two): the reactor's open (TANK_REACTOR) and every hit anywhere on the tank (gun pods too) hurts it; it's drawn hot all over and framed so that reads. The cannon fires bursts and
   // turns faster; each gun pod (TANK_POD) sweeps an arc of bullets, its laser sight sweeping the same arc first
   // (TANK_SIGHT); break a pod and its sweeps stop. It calls in tankettes (small tanks) when a part breaks and in a
   // steady trickle (TANK_TRICKLE), never more than TANK_ESCORTS at once.
@@ -3159,7 +3159,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const TANK_DRUMS = [[-5.5, -16.4], [5.5, -16.4]], TANK_DRUM_RR = 2.3;
   const TANK_TREADS = { L: { x0: -13.7, x1: -7.3, y0: -15, y1: 15 }, R: { x0: 7.3, x1: 13.7, y0: -15, y1: 15 } };
   const TANK_PODS = { podL: [-11, 4], podR: [11, 4] }, TANK_POD_R = 4.5, TANK_POD_S = 1.5; // TANK_POD_S: the pod's drawing scale
-  const TANK_LEGS = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
   const TANK_HULL = { x0: -8.5, x1: 8.5, y0: -14, y1: 14 }, TANK_BOX = { x0: -13.7, x1: 13.7, y0: -15.5, y1: 15 };
   function setupTank(B, cycle) {
     const k = 1 + cycle * 0.6, tr = Math.round(TANK_TREAD * k), re = Math.round(TANK_REACTOR * k), pd = Math.round(TANK_POD * k);
@@ -3213,10 +3212,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const mx = Math.min(TANK_DIG_M, AW / 2), my = Math.min(TANK_DIG_M, AH / 2); // it shoves itself in off the walls as it settles, so all of it (and its crew's walk round it) is in the arena
     B.digFrom = [B.x, B.y]; B.digTo = [clamp(B.x, mx, AW - mx), clamp(B.y, my, AH - my)];
     Object.assign(B, { dug: true, open: true, digT: TANK_DIG, mode: 'dig', fireT: TANK_DIG + 1.4, burst: 0, sweepT: TANK_DIG + 2.2, sweep: null, trickleT: TANK_TRICKLE[1], crewT: CREW_FIRST, doorT: 0, fix: null });
-    for (const [sx, sy] of TANK_LEGS) { const [fx, fy] = tankWorld(B, sx * 16, sy * 18); burst(fx, fy, 14, COL.dim, 30, 0.7, 0.5); ring(fx, fy, 1, 8, 0.35, ECOL.warden, 0.8); }
     for (let i = 0; i < 3; i++) ring(B.x, B.y, 4, 30 + i * 14, 0.5 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3);
     gridImpulse(B.x, B.y, Math.max(AW, AH) * 0.6, 220); shake(5); G.slowT = Math.max(G.slowT, 0.5); G.screenFlash = Math.max(G.screenFlash || 0, 0.25); sfx.boss(); sfx.overload();
-    G.banner = { text: 'It\'s dug in!', sub: 'Hit it anywhere now. Break its guns to make it safer', t: 2.6, max: 2.6, top: true };
+    G.banner = { text: 'Immobilized!', sub: 'Hit it anywhere now. Break its guns to make it safer', t: 2.6, max: 2.6, top: true };
   }
   // Call in tankettes from the edges (never more than TANK_ESCORTS on the field).
   function tankBackup(B, n) {
@@ -3259,11 +3257,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       G.score += Math.round(30 * (1 + b) * G.mult); chainCredit(o, x, y, b);
       if (B.open) core();
       return 'bounce';
-    }
-    if (B.dug && B.digT <= TANK_DIG * 0.5) for (const [sx, sy] of TANK_LEGS) { // its stabiliser legs and feet
-      if (circle(sx * 16, sy * 18, 2.5)) { armour(); return 'bounce'; }
-      const x0 = sx * 7, y0 = sy * 11, ux = sx * 9 / Math.hypot(9, 7), uy = sy * 7 / Math.hypot(9, 7), t = clamp((lx - x0) * ux + (ly - y0) * uy, 0, Math.hypot(9, 7)), qx = x0 + ux * t, qy = y0 + uy * t, dx = lx - qx, dy = ly - qy, d = Math.hypot(dx, dy);
-      if (d < 1.2 + lr && d > 1e-6 && t > 2) { bounce(dx / d, dy / d, 1.2 + lr - d); armour(); return 'bounce'; }
     }
     if (B.dug) for (const key of ['podL', 'podR']) if (B.digT <= TANK_DIG * 0.5 && circle(...TANK_PODS[key], TANK_POD_R)) { if (B.parts[key].hp > 0) strike(key); else armour(); return 'bounce'; }
     // (the barrel isn't solid to the ball: it always points at you, so it'd shield whatever you aim at)
@@ -3353,7 +3346,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.bullets.push({ x: mx, y: my, vx: Math.cos(B.aim) * TANK_SHELL, vy: Math.sin(B.aim) * TANK_SHELL, r: 2.2, shell: true });
     B.recoil = 1; burst(mx, my, 10, COL.threat, 35, 0.4, 0.3); shake(1.2); sfx.blaster();
   }
-  // The repair crew. Once it's dug in (both treads gone), its back door blinks (CREW_DOOR) and a crew of two (three
+  // The repair crew. Once it's immobilized (both treads gone), its back door blinks (CREW_DOOR) and a crew of two (three
   // in later loops) climb out, walk round to a wrecked tread and weld it back together (CREW_FIX with the whole crew;
   // slower if you've killed some). If they finish, it gets back up: the tread's on at half health (and on the bar),
   // its legs come up, the hatch shuts over the reactor and it limps off; break that tread again and it digs straight
@@ -3387,7 +3380,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function tankFixed(B, key) {
     const P = B.parts[key], hp = Math.ceil(P.max * CREW_BACK_HP), [x, y] = tankPartAt(B, key);
     P.hp = hp; P.flash = 0.3; B.hp = Math.min(B.maxHp, B.hp + hp); B.fires = B.fires.filter(f => f.key !== key); B.fix = null;
-    for (const [sx, sy] of TANK_LEGS) { const [fx, fy] = tankWorld(B, sx * 16, sy * 18); burst(fx, fy, 10, COL.dim, 25, 0.6, 0.4); } // its legs come up
     Object.assign(B, { dug: false, open: false, digT: 0, mode: 'drive', sweep: null, burst: 0, fireT: 2, wT: 0, trickleT: TANK_TRICKLE[0] });
     for (let i = 0; i < 2; i++) ring(x, y, 2, 12 + i * 8, 0.4 + i * 0.1, i ? COL.chalk : COL.threat, 1);
     burst(x, y, 24, ECOL.warden, 40, 0.6, 0.4); sfx.clank(); sfx.boss(); shake(2.5); gridImpulse(B.x, B.y, 60, 160);
@@ -3467,12 +3459,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // the back, the glacis and its armour tiles up front, the fuel drums), the turret with its barrel, a commander's
   // hatch, an antenna and a periscope eye glaring at you. Each part shows its health as notches and its damage as smoke,
   // then sparks; broken, it burns. The cannon's shot is shown before it fires; so is a ram.
-  // Dug in, all of it is the target: glowing hot underneath, outlined hot, and a lock-on frame round the lot
+  // Immobilized, all of it is the target: glowing hot underneath, outlined hot, and a lock-on frame round the lot
   function drawTank(B) {
     const live = B.dug && !(B.die > 0) && !B.noTurret, k = live ? clamp(1 - B.digT / TANK_DIG, 0, 1) : 0, t = G.time, pulse = 0.5 + 0.5 * Math.sin(t * 4);
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     if (live) {
-      for (const [sx, sy] of [[-16, -18], [16, -18], [-16, 18], [16, 18], [-13.7, -15.5], [13.7, -15.5], [-13.7, 15], [13.7, 15]]) { const [x, y] = tankWorld(B, sx, sy); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+      for (const [sx, sy] of [[-15.5, -15.5], [15.5, -15.5], [-15.5, 15], [15.5, 15]]) { const [x, y] = tankWorld(B, sx, sy); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
       const r = Math.max(x1 - x0, y1 - y0) * 0.55; ctx.save(); ctx.globalCompositeOperation = 'lighter';
       const g = ctx.createRadialGradient(B.x, B.y, 0, B.x, B.y, r); g.addColorStop(0, COL.threat); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.globalAlpha = (0.14 + 0.08 * pulse) * k; ctx.beginPath(); ctx.arc(B.x, B.y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     }
@@ -3541,12 +3533,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); ctx.moveTo(tx - side * 3.2, -13); ctx.lineTo(tx - side * 3.2, 13); stroke(W2, 0.7, pc);
       if (P.hp < P.max * 0.5) { sparks(tx, 5); ctx.save(); ctx.globalAlpha = 0.3; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(tx + Math.sin(t * 2) * 0.5, -2 - (t * 3) % 3, 1.8, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
       pips(tx, 16.8, P.hp, P.max);
-    }
-    const dk = B.dug ? 1 - Math.pow(clamp(B.digT / TANK_DIG, 0, 1), 2) : 0; // how far it's dug in
-    if (dk > 0) for (const [sx, sy] of TANK_LEGS) { // stabiliser legs, stamped into the floor
-      const ax = sx * 7, ay = sy * 11, fx = sx * (7 + 9 * dk), fy = sy * (11 + 7 * dk);
-      ctx.beginPath(); ctx.moveTo(ax - sy * 1.2, ay + sx * 1.2); ctx.lineTo(fx - sy * 0.9, fy + sx * 0.9); ctx.lineTo(fx + sy * 0.9, fy - sx * 0.9); ctx.lineTo(ax + sy * 1.2, ay - sx * 1.2); ctx.closePath(); fill(0.26); stroke(W1 * 0.9);
-      ctx.beginPath(); ctx.arc(fx, fy, 2.2, 0, Math.PI * 2); fill(0.3); stroke(W1 * 0.9); ctx.beginPath(); ctx.arc(fx, fy, 0.8, 0, Math.PI * 2); ctx.fillStyle = COL.threat; ctx.fill();
     }
     // the hull
     const hull = () => poly([[-7.5, -14], [7.5, -14], [8.5, -11], [8.5, 9], [6, 14], [-6, 14], [-8.5, 9], [-8.5, -11]]);
