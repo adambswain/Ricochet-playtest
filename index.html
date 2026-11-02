@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 02 13:49 UTC · 37f88ca";</script>
+<script>window.RICOCHET_BUILD = "Nov 02 16:27 UTC · e2d0133";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1083,7 +1083,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // where it'll go (SERP_AIM, locking for the last SERP_LOCK), then lunges (SERP_LUNGE at SERP_DASH × speed).
   // At half health it splits at the middle of its body: the tail half grows a head (a little smaller) and swims off
   // on passes of its own. Two serpents, one health bar. Barely a pause between passes.
-  const SERP_HP = 140;
+  const SERP_HP = 200;
   const SERP_N = 14, SERP_GAP = 10.5, SERP_HEAD = 12, SERP_SPEED = [48, 56, 66], SERP_REST = [0.7, 0.5, 0.35], SERP_CROWD = [5, 6, 8];
   const SERP_AIM = 0.8, SERP_LOCK = 0.25, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 70, SERP_SPLIT = 0.5;
   // Both serpents: the boss itself, and once it's split, its twin (which shares its health, phase and the rest)
@@ -1126,13 +1126,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // During the dig, worker bees fly to holes in the comb and rebuild them (kill them first).
   const COMB_SPEED = 50, COMB_BOUNCES = 3, COMB_LIFE = 7, COMB_MAX = 2, COMB_WARN = 0.7, COMB_EVERY = [6, 5, 4], WAX_S = 3;
   const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2, HIVE_FINALE = 25000;
-  const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [5.5, 4.5, 3.5], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
-  const VEXA_SC = 1.5, VEXA_CAGE_AT = 0.5, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [3.6, 3.0, 2.5, 2.0], VEXA_STING = [3.2, 2.7, 2.2, 1.8];
-  const VEXA_AIM = 0.9, VEXA_LOCK = 0.25, VEXA_NEEDLE = 105, VEXA_BEE_V = [30, 35, 40, 46], VEXA_COMB = [8, 7, 6, 5];
+  const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [4.5, 3.8, 3], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
+  const VEXA_SC = 1.5, VEXA_CAGE_AT = 0.5, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [2.6, 2.2, 1.9, 1.6], VEXA_STING = [2.6, 2.2, 1.9, 1.5];
+  const VEXA_AIM = 0.9, VEXA_LOCK = 0.25, VEXA_NEEDLE = 105, VEXA_BEE_V = [38, 44, 50, 56], VEXA_COMB = [6.5, 5.5, 5, 4.5];
   // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
   const VEXA_BODY = [[0.82, 0.5, false], [0, 0.5, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
-  const QUEEN_R = 9.5, QUEEN_HP = 280, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
-  const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 18, row: 20 };
+  const QUEEN_R = 9.5, QUEEN_HP = 350, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
+  const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 };
   const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [6.5, 5.5, 5, 5];
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
   function setupHive(B, cycle) {
@@ -1140,7 +1140,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let q = -HIVE_RINGS; q <= HIVE_RINGS; q++) for (let r = -HIVE_RINGS; r <= HIVE_RINGS; r++) {
       const d = Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r));
       if (d > HIVE_RINGS) continue;
-      const hp = d === 0 ? 8 + cycle * 3 : (d <= 2 ? 3 : 2) + cycle;
+      const hp = d === 0 ? 6 + cycle * 3 : (d <= 1 ? 2 : 1) + cycle; // a quicker dig: the queen's the fight
       cells.push({ x: cx + S * Math.sqrt(3) * (q + r / 2), y: cy + S * 1.5 * r, d, hp, max: hp, flash: 0, hatch: 0 });
     }
     Object.assign(B, { x: cx, y: cy, cx, cy, r: S * Math.sqrt(3) * (HIVE_RINGS + 0.5), st: 'comb', cells, hatchT: 3, hitCd: 0,
@@ -4886,9 +4886,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // his walls (GEO_BANKS: how many bounces, by phase, one shot each), the targeting laser showing its whole path. The
   // rings ricochet off the walls (they don't crack them) and pop at the first bounce after they've passed you.
   const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 350, GEO_ORB = 1.5, GEO_TRIP = 0.2, GEO_BARE = 0.1, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 25, GEO_THIN = 0.3;
-  const GEO_PUSH = [2.6, 2.1, 1.6], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 32, GEO_RISE = 1.1, GEO_RETURN = 1.3;
+  const GEO_PUSH = [2.6, 2.1, 1.6], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
   const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
-  const GEO_BANKS = [[1], [1, 2], [2, 1]], GEO_BANK_SHOT = [2.8, 2.5, 2.2], GEO_BANK_CHARGE = 1.1, GEO_BANK_R = 2, GEO_BANK_V = 32;
+  const GEO_BANKS = [[1], [1, 2], [2, 1]], GEO_BANK_SHOT = [2.4, 2.1, 1.8], GEO_BANK_CHARGE = 1.1, GEO_BANK_R = 2, GEO_BANK_V = 38;
   const geoScale = () => Math.min(AW, AH) / 38; // how big he looms in the background
   const geoEase = k => k * k * (3 - 2 * k);
   function setupGeode(B, cycle) {
@@ -5051,9 +5051,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       B.aimX = fx0; B.aimY = fy0;
       if (B.shotT < GEO_CHARGE && B.shotT + dt >= GEO_CHARGE) sfx.blasterCharge();
       if (B.shotT <= 0) { // fire: a ring that grows as it flies (two in the last phase)
-        B.shotT = GEO_SHOT[ph] * (B.st === 'shell' ? 1.6 : 1); B.chg = 0; B.recoil = 1;
+        B.shotT = GEO_SHOT[ph] * (B.st === 'shell' ? 1.25 : 1); B.chg = 0; B.recoil = 1;
         const [fx, fy] = geoShotFrom(B), a0 = B.gunA; // straight down the locked laser
-        for (const off of ph === 2 ? [-0.2, 0.2] : [0]) G.bullets.push({ x: fx, y: fy, vx: Math.cos(a0 + off) * GEO_SHOT_V, vy: Math.sin(a0 + off) * GEO_SHOT_V, r: 1.4, geo: true, grow: 0.085, rMax: 7 });
+        for (const off of ph === 2 ? [-0.24, 0, 0.24] : ph === 1 ? [-0.14, 0.14] : [0]) G.bullets.push({ x: fx, y: fy, vx: Math.cos(a0 + off) * GEO_SHOT_V, vy: Math.sin(a0 + off) * GEO_SHOT_V, r: 1.4, geo: true, grow: 0.085, rMax: 7 });
         ring(fx, fy, 1, 7, 0.25, COL.threat, 0.9); sfx.blaster();
       }
     } else B.chg = 0;
