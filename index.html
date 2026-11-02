@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 01 15:25 UTC · 972e198";</script>
+<script>window.RICOCHET_BUILD = "Nov 02 13:49 UTC · 37f88ca";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3142,14 +3142,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // charge a hit), clanking off the armoured hull and the cannon.
   // Digging in: with both treads gone it slams down where it stopped (TANK_DIG): stabiliser legs stamp into the floor,
   // its hatch opens on the reactor, and two machine-gun pods come up on its flanks. Where you stopped it matters.
-  // The turret (phase two): the reactor's open (TANK_REACTOR) and every hit on the tank (legs too) hurts it. The cannon fires bursts and
+  // The turret (phase two): the reactor's open (TANK_REACTOR) and every hit anywhere on the tank (legs and gun pods too) hurts it; it's drawn hot all over and framed so that reads. The cannon fires bursts and
   // turns faster; each gun pod (TANK_POD) sweeps an arc of bullets, its laser sight sweeping the same arc first
   // (TANK_SIGHT); break a pod and its sweeps stop. It calls in tankettes (small tanks) when a part breaks and in a
   // steady trickle (TANK_TRICKLE), never more than TANK_ESCORTS at once.
   // Both phases: four armour tiles across its front (one hit each) and two fuel drums on its back (one hit: they explode,
   // doing TANK_DRUM_DMG to every part within TANK_DRUM_R, and to the reactor once it's open, and wrecking escorts there).
   // The bar is the treads and the reactor (TANK_TREAD × 2 ≈ a fifth of it): the pods are optional.
-  const TANK_S = 1.45, TANK_TREAD = 14, TANK_REACTOR = 110, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 1.1, TANK_LIMP = 0.45;
+  const TANK_S = 1.45, TANK_TREAD = 14, TANK_REACTOR = 126, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 1.1, TANK_LIMP = 0.45;
   const TANK_FIRE = [3.9, 3.3, 2.8], TANK_BURST = [4, 3.5, 3], TANK_AIM = 0.9, TANK_SHELL = 40, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
   const TANK_RAM = [9, 7.5, 6], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 3, TANK_TRICKLE = [10, 7];
   const TANK_SWEEP = [5.6, 4.8, 4], TANK_SIGHT = 1.1, TANK_SPRAY = 1, TANK_ARC = 0.95, TANK_MG = 40, TANK_MG_GAP = 0.13;
@@ -3192,6 +3192,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!tankLive(B, key)) return;
     const P = B.parts[key], d = Math.min(dmg, P.hp); P.hp -= d; P.flash = 0.14;
     if (key === 'L' || key === 'R') damageBoss(d, x, y);
+    else if (B.open) damageBoss(dmg, x, y); // dug in, a hit on a gun hurts the tank too (every hit counts)
     else { G.score += Math.round(50 * d * G.mult); float(x, y - 4, `−${d}`, ECOL.warden, 3.4); }
     if (P.hp <= 0 && G.boss === B) tankBreak(B, key);
   }
@@ -3212,7 +3213,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const [sx, sy] of TANK_LEGS) { const [fx, fy] = tankWorld(B, sx * 16, sy * 18); burst(fx, fy, 14, COL.dim, 30, 0.7, 0.5); ring(fx, fy, 1, 8, 0.35, ECOL.warden, 0.8); }
     for (let i = 0; i < 3; i++) ring(B.x, B.y, 4, 30 + i * 14, 0.5 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3);
     gridImpulse(B.x, B.y, Math.max(AW, AH) * 0.6, 220); shake(5); G.slowT = Math.max(G.slowT, 0.5); G.screenFlash = Math.max(G.screenFlash || 0, 0.25); sfx.boss(); sfx.overload();
-    G.banner = { text: 'It\'s dug in!', sub: 'Every hit hurts it now. Break its guns to make it safer', t: 2.6, max: 2.6, top: true };
+    G.banner = { text: 'It\'s dug in!', sub: 'Hit it anywhere now. Break its guns to make it safer', t: 2.6, max: 2.6, top: true };
   }
   // Call in tankettes from the edges (never more than TANK_ESCORTS on the field).
   function tankBackup(B, n) {
@@ -3465,8 +3466,25 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // the back, the glacis and its armour tiles up front, the fuel drums), the turret with its barrel, a commander's
   // hatch, an antenna and a periscope eye glaring at you. Each part shows its health as notches and its damage as smoke,
   // then sparks; broken, it burns. The cannon's shot is shown before it fires; so is a ram.
+  // Dug in, all of it is the target: glowing hot underneath, outlined hot, and a lock-on frame round the lot
   function drawTank(B) {
-    const col = B.flash > 0 ? COL.chalk : ECOL.warden, H3 = hex(COL.hull), I3 = hex(COL.ink), t = G.time, fire = heat(MAX_CHARGE * 0.75), p = G.player, die = B.die || 0;
+    const live = B.dug && !(B.die > 0) && !B.noTurret, k = live ? clamp(1 - B.digT / TANK_DIG, 0, 1) : 0, t = G.time, pulse = 0.5 + 0.5 * Math.sin(t * 4);
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    if (live) {
+      for (const [sx, sy] of [[-16, -18], [16, -18], [-16, 18], [16, 18], [-13.7, -15.5], [13.7, -15.5], [-13.7, 15], [13.7, 15]]) { const [x, y] = tankWorld(B, sx, sy); x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+      const r = Math.max(x1 - x0, y1 - y0) * 0.55; ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(B.x, B.y, 0, B.x, B.y, r); g.addColorStop(0, COL.threat); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.globalAlpha = (0.14 + 0.08 * pulse) * k; ctx.beginPath(); ctx.arc(B.x, B.y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    drawTankBody(B, live && k >= 1);
+    if (live) {
+      const m = 3 + 2 * pulse, L = 7; x0 -= m; y0 -= m; x1 += m; y1 += m;
+      ctx.strokeStyle = B.flash > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.7; ctx.globalAlpha = (0.6 + 0.35 * pulse) * k; ctx.beginPath();
+      for (const [cx, cy, sx, sy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) { ctx.moveTo(cx + sx * L, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + sy * L); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    }
+  }
+  function drawTankBody(B, hot) {
+    const col = B.flash > 0 ? COL.chalk : hot ? COL.threat : ECOL.warden, H3 = hex(COL.hull), I3 = hex(COL.ink), t = G.time, fire = heat(MAX_CHARGE * 0.75), p = G.player, die = B.die || 0;
     const W1 = 0.75, W2 = 0.35, W3 = 0.18;
     const stroke = (w, a = 1, c = col) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.globalAlpha = a; ctx.stroke(); ctx.globalAlpha = 1; };
     const glow = (fn, c, a) => { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a; ctx.fillStyle = c; ctx.strokeStyle = c; fn(); ctx.restore(); };
