@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 02 21:10 UTC · e32a8d8";</script>
+<script>window.RICOCHET_BUILD = "Nov 02 22:03 UTC · c7074e1";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -512,7 +512,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     2: 'Brutes take several hits',
     3: 'Dashers wind up, then lunge',
     4: 'Blocks bounce the ball and add charge. Splitters break in two',
-    5: 'Pinball! No overloads here: rattle the bumpers, and drop all four targets for the jackpot',
+    5: 'Pinball! Your ship is the flipper: get under the ball to keep it up. Three balls. Drop all four targets for the jackpot',
     6: 'Turrets fire slow shots. Hit them, or bank your ball off the wall right beside one',
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them. Fuel drums: hit one to blow up everything near it',
@@ -1083,7 +1083,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Once a pass, the head strikes: when it's in the arena and near you it slows and turns on you, a line showing
   // where it'll go (SERP_AIM, locking for the last SERP_LOCK), then lunges (SERP_LUNGE at SERP_DASH × speed).
   // At half health it splits at the middle of its body: the tail half grows a head (a little smaller) and swims off
-  // on passes of its own. Two serpents, one health bar. Barely a pause between passes.
+  // on passes of its own, and both halves grow fresh armour (every plate shut again, one tougher), so the second half
+  // of the fight starts over rather than finishing off cores you'd already opened. Two serpents, one health bar. Barely a pause between passes.
   const SERP_HP = 200;
   const SERP_N = 14, SERP_GAP = 10.5, SERP_HEAD = 12, SERP_SPEED = [48, 56, 66], SERP_REST = [0.7, 0.5, 0.35], SERP_CROWD = [5, 6, 8];
   const SERP_AIM = 0.8, SERP_LOCK = 0.25, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 70, SERP_SPLIT = 0.5;
@@ -1290,10 +1291,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     Object.assign(T, { twin: null, segs: tail, hx: front.x, hy: front.y, hs: 0.8, st: 'pass', stT: 0, passT: 0, lock: false, wig: rand(0, 6), strike: null, struck: false, flash: 0.3, hitCd: 0 });
     T.ha = Math.atan2(front.y - back.y, front.x - back.x) + (Math.random() < 0.5 ? -1 : 1) * 1.3;
     serpentPlan(T); B.twin = T;
+    for (const s2 of [...B.segs, ...T.segs]) { const was = s2.open; s2.max += 1; s2.hp = s2.max; s2.open = false; s2.flash = 0.3; if (was) ring(s2.x, s2.y, s2.r, s2.r + 5, 0.35, COL.wall, 0.8); } // both halves grow fresh armour (a little thicker): the second half starts over
     for (let i = 0; i < 4; i++) ring(front.x, front.y, 2, 14 + i * 9, 0.4 + i * 0.1, i % 2 ? COL.chalk : COL.threat, 1.3);
     burst(front.x, front.y, 60, COL.threat, 70, 1, 0.7); burst(front.x, front.y, 24, COL.chalk, 50, 0.6, 0.4);
     gridImpulse(front.x, front.y, Math.max(AW, AH) * 0.5, 200); shake(4); G.freeze = Math.max(G.freeze, 0.1); sfx.overload(); sfx.boss();
-    G.banner = { text: 'It splits!', sub: 'Two heads now: both bite, both bleed', t: 2, max: 2, top: true };
+    G.banner = { text: 'It splits!', sub: 'Two heads, fresh armour: both bite, both bleed', t: 2, max: 2, top: true };
   }
   // One serpent: resting beyond the walls (its next way in glowing), or swimming a pass
   function serpentSwim(S, dt) {
@@ -5631,18 +5633,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   /* ---------- pinball table ---------- */
-  // Wave 5 is a pinball table played by Ricochet's own rules: aim and throw as usual, bend the ball with the pull,
-  // catch it while pulling. The ship rides a rail across the bottom and can only slide left and right, so the pull
-  // always comes from below, like gravity you switch on. Every wall, bumper and slingshot hit charges the ball, but it
+  // Wave 5 is a pinball table played by Ricochet's own rules, with gravity: the ball always falls back toward the
+  // bottom (TABLE_GRAV). The ship rides a rail across the bottom and slides left and right: it's the flipper. A falling
+  // ball that meets it bounces back up the table, angled by where it hits (TABLE_FLIP; off its nose it goes straight
+  // up, off its edges out to the sides); hold the pull to catch it instead, and aim and throw as usual. Miss it and the
+  // ball drains out the bottom: TABLE_BALLS balls, and the table's over when they're gone (or at TABLE_TIME). Every wall, bumper and slingshot hit charges the ball, but it
   // never overloads here: it tops out at full speed and keeps playing. On the table: three pop bumpers, two slingshots, three rollover lanes at the top (light all three
   // for a bonus) and a bank of four drop targets (knock all four down for the jackpot).
-  const TABLE_TIME = 30;
+  const TABLE_TIME = 75, TABLE_BALLS = 3, TABLE_GRAV = 1, TABLE_FLIP = 1.05, TABLE_FLIP_PAD = 5, TABLE_MAX_B = 4;
   const TB = { bumpers: [[0.5, 0.3], [0.3, 0.41], [0.7, 0.41]], bumpR: 0.075, lanes: [0.35, 0.5, 0.65], laneY: 0.11,
                targets: [0.46, 0.52, 0.58, 0.64], targetX: 0.93, rail: 0.95, top: 0.06, arch: 0.2 };
   // TB.top: the playfield's top wall (the header panel sits above it); TB.arch: the radius of its rounded top corners
   const TB_PTS = { bumper: 50, sling: 10, lane: 100, lanes: 1000, target: 150, jackpot: 2500 };
   function setupTable(cycle) {
-    G.table = { time: TABLE_TIME, cycle, done: false, score: 0, lanes: [false, false, false], lanesT: 0,
+    G.table = { time: TABLE_TIME, cycle, done: false, score: 0, balls: TABLE_BALLS, lanes: [false, false, false], lanesT: 0,
                 targets: [true, true, true, true], targetsT: 0, jackpots: 0, hits: [0, 0, 0], slingT: [0, 0],
                 dropT: [0, 0, 0, 0], popT: [0, 0, 0, 0], rise: null, showT: 0 };
     const p = G.player, T = tableRect();
@@ -5724,6 +5728,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       bounce(hit.nx, hit.ny);
       if (ball.state !== 'live') return;
     }
+  }
+  // A ball out the bottom of the table: lost. The next comes to the ship to throw; the last one ends the table.
+  function tableDrain(ball) {
+    const T = G.table, p = G.player; T.balls = Math.max(0, T.balls - 1);
+    burst(ball.x, AH - 1, 22, COL.threat, 45, 0.7, 0.4); ring(ball.x, AH - 1, 1, 12, 0.35, COL.threat, 1.1); shake(1.6); gridImpulse(ball.x, AH, 30, 120); sfx.clank(); sfx.rockBoom(1);
+    docked(ball); ball.state = 'held'; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.trail = [];
+    if (T.balls > 0) float(p.x, p.y - 9, T.balls === 1 ? 'Last ball!' : `Drained: ${T.balls} balls left`, COL.threat, 3.2);
+    else { T.done = true; float(p.x, p.y - 9, 'Drained!', COL.threat, 3.6); }
+  }
+  // The ship as the flipper: a falling ball that meets it goes back up the table, angled by where it hit
+  function tableFlip(ball, r) {
+    const p = G.player, reach = PLAYER_R + r + TABLE_FLIP_PAD, dx = ball.x - p.x, dy = ball.y - p.y;
+    if (ball.vy <= 0 || dy > 1.5 || Math.hypot(dx, dy) > reach) return false;
+    const a = -Math.PI / 2 + clamp(dx / reach, -1, 1) * TABLE_FLIP, sp = Math.hypot(ball.vx, ball.vy);
+    ball.vx = Math.cos(a) * sp; ball.vy = Math.sin(a) * sp; ball.y = Math.min(ball.y, p.y - PLAYER_R - r * 0.5);
+    ring(p.x, p.y - PLAYER_R, 1, 8, 0.25, ECOL.target, 0.8); burst(ball.x, ball.y, 8, ECOL.target, 30, 0.4, 0.25);
+    chargeBounce(ball); return true;
   }
   function updateTable(dt) {
     const T = G.table; if (!T) return;
@@ -5876,8 +5897,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     panel(); ctx.fillStyle = COL.ink; ctx.fill(); glowLine(panel, 0.4, COL.wall, 0.9);
     const lab = Math.min(2.4, hh * 0.2), val = Math.min(4.2, hh * 0.38), lx = X(0.25), rx = X(0.75), mx = X(0.5);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = COL.dim; ctx.font = `600 ${lab}px ${FONT}`; ctx.fillText('TIME', lx, hh * 0.3); ctx.fillText('TARGETS', rx, hh * 0.3);
-    ctx.fillStyle = COL.chalk; ctx.font = `700 ${val}px ${FONT}`; ctx.fillText(`${Math.ceil(T.time)}s`, lx, hh * 0.66);
+    ctx.fillStyle = COL.dim; ctx.font = `600 ${lab}px ${FONT}`; ctx.fillText(T.time < 10 ? 'TIME' : 'BALLS', lx, hh * 0.3); ctx.fillText('TARGETS', rx, hh * 0.3);
+    ctx.fillStyle = COL.chalk; ctx.font = `700 ${val}px ${FONT}`; ctx.fillText(T.time < 10 ? `${Math.ceil(T.time)}s` : '●'.repeat(T.balls ?? 0) + '○'.repeat(Math.max(0, TABLE_BALLS - (T.balls ?? 0))), lx, hh * 0.66);
     ctx.fillText(`${down}/4`, rx, hh * 0.66);
     ctx.fillStyle = c; ctx.font = `700 ${val * 0.9}px ${FONT}`; ctx.fillText('PINBALL', mx, hh * 0.32);
     ctx.fillStyle = COL.chalk; ctx.font = `600 ${lab}px ${FONT}`; ctx.fillText(`LANES  ${T.lanes.filter(Boolean).length}/3`, mx, hh * 0.72);
@@ -7256,6 +7277,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function chargeBounce(ball, wall) {
     if (wall && ball.state === 'live') turretBank(ball, wall);
     if (G.powers.over > 0) ball.b = Math.min(MAX_CHARGE, ball.b + 2);
+    else if (G.table) { if (ball.b < TABLE_MAX_B) ball.b++; } // on the pinball table it heats only so far, so you can chase it down
     else if (inMawBay(ball)) { if (ball.b < WARN - 1) ball.b++; } // inside the Maw the ball heats only to just under the warning, so it comes out catchable
     else if (ball.b >= MAX_CHARGE) { if (ball.lit && ball.fuse <= 0) { overload(ball); return; } } // primed: this bounce blows it
     else ball.b++;
@@ -7746,7 +7768,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let s = 0; s < steps && ball.state === 'live'; s++) {
       const r = ballR(ball.b) * bigK() * (ball.wing ? WING_SCALE : 1);
       if (pulling && !ball.noPull) { const [tx, ty] = fieldOpen() ? wrapTarget(ball, p.x, p.y) : [p.x, p.y]; turnBall(ball, tx, ty, pullRate(ball, Math.hypot(tx - ball.x, ty - ball.y)) * sub); }
-      else if (G.bonus && !G.bonus.done) { const [cx, cy] = bumpCentre(); if (Math.hypot(ball.x - cx, ball.y - cy) > bumpScale() * 2) turnBall(ball, cx, cy, Math.hypot(ball.vx, ball.vy) / (bumpScale() * BUMP_TILT_R) * sub); }
+      else if (G.table && !ball.wing) turnBall(ball, ball.x, ball.y + 1e4, TABLE_GRAV * sub); // the table's gravity
+      if (G.bonus && !G.bonus.done && !pulling) { const [cx, cy] = bumpCentre(); if (Math.hypot(ball.x - cx, ball.y - cy) > bumpScale() * 2) turnBall(ball, cx, cy, Math.hypot(ball.vx, ball.vy) / (bumpScale() * BUMP_TILT_R) * sub); }
       for (const e of G.enemies) {
         if (fieldUp(e) && (e.x - ball.x) ** 2 + (e.y - ball.y) ** 2 < MAGNET_FIELD_R ** 2) turnBall(ball, e.x, e.y, MAGNET_TURN * sub);
       }
@@ -7757,7 +7780,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         else if (ball.x > AW - r) { ball.x = AW - r; ball.vx = -Math.abs(ball.vx); chargeBounce(ball, 'R'); }
         if (ball.state !== 'live') break;
         if (ball.y < r) { ball.y = r; ball.vy = Math.abs(ball.vy); chargeBounce(ball, 'T'); }
-        else if (ball.y > AH - r) { ball.y = AH - r; ball.vy = -Math.abs(ball.vy); chargeBounce(ball, 'B'); }
+        else if (ball.y > AH - r) { if (G.table && !G.table.done && !ball.wing) { tableDrain(ball); break; } ball.y = AH - r; ball.vy = -Math.abs(ball.vy); chargeBounce(ball, 'B'); }
       }
       if (ball.state !== 'live') break;
 
@@ -7777,7 +7800,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (ball.state !== 'live') break;
 
-      if (G.table) { tableCollide(ball, r); if (ball.state !== 'live') break; }
+      if (G.table) { tableCollide(ball, r); if (ball.state !== 'live') break; if (!pulling && !ball.wing) tableFlip(ball, r); if (ball.state !== 'live') break; }
       if (G.crush && brickHit(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.siege && siegeHit(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.inv && bunkerHit(ball, r) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
