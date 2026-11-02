@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 02 16:27 UTC · e2d0133";</script>
+<script>window.RICOCHET_BUILD = "Nov 02 17:28 UTC · a57a769";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2066,7 +2066,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (B.gunT <= 0) {
           const n = [3, 4, 5][B.phase - 1], spread = [0.45, 0.6, 0.75][B.phase - 1];
           for (const [gx, gy] of mawGuns(B)) {
-            const a0 = clamp(Math.atan2(p.y - gy, p.x - gx), 0.2, Math.PI - 0.2);
+            const a0 = Math.atan2(p.y - gy, p.x - gx); // they track you wherever you are (there's no hiding up beside it)
             for (let i = 0; i < n; i++) {
               const a = a0 + (i / (n - 1) - 0.5) * spread;
               G.bullets.push({ x: gx + Math.cos(a) * 5, y: gy + Math.sin(a) * 5, vx: Math.cos(a) * 30, vy: Math.sin(a) * 30, r: BULLET_R * 1.3 });
@@ -3100,7 +3100,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // --- gun pods on the bows: an armoured dome, twin barrels tracking you, a lens that heats as they charge
     const gunsHot = B.st === 'closed' && B.gunT > 0 && B.gunT < MAW_GUN_WARN, heatK = gunsHot ? 1 - B.gunT / MAW_GUN_WARN : 0;
     for (const [gx, gy] of mawGuns(B)) {
-      const a = clamp(Math.atan2(p.y - gy, p.x - gx), 0.2, Math.PI - 0.2), ca = Math.cos(a), sa = Math.sin(a);
+      const a = Math.atan2(p.y - gy, p.x - gx), ca = Math.cos(a), sa = Math.sin(a); // the barrel points where it fires: at you, wherever you are
       for (const o of [-0.7, 0.7]) { ctx.beginPath(); ctx.moveTo(gx - sa * o, gy + ca * o); ctx.lineTo(gx - sa * o + ca * 5, gy + ca * o + sa * 5); stroke(0.9, 1, hullC); ctx.beginPath(); ctx.moveTo(gx - sa * o, gy + ca * o); ctx.lineTo(gx - sa * o + ca * 5, gy + ca * o + sa * 5); stroke(0.45, 1, COL.ink); }
       ctx.beginPath(); ctx.arc(gx, gy, 2.6, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill();
       ctx.save(); ctx.clip(); ctx.fillStyle = rgba(H3, 0.18); ctx.fillRect(gx - 2.6, gy - 2.6, 2.6, 5.2); ctx.restore(); // lit side
@@ -6570,7 +6570,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (G.boss && G.boss.kind === 'mech') pushOutMech(G.boss, o, r);
     else if (G.boss && G.boss.kind === 'maw') { // the wings, and the bay as a block (only the ball goes in)
       const B = G.boss;
-      for (const S of [mawWing(B, -1), mawWing(B, 1), mawCavity(B)]) {
+      const solids = [mawWing(B, -1), mawWing(B, 1), mawCavity(B)], inside = () => solids.some(S => Array.isArray(S) ? inConvex(S, o.x, o.y) : inRect(S, o.x, o.y));
+      if (inside()) { let k = 0; while (inside() && k++ < 400) o.y += 1; o.y += r; } // swallowed by the hull (it slid over you, or you squeezed into its corner against the walls): out underneath it, never pinned inside
+      else for (const S of solids) {
         const h = Array.isArray(S) ? hitPoly(o.x, o.y, r, S) : hitRect(o.x, o.y, r, S);
         if (h) { o.x += h.nx * h.depth; o.y += h.ny * h.depth; }
       }
@@ -7951,7 +7953,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       e.x += e.vx * dt; e.y += e.vy * dt;
       if (e.form) { if (e.x < -12 || e.x > AW + 12 || e.y < -12 || e.y > AH + 12) e.gone = true; } // a formation flies straight through and out
-      else { keepIn(e, e.r); if (!e.mend) pushOut(e, e.r); } // a worker flies over the comb
+      else { keepIn(e, e.r); if (!e.mend && !e.fromMaw) pushOut(e, e.r); } // a worker flies over the comb; the Carrier's jets fly over the Carrier
     }
     // Warden shields: an enemy inside a Warden's aura carries a WARD_LAYERS shield. Each ball hit pops a layer (and
     // charges the ball, like bouncing off a wall); once both are gone it reforms after WARD_CD, blinking back in faster and
