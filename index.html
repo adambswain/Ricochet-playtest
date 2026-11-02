@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 02 19:31 UTC · f0e691a";</script>
+<script>window.RICOCHET_BUILD = "Nov 02 20:24 UTC · e4d53b9";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3235,7 +3235,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.open && G.boss === B) damageBoss(TANK_DRUM_DMG, x, y);
     for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (Math.hypot(e.x - x, e.y - y) < TANK_DRUM_R + e.r) kill(j, b, 0, src || G.balls[0]); }
   }
-  // Ball against the tank: drums, tiles, the gun pods, the barrel, the treads, the hull, in that order (one per call).
+  // Ball against the tank: drums, tiles, the gun pods, the treads, the hull, in that order (one per call). The ball passes over the barrel.
   function ballTank(B, o, r, b) {
     const [lx, ly] = tankLocal(B, o.x, o.y), lr = r / TANK_S, dmg = 1 + b;
     const bounce = (nx, ny, depth) => {
@@ -3264,10 +3264,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (d < 1.2 + lr && d > 1e-6 && t > 2) { bounce(dx / d, dy / d, 1.2 + lr - d); armour(); return 'bounce'; }
     }
     if (B.dug) for (const key of ['podL', 'podR']) if (B.digT <= TANK_DIG * 0.5 && circle(...TANK_PODS[key], TANK_POD_R)) { if (B.parts[key].hp > 0) strike(key); else armour(); return 'bounce'; }
-    { // the barrel, a capsule out from the turret: armour (it clanks)
-      const [x0, y0, bx, by, L] = tankBarrel(B), t = clamp((lx - x0) * bx + (ly - y0) * by, 0, L), qx = x0 + bx * t, qy = y0 + by * t, dx = lx - qx, dy = ly - qy, d = Math.hypot(dx, dy);
-      if (d < TANK_BARREL_R + lr && d > 1e-6 && t > 6) { bounce(dx / d, dy / d, TANK_BARREL_R + lr - d); if (B.open) core(); else sfx.clank(); return 'bounce'; }
-    }
+    // (the barrel isn't solid to the ball: it always points at you, so it'd shield whatever you aim at)
     for (const key of ['L', 'R']) {
       const h = hitRect(lx, ly, lr, TANK_TREADS[key]); if (!h) continue;
       bounce(h.nx, h.ny, h.depth);
@@ -3574,9 +3571,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     });
     TANK_DRUMS.forEach(([dx, dy], i) => { // fuel drums strapped on the back, a hazard band round each
       if (!B.drums[i]) { flame(dx, dy, 1.8, i + 7); return; }
-      ctx.beginPath(); ctx.arc(dx, dy, TANK_DRUM_RR, 0, Math.PI * 2); fill(0.3); stroke(W1 * 0.9);
-      ctx.beginPath(); ctx.arc(dx, dy, TANK_DRUM_RR * 0.6, 0, Math.PI * 2); stroke(W2, 1, COL.threat);
-      ctx.beginPath(); ctx.arc(dx, dy, 0.5, 0, Math.PI * 2); ctx.fillStyle = COL.threat; ctx.fill();
+      const R = TANK_DRUM_RR; // drawn just like the fuel drums of waves 8-9 (it's the same thing): an orange glow, a fire ring, hazard ticks
+      glow(() => { ctx.beginPath(); ctx.arc(dx, dy, R * 1.9, 0, Math.PI * 2); ctx.fill(); }, fire, 0.18 + 0.1 * Math.sin(t * 4 + i));
+      ctx.beginPath(); ctx.arc(dx, dy, R, 0, Math.PI * 2); fill(0.3); stroke(W1 * 0.9, 1, B.flash > 0 ? COL.chalk : ECOL.warden);
+      ctx.beginPath(); ctx.arc(dx, dy, R * 0.62, 0, Math.PI * 2); stroke(W2 * 1.2, 1, fire);
+      ctx.beginPath(); for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.4; ctx.moveTo(dx + Math.cos(a) * R * 0.66, dy + Math.sin(a) * R * 0.66); ctx.lineTo(dx + Math.cos(a) * R * 0.92, dy + Math.sin(a) * R * 0.92); } stroke(W2, 1, fire);
+      ctx.beginPath(); ctx.arc(dx, dy, R * 0.2, 0, Math.PI * 2); ctx.fillStyle = fire; ctx.fill();
     });
     const pk = B.dug ? clamp((1 - B.digT / TANK_DIG) * 2 - 0.6, 0, 1) : 0; // the gun pods rise as it digs in
     if (pk > 0) for (const key of ['podL', 'podR']) {
