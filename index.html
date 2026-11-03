@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 02 22:03 UTC · c7074e1";</script>
+<script>window.RICOCHET_BUILD = "Nov 03 06:17 UTC · 816b40d";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -557,7 +557,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const ENEMY = {
     drifter:  { r: 2.6, hp: 1, spd: 13,  pts: 10 },
     brute:    { r: 4.4, hp: 6, spd: 7.5, pts: 60 },
-    dasher:   { r: 2.4, hp: 2, spd: 9,   pts: 25 },
+    dasher:   { r: 2.9, hp: 2, spd: 9,   pts: 25 },
     splitter: { r: 3.4, hp: 3, spd: 10,  pts: 30 },
     mini:     { r: 1.9, hp: 1, spd: 17,  pts: 5 },
     turret:   { r: 4.6, hp: 3, spd: 0,   pts: 40 },
@@ -569,7 +569,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     warden:   { r: 4.6, hp: 12, spd: 6,  pts: 200 },
     monolith: { r: 3.6, hp: 5, spd: 8,   pts: 60 },
     titan:    { r: 8.5, hp: 14, spd: 6.3, pts: 400 },
-    walker:   { r: 4.2, hp: 4, spd: 7, pts: 80 },   // a little war machine that fires heavy rockets (Goliath's scouts)
+    walker:   { r: 4.2, hp: 4, spd: 7, pts: 80 },
+    snake:    { r: 2.3, hp: 1, spd: 15, pts: 30 },  // the Serpent's brood: a hatchling slithering at you, its tail trailing
+    viper:    { r: 3.1, hp: 3, spd: 12, pts: 70 },  // ...and a bigger one   // a little war machine that fires heavy rockets (Goliath's scouts)
     micro:    { r: 1.5, hp: 1, spd: 0, pts: 15 },   // a micro-missile in a ring (Goliath's) // Titans set piece: huge, slow, cracks into two brutes
     rock:     { r: 7.5, hp: 3, spd: 0,   pts: 20 },  // Asteroid Field: size 3 / 2 / 1 set on spawn
     invader:  { r: 2.6, hp: 1, spd: 0,   pts: 15 },  // Invasion: moved by the formation (updateInvaders)
@@ -1079,7 +1081,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // (glowing cracks mark the spot first), sweeps across in a wave and dives out through another, then a few small
   // enemies come while it's gone. Its body never hurts you: it's a solid obstacle the ball bounces off (+1 charge).
   // Breaking a segment's armour plate exposes a glowing core; hitting cores takes its health. Only the head hurts.
-  // Small fry keep the arena busy the whole fight, SERP_CROWD of them at a time (by phase).
+  // Its brood keeps the arena busy the whole fight, SERP_CROWD of them at a time (by phase): hatchlings and vipers, little
+  // snakes slithering at you, their tails trailing; like it, only the head bites, and a hit anywhere on one kills it. When
+  // it splits, a brood bursts out of the cut.
   // Once a pass, the head strikes: when it's in the arena and near you it slows and turns on you, a line showing
   // where it'll go (SERP_AIM, locking for the last SERP_LOCK), then lunges (SERP_LUNGE at SERP_DASH × speed).
   // At half health it splits at the middle of its body: the tail half grows a head (a little smaller) and swims off
@@ -1276,7 +1280,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.crowdT <= 0) {
       B.crowdT = 1.1;
       if (G.enemies.length + G.tele.length + G.spawnQueue.length < SERP_CROWD[B.phase - 1]) {
-        const pool = B.phase === 1 ? ['drifter', 'drifter', 'swarm', 'splitter'] : ['drifter', 'swarm', 'splitter', 'dasher'];
+        const pool = B.phase === 1 ? ['snake', 'snake', 'snake', 'viper'] : ['snake', 'snake', 'viper', 'viper']; // its brood, not the usual crowd
         G.spawnQueue.push(pool[Math.floor(Math.random() * pool.length)]);
       }
     }
@@ -1295,6 +1299,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let i = 0; i < 4; i++) ring(front.x, front.y, 2, 14 + i * 9, 0.4 + i * 0.1, i % 2 ? COL.chalk : COL.threat, 1.3);
     burst(front.x, front.y, 60, COL.threat, 70, 1, 0.7); burst(front.x, front.y, 24, COL.chalk, 50, 0.6, 0.4);
     gridImpulse(front.x, front.y, Math.max(AW, AH) * 0.5, 200); shake(4); G.freeze = Math.max(G.freeze, 0.1); sfx.overload(); sfx.boss();
+    for (let i = 0; i < 3; i++) { const e = makeEnemy(i ? 'snake' : 'viper', clamp(front.x + rand(-6, 6), 6, AW - 6), clamp(front.y + rand(-6, 6), 6, AH - 6)); e.spawnT = 0.4; G.enemies.push(e); } // its brood bursts out of the cut
     G.banner = { text: 'It splits!', sub: 'Two heads, fresh armour: both bite, both bleed', t: 2, max: 2, top: true };
   }
   // One serpent: resting beyond the walls (its next way in glowing), or swimming a pass
@@ -2891,6 +2896,70 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // A Carrier fighter, top-down, nose along +x: a slim fuselage, swept delta wings with a faction stripe, twin tail fins,
   // a lit canopy, and its health as lights along the wings' trailing edges (lit = left; in the ball's colour once the
   // ball can punch straight through it). thrust: 0..1 of engine flame. Docked, parked, launching and flying all use it.
+  // A snake's tail: its path behind its head, sampled every so far along, segments tapering toward the tip
+  function snakeTrail(e) {
+    const H = e.hist || (e.hist = []); H.unshift([e.x, e.y]); if (H.length > 120) H.length = 120;
+    const n = e.type === 'viper' ? 7 : 5, gap = e.r * 0.92, out = []; let dist = 0, want = gap;
+    for (let i = 1; i < H.length && out.length < n; i++) { dist += Math.hypot(H[i][0] - H[i - 1][0], H[i][1] - H[i - 1][1]); if (dist >= want) { const k = out.length + 1; out.push([H[i][0], H[i][1], e.r * (0.82 - 0.5 * k / n)]); want += gap; } }
+    e.segs = out;
+  }
+  // A snake (drawn at its head, in the arena's frame): its tail a string of armoured scales on a spine, each with a
+  // glowing seam like the Serpent's cores; its head a wedge with two glaring eyes and a tongue that flicks
+  function drawSnake(e, col) {
+    const t = G.time + e.seed, fl = e.flash > 0, H3 = hex(COL.hull), segs = e.segs || [], a = Math.atan2(e.vy, e.vx);
+    const pts = [[0, 0], ...segs.map(([x, y]) => [x - e.x, y - e.y])];
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = COL.hull; ctx.globalAlpha = 0.55; ctx.lineWidth = e.r * 0.5;
+    ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); ctx.globalAlpha = 1; // its spine
+    for (let i = segs.length - 1; i >= 0; i--) { // the scales, tail first
+      const [sx, sy, sr] = segs[i], x = sx - e.x, y = sy - e.y, [px, py] = pts[i], q = Math.atan2(py - y, px - x);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(q);
+      ctx.beginPath(); ctx.moveTo(sr, 0); ctx.lineTo(sr * 0.2, sr); ctx.lineTo(-sr * 0.8, sr * 0.75); ctx.lineTo(-sr * 0.8, -sr * 0.75); ctx.lineTo(sr * 0.2, -sr); ctx.closePath();
+      ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill(); ctx.strokeStyle = fl ? COL.chalk : col; ctx.lineWidth = 0.3; ctx.stroke();
+      const pulse = 0.5 + 0.5 * Math.sin(t * 7 - i * 0.9);
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3 + 0.4 * pulse; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.moveTo(sr * 0.25, -sr * 0.6); ctx.lineTo(-sr * 0.25, 0); ctx.lineTo(sr * 0.25, sr * 0.6); ctx.stroke(); // its glowing seam
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.restore();
+    }
+    const r = e.r; ctx.save(); ctx.rotate(a); // the head
+    if (Math.sin(t * 3) > 0.6) { ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.25; ctx.beginPath(); const L = r * (1.6 + 0.4 * Math.sin(t * 40)); ctx.moveTo(r * 1.1, 0); ctx.lineTo(r * 1.1 + L * 0.6, 0); ctx.lineTo(r * 1.1 + L, -r * 0.25); ctx.moveTo(r * 1.1 + L * 0.6, 0); ctx.lineTo(r * 1.1 + L, r * 0.25); ctx.stroke(); } // its tongue
+    ctx.beginPath(); ctx.moveTo(r * 1.15, 0); ctx.lineTo(r * 0.45, r * 0.62); ctx.lineTo(-r * 0.6, r * 0.78); ctx.lineTo(-r * 0.85, 0); ctx.lineTo(-r * 0.6, -r * 0.78); ctx.lineTo(r * 0.45, -r * 0.62); ctx.closePath();
+    ctx.fillStyle = COL.ink; ctx.fill(); const lg = ctx.createLinearGradient(-r, -r, r, r); lg.addColorStop(0, col); lg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.globalAlpha = fl ? 0.9 : 0.32; ctx.fillStyle = fl ? COL.chalk : lg; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = fl ? COL.chalk : col; ctx.lineWidth = 0.45; ctx.stroke();
+    for (const sy of [-1, 1]) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(r * 0.35, sy * r * 0.36, r * 0.24, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.ellipse(r * 0.38, sy * r * 0.36, r * 0.13, r * 0.06, sy * 0.5, 0, Math.PI * 2); ctx.fill(); } // its eyes
+    ctx.restore();
+  }
+  // A dasher, nose along +x: an arrowhead of swept wings under a spiked fuselage, little canards at the nose, a slit
+  // eye that glares brighter as its lunge comes, and its engine (a flicker, roaring as it winds up and lunges). Its
+  // health as lights on the wings (like the Carrier's jets).
+  function drawDasher(e, col, stroke, pierceCol) {
+    const r = e.r, t = G.time + e.seed, H3 = hex(COL.hull), fl = e.flash > 0, line = fl ? COL.chalk : stroke;
+    const ready = e.st === 'walk' ? clamp(1 - e.stT / 1.2, 0, 1) : 1, th = e.st === 'dash' ? 1 : e.st === 'wind' ? 0.6 + 0.4 * Math.random() : 0.15 + 0.25 * ready;
+    const path = P => { ctx.beginPath(); P.forEach(([x, y], i) => i ? ctx.lineTo(x * r, y * r) : ctx.moveTo(x * r, y * r)); ctx.closePath(); };
+    { // its engine
+      const L = r * (0.4 + th * (1.3 + Math.random() * 0.5)); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      ctx.globalAlpha = 0.7; ctx.strokeStyle = COL.threat; ctx.lineWidth = r * 0.36; ctx.beginPath(); ctx.moveTo(-r * 0.78, 0); ctx.lineTo(-r * 0.78 - L, 0); ctx.stroke();
+      ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.chalk; ctx.lineWidth = r * 0.13; ctx.beginPath(); ctx.moveTo(-r * 0.78, 0); ctx.lineTo(-r * 0.78 - L * 0.5, 0); ctx.stroke(); ctx.restore();
+    }
+    ctx.lineJoin = 'round';
+    const wing = [[0.3, 0.12], [-0.55, 1.02], [-0.9, 0.95], [-0.62, 0.3], [-0.62, -0.3], [-0.9, -0.95], [-0.55, -1.02], [0.3, -0.12]];
+    path(wing); ctx.fillStyle = COL.ink; ctx.fill();
+    const lg = ctx.createLinearGradient(-r, -r, r * 0.4, r); lg.addColorStop(0, col); lg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.globalAlpha = fl ? 0.9 : 0.3; ctx.fillStyle = fl ? COL.chalk : lg; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = line; ctx.lineWidth = 0.4; ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = 0.22; ctx.globalAlpha = 0.6; ctx.beginPath(); for (const sy of [-1, 1]) { ctx.moveTo(-r * 0.05, sy * r * 0.32); ctx.lineTo(-r * 0.6, sy * r * 0.86); } ctx.stroke(); ctx.globalAlpha = 1; // panel lines
+    for (const sy of [-1, 1]) { path([[0.85, 0.16 * sy], [0.5, 0.52 * sy], [0.38, 0.2 * sy]]); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 0.3; ctx.stroke(); } // canards
+    const body = [[1.55, 0], [0.55, 0.24], [-0.7, 0.22], [-0.82, 0], [-0.7, -0.22], [0.55, -0.24]];
+    path(body); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 0.42; ctx.stroke();
+    { // the eye: a slit that glares as its lunge comes
+      const k = e.st === 'walk' ? 0.35 + 0.65 * ready * (0.6 + 0.4 * Math.sin(t * (6 + ready * 20))) : 1;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35 + 0.5 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.ellipse(r * 0.62, 0, r * 0.42, r * 0.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      ctx.fillStyle = k > 0.8 ? COL.chalk : COL.threat; ctx.beginPath(); ctx.ellipse(r * 0.66, 0, r * 0.26, r * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    for (let i = 0; i < e.maxHp; i++) { // health lights on the wings
+      const sy = i % 2 ? 1 : -1, k = Math.floor(i / 2), x = -r * (0.48 + 0.1 * k), y = sy * r * (0.62 + 0.18 * k), on = i < e.hp;
+      if (on) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55; ctx.fillStyle = pierceCol || col; ctx.beginPath(); ctx.arc(x, y, r * 0.2, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+      ctx.fillStyle = on ? pierceCol || COL.chalk : COL.ink; ctx.beginPath(); ctx.arc(x, y, r * 0.1, 0, Math.PI * 2); ctx.fill();
+    }
+  }
   function drawFighter(r, hp, max, flash, lit, thrust, pierceCol) {
     const line = flash > 0 || lit ? COL.chalk : ECOL.dasher, H3 = hex(COL.hull);
     if (thrust > 0) { // engine flame
@@ -5637,16 +5706,22 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // bottom (TABLE_GRAV). The ship rides a rail across the bottom and slides left and right: it's the flipper. A falling
   // ball that meets it bounces back up the table, angled by where it hits (TABLE_FLIP; off its nose it goes straight
   // up, off its edges out to the sides); hold the pull to catch it instead, and aim and throw as usual. Miss it and the
-  // ball drains out the bottom: TABLE_BALLS balls, and the table's over when they're gone (or at TABLE_TIME). Every wall, bumper and slingshot hit charges the ball, but it
+  // ball drains out the bottom: TABLE_BALLS balls, and the table's over when they're gone (or at TABLE_TIME).
+  // Real table physics: gravity accelerates it (it's quick falling, slow at the top of its arc), walls take a little
+  // speed off it, pop bumpers and slingshots kick it away hard, and the flipper fires it back up at full power. All
+  // scaled by the table's height. A ball that drains within TABLE_SAVE of being thrown is saved. Light all three lanes
+  // to raise the bonus multiplier (every award ×); drop all four targets for the jackpot and two more balls (multiball:
+  // they don't cost a ball when they drain). Every wall, bumper and slingshot hit charges the ball, but it
   // never overloads here: it tops out at full speed and keeps playing. On the table: three pop bumpers, two slingshots, three rollover lanes at the top (light all three
   // for a bonus) and a bank of four drop targets (knock all four down for the jackpot).
-  const TABLE_TIME = 75, TABLE_BALLS = 3, TABLE_GRAV = 1, TABLE_FLIP = 1.05, TABLE_FLIP_PAD = 5, TABLE_MAX_B = 4;
+  const TABLE_TIME = 75, TABLE_BALLS = 3, TABLE_FLIP = 1.05, TABLE_FLIP_PAD = 5, TABLE_MAX_B = 6, TABLE_SAVE = 3.5, TABLE_MULT_MAX = 5;
+  const TABLE_G = 0.42, TABLE_LAUNCH = 0.84, TABLE_REST = 0.86, TABLE_BUMP = 0.62, TABLE_SLING = 0.56, TABLE_VMAX = 1.05; // × the table's height (per s, per s²)
   const TB = { bumpers: [[0.5, 0.3], [0.3, 0.41], [0.7, 0.41]], bumpR: 0.075, lanes: [0.35, 0.5, 0.65], laneY: 0.11,
                targets: [0.46, 0.52, 0.58, 0.64], targetX: 0.93, rail: 0.95, top: 0.06, arch: 0.2 };
   // TB.top: the playfield's top wall (the header panel sits above it); TB.arch: the radius of its rounded top corners
-  const TB_PTS = { bumper: 50, sling: 10, lane: 100, lanes: 1000, target: 150, jackpot: 2500 };
+  const TB_PTS = { bumper: 50, sling: 20, lane: 100, lanes: 1000, target: 150, jackpot: 2500 };
   function setupTable(cycle) {
-    G.table = { time: TABLE_TIME, cycle, done: false, score: 0, balls: TABLE_BALLS, lanes: [false, false, false], lanesT: 0,
+    G.table = { time: TABLE_TIME, cycle, done: false, score: 0, balls: TABLE_BALLS, mult: 1, flipT: 0, multiT: 0, saveT: 0, lanes: [false, false, false], lanesT: 0,
                 targets: [true, true, true, true], targetsT: 0, jackpots: 0, hits: [0, 0, 0], slingT: [0, 0],
                 dropT: [0, 0, 0, 0], popT: [0, 0, 0, 0], rise: null, showT: 0 };
     const p = G.player, T = tableRect();
@@ -5668,7 +5743,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const f of [0.275, 0.425, 0.575, 0.725]) segs.push([X(f), top, X(f), Y(0.145), 'post']);      // lane dividers hang from the top
     return segs;
   }
-  const tableAward = (pts, x, y) => { const v = pts * (G.table.cycle + 1); G.table.score += v; G.score += v; float(x, y, `${v}`, ECOL.target, 2.6); };
+  const tableAward = (pts, x, y) => { const T = G.table, v = pts * (T.cycle + 1) * (T.mult || 1); T.score += v; G.score += v; float(x, y, `${v}`, ECOL.target, 2.4 + Math.min(2, v / 1500)); };
   // The table's walls and furniture, for a ball moving by the normal rules. Every bounce charges the ball (and may
   // overload it); lanes and targets score. Called from the ball's substep loop while a table is up.
   function tableCollide(ball, r) {
@@ -5691,7 +5766,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const qx = ax + ex * t, qy = ay + ey * t, dx = ball.x - qx, dy = ball.y - qy, d = Math.hypot(dx, dy);
       if (d >= r || d < 1e-6) continue;
       ball.x = qx + dx / d * r; ball.y = qy + dy / d * r;
-      if (bounce(dx / d, dy / d) && kind === 'sling') { Tb.slingT[idx] = 0.15; tableAward(TB_PTS.sling, qx, qy - 3); shake(0.3); }
+      if (kind === 'sling') ball.kick = TABLE_SLING;
+      if (bounce(dx / d, dy / d) && kind === 'sling') { Tb.slingT[idx] = 0.2; tableAward(TB_PTS.sling, qx, qy - 3); shake(0.6); burst(qx, qy, 10, ECOL.target, 40, 0.5, 0.25); sfx.clank(); }
+      ball.kick = 0;
       if (ball.state !== 'live') return;
     }
     const bR = TB.bumpR * R.w;
@@ -5699,14 +5776,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const [fx, fy] = TB.bumpers[i], cx = R.x0 + fx * R.w, cy = fy * R.h, dx = ball.x - cx, dy = ball.y - cy, d = Math.hypot(dx, dy);
       if (d >= bR + r || d < 1e-6) continue;
       ball.x = cx + dx / d * (bR + r + 0.05); ball.y = cy + dy / d * (bR + r + 0.05);
-      if (bounce(dx / d, dy / d)) { Tb.hits[i] = 0.18; tableAward(TB_PTS.bumper, cx, cy - bR - 2); ring(cx, cy, bR, bR + 5, 0.25, ECOL.target, 0.7); gridImpulse(cx, cy, 14, 50); shake(0.4); sfx.chain(5 + i); }
+      ball.kick = TABLE_BUMP;
+      if (bounce(dx / d, dy / d)) { Tb.hits[i] = 0.25; Tb.lit = Tb.lit || [0, 0, 0]; Tb.lit[i] = 1.2; tableAward(TB_PTS.bumper, cx, cy - bR - 2); ring(cx, cy, bR, bR + 9, 0.3, ECOL.target, 1); ring(cx, cy, bR * 0.6, bR + 4, 0.2, COL.chalk, 0.8); burst(cx + dx / d * bR, cy + dy / d * bR, 12, ECOL.target, 50, 0.5, 0.3); gridImpulse(cx, cy, 22, 110); shake(1); G.freeze = Math.max(G.freeze, 0.03); sfx.chain(5 + i); }
+      ball.kick = 0;
       if (ball.state !== 'live') return;
     }
     TB.lanes.forEach((fx, i) => { // rollover lanes at the top
       const cx = R.x0 + fx * R.w, cy = TB.laneY * R.h;
       if (Tb.lanes[i] || Tb.lanesT > 0 || Math.hypot(ball.x - cx, ball.y - cy) > 3.2) return;
       Tb.lanes[i] = true; tableAward(TB_PTS.lane, cx, cy + 5); sfx.collect();
-      if (Tb.lanes.every(Boolean)) { Tb.lanesT = 0.8; tableAward(TB_PTS.lanes, R.x0 + R.w / 2, cy + 10); ring(R.x0 + R.w / 2, cy, 2, R.w * 0.4, 0.4, ECOL.target, 1); sfx.repair(); }
+      if (Tb.lanes.every(Boolean)) { Tb.lanesT = 0.8; tableAward(TB_PTS.lanes, R.x0 + R.w / 2, cy + 10); ring(R.x0 + R.w / 2, cy, 2, R.w * 0.4, 0.4, ECOL.target, 1); sfx.repair();
+        if ((Tb.mult || 1) < TABLE_MULT_MAX) { Tb.mult = (Tb.mult || 1) + 1; Tb.multT = 1.6; float(R.x0 + R.w / 2, cy + 18, `Bonus ×${Tb.mult}`, COL.chalk, 4.4); shake(1.2); } }
     });
     for (let i = 0; i < TB.targets.length; i++) { // drop targets on the right wall
       if (!Tb.targets[i]) continue;
@@ -5724,15 +5804,32 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         float(R.x0 + R.w / 2, R.h * 0.5 - 6, 'Jackpot', ECOL.target, 5);
         for (let k = 0; k < 3; k++) ring(cx, cy, 2, 20 + k * 10, 0.5 + k * 0.1, k % 2 ? COL.chalk : ECOL.target, 1.1);
         G.freeze = Math.max(G.freeze, 0.1); shake(2.5); sfx.repair(); sfx.collect();
+        tableMultiball();
       }
       bounce(hit.nx, hit.ny);
       if (ball.state !== 'live') return;
     }
   }
+  // Multiball: two more balls fired out of the top lanes, down onto the table. They play like yours (bumpers, flipper)
+  // but can't be caught, and draining one costs nothing.
+  function tableMultiball() {
+    const R = tableRect(), H = AH, n = G.balls.filter(o => o.tx && !o.dead).length;
+    for (let k = 0; k < Math.max(0, 2 - n); k++) {
+      const x = R.x0 + R.w * (k ? 0.62 : 0.38), y = TB.top * R.h + 6, a = Math.PI / 2 + (k ? -0.5 : 0.5), sp = 0.3 * H;
+      G.balls.push(Object.assign(makeBall(), { tx: true, state: 'live', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, b: 2, noCatch: 1e9 }));
+      ring(x, y, 1, 10, 0.4, ECOL.target, 1.1); burst(x, y, 16, ECOL.target, 40, 0.6, 0.35);
+    }
+    G.banner = { text: 'Multiball!', sub: '', t: 1.4, max: 1.4, at: 0.5 };
+  }
   // A ball out the bottom of the table: lost. The next comes to the ship to throw; the last one ends the table.
   function tableDrain(ball) {
-    const T = G.table, p = G.player; T.balls = Math.max(0, T.balls - 1);
+    const T = G.table, p = G.player;
     burst(ball.x, AH - 1, 22, COL.threat, 45, 0.7, 0.4); ring(ball.x, AH - 1, 1, 12, 0.35, COL.threat, 1.1); shake(1.6); gridImpulse(ball.x, AH, 30, 120); sfx.clank(); sfx.rockBoom(1);
+    if (ball.tx) { ball.dead = true; ball.state = 'held'; return; } // a multiball ball: gone, free
+    if (G.time - (ball.thrownAt ?? -99) < TABLE_SAVE && !T.saved) { // ball save: straight back to you
+      T.saved = true; docked(ball); ball.state = 'held'; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.trail = [];
+      float(p.x, p.y - 9, 'Ball saved!', COL.chalk, 3.4); sfx.repair(); return; }
+    T.balls = Math.max(0, T.balls - 1);
     docked(ball); ball.state = 'held'; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.trail = [];
     if (T.balls > 0) float(p.x, p.y - 9, T.balls === 1 ? 'Last ball!' : `Drained: ${T.balls} balls left`, COL.threat, 3.2);
     else { T.done = true; float(p.x, p.y - 9, 'Drained!', COL.threat, 3.6); }
@@ -5741,15 +5838,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function tableFlip(ball, r) {
     const p = G.player, reach = PLAYER_R + r + TABLE_FLIP_PAD, dx = ball.x - p.x, dy = ball.y - p.y;
     if (ball.vy <= 0 || dy > 1.5 || Math.hypot(dx, dy) > reach) return false;
-    const a = -Math.PI / 2 + clamp(dx / reach, -1, 1) * TABLE_FLIP, sp = Math.hypot(ball.vx, ball.vy);
-    ball.vx = Math.cos(a) * sp; ball.vy = Math.sin(a) * sp; ball.y = Math.min(ball.y, p.y - PLAYER_R - r * 0.5);
-    ring(p.x, p.y - PLAYER_R, 1, 8, 0.25, ECOL.target, 0.8); burst(ball.x, ball.y, 8, ECOL.target, 30, 0.4, 0.25);
-    chargeBounce(ball); return true;
+    const a = -Math.PI / 2 + clamp(dx / reach, -1, 1) * TABLE_FLIP, sp = TABLE_LAUNCH * AH;
+    ball.vx = Math.cos(a) * sp; ball.vy = Math.sin(a) * sp; ball.y = Math.min(ball.y, p.y - PLAYER_R - r * 0.5); ball.kick = TABLE_LAUNCH;
+    G.table.flipT = 0.18; G.table.flipX = dx / reach;
+    ring(p.x, p.y - PLAYER_R, 1, 12, 0.3, ECOL.target, 1); burst(ball.x, ball.y, 14, ECOL.target, 50, 0.5, 0.3); gridImpulse(p.x, p.y, 20, 120); shake(0.9); sfx.launch(p.x);
+    chargeBounce(ball); ball.thrownAt = -99; return true;
   }
   function updateTable(dt) {
     const T = G.table; if (!T) return;
     if (!T.dropT) Object.assign(T, { dropT: [0, 0, 0, 0], popT: [0, 0, 0, 0], rise: null, showT: 0 }); // saved before the new targets
-    T.slingT = T.slingT.map(v => v - dt); T.hits = T.hits.map(v => v - dt);
+    T.slingT = T.slingT.map(v => v - dt); T.hits = T.hits.map(v => v - dt); T.flipT = (T.flipT || 0) - dt; T.multT = (T.multT || 0) - dt; T.lit = (T.lit || [0, 0, 0]).map(v => Math.max(0, v - dt));
+    for (let i = G.balls.length - 1; i >= 0; i--) if (G.balls[i].dead) G.balls.splice(i, 1);
     if (T.lanesT > 0) { T.lanesT -= dt; if (T.lanesT <= 0) T.lanes = [false, false, false]; }
     T.dropT = T.dropT.map(v => v - dt); T.popT = T.popT.map(v => v - dt); T.showT -= dt;
     if (T.targetsT > 0) { T.targetsT -= dt; if (T.targetsT <= 0) T.rise = [0, 0.12, 0.24, 0.36]; }
@@ -5764,6 +5863,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function finishTable() {
     const T = G.table; if (!T) return;
+    for (let i = G.balls.length - 1; i >= 0; i--) if (G.balls[i].tx) G.balls.splice(i, 1); // multiball's balls go
     G.result = { text: `${T.score.toLocaleString()} on the table`, sub: T.jackpots ? `Jackpot ×${T.jackpots}` : 'Drop all four targets for the jackpot', t: 2.6, max: 2.6 };
     for (const ball of liveBalls()) if (ball.b > WARN - 2) { ball.b = WARN - 2; const sp = ballSpeed(ball.b), l = Math.hypot(ball.vx, ball.vy) || 1; ball.vx = ball.vx / l * sp; ball.vy = ball.vy / l * sp; }
     sfx.repair();
@@ -5854,7 +5954,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // pop bumpers: a white ring cap with a gold star, inside a dashed gold halo that blazes when hit
     const bR = TB.bumpR * R.w;
     TB.bumpers.forEach(([fx, fy], i) => {
-      const x = X(fx), y = Y(fy), k = Math.max(0, T.hits[i]) / 0.18, sc = 1 + 0.12 * k;
+      const x = X(fx), y = Y(fy), k = Math.min(1, Math.max(0, T.hits[i]) / 0.18), sc = 1 + 0.18 * k, lit = Math.min(1, (T.lit ? T.lit[i] : 0) / 1.2);
+      if (lit > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.18 * lit; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, bR * 2.6, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; } // still glowing from its last hit
       if (k > 0 || show) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = show ? 0.25 : 0.55 * k; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, bR * 1.75, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
       ctx.strokeStyle = c; ctx.lineWidth = k > 0 ? 0.6 : 0.35; ctx.globalAlpha = k > 0 ? 1 : 0.4;
       ctx.beginPath(); ctx.arc(x, y, bR * 1.55, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
@@ -5891,6 +5992,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     glowLine(() => { ctx.beginPath(); ctx.moveTo(R.x0, Y(0.985)); ctx.lineTo(R.x0 + R.w, Y(0.985)); }, 0.45, c, 0.8);
     ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.2; ctx.globalAlpha = 0.3;
     ctx.beginPath(); ctx.moveTo(X(0.16), Y(TB.rail)); ctx.lineTo(X(0.84), Y(TB.rail)); ctx.stroke(); ctx.globalAlpha = 1;
+    { // the flipper: a lit paddle riding on the ship, as wide as it catches; it kicks up and blazes when it fires a ball
+      const p = G.player, half = PLAYER_R + TABLE_FLIP_PAD + 1.5, k = clamp((T.flipT || 0) / 0.18, 0, 1), y = p.y - PLAYER_R - 1.6 - 1.6 * k, tilt = (T.flipX || 0) * 0.25 * k;
+      const cs = Math.cos(tilt), sn = Math.sin(tilt), ax = p.x - half * cs, ay = y - half * sn, bx = p.x + half * cs, by = y + half * sn;
+      ctx.lineCap = 'round';
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 + 0.6 * k; ctx.strokeStyle = c; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.restore();
+      ctx.strokeStyle = COL.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.strokeStyle = k > 0 ? COL.chalk : c; ctx.lineWidth = 0.7; ctx.stroke();
+      for (const [qx, qy] of [[ax, ay], [bx, by]]) { ctx.fillStyle = k > 0 ? COL.chalk : c; ctx.beginPath(); ctx.arc(qx, qy, 0.9, 0, Math.PI * 2); ctx.fill(); }
+      ctx.lineCap = 'butt';
+    }
     // the header panel, built into the top of the cabinet: time, the title and the lanes, targets
     const hh = top, x0 = R.x0 + cw * 0.75, x1 = R.x0 + R.w - cw * 0.75, x2 = R.x0 + cw * 1.15, x3 = R.x0 + R.w - cw * 1.15;
     const panel = () => { ctx.beginPath(); ctx.moveTo(x0, 0.4); ctx.lineTo(x1, 0.4); ctx.lineTo(x3, hh - 0.6); ctx.lineTo(x2, hh - 0.6); ctx.closePath(); };
@@ -5901,7 +6012,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.fillStyle = COL.chalk; ctx.font = `700 ${val}px ${FONT}`; ctx.fillText(T.time < 10 ? `${Math.ceil(T.time)}s` : '●'.repeat(T.balls ?? 0) + '○'.repeat(Math.max(0, TABLE_BALLS - (T.balls ?? 0))), lx, hh * 0.66);
     ctx.fillText(`${down}/4`, rx, hh * 0.66);
     ctx.fillStyle = c; ctx.font = `700 ${val * 0.9}px ${FONT}`; ctx.fillText('PINBALL', mx, hh * 0.32);
-    ctx.fillStyle = COL.chalk; ctx.font = `600 ${lab}px ${FONT}`; ctx.fillText(`LANES  ${T.lanes.filter(Boolean).length}/3`, mx, hh * 0.72);
+    ctx.fillStyle = (T.multT || 0) > 0 && Math.floor(G.time * 10) % 2 ? c : COL.chalk; ctx.font = `600 ${lab}px ${FONT}`; ctx.fillText(`LANES ${T.lanes.filter(Boolean).length}/3  ·  BONUS ×${T.mult || 1}`, mx, hh * 0.72);
     ctx.strokeStyle = COL.wall; ctx.globalAlpha = 0.35; ctx.lineWidth = 0.25; ctx.beginPath(); ctx.moveTo(mx - R.w * 0.14, hh * 0.52); ctx.lineTo(mx + R.w * 0.14, hh * 0.52); ctx.stroke(); ctx.globalAlpha = 1;
   }
 
@@ -7237,7 +7348,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       x: p.x + dx * (PLAYER_R + BALL_R0 + 0.4), y: p.y + dy * (PLAYER_R + BALL_R0 + 0.4),
       vx: dx * BALL_BASE, vy: dy * BALL_BASE,
     });
-    keepIn(ball, BALL_R0); launched(ball);
+    keepIn(ball, BALL_R0); launched(ball); ball.thrownAt = G.time;
     sfx.throw();
     G.balls.forEach((o, k) => { // wingmen follow down the same line, one after another
       if (!o.wing || o.state === 'live') return;
@@ -7287,7 +7398,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       G.wallHits.push({ x: wall === 'L' ? 0 : wall === 'R' ? AW : ball.x, y: wall === 'T' ? 0 : wall === 'B' ? AH : ball.y,
                         vert, t: 0, max: 0.2 + ball.b * 0.01, len: 7 + ball.b * 1.2, color: heat(ball.b) });
     }
-    const s = ballSpeed(ball.b), l = Math.hypot(ball.vx, ball.vy) || 1;
+    const l = Math.hypot(ball.vx, ball.vy) || 1, H = AH;
+    const s = G.table && !ball.wing ? Math.min(TABLE_VMAX * H, Math.max(l * TABLE_REST, (ball.kick || 0) * H)) : ballSpeed(ball.b); // on the pinball table it keeps its own speed (gravity's); kicks set a floor
+    ball.kick = 0;
     ball.vx = ball.vx / l * s; ball.vy = ball.vy / l * s;
     const c = heat(ball.b);
     ring(ball.x, ball.y, ballR(ball.b), ballR(ball.b) + 4 + ball.b * 0.4, 0.35, c, 0.4 + ball.b * 0.03);
@@ -7427,6 +7540,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const e = G.enemies[i], b = chargeOverride ?? src.b;
     G.enemies.splice(i, 1);
     if (e.micro) microBlast(e.x, e.y, src); // a micro-missile goes up, and takes its neighbours
+    if (e.segs) e.segs.forEach(([sx, sy, sr], k) => { burst(sx, sy, 5, k % 2 ? COL.threat : COL.chalk, 26, 0.45, 0.3); ring(sx, sy, sr * 0.5, sr + 2, 0.2, COL.threat, 0.4); }); // a snake: its tail breaks up
     if (e.crew && !G.crewChain) { // the repair crew are wired together: a spark runs to each of the others and they all go
       G.crewChain = true;
       for (let j = G.enemies.length - 1; j >= 0; j--) { const c = G.enemies[j]; if (!c.crew) continue;
@@ -7763,12 +7877,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (ball.beep <= 0) { ball.beep = 0.07 + 0.28 * ball.fuse / FUSE_TIME; sfx.fuse(1 - ball.fuse / FUSE_TIME, ball.x); }
     } else { ball.lit = false; ball.fuse = 0; }
     const r0 = ballR(ball.b);
-    const steps = Math.min(24, Math.ceil(ballSpeed(ball.b) * dt / (r0 * 0.6)));
+    const steps = Math.min(32, Math.ceil(Math.max(ballSpeed(ball.b), Math.hypot(ball.vx, ball.vy)) * dt / (r0 * 0.6)));
     const sub = dt / steps;
     for (let s = 0; s < steps && ball.state === 'live'; s++) {
       const r = ballR(ball.b) * bigK() * (ball.wing ? WING_SCALE : 1);
       if (pulling && !ball.noPull) { const [tx, ty] = fieldOpen() ? wrapTarget(ball, p.x, p.y) : [p.x, p.y]; turnBall(ball, tx, ty, pullRate(ball, Math.hypot(tx - ball.x, ty - ball.y)) * sub); }
-      else if (G.table && !ball.wing) turnBall(ball, ball.x, ball.y + 1e4, TABLE_GRAV * sub); // the table's gravity
+      else if (G.table && !ball.wing) ball.vy += TABLE_G * AH * sub; // the table's gravity: it speeds up as it falls
       if (G.bonus && !G.bonus.done && !pulling) { const [cx, cy] = bumpCentre(); if (Math.hypot(ball.x - cx, ball.y - cy) > bumpScale() * 2) turnBall(ball, cx, cy, Math.hypot(ball.vx, ball.vy) / (bumpScale() * BUMP_TILT_R) * sub); }
       for (const e of G.enemies) {
         if (fieldUp(e) && (e.x - ball.x) ** 2 + (e.y - ball.y) ** 2 < MAGNET_FIELD_R ** 2) turnBall(ball, e.x, e.y, MAGNET_TURN * sub);
@@ -7845,8 +7959,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           continue;
         }
         if (e.hitCd > 0) continue;
-        const dx = ball.x - e.x, dy = ball.y - e.y, d = Math.hypot(dx, dy);
-        const rr = ballR(ball.b) * bigK(), er = turretReach(e);
+        let ex = e.x, ey = e.y, er = turretReach(e);
+        if (e.segs) for (const [sx, sy, sr] of e.segs) if (Math.hypot(ball.x - sx, ball.y - sy) - sr < Math.hypot(ball.x - ex, ball.y - ey) - er) { ex = sx; ey = sy; er = sr; } // a snake: its tail's a target too
+        const dx = ball.x - ex, dy = ball.y - ey, d = Math.hypot(dx, dy);
+        const rr = ballR(ball.b) * bigK();
         if (d >= rr + er) continue;
         const dmg = 1 + ball.b, shielded = isImmune(e);
         if (!shielded) queueShock(e.x, e.y, ball.b);
@@ -7861,7 +7977,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const nx = d > 0 ? dx / d : 1, ny = d > 0 ? dy / d : 0;
         const dot = ball.vx * nx + ball.vy * ny;
         if (dot < 0) { ball.vx -= 2 * dot * nx; ball.vy -= 2 * dot * ny; }
-        ball.x = e.x + nx * (er + rr + 0.05); ball.y = e.y + ny * (er + rr + 0.05);
+        ball.x = ex + nx * (er + rr + 0.05); ball.y = ey + ny * (er + rr + 0.05);
         e.vx -= nx * 28; e.vy -= ny * 28;
         if (shielded) {
           e.vx = 0; e.vy = 0;
@@ -7873,7 +7989,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
 
       // caught only while pulling ("hold to bring it home"); otherwise it passes straight through the ship
-      if (!G.attract && pulling && !ball.wing && ball.noCatch <= 0 && G.dying <= 0 &&
+      if (!G.attract && pulling && !ball.wing && !ball.tx && ball.noCatch <= 0 && G.dying <= 0 &&
           Math.hypot(ball.x - p.x, ball.y - p.y) < PLAYER_R + CATCH_PAD + ballR(ball.b)) { catchBall(ball); break; }
     }
     if (ball.state === 'live') {
@@ -7993,6 +8109,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         } else if (e.mend) { // a worker: straight to its hole in the comb
           const ox = e.mend.x - e.x, oy = e.mend.y - e.y, od = Math.hypot(ox, oy) || 1;
           tx = ox / od * e.spd * 1.1; ty = oy / od * e.spd * 1.1;
+        } else if (e.type === 'snake' || e.type === 'viper') { // a slither: its heading swings side to side as it comes at you
+          const a = Math.atan2(uy, ux) + Math.sin(G.time * (e.type === 'viper' ? 4 : 6) + e.seed) * 0.9; tx = Math.cos(a) * e.spd; ty = Math.sin(a) * e.spd;
         } else if (e.type === 'swarm') { // swirl around a point near the player
           const a = e.seed + G.time * 1.6, ox = p.x + Math.cos(a) * 6 - e.x, oy = p.y + Math.sin(a) * 6 - e.y, od = Math.hypot(ox, oy) || 1;
           tx = ox / od * e.spd; ty = oy / od * e.spd;
@@ -8017,6 +8135,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         }
       }
       e.x += e.vx * dt; e.y += e.vy * dt;
+      if (e.type === 'snake' || e.type === 'viper') snakeTrail(e);
       if (e.form) { if (e.x < -12 || e.x > AW + 12 || e.y < -12 || e.y > AH + 12) e.gone = true; } // a formation flies straight through and out
       else { keepIn(e, e.r); if (!e.mend && !e.fromMaw) pushOut(e, e.r); } // a worker flies over the comb; the Carrier's jets fly over the Carrier
     }
@@ -8226,7 +8345,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.stroke(); ctx.restore();
     }
   }
-  const DASHER_PTS = [[1.45, 0], [-0.8, 0.85], [-0.15, 0], [-0.8, -0.85]];
+  const DASHER_PTS = [[1.5, 0], [0.55, 0.26], [0.05, 0.4], [-0.55, 1.02], [-0.8, 0.9], [-0.55, 0.36], [-0.35, 0], [-0.55, -0.36], [-0.8, -0.9], [-0.55, -1.02], [0.05, -0.4], [0.55, -0.26]]; // a raptor: a long nose, swept wings, the engine notch
   function shapePath(e, k = 1) {
     const r = e.r * k;
     ctx.beginPath();
@@ -8234,7 +8353,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const s = e.r * 0.86 + (k - 1) * e.r, a = e.rot * 0.4;
       for (let i = 0; i < 4; i++) { const t = a + Math.PI / 4 + i * Math.PI / 2; ctx.lineTo(Math.cos(t) * s * Math.SQRT2, Math.sin(t) * s * Math.SQRT2); }
       ctx.closePath();
-    } else if (e.type === 'dasher') { // a spearhead: long nose, swept barbs, a notch at the back for the engine
+    } else if (e.type === 'dasher') { // a raptor: a long nose, swept wings, a notch at the back for the engine
       const a = dasherAngle(e), cx = Math.cos(a), cy = Math.sin(a);
       for (const [x, y] of DASHER_PTS) ctx.lineTo((cx * x - cy * y) * r, (cy * x + cx * y) * r);
       ctx.closePath();
@@ -8302,9 +8421,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     } else if (e.type === 'drifter') { // an eye that follows you, and blinks now and then
       const [ox, oy] = drifterLook(e), shut = (t % 4.3) < 0.14 ? 0.12 : 1;
       ctx.save(); ctx.translate(ox, oy); ctx.scale(1, shut);
+      ctx.globalAlpha = 0.3; ctx.beginPath(); ctx.arc(0, 0, e.r * 0.42, 0, Math.PI * 2); ctx.fill(); // its iris
       ctx.globalAlpha = 0.85; ctx.lineWidth = 0.3; ctx.beginPath(); ctx.arc(0, 0, e.r * 0.42, 0, Math.PI * 2); ctx.stroke();
       if (e.hp <= 1) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(ox * 0.6, oy * 0.6, e.r * 0.18, 0, Math.PI * 2); ctx.fill(); } // with health showing, the number is the pupil
       ctx.restore();
+    } else if (e.type === 'swarm') { // two wings beating fast either side of its body
+      const a = Math.atan2(e.vy, e.vx), nx = -Math.sin(a), ny = Math.cos(a), bx = -Math.cos(a) * e.r * 0.2, by = -Math.sin(a) * e.r * 0.2, w = e.r * (0.7 + 0.7 * Math.abs(Math.sin(t * 30)));
+      ctx.globalAlpha = 0.35; ctx.fillStyle = COL.chalk; for (const sg of [-1, 1]) { ctx.beginPath(); ctx.ellipse(bx + nx * sg * (e.r * 0.4 + w * 0.5), by + ny * sg * (e.r * 0.4 + w * 0.5), w * 0.55, e.r * 0.42, a + sg * 1.3, 0, Math.PI * 2); ctx.fill(); } ctx.fillStyle = col; // a blur of wings
     } else if (e.type === 'mini') { // a hot little core, flickering
       ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 17); ctx.beginPath(); ctx.arc(0, 0, e.r * 0.3, 0, Math.PI * 2); ctx.fill();
     } else if (e.type === 'brute' || e.type === 'titan') {
@@ -8316,7 +8439,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       // core brightens as the lunge approaches, solid while winding up and dashing
       const ready = e.st === 'walk' ? clamp(1 - e.stT / 1.2, 0, 1) : 1;
       ctx.globalAlpha = 0.35 + ready * 0.65 * (e.st === 'walk' ? 0.6 + 0.4 * Math.sin(t * (6 + ready * 20)) : 1);
-      const da = dasherAngle(e); ctx.beginPath(); ctx.arc(Math.cos(da) * e.r * 0.3, Math.sin(da) * e.r * 0.3, e.r * 0.28, 0, Math.PI * 2); ctx.fill();
+      const da = dasherAngle(e); ctx.beginPath(); ctx.ellipse(Math.cos(da) * e.r * 0.62, Math.sin(da) * e.r * 0.62, e.r * 0.3, e.r * 0.15, da, 0, Math.PI * 2); ctx.fill(); // its cockpit
     } else if (e.type === 'splitter') {
       const ax = Math.cos(e.rot), ay = Math.sin(e.rot), nx = -ay, ny = ax, dmg = 1 - e.hp / (e.maxHp || e.hp);
       ctx.beginPath(); for (const sg of [-1, 1]) { ctx.moveTo(sg * ax * e.r * 0.55, sg * ay * e.r * 0.55); ctx.lineTo(sg * ax * e.r * 0.32, sg * ay * e.r * 0.32); } ctx.stroke(); // seam, broken where the number sits
@@ -8382,9 +8505,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.fill();
     } else if (e.type === 'dasher') { // a spine to the nose, and an engine in the notch that pulses, then roars as it lunges
       const a = dasherAngle(e), cx = Math.cos(a), cy = Math.sin(a), nx = -cy, ny = cx;
-      ctx.globalAlpha = 0.6; ctx.lineWidth = 0.25; ctx.beginPath(); ctx.moveTo(cx * r * 0.55, cy * r * 0.55); ctx.lineTo(cx * r * 1.3, cy * r * 1.3); ctx.stroke();
+      ctx.globalAlpha = 0.6; ctx.lineWidth = 0.25; ctx.beginPath(); ctx.moveTo(cx * r * 0.85, cy * r * 0.85); ctx.lineTo(cx * r * 1.35, cy * r * 1.35); // the spine
+      for (const sg of [-1, 1]) { ctx.moveTo(cx * r * 0.0 + nx * sg * r * 0.42, cy * r * 0.0 + ny * sg * r * 0.42); ctx.lineTo(-cx * r * 0.58 + nx * sg * r * 0.92, -cy * r * 0.58 + ny * sg * r * 0.92); } ctx.stroke(); // wing stripes
       const ready = e.st === 'walk' ? clamp(1 - e.stT / 1.2, 0, 1) : 1;
-      const L = r * (e.st === 'dash' ? 1.3 : e.st === 'wind' ? 0.9 + 0.35 * Math.random() : 0.5 + 0.3 * ready + 0.15 * Math.sin(t * 14)), bx = -cx * r * 0.22, by = -cy * r * 0.22, w = r * 0.24;
+      const L = r * (e.st === 'dash' ? 1.5 : e.st === 'wind' ? 1 + 0.4 * Math.random() : 0.55 + 0.35 * ready + 0.15 * Math.sin(t * 14)), bx = -cx * r * 0.42, by = -cy * r * 0.42, w = r * 0.26;
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = 0.55; ctx.beginPath(); ctx.moveTo(bx + nx * w, by + ny * w); ctx.lineTo(bx - cx * L, by - cy * L); ctx.lineTo(bx - nx * w, by - ny * w); ctx.closePath(); ctx.fill();
       ctx.globalAlpha = 0.8; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.moveTo(bx + nx * w * 0.45, by + ny * w * 0.45); ctx.lineTo(bx - cx * L * 0.55, by - cy * L * 0.55); ctx.lineTo(bx - nx * w * 0.45, by - ny * w * 0.45); ctx.closePath(); ctx.fill();
@@ -8543,6 +8667,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const R = rectOf(o);
       ctx.globalAlpha = Math.max(0, o.a);
       ctx.fillStyle = COL.block; ctx.fillRect(R.x0, R.y0, o.w, o.h);
+      { // a machined slab: lit along its top and left, a bevel to an inset face, bolts at the corners, a grip band across its long middle
+        const I = Math.min(1.6, Math.min(o.w, o.h) * 0.22), lg = ctx.createLinearGradient(R.x0, R.y0, R.x0 + o.w, R.y0 + o.h);
+        lg.addColorStop(0, 'rgba(255,255,255,0.09)'); lg.addColorStop(1, 'rgba(0,0,0,0.18)'); ctx.fillStyle = lg; ctx.fillRect(R.x0, R.y0, o.w, o.h);
+        ctx.strokeStyle = COL.blockEdge; ctx.lineWidth = 0.18; ctx.globalAlpha = Math.max(0, o.a) * 0.6; ctx.beginPath();
+        for (const [ax, ay, bx, by] of [[R.x0, R.y0, R.x0 + I, R.y0 + I], [R.x0 + o.w, R.y0, R.x0 + o.w - I, R.y0 + I], [R.x0, R.y0 + o.h, R.x0 + I, R.y0 + o.h - I], [R.x0 + o.w, R.y0 + o.h, R.x0 + o.w - I, R.y0 + o.h - I]]) { ctx.moveTo(ax, ay); ctx.lineTo(bx, by); }
+        ctx.stroke(); ctx.globalAlpha = Math.max(0, o.a);
+        ctx.fillStyle = COL.blockEdge; if (o.w > 3 && o.h > 3) for (const [bx, by] of [[R.x0 + I * 0.55, R.y0 + I * 0.55], [R.x0 + o.w - I * 0.55, R.y0 + I * 0.55], [R.x0 + I * 0.55, R.y0 + o.h - I * 0.55], [R.x0 + o.w - I * 0.55, R.y0 + o.h - I * 0.55]]) { ctx.beginPath(); ctx.arc(bx, by, 0.3, 0, Math.PI * 2); ctx.fill(); }
+        const long = o.h > o.w, L = long ? o.h : o.w; if (L > 10) { ctx.strokeStyle = COL.line; ctx.lineWidth = 0.2; ctx.globalAlpha = Math.max(0, o.a) * 0.7; ctx.beginPath();
+          for (let k = -2; k <= 2; k++) { const c = (long ? R.y0 + o.h / 2 : R.x0 + o.w / 2) + k * 0.9; if (long) { ctx.moveTo(R.x0 + I, c); ctx.lineTo(R.x0 + o.w - I, c); } else { ctx.moveTo(c, R.y0 + I); ctx.lineTo(c, R.y0 + o.h - I); } }
+          ctx.stroke(); ctx.globalAlpha = Math.max(0, o.a); }
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 0.3; ctx.beginPath(); ctx.moveTo(R.x0 + 0.3, R.y0 + o.h - 0.3); ctx.lineTo(R.x0 + 0.3, R.y0 + 0.3); ctx.lineTo(R.x0 + o.w - 0.3, R.y0 + 0.3); ctx.stroke(); // its lit edges
+      }
       ctx.strokeStyle = COL.line; ctx.lineWidth = 0.25; ctx.strokeRect(R.x0 + 0.9, R.y0 + 0.9, o.w - 1.8, o.h - 1.8);
       ctx.strokeStyle = COL.blockEdge; ctx.lineWidth = 0.5; ctx.strokeRect(R.x0, R.y0, o.w, o.h);
       if (o.flash > 0 && o.flashColor) {
@@ -8711,6 +8847,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         for (let k = 0; k < e.maxHp; k++) { const on = k < e.hp, px = (k - (e.maxHp - 1) / 2) * 1.7; ctx.beginPath(); ctx.arc(px, e.r + 1.7, 0.6, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.2; ctx.stroke(); } // its armour plates left
         ctx.restore(); continue;
       }
+      if (e.type === 'snake' || e.type === 'viper') { drawSnake(e, col); if (e.hp > 1) { ctx.font = `700 ${e.r * 0.75}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = pierce ? heat(liveB) : COL.chalk; ctx.fillText(e.hp, -Math.cos(Math.atan2(e.vy, e.vx)) * e.r * 0.15, -Math.sin(Math.atan2(e.vy, e.vx)) * e.r * 0.15); } ctx.restore(); continue; }
+      if (e.type === 'dasher' && !e.fromMaw && !e.jet && !VEC) { ctx.save(); squash(e); ctx.rotate(dasherAngle(e)); drawDasher(e, col, stroke, pierce ? heat(liveB) : null); ctx.restore(); ctx.restore(); continue; }
       if (e.fromMaw || e.jet) { // a Carrier fighter: its engine roars and it flickers white as it winds up to dash
         ctx.save(); squash(e); ctx.rotate(dasherAngle(e));
         const wind = e.st === 'wind', th = e.st === 'dash' ? 1 : wind ? 0.6 + 0.4 * Math.random() : 0.3;
@@ -8718,11 +8856,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.restore(); ctx.restore(); continue;
       }
       ctx.save(); squash(e);
-      // body: dark core tinted with the enemy's colour, then a heavy outline
+      if (!VEC) { // presence: a soft glow of its colour round it
+        const R2 = e.r * 2.1, gl = ctx.createRadialGradient(0, 0, e.r * 0.5, 0, 0, R2); gl.addColorStop(0, col); gl.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.16 + (e.flash > 0 ? 0.3 : 0); ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(0, 0, R2, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+      }
+      // body: dark core tinted with the enemy's colour, lit from the upper left, then a heavy outline and an inner bevel
       shapePath(e);
       ctx.fillStyle = COL.ink; ctx.fill();
-      if (!VEC || e.flash > 0) { ctx.globalAlpha = e.flash > 0 ? 0.9 : 0.16; ctx.fillStyle = e.flash > 0 ? COL.chalk : col; ctx.fill(); ctx.globalAlpha = 1; } // vector: hollow outlines
+      if (!VEC || e.flash > 0) {
+        ctx.globalAlpha = e.flash > 0 ? 0.9 : 0.12; ctx.fillStyle = e.flash > 0 ? COL.chalk : col; ctx.fill();
+        if (!VEC && !(e.flash > 0)) { const lg = ctx.createLinearGradient(-e.r, -e.r, e.r * 0.6, e.r * 0.6); lg.addColorStop(0, col); lg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.globalAlpha = 0.34; ctx.fillStyle = lg; ctx.fill(); }
+        ctx.globalAlpha = 1;
+      } // vector: hollow outlines
       strokeEnemy(e, stroke);
+      if (!VEC && e.type !== 'swarm' && e.type !== 'mini' && e.type !== 'rock') { ctx.save(); shapePath(e, 0.74); ctx.strokeStyle = col; ctx.lineWidth = 0.2; ctx.globalAlpha = 0.3; ctx.stroke(); ctx.restore(); } // its inner bevel
       enemyDetail(e, col);
       ctx.restore();
       // its health; the number lights up in the ball's colour once the ball can punch straight through it (a one-hit
@@ -8732,7 +8879,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.font = `700 ${e.r * 0.85}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         let tx = 0, ty = e.r * 0.05;
         if (e.type === 'drifter') { const [ox, oy] = drifterLook(e); tx += ox; ty += oy; }
-        if (e.type === 'dasher') { const a = dasherAngle(e); tx += Math.cos(a) * e.r * 0.3; ty += Math.sin(a) * e.r * 0.3; } // in the body, ahead of the notch
+        if (e.type === 'dasher') { const a = dasherAngle(e); tx += Math.cos(a) * e.r * 0.02; ty += Math.sin(a) * e.r * 0.02; } // in the body, between the wings
         if (e.type === 'turret') { const n = wallNormal(e); tx += Math.cos(n) * e.r * 0.45; ty += Math.sin(n) * e.r * 0.45; ctx.font = `700 ${e.r * 0.7}px ${FONT}`; }
         if (pierce) { ctx.shadowColor = heat(liveB); ctx.shadowBlur = 6 * DPR; ctx.fillStyle = heat(liveB); ctx.fillText(e.hp, tx, ty); ctx.shadowBlur = 0; }
         else { ctx.fillStyle = COL.chalk; ctx.fillText(e.hp, tx, ty); }
