@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 04 17:41 UTC · 555b366";</script>
+<script>window.RICOCHET_BUILD = "Nov 04 17:50 UTC · 55faece";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3632,12 +3632,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     });
     TANK_DRUMS.forEach(([dx, dy], i) => { // fuel drums strapped on the back, a hazard band round each
       if (!B.drums[i]) { flame(dx, dy, 1.8, i + 7); return; }
-      const R = TANK_DRUM_RR; // drawn just like the fuel drums of waves 8-9 (it's the same thing): an orange glow, a fire ring, hazard ticks
-      glow(() => { ctx.beginPath(); ctx.arc(dx, dy, R * 1.9, 0, Math.PI * 2); ctx.fill(); }, fire, 0.18 + 0.1 * Math.sin(t * 4 + i));
-      ctx.beginPath(); ctx.arc(dx, dy, R, 0, Math.PI * 2); fill(0.3); stroke(W1 * 0.9, 1, B.flash > 0 ? COL.chalk : ECOL.warden);
-      ctx.beginPath(); ctx.arc(dx, dy, R * 0.62, 0, Math.PI * 2); stroke(W2 * 1.2, 1, fire);
-      ctx.beginPath(); for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.4; ctx.moveTo(dx + Math.cos(a) * R * 0.66, dy + Math.sin(a) * R * 0.66); ctx.lineTo(dx + Math.cos(a) * R * 0.92, dy + Math.sin(a) * R * 0.92); } stroke(W2, 1, fire);
-      ctx.beginPath(); ctx.arc(dx, dy, R * 0.2, 0, Math.PI * 2); ctx.fillStyle = fire; ctx.fill();
+      const R = TANK_DRUM_RR, L = R * 1.15, Hh = R * 0.82; // barrels lying on its deck, strapped down: the same orange drums as waves 8-9 (it's the same thing)
+      glow(() => { ctx.beginPath(); ctx.arc(dx, dy, R * 1.9, 0, Math.PI * 2); ctx.fill(); }, fire, 0.16 + 0.1 * Math.sin(t * 4 + i));
+      const drum = () => { ctx.beginPath(); ctx.roundRect(dx - L, dy - Hh, L * 2, Hh * 2, Hh * 0.55); };
+      drum(); ctx.fillStyle = COL.ink; ctx.fill(); ctx.globalAlpha = B.flash > 0 ? 0.9 : 0.82; ctx.fillStyle = B.flash > 0 ? COL.chalk : fire; ctx.fill(); ctx.globalAlpha = 1;
+      const g = ctx.createLinearGradient(dx, dy - Hh, dx, dy + Hh); g.addColorStop(0, 'rgba(0,0,0,0.4)'); g.addColorStop(0.35, 'rgba(255,255,255,0.22)'); g.addColorStop(0.6, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.45)'); ctx.fillStyle = g; ctx.fill();
+      ctx.beginPath(); for (const fx of [-0.55, 0.55]) { ctx.moveTo(dx + fx * L, dy - Hh); ctx.lineTo(dx + fx * L, dy + Hh); } stroke(W2 * 1.4, 1, COL.ink); // its ribs
+      drum(); stroke(W1 * 0.8, 1, B.flash > 0 ? COL.chalk : ECOL.warden);
+      flameIcon(dx, dy, R * 0.42); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W3, 1, COL.chalk); flameIcon(dx, dy + R * 0.1, R * 0.2); ctx.fillStyle = `rgb(${HEAT[1].join(',')})`; ctx.fill(); // fuel
     });
     const pk = B.dug ? clamp((1 - B.digT / TANK_DIG) * 2 - 0.6, 0, 1) : 0; // the gun pods rise as it digs in
     if (pk > 0) for (const key of ['podL', 'podR']) {
@@ -3845,19 +3847,34 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     return false;
   }
   // A drum from above, like the ones on the Tank's back: a hazard band round it and a glowing cap. About to go, it flashes.
+  // A fuel drum: an orange steel barrel standing up, seen from a little above (its lid and its bung, two ribs, a flame
+  // warning on its side), glowing hot round its foot; flashing white as its fuse burns
+  const flameIcon = (x, y, k) => { ctx.beginPath(); ctx.moveTo(x, y - k); ctx.quadraticCurveTo(x + k * 0.8, y - k * 0.05, x + k * 0.5, y + k * 0.6); ctx.quadraticCurveTo(x, y + k * 0.95, x - k * 0.5, y + k * 0.6); ctx.quadraticCurveTo(x - k * 0.8, y - k * 0.05, x, y - k); ctx.closePath(); };
+  function drawBarrel(R, hot, t) {
+    const fire = heat(MAX_CHARGE * 0.75), W = R * 0.82, T = -R * 0.92, B = R * 0.82, ry = R * 0.3, line = hot ? COL.chalk : ECOL.warden;
+    ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.ellipse(0, B + R * 0.12, W * 1.25, ry * 1.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // its shadow
+    const body = () => { ctx.beginPath(); ctx.moveTo(-W, T); ctx.lineTo(-W, B); ctx.ellipse(0, B, W, ry, 0, Math.PI, 0, true); ctx.lineTo(W, T); ctx.ellipse(0, T, W, ry, 0, 0, Math.PI, false); ctx.closePath(); };
+    body(); ctx.fillStyle = COL.ink; ctx.fill();
+    ctx.globalAlpha = hot ? 0.9 : 0.82; ctx.fillStyle = hot ? COL.chalk : fire; ctx.fill(); ctx.globalAlpha = 1;
+    const g = ctx.createLinearGradient(-W, 0, W, 0); g.addColorStop(0, 'rgba(0,0,0,0.45)'); g.addColorStop(0.32, 'rgba(255,255,255,0.25)'); g.addColorStop(0.55, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.5)');
+    ctx.fillStyle = g; ctx.fill(); // round: lit down its left, dark round its far side
+    for (const f of [0.34, 0.72]) { const y = T + (B - T) * f; ctx.beginPath(); ctx.ellipse(0, y, W, ry, 0, Math.PI, 0, true); ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.55; ctx.stroke(); ctx.strokeStyle = line; ctx.lineWidth = 0.18; ctx.globalAlpha = 0.6; ctx.stroke(); ctx.globalAlpha = 1; } // its ribs
+    body(); ctx.strokeStyle = line; ctx.lineWidth = 0.45; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, T, W, ry, 0, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.globalAlpha = 0.35; ctx.fillStyle = fire; ctx.fill(); ctx.globalAlpha = 1; ctx.strokeStyle = line; ctx.lineWidth = 0.35; ctx.stroke(); // its lid
+    ctx.beginPath(); ctx.ellipse(0, T, W * 0.72, ry * 0.7, 0, 0, Math.PI * 2); ctx.strokeStyle = line; ctx.lineWidth = 0.15; ctx.globalAlpha = 0.6; ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.ellipse(W * 0.38, T, W * 0.17, ry * 0.32, 0, 0, Math.PI * 2); ctx.fillStyle = line; ctx.fill(); // its bung
+    const fy = T + (B - T) * 0.53, k = R * 0.3; flameIcon(0, fy, k); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.22; ctx.stroke(); // a flame on its side: fuel
+    flameIcon(0, fy + k * 0.25, k * 0.5); ctx.fillStyle = hot ? COL.chalk : HEAT[1] ? `rgb(${HEAT[1].join(',')})` : COL.chalk; ctx.fill();
+  }
   function drawDrums() {
-    const H3 = hex(COL.hull), fire = heat(MAX_CHARGE * 0.75); // orange: it's the blast's colour, not the enemies' pink
+    const fire = heat(MAX_CHARGE * 0.75); // orange: it's the blast's colour, not the enemies' pink
     for (const d of G.drums) {
       if (d.gone) continue;
       const s = clamp(d.t / 0.25, 0, 1), hot = d.fuse > 0 && Math.floor(G.time * 30) % 2;
       if (s <= 0) continue;
       ctx.save(); ctx.translate(d.x, d.y); ctx.scale(s, s);
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.18 + 0.1 * Math.sin(G.time * 4 + d.cl); ctx.fillStyle = fire; ctx.beginPath(); ctx.arc(0, 0, DRUM_R * 1.9, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      ctx.beginPath(); ctx.arc(0, 0, DRUM_R, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill();
-      ctx.strokeStyle = hot ? COL.chalk : ECOL.warden; ctx.lineWidth = 0.55; ctx.stroke();
-      ctx.beginPath(); ctx.arc(0, 0, DRUM_R * 0.62, 0, Math.PI * 2); ctx.strokeStyle = fire; ctx.lineWidth = 0.4; ctx.stroke();
-      ctx.beginPath(); for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.4; ctx.moveTo(Math.cos(a) * DRUM_R * 0.66, Math.sin(a) * DRUM_R * 0.66); ctx.lineTo(Math.cos(a) * DRUM_R * 0.92, Math.sin(a) * DRUM_R * 0.92); } ctx.strokeStyle = fire; ctx.lineWidth = 0.35; ctx.stroke(); // hazard ticks
-      ctx.beginPath(); ctx.arc(0, 0, DRUM_R * 0.2, 0, Math.PI * 2); ctx.fillStyle = hot ? COL.chalk : fire; ctx.fill();
+      drawBarrel(DRUM_R, hot, G.time + d.cl);
       ctx.restore();
     }
   }
@@ -5715,8 +5732,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // they don't cost a ball when they drain). Every wall, bumper and slingshot hit charges the ball, but it
   // never overloads here: it tops out at full speed and keeps playing. On the table: three pop bumpers, two slingshots, three rollover lanes at the top (light all three
   // for a bonus) and a bank of four drop targets (knock all four down for the jackpot).
-  const TABLE_TIME = 75, TABLE_BALLS = 3, TABLE_FLIP = 1.05, TABLE_FLIP_PAD = 5, TABLE_MAX_B = 6, TABLE_SAVE = 3.5, TABLE_MULT_MAX = 5;
-  const TABLE_G = 0.42, TABLE_LAUNCH = 0.84, TABLE_REST = 0.86, TABLE_BUMP = 0.62, TABLE_SLING = 0.56, TABLE_VMAX = 1.05; // × the table's height (per s, per s²)
+  const TABLE_TIME = 75, TABLE_BALLS = 3, TABLE_FLIP = 1.05, TABLE_FLIP_PAD = 5, TABLE_MAX_B = 6, TABLE_SAVE = 3.5, TABLE_MULT_MAX = 3;
+  const TABLE_G = 1, TABLE_LAUNCH = 1.3, TABLE_REST = 0.9, TABLE_BUMP = 0.95, TABLE_SLING = 0.85, TABLE_VMAX = 1.6, TABLE_RAIL = 1.6; // × the table's height (per s, per s²); TABLE_RAIL: the ship's speed on the rail
   const TB = { bumpers: [[0.5, 0.3], [0.3, 0.41], [0.7, 0.41]], bumpR: 0.075, lanes: [0.35, 0.5, 0.65], laneY: 0.11,
                targets: [0.46, 0.52, 0.58, 0.64], targetX: 0.93, rail: 0.95, top: 0.06, arch: 0.2 };
   // TB.top: the playfield's top wall (the header panel sits above it); TB.arch: the radius of its rounded top corners
@@ -7254,13 +7271,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   function updatePlayer(dt) {
     const p = G.player;
-    const kx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0), ky = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
-    if (kx || ky) { const l = Math.hypot(kx, ky); movePlayer(kx / l * PLAYER_SPEED * dt, ky / l * PLAYER_SPEED * dt); }
+    const kx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0), ky = (keys.down ? 1 : 0) - (keys.up ? 1 : 0), rail = !!G.table; // on the pinball rail: side to side only, and quicker
+    if (rail) { if (kx) movePlayer(kx * PLAYER_SPEED * TABLE_RAIL * dt, 0); }
+    else if (kx || ky) { const l = Math.hypot(kx, ky); movePlayer(kx / l * PLAYER_SPEED * dt, ky / l * PLAYER_SPEED * dt); }
     if (touchMove) {
-      const dx = touchMove.x - touchMove.ox, dy = touchMove.y - touchMove.oy, len = Math.hypot(dx, dy), m = Math.min(1, len / STICK_R);
+      const dx = touchMove.x - touchMove.ox, dy = touchMove.y - touchMove.oy, len = rail ? Math.abs(dx) : Math.hypot(dx, dy), m = Math.min(1, len / STICK_R);
       if (m > STICK_DEAD) { // curved so small thumb moves give fine control
-        const sp = PLAYER_SPEED * Math.pow((m - STICK_DEAD) / (1 - STICK_DEAD), 1.3);
-        movePlayer(dx / len * sp * dt, dy / len * sp * dt);
+        const sp = PLAYER_SPEED * (rail ? TABLE_RAIL : 1) * Math.pow((m - STICK_DEAD) / (1 - STICK_DEAD), 1.3);
+        if (rail) movePlayer(Math.sign(dx) * sp * dt, 0); else movePlayer(dx / len * sp * dt, dy / len * sp * dt);
       }
     }
     if (G.table) { const T = tableRect(); p.y = AH * TB.rail; p.x = clamp(p.x, T.x0 + T.w * 0.16, T.x0 + T.w * 0.84); p.fx = 0; p.fy = -1; } // on the rail
