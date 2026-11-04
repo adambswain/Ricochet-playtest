@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 04 19:11 UTC · 361242c";</script>
+<script>window.RICOCHET_BUILD = "Nov 04 19:38 UTC · bf59739";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -296,6 +296,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <div class="ctrl"><div><span>Screen shake</span> <button class="linkbtn shakeBtn" data-v="1" type="button">Full</button><button class="linkbtn shakeBtn" data-v="0.4" type="button">Reduced</button><button class="linkbtn shakeBtn" data-v="0" type="button">Off</button></div></div>
     <div class="ctrl"><div><span>Flashes</span> <button class="linkbtn flashBtn" data-v="1" type="button">Full</button><button class="linkbtn flashBtn" data-v="0" type="button">Reduced</button> <span class="startNote">Reduced: no full-screen flashes and no strobing lights</span></div></div>
     <div class="ctrl"><div><span>Touch controls</span> <button class="linkbtn swapBtn" type="button">Move on left</button></div></div>
+    <div class="ctrl"><div><span>Catching</span> <button class="linkbtn catchBtn" data-v="0" type="button">Reset</button><button class="linkbtn catchBtn" data-v="1" type="button">Keep</button> <span class="startNote">Keep: a caught ball keeps its charge while you hold, cooling as you hold it; let go to launch it (a hot one bursts as it goes)</span></div></div>
     <div class="ctrl"><div><span>Ball pull</span> <button class="linkbtn pullBtn" data-v="0" type="button">Classic</button><button class="linkbtn pullBtn" data-v="1" type="button">Tight</button> <span class="startNote">Tight: a fast ball curves home as tightly as a slow one, so it can't loop round you</span></div></div>
     <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
     <div class="ctrl"><div><span>Look</span> <button class="linkbtn lookBtn" data-look="neon" type="button">Neon</button> <button class="linkbtn lookBtn" data-look="cabinet" type="button">Cabinet</button> <button class="linkbtn lookBtn" data-look="bone" type="button">Bone</button> <button class="linkbtn lookBtn" data-look="blueprint" type="button">Blueprint</button> <button class="linkbtn lookBtn" data-look="blueprint2" type="button">Blueprint 2</button></div></div>
@@ -463,6 +464,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // tightens further close in (never wider than a bit under half its distance), so it can't settle into an orbit.
   const PULL_R_TIGHT = 66 * SPEED_K * BALL_START_K / (PULL_TURN * 1.15);
   let pullTight = false;
+  let catchKeep = false; // the Catching setting: Reset (a catch resets the charge) or Keep (it keeps it, cooling while held, and launches when you let go)
+  const KEEP_COOL = 0.5; // Keep: a held ball loses a charge every KEEP_COOL seconds
   const pullRate = (o, d) => pullTight ? Math.max(PULL_TURN, Math.hypot(o.vx, o.vy) / Math.max(1, Math.min(PULL_R_TIGHT, d * 0.42))) : PULL_TURN;
   const BLAST_R = 26, MULT_MAX = 10, CHAIN_STEP = 0.1; // each kill adds CHAIN_STEP × its place in this throw's chain
   // Power-up capsules: dropped by kills, collected only by the ball; charge sets duration (and shockwave size).
@@ -596,7 +599,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // no strobing alert lights)
   let shakeK = 1, flashK = 1;
   try { const sk = localStorage.getItem('ricochet.shake'), fk = localStorage.getItem('ricochet.flash'); if (sk !== null) shakeK = +sk; if (fk !== null) flashK = +fk; } catch (e) {}
-  try { best = +localStorage.getItem('ricochet.best') || 0; muted = localStorage.getItem('ricochet.muted') === '1'; swapSides = localStorage.getItem('ricochet.swap') === '1'; pullTight = localStorage.getItem('ricochet.pull') === '1'; touchHint = localStorage.getItem('ricochet.touchHint') !== 'done'; musicOn = localStorage.getItem('ricochet.music') !== '0'; } catch (e) {}
+  try { best = +localStorage.getItem('ricochet.best') || 0; muted = localStorage.getItem('ricochet.muted') === '1'; swapSides = localStorage.getItem('ricochet.swap') === '1'; pullTight = localStorage.getItem('ricochet.pull') === '1'; catchKeep = localStorage.getItem('ricochet.catch') === '1'; touchHint = localStorage.getItem('ricochet.touchHint') !== 'done'; musicOn = localStorage.getItem('ricochet.music') !== '0'; } catch (e) {}
 
   /* ---------- audio ---------- */
   // Everything is synthesised: voices run through a compressor, with a shared reverb send and stereo pan by
@@ -7438,6 +7441,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   function updatePlayer(dt) {
     const p = G.player;
+    if (catchKeep) keepRelease();
     const kx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0), ky = (keys.down ? 1 : 0) - (keys.up ? 1 : 0), rail = !!G.table; // on the pinball rail: side to side only, and quicker
     if (rail) { if (kx) movePlayer(kx * PLAYER_SPEED * TABLE_RAIL * dt, 0); }
     else if (kx || ky) { const l = Math.hypot(kx, ky); movePlayer(kx / l * PLAYER_SPEED * dt, ky / l * PLAYER_SPEED * dt); }
@@ -7535,10 +7539,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (l < 0.5) { dx = p.fx; dy = p.fy; l = 1; }
     dx /= l; dy /= l;
     p.fx = dx; p.fy = dy;
+    const kb = catchKeep && ball.kept ? ball.b : 0, sp0 = kb ? ballSpeed(kb) : BALL_BASE; G.keepHold = false;
+    if (kb >= CATCH_BLAST_AT && !safeRound() && !G.attract) catchBlast(ball, kb, false); // Keep: letting a hot ball go bursts round you
     Object.assign(ball, {
-      state: 'live', b: 0, kills: 0, noCatch: NO_CATCH, trail: [],
+      state: 'live', b: kb, kept: false, kills: 0, noCatch: NO_CATCH, trail: [],
       x: p.x + dx * (PLAYER_R + BALL_R0 + 0.4), y: p.y + dy * (PLAYER_R + BALL_R0 + 0.4),
-      vx: dx * BALL_BASE, vy: dy * BALL_BASE,
+      vx: dx * sp0, vy: dy * sp0,
     });
     keepIn(ball, BALL_R0); launched(ball); ball.thrownAt = G.time;
     sfx.throw();
@@ -7648,7 +7654,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   function catchBall(ball) {
     const b = ball.b, p = G.player, defused = ball.b >= MAX_CHARGE && ball.lit;
-    docked(ball); ball.state = 'held'; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.trail = [];
+    const keep = catchKeep && !G.attract;
+    docked(ball); ball.state = 'held'; ball.b = keep ? b : 0; ball.fuse = 0; ball.lit = false; ball.trail = []; ball.kept = keep; ball.coolT = 0;
+    if (keep) G.keepHold = true; // it launches when you let go
     recallWings();
     for (const s of ptrs.values()) s.noTap = true; // releasing the pull finger must not throw
     if (touchAct) {
@@ -7657,7 +7665,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (G.balls.length > 1) Object.assign(touchAct, { ox: touchAct.x, oy: touchAct.y, used: false, rearmed: true });
     }
     if (b >= 9) G.freeze = Math.max(G.freeze, 0.05);
-    if (b >= CATCH_BLAST_AT && !safeRound() && !G.attract) catchBlast(ball, b, defused);
+    if (keep) { ring(p.x, p.y, PLAYER_R, PLAYER_R + 7, 0.3, heat(b), 0.5); if (b >= 5) sfx.catchGood(); else sfx.catchSoft(); }
+    else if (b >= CATCH_BLAST_AT && !safeRound() && !G.attract) catchBlast(ball, b, defused);
     else if (b >= 5) {
       ring(p.x, p.y, PLAYER_R, PLAYER_R + 7, 0.3, heat(b), 0.5);
       sfx.catchGood();
@@ -8025,7 +8034,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const sp = Math.min(WING_HOME, d / dt); ball.x += dx / d * sp * dt; ball.y += dy / d * sp * dt;
       return;
     }
-    if (ball.state === 'held') { seat(ball, slot); return; }
+    if (ball.state === 'held') {
+      seat(ball, slot);
+      if (ball.kept && ball.b > 0) { ball.coolT = (ball.coolT || 0) + dt; while (ball.coolT >= KEEP_COOL && ball.b > 0) { ball.coolT -= KEEP_COOL; ball.b--; } } // Keep: it cools in your hands
+      return;
+    }
     if (ball.state === 'ember') {
       ball.emberT = (ball.emberT || 0) + dt;
       if (ball.emberT > EMBER_WAIT && p.hull > 0) { // after a moment it drifts home to you; flying to meet it is still quicker
@@ -9585,9 +9598,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const hull = play ? Math.max(0, G.player.hull) : 3, slots = play ? (G.hullMax || HULL_MAX) : HULL_MAX;
     setText('nextLife', `+1 at ${milestone(play ? G.lifeIdx : 0).toLocaleString()}`);
     // the meter tracks the hottest ball out (the one closest to overloading); each ball shows its own charge on it
-    const hb = play ? hottest() : null, b = hb ? hb.b : 0;
+    const hb = play ? hottest() || (G.balls[0].kept ? G.balls[0] : null) : null, b = hb ? hb.b : 0; // (Keep: a held ball's charge shows as it cools)
     const held = play ? G.balls.filter(o => o.state === 'held').length : 1, embers = play ? G.balls.filter(o => o.state === 'ember').length : 0;
-    const st = !play ? 'held' : hb ? 'live' : held ? 'held' : 'ember';
+    const st = !play ? 'held' : hb && hb.state === 'held' ? 'held' : hb ? 'live' : held ? 'held' : 'ember';
     const key = `${hull}/${slots}|${b}|${st}|${held}|${embers}|${play ? G.balls.length : 1}|${play && G.table ? 't' : ''}|${inputType}`;
     if (hc.key === key) return;
     hc.key = key;
@@ -9600,7 +9613,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     });
     const safe = safeRound();
     $('pips').classList.toggle('warn', b >= WARN && !safe);
-    setText('note', st === 'ember' ? 'Overloaded. It drifts back to you' : st === 'held' ? (held > 1 ? `${held} in hand` : 'In hand')
+    setText('note', st === 'ember' ? 'Overloaded. It drifts back to you' : st === 'held' ? (G && G.balls[0].kept && b > 0 ? `${1 + b} damage · cooling: let go to launch` : held > 1 ? `${held} in hand` : 'In hand')
       : (safe || G.powers.over > 0) && b >= MAX_CHARGE ? 'Full speed' : b >= MAX_CHARGE ? 'Warning: overload' : b >= WARN && !safe ? 'Near overload' : `${1 + b} damage`);
   }
 
@@ -9612,6 +9625,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!G || G.attract || G.dying > 0) return false;
     // a press that just threw (or a thumb that caught) must lift before it can pull, or the throw would bend straight back
     return !!((keys.pull && !spaceThrew) || mouseRight || (mouseLeft.down && !mouseLeft.threw) || (touchAct && !touchAct.used && !touchAct.noTap));
+  }
+  // Keep: the control that caught the ball let go: it launches, toward your aim (the mouse; a swipe of the thumb that
+  // held it; or where the ship faces)
+  function keepRelease() {
+    if (!G || !G.keepHold) return;
+    if (keys.pull || mouseRight || mouseLeft.down || touchAct) return;
+    G.keepHold = false;
+    const ball = G.balls[0]; if (ball.state !== 'held' || !ball.kept) return;
+    const p = G.player, d = G.keepDir; G.keepDir = null;
+    if (d) throwAt(p.x + d[0] * 10, p.y + d[1] * 10); else throwAtAim();
   }
   function throwAtAim() {
     if (!G || !anyHeld()) return false;
@@ -9692,7 +9715,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   document.querySelectorAll('.flashBtn').forEach(b => b.addEventListener('click', () => { setFlash(+b.dataset.v); b.blur(); }));
   const setPull = v => { pullTight = !!v; pickOpt('.pullBtn', v); try { localStorage.setItem('ricochet.pull', String(v)); } catch (e) {} };
   document.querySelectorAll('.pullBtn').forEach(b => b.addEventListener('click', () => { setPull(+b.dataset.v); b.blur(); }));
-  setShake(shakeK); setFlash(flashK); setPull(pullTight ? 1 : 0);
+  const setCatch = v => { catchKeep = !!v; pickOpt('.catchBtn', v); try { localStorage.setItem('ricochet.catch', String(v)); } catch (e) {} };
+  document.querySelectorAll('.catchBtn').forEach(b => b.addEventListener('click', () => { setCatch(+b.dataset.v); b.blur(); }));
+  setShake(shakeK); setFlash(flashK); setPull(pullTight ? 1 : 0); setCatch(catchKeep ? 1 : 0);
   const showHow = on => { $('ov-how').hidden = !on; if (on) { $('ov-how').scrollTop = 0; $('howBack').focus({ preventScroll: true }); } else $('play').focus({ preventScroll: true }); };
   $('howBtn').addEventListener('click', () => showHow(true));
   $('howBack').addEventListener('click', () => showHow(false));
@@ -9763,6 +9788,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (touchMove && e.pointerId === touchMove.id) touchMove = null;
     else if (touchAct && e.pointerId === touchAct.id) {
       const a = touchAct; touchAct = null;
+      if (G && G.keepHold && Math.hypot(a.x - a.ox, a.y - a.oy) >= SWIPE_MIN) G.keepDir = [(a.x - a.ox) / Math.hypot(a.x - a.ox, a.y - a.oy), (a.y - a.oy) / Math.hypot(a.x - a.ox, a.y - a.oy)]; // Keep: the thumb's swipe aims the launch
       if (e.type === 'pointerup' && !a.used && !a.noTap && mode === 'play' && G && performance.now() - a.t < 350 && Math.hypot(a.x - a.ox, a.y - a.oy) < SWIPE_MIN)
         touchThrow(G.player.fx, G.player.fy); // a plain tap throws where the ship faces
     }
