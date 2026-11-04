@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 04 17:50 UTC · 55faece";</script>
+<script>window.RICOCHET_BUILD = "Nov 04 18:11 UTC · aecf437";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -512,7 +512,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     2: 'Brutes take several hits',
     3: 'Dashers wind up, then lunge',
     4: 'Blocks bounce the ball and add charge. Splitters break in two',
-    5: 'Pinball! Your ship is the flipper: get under the ball to keep it up. Three balls. Drop all four targets for the jackpot',
+    5: 'Pinball! Your ship is the flipper. Every bounce speeds the ball up and scores more: catch it to cool it down. Three balls',
     6: 'Turrets fire slow shots. Hit them, or bank your ball off the wall right beside one',
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them. Fuel drums: hit one to blow up everything near it',
@@ -5732,8 +5732,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // they don't cost a ball when they drain). Every wall, bumper and slingshot hit charges the ball, but it
   // never overloads here: it tops out at full speed and keeps playing. On the table: three pop bumpers, two slingshots, three rollover lanes at the top (light all three
   // for a bonus) and a bank of four drop targets (knock all four down for the jackpot).
-  const TABLE_TIME = 75, TABLE_BALLS = 3, TABLE_FLIP = 1.05, TABLE_FLIP_PAD = 5, TABLE_MAX_B = 6, TABLE_SAVE = 3.5, TABLE_MULT_MAX = 3;
+  const TABLE_TIME = 75, TABLE_BALLS = 3, TABLE_FLIP = 1.05, TABLE_FLIP_PAD = 7, TABLE_MAX_B = 12, TABLE_SAVE = 3.5, TABLE_MULT_MAX = 3;
   const TABLE_G = 1, TABLE_LAUNCH = 1.3, TABLE_REST = 0.9, TABLE_BUMP = 0.95, TABLE_SLING = 0.85, TABLE_VMAX = 1.6, TABLE_RAIL = 1.6; // × the table's height (per s, per s²); TABLE_RAIL: the ship's speed on the rail
+  // Ricochet's rules on the table too: every bounce heats the ball, and the hotter it is the faster the whole table plays
+  // for it (gravity, kicks and launches, scaled so its arcs keep their shape) and the more it scores; catch it to cool it.
+  const tableK = b => 0.78 + 0.035 * Math.min(b || 0, TABLE_MAX_B);
   const TB = { bumpers: [[0.5, 0.3], [0.3, 0.41], [0.7, 0.41]], bumpR: 0.075, lanes: [0.35, 0.5, 0.65], laneY: 0.11,
                targets: [0.46, 0.52, 0.58, 0.64], targetX: 0.93, rail: 0.95, top: 0.06, arch: 0.2 };
   // TB.top: the playfield's top wall (the header panel sits above it); TB.arch: the radius of its rounded top corners
@@ -5761,11 +5764,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const f of [0.275, 0.425, 0.575, 0.725]) segs.push([X(f), top, X(f), Y(0.145), 'post']);      // lane dividers hang from the top
     return segs;
   }
-  const tableAward = (pts, x, y) => { const T = G.table, v = pts * (T.cycle + 1) * (T.mult || 1); T.score += v; G.score += v; float(x, y, `${v}`, ECOL.target, 2.4 + Math.min(2, v / 1500)); };
+  const tableAward = (pts, x, y) => { const T = G.table, v = Math.round(pts * (T.cycle + 1) * (T.mult || 1) * (1 + 0.05 * (T.heatB || 0)) / 10) * 10; /* the hotter the ball, the more it scores */ T.score += v; G.score += v; float(x, y, `${v}`, ECOL.target, 2.4 + Math.min(2, v / 1500)); };
   // The table's walls and furniture, for a ball moving by the normal rules. Every bounce charges the ball (and may
   // overload it); lanes and targets score. Called from the ball's substep loop while a table is up.
   function tableCollide(ball, r) {
-    const Tb = G.table, R = tableRect();
+    const Tb = G.table, R = tableRect(); Tb.heatB = ball.b;
     const bounce = (nx, ny, rest = 1) => { const dot = ball.vx * nx + ball.vy * ny; if (dot >= 0) return false; ball.vx -= 2 * dot * nx; ball.vy -= 2 * dot * ny; chargeBounce(ball); return true; };
     if (ball.x < R.x0 + r) { ball.x = R.x0 + r; bounce(1, 0); } else if (ball.x > R.x0 + R.w - r) { ball.x = R.x0 + R.w - r; bounce(-1, 0); }
     if (ball.state !== 'live') return;
@@ -5856,7 +5859,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function tableFlip(ball, r) {
     const p = G.player, reach = PLAYER_R + r + TABLE_FLIP_PAD, dx = ball.x - p.x, dy = ball.y - p.y;
     if (ball.vy <= 0 || dy > 1.5 || Math.hypot(dx, dy) > reach) return false;
-    const a = -Math.PI / 2 + clamp(dx / reach, -1, 1) * TABLE_FLIP, sp = TABLE_LAUNCH * AH;
+    const a = -Math.PI / 2 + clamp(dx / reach, -1, 1) * TABLE_FLIP, sp = TABLE_LAUNCH * AH * tableK(ball.b);
     ball.vx = Math.cos(a) * sp; ball.vy = Math.sin(a) * sp; ball.y = Math.min(ball.y, p.y - PLAYER_R - r * 0.5); ball.kick = TABLE_LAUNCH;
     G.table.flipT = 0.18; G.table.flipX = dx / reach;
     ring(p.x, p.y - PLAYER_R, 1, 12, 0.3, ECOL.target, 1); burst(ball.x, ball.y, 14, ECOL.target, 50, 0.5, 0.3); gridImpulse(p.x, p.y, 20, 120); shake(0.9); sfx.launch(p.x);
@@ -7413,7 +7416,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function chargeBounce(ball, wall) {
     if (wall && ball.state === 'live') turretBank(ball, wall);
     if (G.powers.over > 0) ball.b = Math.min(MAX_CHARGE, ball.b + 2);
-    else if (G.table) { if (ball.b < TABLE_MAX_B) ball.b++; } // on the pinball table it heats only so far, so you can chase it down
+    else if (G.table) { ball.tb = (ball.tb || 0) + (ball.kick ? 1 : 0.34); while (ball.tb >= 1) { ball.tb -= 1; if (ball.b < TABLE_MAX_B) ball.b++; } } // on the pinball table: bumpers, slings and the flipper heat it a step, the many plain walls a third of one; and it heats only so far
     else if (inMawBay(ball)) { if (ball.b < WARN - 1) ball.b++; } // inside the Maw the ball heats only to just under the warning, so it comes out catchable
     else if (ball.b >= MAX_CHARGE) { if (ball.lit && ball.fuse <= 0) { overload(ball); return; } } // primed: this bounce blows it
     else ball.b++;
@@ -7424,7 +7427,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
                         vert, t: 0, max: 0.2 + ball.b * 0.01, len: 7 + ball.b * 1.2, color: heat(ball.b) });
     }
     const l = Math.hypot(ball.vx, ball.vy) || 1, H = AH;
-    const s = G.table && !ball.wing ? Math.min(TABLE_VMAX * H, Math.max(l * TABLE_REST, (ball.kick || 0) * H)) : ballSpeed(ball.b); // on the pinball table it keeps its own speed (gravity's); kicks set a floor
+    const s = G.table && !ball.wing ? Math.min(TABLE_VMAX * H * tableK(ball.b), Math.max(l * TABLE_REST, (ball.kick || 0) * H * tableK(ball.b))) : ballSpeed(ball.b); // on the pinball table it keeps its own speed (gravity's); kicks set a floor
     ball.kick = 0;
     ball.vx = ball.vx / l * s; ball.vy = ball.vy / l * s;
     const c = heat(ball.b);
@@ -7907,7 +7910,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let s = 0; s < steps && ball.state === 'live'; s++) {
       const r = ballR(ball.b) * bigK() * (ball.wing ? WING_SCALE : 1);
       if (pulling && !ball.noPull) { const [tx, ty] = fieldOpen() ? wrapTarget(ball, p.x, p.y) : [p.x, p.y]; turnBall(ball, tx, ty, pullRate(ball, Math.hypot(tx - ball.x, ty - ball.y)) * sub); }
-      else if (G.table && !ball.wing) ball.vy += TABLE_G * AH * sub; // the table's gravity: it speeds up as it falls
+      else if (G.table && !ball.wing) ball.vy += TABLE_G * AH * tableK(ball.b) ** 2 * sub; // the table's gravity: it speeds up as it falls (and plays faster the hotter it is)
       if (G.bonus && !G.bonus.done && !pulling) { const [cx, cy] = bumpCentre(); if (Math.hypot(ball.x - cx, ball.y - cy) > bumpScale() * 2) turnBall(ball, cx, cy, Math.hypot(ball.vx, ball.vy) / (bumpScale() * BUMP_TILT_R) * sub); }
       for (const e of G.enemies) {
         if (fieldUp(e) && (e.x - ball.x) ** 2 + (e.y - ball.y) ** 2 < MAGNET_FIELD_R ** 2) turnBall(ball, e.x, e.y, MAGNET_TURN * sub);
