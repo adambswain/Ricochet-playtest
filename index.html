@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 04 19:38 UTC · bf59739";</script>
+<script>window.RICOCHET_BUILD = "Nov 04 21:14 UTC · 22fca9e";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -515,7 +515,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     2: 'Brutes take several hits',
     3: 'Dashers wind up, then lunge',
     4: 'Blocks bounce the ball and add charge. Splitters break in two',
-    5: 'Pinball! Your ship is the flipper. Every bounce speeds the ball up and scores more: catch it to cool it down. Three balls',
+    5: 'Pinball! Your ship is the flipper. Every bounce speeds the ball up and scores more: catch it to cool it down. Drain it and your bonus drops; play out the clock',
     6: 'Turrets fire slow shots. Hit them, or bank your ball off the wall right beside one',
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them. Fuel drums: hit one to blow up everything near it',
@@ -531,7 +531,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     20: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts, and it strikes',
     16: 'Invasion: three formations, one after another. Break each before it lands. The top rows are tougher: charge your ball off the walls and bunkers',
     27: 'Fighter squadrons: one hit each. Put your ball through the formation',
-    18: 'Hatchlings: little snakes, slithering at you. Only the head bites; hit them anywhere',
+    18: 'Serpent eggs: break a clutch before it hatches, or what hatches swarms you together. Hatchlings only bite with the head',
     19: 'Something big is hatching. Vipers take three hits. And a Brute Wall marches in partway through',
     29: 'Fighters overhead: something big is coming',
     30: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
@@ -574,9 +574,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     monolith: { r: 3.6, hp: 5, spd: 8,   pts: 60 },
     titan:    { r: 8.5, hp: 14, spd: 6.3, pts: 400 },
     walker:   { r: 4.2, hp: 4, spd: 7, pts: 80 },
-    snake:    { r: 2.3, hp: 1, spd: 15, pts: 30 },  // the Serpent's brood: a hatchling slithering at you, its tail trailing
+    snake:    { r: 2.1, hp: 1, spd: 16, pts: 20 },  // the Serpent's brood: a hatchling slithering at you, its tail trailing
     viper:    { r: 3.1, hp: 3, spd: 12, pts: 70 },  // ...and a bigger one
-    segg:     { r: 2.5, hp: 1, spd: 0, pts: 25 },   // a Serpent's egg: break it, or it hatches   // a little war machine that fires heavy rockets (Goliath's scouts)
+    segg:     { r: 1.9, hp: 1, spd: 0, pts: 10 },   // a Serpent's egg: break it, or it hatches   // a little war machine that fires heavy rockets (Goliath's scouts)
     micro:    { r: 1.5, hp: 1, spd: 0, pts: 15 },   // a micro-missile in a ring (Goliath's) // Titans set piece: huge, slow, cracks into two brutes
     rock:     { r: 7.5, hp: 3, spd: 0,   pts: 20 },  // Asteroid Field: size 3 / 2 / 1 set on spawn
     invader:  { r: 2.6, hp: 1, spd: 0,   pts: 15 },  // Invasion: moved by the formation (updateInvaders)
@@ -1086,17 +1086,19 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // (glowing cracks mark the spot first), sweeps across in a wave and dives out through another, then a few small
   // enemies come while it's gone. Its body never hurts you: it's a solid obstacle the ball bounces off (+1 charge).
   // Breaking a segment's armour plate exposes a glowing core; hitting cores takes its health. Only the head hurts.
-  // Its brood keeps the arena busy the whole fight, SERP_CROWD of them at a time (by phase): hatchlings and vipers, little
-  // snakes slithering at you, their tails trailing; like it, only the head bites, and a hit anywhere on one kills it. When
-  // it splits, a brood bursts out of the cut.
+  // Its brood keeps the arena busy the whole fight, up to SERP_CROWD of them at a time (by phase): it lays clutches of
+  // eggs as it passes, SERP_EGGS in a clump, and every egg not broken in SEGG_HATCH hatches, all together, into a school
+  // of hatchlings that swims at you as one; a whole clutch is a real threat, a few stragglers aren't. Like it, only a
+  // hatchling's head bites, and a hit anywhere on one kills it. When it splits, a brood bursts out of the cut.
   // Once a pass, the head strikes: when it's in the arena and near you it slows and turns on you, a line showing
   // where it'll go (SERP_AIM, locking for the last SERP_LOCK), then lunges (SERP_LUNGE at SERP_DASH × speed).
   // At half health it splits at the middle of its body: the tail half grows a head (a little smaller) and swims off
   // on passes of its own, and both halves grow fresh armour (every plate shut again, one tougher), so the second half
   // of the fight starts over rather than finishing off cores you'd already opened. Two serpents, one health bar. Barely a pause between passes.
   const SERP_HP = 200;
-  const SERP_N = 14, SERP_GAP = 10.5, SERP_HEAD = 12, SERP_SPEED = [48, 56, 66], SERP_REST = [0.7, 0.5, 0.35], SERP_CROWD = [5, 6, 8];
-  const SERP_CLUTCH = [6, 5, 4], SEGG_HATCH = 6; // how often it lays a clutch; how long its eggs take to hatch
+  const SERP_N = 14, SERP_GAP = 10.5, SERP_HEAD = 12, SERP_SPEED = [48, 56, 66], SERP_REST = [0.7, 0.5, 0.35], SERP_CROWD = [18, 22, 26];
+  const SERP_CLUTCH = [6, 5, 4], SERP_EGGS = [8, 10, 12], SEGG_HATCH = 5.5; // how often it lays a clutch, how many eggs in one, how long they take to hatch
+  const PACK_SEP = 6.5, PACK_COH = 0.6; // a hatched clutch swims as a school: how far apart its hatchlings keep, how hard they hold together
   const SERP_AIM = 0.8, SERP_LOCK = 0.25, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 70, SERP_SPLIT = 0.5;
   // Both serpents: the boss itself, and once it's split, its twin (which shares its health, phase and the rest)
   const serpents = B => B.twin ? [B, B.twin] : [B];
@@ -1286,22 +1288,29 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.crowdT <= 0) {
       B.crowdT = 1;
       const brood = G.enemies.filter(e => e.type === 'snake' || e.type === 'viper' || e.type === 'segg').length;
-      if (brood + 3 <= SERP_CROWD[B.phase - 1] + 1) for (const S of serpents(B)) {
+      const size = SERP_EGGS[B.phase - 1];
+      if (brood + size <= SERP_CROWD[B.phase - 1]) for (const S of serpents(B)) {
         if (S.st !== 'pass' || !S.segs.length) continue;
-        const sg = S.segs[Math.min(S.segs.length - 1, 3 + Math.floor(Math.random() * 4))];
-        if (offArena(sg.x, sg.y, -14) || Math.hypot(sg.x - G.player.x, sg.y - G.player.y) < 24) continue;
-        layClutch(sg.x, sg.y, B.phase >= 2 ? 4 : 3, B.phase >= 3 ? 1 : 0); B.crowdT = SERP_CLUTCH[B.phase - 1]; break;
+        const i = Math.min(S.segs.length - 1, 3 + Math.floor(Math.random() * 4)), sg = S.segs[i], fw = S.segs[i - 1], bk = S.segs[i + 1] || sg;
+        let dx = fw.x - bk.x, dy = fw.y - bk.y; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+        const R = 2.05 * Math.sqrt(size) + 2, sd = (-dy * (AW / 2 - sg.x) + dx * (AH / 2 - sg.y)) >= 0 ? 1 : -1; // beside its body (not under it), on the open side
+        const x = sg.x - dy * sd * (8 + R), y = sg.y + dx * sd * (8 + R);
+        if (offArena(x, y, -R - 8) || Math.hypot(x - G.player.x, y - G.player.y) < 30 + R) continue;
+        layClutch(x, y, size, B.phase >= 3 ? 2 : 0); B.crowdT = SERP_CLUTCH[B.phase - 1]; break;
       }
     }
     if (!B.twin && !B.split && B.hp <= B.maxHp * SERP_SPLIT && B.st === 'pass' && B.segs.length >= 8 && !offArena(B.segs[B.segs.length >> 1].x, B.segs[B.segs.length >> 1].y, -8)) serpentSplit(B);
     for (const S of serpents(B)) serpentSwim(S, dt);
   }
-  // A clutch of the Serpent's eggs at (x, y): n of them in a huddle (the first v of them viper eggs, bigger, darker).
-  // Each hatches after SEGG_HATCH unless it's broken.
+  // A clutch of the Serpent's eggs at (x, y): n of them packed in a clump like spawn (the middle v of them viper eggs,
+  // bigger, darker). They hatch together after SEGG_HATCH (a ripple out from the middle), unless broken, and what hatches
+  // swims as one school (its pack). The clump is tight, so a ball through it breaks a row of them at once.
   function layClutch(x, y, n, v = 0) {
-    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + rand(0, 1), d = n > 1 ? 3.4 : 0, e = makeEnemy('segg', clamp(x + Math.cos(a) * d, 8, AW - 8), clamp(y + Math.sin(a) * d, 8, AH - 8));
-      Object.assign(e, { spawnT: 0.35, hatchT: SEGG_HATCH + rand(-0.4, 0.6), viper: i < v, r: i < v ? 3 : 2.5 }); G.enemies.push(e); }
-    ring(x, y, 2, 12, 0.4, COL.threat, 1); burst(x, y, 14, COL.threat, 30, 0.6, 0.4); sfx.clank();
+    const pack = G.packN = (G.packN || 0) + 1, c = 2.05, R = c * Math.sqrt(n) + 2;
+    x = clamp(x, 6 + R, AW - 6 - R); y = clamp(y, 6 + R, AH - 6 - R);
+    for (let i = 0; i < n; i++) { const a = i * 2.39996 + rand(-0.15, 0.15), d = c * Math.sqrt(i + 0.5), e = makeEnemy('segg', x + Math.cos(a) * d, y + Math.sin(a) * d);
+      Object.assign(e, { spawnT: 0.3 + i * 0.02, hatchT: SEGG_HATCH + d * 0.025, viper: i < v, r: i < v ? 2.5 : 1.9, pack, px: x, py: y }); G.enemies.push(e); }
+    ring(x, y, 2, R + 6, 0.4, COL.threat, 1); burst(x, y, 18, COL.threat, 34, 0.6, 0.4); sfx.clank();
   }
   // Clutches laid about in a wave (the Serpent's brood ahead of it): n of them, one every so often, away from you
   function updateClutches(dt) {
@@ -1309,7 +1318,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     C.t -= dt; if (G.enemies.length + G.tele.length + G.spawnQueue.length < 3) C.t = Math.min(C.t, 0.6); // the field's nearly clear: the next clutch comes now
     if (C.t > 0) return;
     C.t = 7; C.n--;
-    for (let k = 0; k < 12; k++) { const x = rand(16, AW - 16), y = rand(16, AH * 0.6); if (Math.hypot(x - G.player.x, y - G.player.y) > 34) { layClutch(x, y, C.size, C.v); return; } }
+    for (let k = 0; k < 12; k++) { const x = rand(18, AW - 18), y = rand(18, AH * 0.6); if (Math.hypot(x - G.player.x, y - G.player.y) > 40) { layClutch(x, y, C.size, C.v); return; } }
   }
   // Cut in two at the middle of its body: the tail half's front segment becomes a head, and it turns off on its own way.
   function serpentSplit(B) {
@@ -3014,6 +3023,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const n = e.type === 'viper' ? 7 : 5, gap = e.r * 0.92, out = []; let dist = 0, want = gap;
     for (let i = 1; i < H.length && out.length < n; i++) { dist += Math.hypot(H[i][0] - H[i - 1][0], H[i][1] - H[i - 1][1]); if (dist >= want) { const k = out.length + 1; out.push([H[i][0], H[i][1], e.r * (0.82 - 0.5 * k / n)]); want += gap; } }
     e.segs = out;
+  }
+  // The jelly a clutch is laid in, under its eggs: one soft blob round the lot, so a clump reads as one clutch; it
+  // pulses quicker as they near hatching
+  function drawSpawnGoo() {
+    const eggs = G.enemies.filter(e => e.type === 'segg'), k = Math.max(...eggs.map(e => 1 - clamp(e.hatchT / SEGG_HATCH, 0, 1)));
+    ctx.save(); ctx.fillStyle = COL.threat;
+    for (const [grow, a] of [[1.75, 0.1], [1.3, 0.12]]) {
+      ctx.globalAlpha = a * (1 + k * (0.6 + 0.4 * Math.sin(G.time * (3 + 9 * k)))); ctx.beginPath();
+      for (const e of eggs) { const R = e.r * grow * Math.min(1, 1 - (e.spawnT || 0)); ctx.moveTo(e.x + R, e.y); ctx.arc(e.x, e.y, R, 0, Math.PI * 2); }
+      ctx.fill();
+    }
+    ctx.restore();
   }
   // A Serpent's egg: a pale leathery oval, pink veins glowing through it, the curled shape of what's inside showing as it
   // gets close; it rocks, then cracks
@@ -5878,25 +5899,26 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // bottom (TABLE_GRAV). The ship rides a rail across the bottom and slides left and right: it's the flipper. A falling
   // ball that meets it bounces back up the table, angled by where it hits (TABLE_FLIP; off its nose it goes straight
   // up, off its edges out to the sides); hold the pull to catch it instead, and aim and throw as usual. Miss it and the
-  // ball drains out the bottom: TABLE_BALLS balls, and the table's over when they're gone (or at TABLE_TIME).
+  // ball drains out the bottom and comes back to the ship cold, and the bonus multiplier drops a step; the table runs
+  // until TABLE_TIME (it's a bonus round: nothing ends it early).
   // Real table physics: gravity accelerates it (it's quick falling, slow at the top of its arc), walls take a little
   // speed off it, pop bumpers and slingshots kick it away hard, and the flipper fires it back up at full power. All
-  // scaled by the table's height. A ball that drains within TABLE_SAVE of being thrown is saved. Light all three lanes
+  // scaled by the table's height. A ball that drains within TABLE_SAVE of being thrown is saved (no cost). Light all three lanes
   // to raise the bonus multiplier (every award ×); drop all four targets for the jackpot and two more balls (multiball:
   // they don't cost a ball when they drain). Every wall, bumper and slingshot hit charges the ball, but it
   // never overloads here: it tops out at full speed and keeps playing. On the table: three pop bumpers, two slingshots, three rollover lanes at the top (light all three
   // for a bonus) and a bank of four drop targets (knock all four down for the jackpot).
-  const TABLE_TIME = 75, TABLE_BALLS = 3, TABLE_FLIP = 1.05, TABLE_FLIP_PAD = 7, TABLE_MAX_B = 12, TABLE_SAVE = 3.5, TABLE_MULT_MAX = 3;
-  const TABLE_G = 1, TABLE_LAUNCH = 1.3, TABLE_REST = 0.9, TABLE_BUMP = 0.95, TABLE_SLING = 0.85, TABLE_VMAX = 1.6, TABLE_RAIL = 1.6; // × the table's height (per s, per s²); TABLE_RAIL: the ship's speed on the rail
+  const TABLE_TIME = 60, TABLE_FLIP = 1.05, TABLE_FLIP_PAD = 12, TABLE_MAX_B = 12, TABLE_SAVE = 3.5, TABLE_MULT_MAX = 3;
+  const TABLE_G = 1, TABLE_LAUNCH = 1.3, TABLE_REST = 0.9, TABLE_BUMP = 0.95, TABLE_SLING = 0.85, TABLE_VMAX = 1.6, TABLE_RAIL = 2; // × the table's height (per s, per s²); TABLE_RAIL: the ship's speed on the rail
   // Ricochet's rules on the table too: every bounce heats the ball, and the hotter it is the faster the whole table plays
   // for it (gravity, kicks and launches, scaled so its arcs keep their shape) and the more it scores; catch it to cool it.
-  const tableK = b => 0.78 + 0.035 * Math.min(b || 0, TABLE_MAX_B);
+  const tableK = b => 0.74 + 0.025 * Math.min(b || 0, TABLE_MAX_B); // 0.74 cold to 1.04 at full heat
   const TB = { bumpers: [[0.5, 0.3], [0.3, 0.41], [0.7, 0.41]], bumpR: 0.075, lanes: [0.35, 0.5, 0.65], laneY: 0.11,
                targets: [0.46, 0.52, 0.58, 0.64], targetX: 0.93, rail: 0.95, top: 0.06, arch: 0.2 };
   // TB.top: the playfield's top wall (the header panel sits above it); TB.arch: the radius of its rounded top corners
   const TB_PTS = { bumper: 50, sling: 20, lane: 100, lanes: 1000, target: 150, jackpot: 2500 };
   function setupTable(cycle) {
-    G.table = { time: TABLE_TIME, cycle, done: false, score: 0, balls: TABLE_BALLS, mult: 1, flipT: 0, multiT: 0, saveT: 0, lanes: [false, false, false], lanesT: 0,
+    G.table = { time: TABLE_TIME, cycle, done: false, score: 0, drains: 0, mult: 1, flipT: 0, multiT: 0, saveT: 0, lanes: [false, false, false], lanesT: 0,
                 targets: [true, true, true, true], targetsT: 0, jackpots: 0, hits: [0, 0, 0], slingT: [0, 0],
                 dropT: [0, 0, 0, 0], popT: [0, 0, 0, 0], rise: null, showT: 0 };
     const p = G.player, T = tableRect();
@@ -5923,7 +5945,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // overload it); lanes and targets score. Called from the ball's substep loop while a table is up.
   function tableCollide(ball, r) {
     const Tb = G.table, R = tableRect(); Tb.heatB = ball.b;
-    const bounce = (nx, ny, rest = 1) => { const dot = ball.vx * nx + ball.vy * ny; if (dot >= 0) return false; ball.vx -= 2 * dot * nx; ball.vy -= 2 * dot * ny; chargeBounce(ball); return true; };
+    const bounce = (nx, ny, up = 0) => { const dot = ball.vx * nx + ball.vy * ny; if (dot >= 0) return false; ball.vx -= 2 * dot * nx; ball.vy -= 2 * dot * ny;
+      if (up) { const l = Math.hypot(ball.vx, ball.vy), ux = nx, uy = ny - up, m = Math.hypot(ux, uy) || 1; ball.vx = ux / m * l; ball.vy = uy / m * l; } // kicked up the table, not across the drain
+      chargeBounce(ball); return true; };
     if (ball.x < R.x0 + r) { ball.x = R.x0 + r; bounce(1, 0); } else if (ball.x > R.x0 + R.w - r) { ball.x = R.x0 + R.w - r; bounce(-1, 0); }
     if (ball.state !== 'live') return;
     // Hard containment under the top wall and inside the rounded corners: a fast ball can slip through the thin arch
@@ -5942,7 +5966,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (d >= r || d < 1e-6) continue;
       ball.x = qx + dx / d * r; ball.y = qy + dy / d * r;
       if (kind === 'sling') ball.kick = TABLE_SLING;
-      if (bounce(dx / d, dy / d) && kind === 'sling') { Tb.slingT[idx] = 0.2; tableAward(TB_PTS.sling, qx, qy - 3); shake(0.6); burst(qx, qy, 10, ECOL.target, 40, 0.5, 0.25); sfx.clank(); }
+      if (bounce(dx / d, dy / d, kind === 'sling' ? 1.4 : 0) && kind === 'sling') { Tb.slingT[idx] = 0.2; tableAward(TB_PTS.sling, qx, qy - 3); shake(0.6); burst(qx, qy, 10, ECOL.target, 40, 0.5, 0.25); sfx.clank(); }
       ball.kick = 0;
       if (ball.state !== 'live') return;
     }
@@ -5996,18 +6020,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     G.banner = { text: 'Multiball!', sub: '', t: 1.4, max: 1.4, at: 0.5 };
   }
-  // A ball out the bottom of the table: lost. The next comes to the ship to throw; the last one ends the table.
+  // A ball out the bottom of the table: it comes back to the ship to throw, cold, and the bonus multiplier drops a step
+  // (unless it was just thrown: ball save). The table plays on to the clock either way.
   function tableDrain(ball) {
     const T = G.table, p = G.player;
     burst(ball.x, AH - 1, 22, COL.threat, 45, 0.7, 0.4); ring(ball.x, AH - 1, 1, 12, 0.35, COL.threat, 1.1); shake(1.6); gridImpulse(ball.x, AH, 30, 120); sfx.clank(); sfx.rockBoom(1);
     if (ball.tx) { ball.dead = true; ball.state = 'held'; return; } // a multiball ball: gone, free
-    if (G.time - (ball.thrownAt ?? -99) < TABLE_SAVE && !T.saved) { // ball save: straight back to you
-      T.saved = true; docked(ball); ball.state = 'held'; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.trail = [];
+    if (G.time - (ball.thrownAt ?? -99) < TABLE_SAVE) { // ball save: straight back to you, no cost
+      docked(ball); ball.state = 'held'; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.trail = [];
       float(p.x, p.y - 9, 'Ball saved!', COL.chalk, 3.4); sfx.repair(); return; }
-    T.balls = Math.max(0, T.balls - 1);
+    T.drains++; const lost = (T.mult || 1) > 1; if (lost) { T.mult--; T.multT = 1.2; }
     docked(ball); ball.state = 'held'; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.trail = [];
-    if (T.balls > 0) float(p.x, p.y - 9, T.balls === 1 ? 'Last ball!' : `Drained: ${T.balls} balls left`, COL.threat, 3.2);
-    else { T.done = true; float(p.x, p.y - 9, 'Drained!', COL.threat, 3.6); }
+    float(p.x, p.y - 9, lost ? `Drained: bonus ×${T.mult}` : 'Drained!', COL.threat, 3.2);
   }
   // The ship as the flipper: a falling ball that meets it goes back up the table, angled by where it hit
   function tableFlip(ball, r) {
@@ -6183,8 +6207,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     panel(); ctx.fillStyle = COL.ink; ctx.fill(); glowLine(panel, 0.4, COL.wall, 0.9);
     const lab = Math.min(2.4, hh * 0.2), val = Math.min(4.2, hh * 0.38), lx = X(0.25), rx = X(0.75), mx = X(0.5);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = COL.dim; ctx.font = `600 ${lab}px ${FONT}`; ctx.fillText(T.time < 10 ? 'TIME' : 'BALLS', lx, hh * 0.3); ctx.fillText('TARGETS', rx, hh * 0.3);
-    ctx.fillStyle = COL.chalk; ctx.font = `700 ${val}px ${FONT}`; ctx.fillText(T.time < 10 ? `${Math.ceil(T.time)}s` : '●'.repeat(T.balls ?? 0) + '○'.repeat(Math.max(0, TABLE_BALLS - (T.balls ?? 0))), lx, hh * 0.66);
+    ctx.fillStyle = COL.dim; ctx.font = `600 ${lab}px ${FONT}`; ctx.fillText('TIME', lx, hh * 0.3); ctx.fillText('TARGETS', rx, hh * 0.3);
+    ctx.fillStyle = COL.chalk; ctx.font = `700 ${val}px ${FONT}`; ctx.fillStyle = T.time < 10 && Math.floor(G.time * 4) % 2 ? ECOL.target : COL.chalk; ctx.fillText(`${Math.ceil(T.time)}s`, lx, hh * 0.66);
     ctx.fillText(`${down}/4`, rx, hh * 0.66);
     ctx.fillStyle = c; ctx.font = `700 ${val * 0.9}px ${FONT}`; ctx.fillText('PINBALL', mx, hh * 0.32);
     ctx.fillStyle = (T.multT || 0) > 0 && Math.floor(G.time * 10) % 2 ? c : COL.chalk; ctx.font = `600 ${lab}px ${FONT}`; ctx.fillText(`LANES ${T.lanes.filter(Boolean).length}/3  ·  BONUS ×${T.mult || 1}`, mx, hh * 0.72);
@@ -7106,10 +7130,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const beesBack = back && L > 50 && L < 57 && L % 2 === 1; // and after it, now and then, a bee swarm in place of the usual one
       add(bees || beesBack ? 'bees' : 'swarm', swarms + (bees ? 1 + (L >= 38 ? 1 : 0) : 0));
       if (back && L > 10 && L % 3 === 2) add('tankette', L > 40 ? 2 : 1); // after Clanktank: a tank now and then
-      if (back && L > 20 && L % 3 === 1 && !(L >= 46 && L <= 49)) { add('snake', 2); G.clutchWave = { n: 1, t: 4, size: 3, v: L > 40 ? 1 : 0 }; } // after the Serpent: a few of its brood, and a clutch of its eggs
+      if (back && L > 20 && L % 3 === 1 && !(L >= 46 && L <= 49)) { add('snake', 2); G.clutchWave = { n: 1, t: 4, size: 8, v: L > 40 ? 1 : 0 }; } // after the Serpent: a few of its brood, and a clutch of its eggs
       if (back && L > 30 && L % 4 === 3 && !SQUAD_PLAN[L]) G.squadPlan = { at: [5], t: 0, n: 4, shadow: false }; // after the Carrier: one of its squadrons
       if (inLoop(n) === 8 || inLoop(n) === 9) add('tankette', inLoop(n) === 8 ? 2 : 3); // the Tank's scouts roll in ahead of it
-      if (inLoop(n) === 18 || inLoop(n) === 19) { const k = inLoop(n) === 18 ? 5 : 6; for (let i = q.length - 1, cut = k; i >= 0 && cut > 0; i--) if (q[i] === 'drifter') { q.splice(i, 1); cut--; } add('snake', k - 2 + cycle); if (inLoop(n) === 19) add('viper', 1 + cycle); G.clutchWave = { n: inLoop(n) === 18 ? 2 : 3, t: 3, size: 3, v: inLoop(n) === 19 ? 1 : 0 }; } // the Serpent's brood ahead of it, in place of some of the drifters: a few hatched, and clutches of its eggs laid about
+      if (inLoop(n) === 18 || inLoop(n) === 19) { const k = inLoop(n) === 18 ? 5 : 6; for (let i = q.length - 1, cut = k; i >= 0 && cut > 0; i--) if (q[i] === 'drifter') { q.splice(i, 1); cut--; } add('snake', k - 3 + cycle); if (inLoop(n) === 19) add('viper', 1 + cycle); G.clutchWave = { n: inLoop(n) === 18 ? 2 : 3, t: 3, size: inLoop(n) === 18 ? 8 : 10, v: inLoop(n) === 19 ? 1 : 0 }; } // the Serpent's brood ahead of it, in place of some of the drifters: a few hatched, and clutches of its eggs laid about
       if (SQUAD_PLAN[inLoop(n)]) G.squadPlan = { at: [...SQUAD_PLAN[inLoop(n)]], t: 0, n: SQUAD_SIZE[inLoop(n)], shadow: inLoop(n) === 29 }; // the Carrier's fighters are out ahead of it
       if (inLoop(n) === 57 || inLoop(n) === 59) add('walker', inLoop(n) === 57 ? 4 + cycle : 3 + cycle); // Goliath's scouts
       if (inLoop(n) === 58 || inLoop(n) === 59) G.mechSetup = { micro: true, microT: inLoop(n) === 58 ? 4 : 6, steps: inLoop(n) === 59, stepT: 1 }; // its micro-missiles; and its footsteps
@@ -8218,6 +8242,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   /* ---------- enemies ---------- */
   function updateEnemies(dt) {
     const p = G.player, steer = Math.min(1, dt * 3);
+    const packs = new Map(); // a hatched clutch: where its school is, and who's in it
+    for (const e of G.enemies) if (e.pack && (e.type === 'snake' || e.type === 'viper')) { let q = packs.get(e.pack); if (!q) packs.set(e.pack, q = { x: 0, y: 0, m: [] }); q.x += e.x; q.y += e.y; q.m.push(e); }
+    for (const q of packs.values()) { q.x /= q.m.length; q.y /= q.m.length; }
     for (const e of G.enemies) {
       e.hitCd -= dt; e.flash -= dt; e.rot += dt * 0.8; if (e.spawnT > 0) e.spawnT -= dt;
       const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
@@ -8229,9 +8256,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (e.type === 'segg') { // a Serpent's egg sits where it was laid, then hatches
         e.vx = 0; e.vy = 0; e.hatchT -= dt;
-        if (e.hatchT <= 0) { e.gone = true; const h = makeEnemy(e.viper ? 'viper' : 'snake', e.x, e.y); h.spawnT = 0.15; G.enemies.push(h);
-          for (let q = 0; q < 6; q++) { const a = rand(0, Math.PI * 2); G.parts.push({ x: e.x, y: e.y, vx: Math.cos(a) * rand(10, 26), vy: Math.sin(a) * rand(10, 26), size: rand(0.4, 0.8), life: rand(0.4, 0.7), max: 0, color: COL.chalk }); }
-          ring(e.x, e.y, 1, 7, 0.3, COL.threat, 0.8); sfx.clank(); }
+        if (e.hatchT <= 0) { e.gone = true; const h = makeEnemy(e.viper ? 'viper' : 'snake', e.x, e.y); h.spawnT = 0.15; h.pack = e.pack; const fk = G.packK = (G.packK || 0) + 1; h.flank = (fk * 0.618034 % 1) * 2 - 1; // spread evenly across the fan, both sides
+          if (e.px !== undefined) { const ox = e.x - e.px, oy = e.y - e.py, od = Math.hypot(ox, oy) || 1; h.vx = ox / od * 14; h.vy = oy / od * 14; } // it wriggles out of the clump
+          G.enemies.push(h);
+          for (let q = 0; q < 5; q++) { const a = rand(0, Math.PI * 2); G.parts.push({ x: e.x, y: e.y, vx: Math.cos(a) * rand(10, 26), vy: Math.sin(a) * rand(10, 26), size: rand(0.4, 0.8), life: rand(0.4, 0.7), max: 0, color: COL.chalk }); }
+          ring(e.x, e.y, 1, 6, 0.3, COL.threat, 0.8); if (G.time - (G.hatchSnd || -9) > 0.12) { G.hatchSnd = G.time; sfx.clank(); } }
         continue;
       }
       if (e.type === 'wax' || e.type === 'invader') continue; // its chunk (or the formation) moves it
@@ -8323,7 +8352,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           const ox = e.mend.x - e.x, oy = e.mend.y - e.y, od = Math.hypot(ox, oy) || 1;
           tx = ox / od * e.spd * 1.1; ty = oy / od * e.spd * 1.1;
         } else if (e.type === 'snake' || e.type === 'viper') { // a slither: its heading swings side to side as it comes at you
-          const a = Math.atan2(uy, ux) + Math.sin(G.time * (e.type === 'viper' ? 4 : 6) + e.seed) * 0.9; tx = Math.cos(a) * e.spd; ty = Math.sin(a) * e.spd;
+          const q = e.pack && packs.get(e.pack); let hx = ux, hy = uy, sw = 0.9, sp = e.spd;
+          if (q && q.m.length > 1) { // in a school: at you, holding together and keeping a little apart; and when it's close it fans out round you, to come at you from every side
+            const near = clamp(1 - (d - 14) / 46, 0, 1), fan = (e.flank || 0) * 1.45 * Math.sqrt(near) * clamp((d - 6) / 10, 0, 1), c0 = Math.cos(fan), s0 = Math.sin(fan);
+            const ax = ux * c0 - uy * s0, ay = ux * s0 + uy * c0; // its own way in: swung off the straight line by its place in the fan
+            const cx = q.x - e.x, cy = q.y - e.y, cd = Math.hypot(cx, cy) || 1, ck = PACK_COH * Math.min(1, cd / 12) * (1 - near);
+            let sx = 0, sy = 0; for (const o of q.m) { if (o === e) continue; const ox = e.x - o.x, oy = e.y - o.y, od = Math.hypot(ox, oy); if (od < PACK_SEP && od > 1e-3) { sx += ox / od * (1 - od / PACK_SEP); sy += oy / od * (1 - od / PACK_SEP); } }
+            hx = ax + cx / cd * ck + sx * 1.6; hy = ay + cy / cd * ck + sy * 1.6; const hl = Math.hypot(hx, hy) || 1; hx /= hl; hy /= hl;
+            sw = 0.55; sp = e.spd * (1 + Math.min(0.4, q.m.length * 0.035)); // the bigger the school, the bolder it swims
+          }
+          const a = Math.atan2(hy, hx) + Math.sin(G.time * (e.type === 'viper' ? 4 : 6) + e.seed) * sw; tx = Math.cos(a) * sp; ty = Math.sin(a) * sp;
         } else if (e.type === 'swarm') { // swirl around a point near the player
           const a = e.seed + G.time * 1.6, ox = p.x + Math.cos(a) * 6 - e.x, oy = p.y + Math.sin(a) * 6 - e.y, od = Math.hypot(ox, oy) || 1;
           tx = ox / od * e.spd; ty = oy / od * e.spd;
@@ -9020,6 +9058,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // enemies, clipped to the arena
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
     ctx.lineJoin = 'round';
+    if (G.enemies.some(e => e.type === 'segg')) drawSpawnGoo();
     for (const e of G.enemies) {
       const shielded = isImmune(e);
       const pierce = !shielded && 1 + liveB >= e.hp;
