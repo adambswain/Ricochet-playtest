@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 05 01:07 UTC · f545656";</script>
+<script>window.RICOCHET_BUILD = "Nov 05 01:22 UTC · 1424a24";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1146,7 +1146,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const COMB_SPEED = 50, COMB_BOUNCES = 3, COMB_LIFE = 7, COMB_MAX = 2, COMB_WARN = 0.7, COMB_EVERY = [6, 5, 4], WAX_S = 3;
   const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2, HIVE_FINALE = 25000;
   const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [4.5, 3.8, 3], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
-  const VEXA_SC = 1.5, VEXA_CAGE_AT = 0.5, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [2.6, 2.2, 1.9, 1.6], VEXA_STING = [2.6, 2.2, 1.9, 1.5];
+  const VEXA_SC = 1.5, VEXA_CAGE_AT = 0.5, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [5, 4.3, 3.7, 3.2], VEXA_STING = [2.6, 2.2, 1.9, 1.5];
   const VEXA_AIM = 0.9, VEXA_LOCK = 0.25, VEXA_NEEDLE = 105, VEXA_BEE_V = [38, 44, 50, 56], VEXA_COMB = [6.5, 5.5, 5, 4.5];
   // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
   const VEXA_BODY = [[0.82, 0.5, false], [0, 0.5, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
@@ -1805,7 +1805,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The royal cell is broken: the comb crumbles away and the queen comes out (untouchable while she emerges).
   function crackHive(B) {
     for (const c of B.cells) if (c.hp > 0) { burst(c.x, c.y, 6, GOLD(), 40, 0.7, 0.5); G.score += Math.round(20 * G.mult); c.hp = 0; }
-    Object.assign(B, { st: 'emerge', modeT: QUEEN_EMERGE, x: B.cx, y: B.cy, flash: 0.3, combT: VEXA_COMB[0], taken: 0, mode: 'hang', formT: 1.6, stingT: 2.4, forms: [] });
+    Object.assign(B, { st: 'emerge', modeT: QUEEN_EMERGE, x: B.cx, y: B.cy, flash: 0.3, combT: VEXA_COMB[0], taken: 0, mode: 'hang', formT: 6, stingT: 2.4, forms: [] }); // her first bee wall only once she's settled in
     B.outs = (B.outs || 0) + 1;
     for (const e of G.enemies) e.mend = null;
     for (let k = 0; k < 4; k++) ring(B.x, B.y, 2, B.r * (0.8 + k * 0.5), 0.6 + k * 0.15, k % 2 ? COL.chalk : GOLD(), 1.4);
@@ -1815,7 +1815,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Where Vexa hangs: her head near the top of the arena, swaying side to side.
   const vexaR = () => QUEEN_R * VEXA_SC;
-  const vexaHang = B => [AW / 2 + Math.sin(B.t * 0.35) * AW * 0.16, B.cage ? -vexaR() * 4 : vexaR() * 2.6]; // up out of the arena while you're caged
+  const vexaHang = B => [AW / 2 + Math.sin(B.t * 0.35) * AW * 0.16, B.cage && B.cage.st === 'up' ? -vexaR() * 4 : vexaR() * 2.6]; // up out of the arena while you're caged (not while the ring's still closing)
   // Her body in the arena: [x, y, radius, hurts?] for each of the circles along her length (she faces B.face).
   function vexaBody(B, k = 1) {
     const r = vexaR() * k, c = Math.cos(B.face ?? -Math.PI / 2), sn = Math.sin(B.face ?? -Math.PI / 2);
@@ -1849,17 +1849,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.mode = 'hang'; B.forms = []; B.taken = 0;
     G.banner = { text: 'Caged!', sub: 'Get clear, or break out before it hatches', t: 1.8, max: 1.8, at: 0.45 }; // mid-screen: she fills the top sfx.boss(); shake(1);
   }
-  // The cage is over: she swoops back down, furious.
-  function vexaReturn(B) {
-    B.mad = true; B.stingT = Math.max(B.stingT, 2.2); B.formT = Math.max(B.formT, 2.2); B.combT = Math.max(B.combT, 3);
-    G.banner = { text: 'Vexa returns!', sub: 'Furious: everything comes faster', t: 2, max: 2, at: 0.45 }; shake(2); sfx.boss();
+  // The cage is over: she swoops back down, furious. (dodged: you slipped it before it shut; she never left)
+  function vexaReturn(B, dodged) {
+    B.mad = true; B.stingT = Math.max(B.stingT, 2.2); B.formT = Math.max(B.formT, 4); B.combT = Math.max(B.combT, 3);
+    G.banner = dodged ? { text: 'Vexa is furious!', sub: 'You slipped her cage. Everything comes faster', t: 2, max: 2, at: 0.45 } : { text: 'Vexa returns!', sub: 'Furious: everything comes faster', t: 2, max: 2, at: 0.45 }; shake(2); sfx.boss();
   }
   function updateCage(B, dt, ph2) {
     const C = B.cage, p = G.player;
     C.t -= dt;
     if (C.st === 'warn') {
       if (C.t > 0) return;
-      if (Math.hypot(p.x - C.x, p.y - C.y) > CAGE_R) { float(p.x, p.y - 6, 'Dodged!', COL.chalk, 3.2); B.cage = null; vexaReturn(B); return; } // you got clear
+      if (Math.hypot(p.x - C.x, p.y - C.y) > CAGE_R) { float(p.x, p.y - 6, 'Dodged!', COL.chalk, 3.2); B.cage = null; vexaReturn(B, true); return; } // you got clear
       const n = Math.ceil(Math.PI * 2 * CAGE_R / (CAGE_CELL * 1.85)), hp = 1 + B.cycle;
       for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2; C.cells.push({ x: C.x + Math.cos(a) * CAGE_R, y: C.y + Math.sin(a) * CAGE_R, hp, max: hp, flash: 0, grow: -k * 0.02 }); }
       C.st = 'up'; C.t = C.max = CAGE_TIME[ph2]; sfx.clank(); shake(1.5); gridImpulse(C.x, C.y, CAGE_R * 2, 120);
