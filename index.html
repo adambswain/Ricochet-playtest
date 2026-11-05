@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 05 01:30 UTC · 95d4aa7";</script>
+<script>window.RICOCHET_BUILD = "Nov 05 02:08 UTC · 48c579f";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -528,7 +528,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     10: 'Clanktank: smash its treads to immobilize it, then every hit hurts it. Don\'t let the repair crew get it moving again',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
-    40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, hit the pink orbs in his walls. Crystal can\'t hurt you; his blaster can',
+    40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, he flies about in his saucer dropping mines: get out of their rings, and hit the pink orbs in his walls, or chip at the saucer',
     46: 'Bees! The Hive\'s scouts are out. Something big is buzzing nearby',
     39: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
@@ -1139,6 +1139,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // out (shoot a cell out and slip through) before CAGE_TIME runs out, or every cell left hatches a bee in there with
   // you. While you're caged she flies up out of the arena; when it's over she swoops back down furious: everything
   // comes faster, and her sting fires a spread of three. Below VEXA_BERSERK of her health, faster still.
+  // Every VEXA_SWOOP she swoops: the lane she'll dive down lights up on the floor (SWOOP_WARN; she draws up and shivers),
+  // then she dives down it (her body hurts), perches low for SWOOP_PERCH with her abdomen in easy reach (and a hit there
+  // is worth SWOOP_K times as much), and flies back up. Nothing else comes while she swoops.
   // Both halves throw honeycomb: a chunk of seven wax cells, flagged by a ring closing on an edge cell (or flung by the
   // queen), that flies and bounces off the walls COMB_BOUNCES times or for COMB_LIFE seconds, then crumbles. Its touch
   // hurts; each cell breaks in one hit and counts toward the chain, and breaking the core cell shatters the rest.
@@ -1153,6 +1156,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const QUEEN_R = 9.5, QUEEN_HP = 350, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
   const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 };
   const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [6.5, 5.5, 5, 5];
+  const VEXA_SWOOP = [12, 10, 9, 8], SWOOP_WARN = 1.2, SWOOP_DIVE = 0.6, SWOOP_PERCH = 3, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
   function setupHive(B, cycle) {
     const S = HIVE_CELL, cx = AW / 2, cy = clamp(AH * 0.36, S * 9, AH * 0.45), cells = [];
@@ -1473,13 +1477,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (B.modeT <= 0) { B.st = 'queen'; }
       return;
     }
-    // Vexa, hanging over the arena
-    B.x += (hang[0] - B.x) * Math.min(1, dt * 2); B.y += (hang[1] - B.y) * Math.min(1, dt * 2);
+    // Vexa, hanging over the arena (or swooping)
+    if (!B.swoop) { B.x += (hang[0] - B.x) * Math.min(1, dt * 2); B.y += (hang[1] - B.y) * Math.min(1, dt * 2); }
     const [tx0, ty0] = vexaTip(B), want = clamp(Math.atan2(p.y - ty0, p.x - tx0) - Math.PI / 2, -0.4, 0.4); // her abdomen leans toward you
-    if (B.mode !== 'lock') B.face += (-Math.PI / 2 + want - B.face) * Math.min(1, dt * 2.5);
+    if (B.mode !== 'lock' && !B.swoop) B.face += (-Math.PI / 2 + want - B.face) * Math.min(1, dt * 2.5);
     if (p.inv <= 0) for (const [x, y, rr] of vexaBody(B)) if (Math.hypot(p.x - x, p.y - y) < rr + PLAYER_R * 0.8) { damagePlayer(); break; }
     if (B.cage) { updateCage(B, dt, ph2); return; } // she holds her fire while you're caged
-    if (!B.caged && B.hp <= B.maxHp * VEXA_CAGE_AT) { B.caged = true; vexaCage(B); return; } // once, at half health, whatever did the damage
+    if (!B.caged && B.hp <= B.maxHp * VEXA_CAGE_AT) { B.caged = true; B.swoop = null; vexaCage(B); return; } // once, at half health, whatever did the damage
+    if (B.swoop) { vexaSwoop(B, dt, ph2); return; } // nothing else while she swoops
+    B.swoopT -= dt;
+    if (B.swoopT <= 0 && B.mode === 'hang') { vexaSwoopStart(B); return; }
     // the sting: the abdomen leans in and glows down a lane, locks, and fires a needle
     B.stingT -= dt;
     if (B.mode === 'hang' && B.stingT <= 0) { B.mode = 'aim'; B.modeT = VEXA_AIM; sfx.blasterCharge(); }
@@ -1805,7 +1812,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The royal cell is broken: the comb crumbles away and the queen comes out (untouchable while she emerges).
   function crackHive(B) {
     for (const c of B.cells) if (c.hp > 0) { burst(c.x, c.y, 6, GOLD(), 40, 0.7, 0.5); G.score += Math.round(20 * G.mult); c.hp = 0; }
-    Object.assign(B, { st: 'emerge', modeT: QUEEN_EMERGE, x: B.cx, y: B.cy, flash: 0.3, combT: VEXA_COMB[0], taken: 0, mode: 'hang', formT: 6, stingT: 2.4, forms: [] }); // her first bee wall only once she's settled in
+    Object.assign(B, { st: 'emerge', modeT: QUEEN_EMERGE, x: B.cx, y: B.cy, flash: 0.3, combT: VEXA_COMB[0], taken: 0, mode: 'hang', formT: 6, stingT: 2.4, forms: [], swoop: null, swoopT: 9 }); // her first bee wall only once she's settled in
     B.outs = (B.outs || 0) + 1;
     for (const e of G.enemies) e.mend = null;
     for (let k = 0; k < 4; k++) ring(B.x, B.y, 2, B.r * (0.8 + k * 0.5), 0.6 + k * 0.15, k % 2 ? COL.chalk : GOLD(), 1.4);
@@ -1841,6 +1848,29 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (let k = -n; k <= n; k++) add(tx + k * 4.5, ty + 4 - Math.abs(k) * 3.5, (fx - tx) * 0.35, v * 0.9);
     }
     sfx.field();
+  }
+  // Her swoop: a perch low down near you, and the lane from where she hangs down to it
+  function vexaSwoopStart(B) {
+    const p = G.player, r = vexaR(), x1 = clamp(p.x + rand(-6, 6), AW * 0.22, AW * 0.78), y1 = Math.min(AH * 0.55, AH - 2.4 * r - 8);
+    B.swoop = { ph: 'warn', t: 0, x0: B.x, y0: B.y, x1, y1 };
+    sfx.blasterCharge(); float(B.x, B.y + r * 1.5, 'Swoop!', COL.threat, 3.2);
+  }
+  function vexaSwoop(B, dt, ph2) {
+    const W = B.swoop, ease = k => k * k * (3 - 2 * k); W.t += dt;
+    if (W.ph === 'warn') { // drawing up and shivering, her lane lit below her
+      const k = clamp(W.t / SWOOP_WARN, 0, 1); B.x = W.x0 + Math.sin(G.time * 60) * 0.5 * k; B.y = W.y0 - 4 * ease(k); B.face = -Math.PI / 2;
+      if (W.t >= SWOOP_WARN) { W.ph = 'dive'; W.t = 0; W.ys = B.y; sfx.boss(); }
+    } else if (W.ph === 'dive') { // down the lane, quicker and quicker
+      const k = clamp(W.t / SWOOP_DIVE, 0, 1), e = k * k; B.x = W.x0 + (W.x1 - W.x0) * e; B.y = W.ys + (W.y1 - W.ys) * e;
+      B.face = -Math.PI / 2 + clamp((W.x1 - W.x0) * 0.004, -0.3, 0.3);
+      if (k >= 1) { W.ph = 'perch'; W.t = 0; shake(3); gridImpulse(B.x, B.y, 60, 220); burst(B.x, B.y, 30, GOLD(), 60, 0.8, 0.5); sfx.clank(); float(B.x, B.y - vexaR() * 1.4, 'Hit her now!', COL.chalk, 3.4); }
+    } else if (W.ph === 'perch') { // low down, her abdomen right there
+      B.x = W.x1; B.y = W.y1 + Math.sin(G.time * 3) * 0.8; B.face += (-Math.PI / 2 - B.face) * Math.min(1, dt * 4);
+      if (W.t >= SWOOP_PERCH) { W.ph = 'rise'; W.t = 0; }
+    } else { // back up to where she hangs
+      const k = ease(clamp(W.t / SWOOP_RISE, 0, 1)), [hx, hy] = vexaHang(B); B.x = W.x1 + (hx - W.x1) * k; B.y = W.y1 + (hy - W.y1) * k;
+      if (W.t >= SWOOP_RISE) { B.swoop = null; B.swoopT = VEXA_SWOOP[ph2]; B.formT = Math.max(B.formT, 1.5); B.stingT = Math.max(B.stingT, 1); }
+    }
   }
   // Her cage: a gold ring closes on where you are; if you're still inside when it shuts, a ring of wax cells grows there.
   function vexaCage(B) {
@@ -1946,7 +1976,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!hurts) { B.armorT = 0.15; sfx.clank(); return 'bounce'; } // her head and thorax are armour
     if (B.hitCd <= 0) {
       B.hitCd = 0.12; B.flash = 0.08; B.hurt = 1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); burst(x + nx * rr, y + ny * rr, 8 + b, GOLD(), 30, 0.6, 0.35); sfx.splat(b);
-      damageBoss(1 + b, o.x, o.y);
+      damageBoss(Math.round((1 + b) * (B.swoop && B.swoop.ph === 'perch' ? SWOOP_K : 1)), o.x, o.y); // perched low after a swoop, a hit's worth more
     }
     return 'bounce';
   }
@@ -2722,6 +2752,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // below VEXA_BERSERK).
   function drawQueen(B) {
     const aiming = B.st === 'queen' && (B.mode === 'aim' || B.mode === 'lock'), threat = COL.threat;
+    if (B.swoop && B.swoop.ph === 'warn') { // the lane she'll dive down: from her, through her perch, as long as her body
+      const W = B.swoop, r = vexaR(), k = clamp(W.t / SWOOP_WARN, 0, 1), a = Math.atan2(W.y1 - W.y0, W.x1 - W.x0), L = Math.hypot(W.x1 - W.x0, W.y1 - W.y0) + 2.3 * r;
+      laneWarn(W.x0, W.y0, a, L, r * 0.62, k, W.t > SWOOP_WARN - 0.3);
+    }
     const em = B.st === 'emerge' ? 1 - B.modeT / QUEEN_EMERGE : B.st === 'retreat' ? B.modeT / VEXA_RETREAT : 1;
     const aimK = aiming ? (B.mode === 'lock' ? 1 : clamp(1 - (B.modeT - VEXA_LOCK) / (VEXA_AIM - VEXA_LOCK), 0, 1)) : 0;
     if (aiming) { // the stinger's lane, from the tip to the edge of the arena: it brightens, then locks (white, flashing)
@@ -5181,7 +5215,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    thud). Once he's taken GEO_TRIP of his health this way, the rest of his shell bursts.
   //  - crack: a beat of stagger (GEO_STAGGER) after the shell bursts; strip every crystal before that and he takes
   //    GEO_BARE of his health at once and staggers for GEO_EXPOSED seconds, wide open.
-  //  - wall: he retreats into the background, huge and faint, and runs the arena from there. Crystal walls slide in from
+  //  - wall: he climbs into his little saucer and flies about the arena laying mines (below). Crystal walls slide in from
   //    every edge, a layer at a time, pushing everything (your ship included) in toward the middle (siege walls,
   //    'crystal' rules: they can't hurt you, the ball always bounces and breaks one, each crystal hit keeps a hot ball
   //    from overloading). Set into the incoming layers are his orbs, fleshy cores beating like hearts: hitting one pops
@@ -5193,21 +5227,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // and cracks the crystal it meets (a shot fired from over his walls flies clear of them before it can hit one). He holds
   // his fire while his muzzle is within GEO_NEAR of you. As he walls you in, every enemy left is crushed, and none come
   // while the walls are up. Everything speeds up as he weakens.
-  // From the background (wall) his shots are bank shots: each is aimed to pass through where you are after bouncing off
-  // his walls (GEO_BANKS: how many bounces, by phase, one shot each), the targeting laser showing its whole path. The
-  // rings ricochet off the walls (they don't crack them) and pop at the first bounce after they've passed you.
+  // In his saucer (wall) he doesn't shoot. He zips about inside the walls, now across you, now somewhere else in the open,
+  // dropping crystal mines as he goes (GEO_MINE_EVERY, in pairs in the last phase). A mine glows brighter and brighter, its
+  // reach ringed round it, and goes off after GEO_MINE_FUSE: get out of its ring. Your ball sets one off early (and takes
+  // a charge from it), wherever you are. The saucer itself can be hit too, for GEO_SAUCER_K of the ball's damage (and its
+  // shield flickers for GEO_SAUCER_CD after): the orbs are still the way to really hurt him. The walls close in, so the
+  // mines get worse as the room goes.
   const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 350, GEO_ORB = 1.5, GEO_TRIP = 0.2, GEO_BARE = 0.1, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 25, GEO_THIN = 0.3;
   const GEO_PUSH = [2.6, 2.1, 1.6], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
   const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
-  const GEO_BANKS = [[1], [1, 2], [2, 1]], GEO_BANK_SHOT = [2.4, 2.1, 1.8], GEO_BANK_CHARGE = 1.1, GEO_BANK_R = 2, GEO_BANK_V = 38;
-  const geoScale = () => Math.min(AW, AH) / 38; // how big he looms in the background
+  const GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_K = 0.6, GEO_SAUCER_CD = 1.2, GEO_SAUCER_V = [26, 30, 34], GEO_MINE_EVERY = [1.0, 0.8, 0.65], GEO_MINE_FUSE = 1.6, GEO_MINE_R = 7, GEO_MINE_MAX = 12, GEO_MINE_S = 1.6;
   const geoEase = k => k * k * (3 - 2 * k);
   function setupGeode(B, cycle) {
     const slots = [];
     GEO_RINGS.forEach((rr, ring) => { const n = Math.floor(Math.PI * 2 * rr / (GEO_CRY * 2.1)); for (let i = 0; i < n; i++) slots.push({ ring, a: (i + (ring % 2) * 0.5) / n * Math.PI * 2, on: false, flash: 0 }); });
     Object.assign(B, { r: GEO_R, x: AW / 2, y: AH * 0.48, hx: AW / 2, hy: AH * 0.48, hp: Math.round(GEO_HP * (1 + cycle * 0.6)), st: 'shell', stT: 0, bg: 0, sc: 1, spin: 0,
                        slots, fly: [], shotT: 2.5, chg: 0, gunA: Math.PI / 2, side: 1, recoil: 0, hurt: 0, blinkT: 2.5, summon: 0, escT: 3, links: [], shield: 0, hitCd: 0,
-                       aimX: AW / 2, aimY: AH / 2 });
+                       aimX: AW / 2, aimY: AH / 2, mines: [], fx: AW / 2, fy: AH * 0.48, fvx: 0, fvy: 0, ftgt: null, mineT: 1.2, legs: 0 });
   }
   const geoExposed = B => B.st === 'shell' || B.st === 'crack' || B.st === 'rebuild'; // his body takes hits whenever he's in the middle
   const geoShelled = B => B.st === 'shell' || B.st === 'crack' || B.st === 'rebuild';
@@ -5216,53 +5252,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const geoMuzzle = B => { const k = B.sc, sx = B.x + B.side * GEO_R * 0.8 * k, sy = B.y + GEO_R * 0.06 * k, L = (GEO_R * 1.31 - B.recoil * 1.3) * k; return [sx + Math.cos(B.gunA) * L, sy + Math.sin(B.gunA) * L]; };
   // Where the next shot comes from: the muzzle (kept just inside the arena when his gun reaches past its edge).
   function geoShotFrom(B) { const [x, y] = geoMuzzle(B); return [clamp(x, 3, AW - 3), clamp(y, 3, AH - 3)]; }
-  // A ring's path from (x, y) (out in the open) at angle a: bouncing off the arena's edges and his walls, up to n
-  // bounces or len units. pts: the corners (start, each bounce, end); hits: where it passes by.
-  function geoTrace(x, y, a, n, len) {
-    let vx = Math.cos(a), vy = Math.sin(a), clear = true, b = 0, d = 0;
-    const r = GEO_BANK_R, step = 1, pts = [[x, y]], samples = [];
-    while (d < len && b <= n) {
-      x += vx * step; y += vy * step; d += step;
-      let nx = 0, ny = 0;
-      if (x < r) { x = r; nx = 1; } else if (x > AW - r) { x = AW - r; nx = -1; }
-      if (y < r) { y = r; ny = 1; } else if (y > AH - r) { y = AH - r; ny = -1; }
-      if (!nx && !ny && G.siege) {
-        let h = null; siegeNear(G.siege, x, y, r, (side, c, k, cell, R0) => (h = hitRect(x, y, r, R0)));
-        if (!h) clear = true; else if (clear) { x += h.nx * h.depth; y += h.ny * h.depth; nx = h.nx; ny = h.ny; }
-      }
-      if (nx || ny) { const l = Math.hypot(nx, ny), ux = nx / l, uy = ny / l, dot = vx * ux + vy * uy; if (dot < 0) { vx -= 2 * dot * ux; vy -= 2 * dot * uy; b++; pts.push([x, y]); } }
-      samples.push([x, y, b]);
-    }
-    pts.push([x, y]);
-    return { pts, samples };
-  }
-  // Pick the volley: for each shot, an angle whose path passes through you after exactly that many bounces (the
-  // shortest way there), each well apart from the others. Straight at you if nothing's found.
-  // Where his rings come out: the first open point on the line from his muzzle (often over his walls) to you.
-  function geoBankFrom(x, y) {
-    const p = G.player, d = Math.hypot(p.x - x, p.y - y) || 1, ux = (p.x - x) / d, uy = (p.y - y) / d;
-    for (let t = 0; t < d; t += 1) {
-      const qx = x + ux * t, qy = y + uy * t; let hit = false;
-      if (G.siege) siegeNear(G.siege, qx, qy, GEO_BANK_R + 0.5, (side, c, k, cell, R0) => (hit = !!hitRect(qx, qy, GEO_BANK_R + 0.5, R0)));
-      if (!hit) return [qx, qy];
-    }
-    return [p.x, p.y];
-  }
-  function geoBankPlan(B, x, y, want) {
-    const p = G.player, plan = [];
-    for (const n of want) {
-      let best = null;
-      for (let i = 0; i < 180; i++) {
-        const a = i / 180 * Math.PI * 2;
-        if (plan.some(q => Math.abs(Math.atan2(Math.sin(a - q.a), Math.cos(a - q.a))) < 0.3)) continue;
-        const T = geoTrace(x, y, a, n, 260);
-        let k = -1; for (let j = 0; j < T.samples.length; j++) { const [sx, sy, sb] = T.samples[j]; if (sb === n && Math.hypot(sx - p.x, sy - p.y) < PLAYER_R + GEO_BANK_R) { k = j; break; } if (sb > n) break; }
-        if (k >= 0 && (!best || k < best.k)) best = { a, k, n };
-      }
-      plan.push(best || { a: Math.atan2(p.y - y, p.x - x), k: 0, n: 0 });
-    }
-    return plan;
-  }
   function geoBreak(B, sl, b, scored) {
     sl.on = false;
     const [x, y] = geoSlot(B, sl);
@@ -5304,6 +5293,46 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     float(B.hx, B.hy - GEO_RINGS[1] - 5, n < B.slots.length * 0.5 ? 'Thin shell!' : 'Shell rebuilt', COL.chalk, 3.2);
     sfx.crystalGrow();
   }
+  // The saucer's flight: legs to a point in the open, every other one across you (to the far side of where you are), and
+  // a mine dropped every so often on the way.
+  function geoFly(B, dt, ph) {
+    const p = G.player, S = G.siege, v = GEO_SAUCER_V[ph];
+    const open = (x, y) => { if (x < 9 || x > AW - 9 || y < 9 || y > AH - 9) return false; let ok = true; if (S) siegeNear(S, x, y, 5, () => (ok = false)); return ok; };
+    if (!B.ftgt || Math.hypot(B.ftgt[0] - B.fx, B.ftgt[1] - B.fy) < 4 || !open(...B.ftgt)) {
+      B.legs++; let t = null;
+      for (let k = 0; k < 30 && !t; k++) {
+        const across = B.legs % 2 === 1, f = rand(0.5, 0.9);
+        const x = across ? p.x + (p.x - B.fx) * f + rand(-8, 8) : rand(12, AW - 12), y = across ? p.y + (p.y - B.fy) * f + rand(-8, 8) : rand(12, AH - 12);
+        if (open(x, y) && Math.hypot(x - B.fx, y - B.fy) > 18) t = [x, y];
+      }
+      B.ftgt = t || [p.x, p.y];
+    }
+    const dx = B.ftgt[0] - B.fx, dy = B.ftgt[1] - B.fy, d = Math.hypot(dx, dy) || 1, k = Math.min(1, dt * 2.5);
+    B.fvx += (dx / d * v - B.fvx) * k; B.fvy += (dy / d * v - B.fvy) * k;
+    B.fx = clamp(B.fx + B.fvx * dt, 8, AW - 8); B.fy = clamp(B.fy + B.fvy * dt, 8, AH - 8);
+    B.mineT -= dt;
+    if (B.mineT <= 0 && B.mines.length < GEO_MINE_MAX && open(B.fx, B.fy)) {
+      B.mineT = GEO_MINE_EVERY[ph];
+      const sp = Math.hypot(B.fvx, B.fvy) || 1, nx = -B.fvy / sp, ny = B.fvx / sp;
+      for (const o of ph === 2 ? [-3.5, 3.5] : [0]) B.mines.push({ x: clamp(B.fx + nx * o, 6, AW - 6), y: clamp(B.fy + ny * o, 6, AH - 6), t: 0 });
+      sfx.clank();
+    }
+  }
+  // His mines: fuse burning; swallowed by a wall, or cleared when he climbs out, they fizzle
+  function geoMines(B, dt) {
+    for (let i = B.mines.length - 1; i >= 0; i--) {
+      const m = B.mines[i]; m.t += dt;
+      let walled = false; if (G.siege) siegeNear(G.siege, m.x, m.y, 1.2, () => (walled = true));
+      if (walled || (B.st !== 'wall' && B.st !== 'rise')) { burst(m.x, m.y, 6, ECOL.splitter, 20, 0.4, 0.3); B.mines.splice(i, 1); continue; }
+      if (m.t >= GEO_MINE_FUSE) { geoMineBlow(m); B.mines.splice(i, 1); }
+    }
+  }
+  function geoMineBlow(m) {
+    const p = G.player;
+    ring(m.x, m.y, 1, GEO_MINE_R, 0.3, COL.threat, 1.1); ring(m.x, m.y, 0.5, GEO_MINE_R * 0.6, 0.22, COL.chalk, 0.7);
+    burst(m.x, m.y, 16, ECOL.splitter, 40, 0.5, 0.35); burst(m.x, m.y, 8, COL.threat, 30, 0.4, 0.3); gridImpulse(m.x, m.y, GEO_MINE_R * 2, 90); shake(0.6); sfx.shatter();
+    if (p.inv <= 0 && Math.hypot(p.x - m.x, p.y - m.y) < GEO_MINE_R + PLAYER_R * 0.6) damagePlayer();
+  }
   function geoOrbHit(x, y, dmg) {
     const B = G.boss; if (!B || B.kind !== 'geode') return;
     B.hurt = 1; B.links.push({ x, y, t: 0 });
@@ -5317,10 +5346,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.blinkT < -0.12) B.blinkT = rand(1.8, 4);
     for (const sl of B.slots) sl.flash -= dt;
     for (let i = B.links.length - 1; i >= 0; i--) { B.links[i].t += dt; if (B.links[i].t > 0.35) B.links.splice(i, 1); }
-    // where he is: in the middle, or wandering about behind the arena, and moving between the two
+    // where he is: in the middle, or in his saucer (B.bg: how far into it), and moving between the two
     if (B.st === 'rise') B.bg = 1 - B.stT / GEO_RISE; else if (B.st === 'rebuild') B.bg = Math.max(0, B.stT / GEO_RETURN); else B.bg = B.st === 'wall' ? 1 : 0;
-    const e = geoEase(clamp(B.bg, 0, 1)), wx = AW / 2 + Math.sin(B.t * 0.21) * AW * 0.24, wy = AH * 0.48 + Math.sin(B.t * 0.33 + 1) * AH * 0.1;
-    B.hx = AW / 2; B.hy = AH * 0.48; B.x = B.hx + (wx - B.hx) * e; B.y = B.hy + (wy - B.hy) * e; B.sc = 1 + (geoScale() - 1) * e;
+    const e = geoEase(clamp(B.bg, 0, 1));
+    B.hx = AW / 2; B.hy = AH * 0.48;
+    if (B.st === 'wall') geoFly(B, dt, ph); else if (B.st === 'rise') { B.fx = B.hx; B.fy = B.hy - 6 * e; B.fvx = B.fvy = 0; B.ftgt = null; } // it lifts off where he sat
+    B.x = B.hx + (B.fx - B.hx) * e; B.y = B.hy + (B.fy - B.hy) * e; B.sc = 1 - (1 - GEO_SHRINK) * e;
+    geoMines(B, dt);
     // the states
     B.stT -= dt;
     if (B.st === 'crack' && B.stT <= 0) geoRise(B);
@@ -5342,20 +5374,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const [mx, my] = geoMuzzle(B), want = Math.atan2(p.y - my, p.x - mx);
     if (B.shotT > GEO_LOCK) { let d = want - B.gunA; d = Math.atan2(Math.sin(d), Math.cos(d)); B.gunA += clamp(d, -dt * 3, dt * 3); }
     if (Math.cos(B.gunA) > 0.3) B.side = 1; else if (Math.cos(B.gunA) < -0.3) B.side = -1;
-    if (B.st === 'wall') { // from the background: bank shots, their whole paths shown first
-      const [mx0, my0] = geoShotFrom(B);
-      B.shotT -= dt; B.aimX = mx0; B.aimY = my0;
-      if (B.shotT < GEO_BANK_CHARGE && !B.plan) { const [ox, oy] = geoBankFrom(mx0, my0); B.plan = geoBankPlan(B, ox, oy, GEO_BANKS[ph]); B.planFrom = [ox, oy]; sfx.blasterCharge(); }
-      const [fx0, fy0] = B.planFrom || [mx0, my0];
-      if (B.plan) for (const q of B.plan) q.path = [[mx0, my0], ...geoTrace(fx0, fy0, q.a, q.n + 1, 260).pts]; // from his muzzle to where it comes out of the wall, then bouncing; it follows the walls as they move
-      B.chg = B.shotT < GEO_BANK_CHARGE ? 1 - B.shotT / GEO_BANK_CHARGE : 0;
-      if (B.shotT <= 0) {
-        B.shotT = GEO_BANK_SHOT[ph]; B.chg = 0; B.recoil = 1;
-        for (const q of B.plan || []) G.bullets.push({ x: fx0, y: fy0, vx: Math.cos(q.a) * GEO_BANK_V, vy: Math.sin(q.a) * GEO_BANK_V, r: GEO_BANK_R, geo: true, bank: true, clear: true, bounces: q.n, life: 5 });
-        B.plan = null; B.planFrom = null; ring(fx0, fy0, 1, 7, 0.25, COL.threat, 0.9); sfx.blaster();
-      }
+    if (B.st === 'wall') { B.chg = 0; // in his saucer he lays mines instead
     } else if (B.st !== 'crack') {
-      B.plan = null; B.planFrom = null;
       const [fx0, fy0] = geoShotFrom(B), close = Math.hypot(fx0 - p.x, fy0 - p.y) < GEO_NEAR;
       B.shotT = close ? Math.max(B.shotT - dt, GEO_LOCK + 0.01) : B.shotT - dt; // too close to you: he holds at full charge, still tracking
       B.chg = B.shotT < GEO_CHARGE ? 1 - B.shotT / GEO_CHARGE : 0;
@@ -5386,7 +5406,22 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Ball against the Geode in the middle: shell crystals first, then his body. 'bounce' when it bounces.
   function ballGeode(B, o, r, b) {
-    if (B.bg > 0.5) return ''; // in the background: nothing of him is solid
+    for (let i = B.mines.length - 1; i >= 0; i--) { const m = B.mines[i]; if (m.t > 0.25 && Math.hypot(o.x - m.x, o.y - m.y) < GEO_MINE_S + r) { geoMineBlow(m); B.mines.splice(i, 1); return 'bounce'; } } // the ball sets a mine off (and takes a charge)
+    if (B.bg > 0.5) { // in his saucer: it's a target
+      if (B.st !== 'wall') return '';
+      const dx = o.x - B.x, dy = o.y - B.y, d = Math.hypot(dx, dy) || 1e-6;
+      if (d >= GEO_SAUCER_R + r) return '';
+      const nx = dx / d, ny = dy / d, dot = o.vx * nx + o.vy * ny;
+      o.x = B.x + nx * (GEO_SAUCER_R + r + 0.05); o.y = B.y + ny * (GEO_SAUCER_R + r + 0.05);
+      if (dot >= 0) return '';
+      o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny;
+      if (B.hitCd <= 0) {
+        B.hitCd = GEO_SAUCER_CD; B.hurt = 1; B.fvx -= nx * 14; B.fvy -= ny * 14; // knocked off its line
+        burst(B.x - nx * GEO_SAUCER_R, B.y - ny * GEO_SAUCER_R, 12 + b, COL.chalk, 35, 0.6, 0.35); ring(B.x, B.y, GEO_SAUCER_R, GEO_SAUCER_R + 6, 0.3, heat(b), 0.9); shake(0.8);
+        sfx.splat(b); damageBoss(Math.max(1, Math.round((1 + b) * GEO_SAUCER_K)), B.x, B.y - 2);
+      }
+      return 'bounce';
+    }
     if (B.st === 'shell' || B.st === 'rebuild') {
       let hit = null, hx = 0, hy = 0, hd = 1e9;
       for (const sl of B.slots) {
@@ -5445,6 +5480,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (B.st === 'shell' && !B.slots.some(sl => sl.on)) geoCrack(B, true);
     }
     if (geoExposed(B) && B.bg < 0.5 && G.boss === B && Math.hypot(B.x - x, B.y - y) < rad + GEO_R) { B.hurt = 1; sfx.splat(4); geoHurt(B, dmg, B.x, B.y); }
+    if (B.st === 'wall' && G.boss === B && Math.hypot(B.x - x, B.y - y) < rad + GEO_SAUCER_R) { B.hurt = 1; sfx.splat(4); damageBoss(dmg, B.x, B.y); } // a blast that reaches his saucer
     const S = G.siege; if (!S) return;
     const hit = []; siegeNear(S, x, y, rad, (side, c, k, cell, R0) => { if (Math.hypot(clamp(x, R0.x0, R0.x1) - x, clamp(y, R0.y0, R0.y1) - y) < rad) hit.push([side, c, k, cell, R0]); return false; });
     hit.sort((a, q) => q[2] - a[2]).forEach(([side, c, k, cell, R0]) => { siegeBreak(side, c, k, 0, false); if (cell.orb) geoOrbHit((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2, dmg); });
@@ -5474,7 +5510,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const sl of B.slots) if (sl.on) geoBreak(B, sl, 0, false);
     G.bullets = G.bullets.filter(q => !q.geo);
     if (G.siege) G.siege.timer = 1e9; // his walls stop where they are
-    G.geoDeath = { B: { ...B, links: [], fly: [], chg: 0, recoil: 0, summon: 0, flash: 0.25, hurt: 1 }, t: 0, popped: false, result: G.result, bits: [], goo: [],
+    G.geoDeath = { B: { ...B, links: [], fly: [], mines: [], chg: 0, recoil: 0, summon: 0, flash: 0.25, hurt: 1 }, t: 0, popped: false, result: G.result, bits: [], goo: [],
                    cracks: Array.from({ length: 9 }, (_, i) => ({ a: i / 9 * Math.PI * 2 + rand(-0.3, 0.3), len: rand(0.55, 0.95), kink: rand(-0.5, 0.5), at: rand(0, 0.6) })) };
     G.result = null;
     G.freeze = Math.max(G.freeze, 0.18); shake(2.5); sfx.splat(12); sfx.geoSwell();
@@ -5512,7 +5548,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function drawGeoDeath() {
     const D = G.geoDeath; if (!D) return;
-    const B = D.B, x = B.x, y = B.y, k = clamp((D.t - GEO_DIE_HIT) / (GEO_POP - GEO_DIE_HIT), 0, 1), base = B.bg > 0.5 ? 0.3 : 1;
+    const B = D.B, x = B.x, y = B.y, k = clamp((D.t - GEO_DIE_HIT) / (GEO_POP - GEO_DIE_HIT), 0, 1), base = 1;
     if (D.popped) { // goo on the floor, fading; the pieces spinning away
       const f = clamp(1 - (D.t - GEO_POP - GEO_GOO * 0.55) / (GEO_GOO * 0.45), 0, 1);
       ctx.globalAlpha = 0.55 * f; ctx.fillStyle = GEO_ORB_COL; ctx.beginPath();
@@ -5561,13 +5597,51 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const B = G.boss && G.boss.kind === 'geode' ? G.boss : null;
     drawGeoDeath();
     if (!B) return;
-    const e = geoEase(clamp(B.bg, 0, 1)), a = (B.enter > 0 ? clamp((1 - B.enter / BOSS_ENTER - 0.45) / 0.5, 0, 1) : 1) * (1 - 0.7 * e); // solid in the middle, faint behind
-    if (a >= 0.999) drawGeode(B, 1, B.sc); else if (a > 0) faded(a, () => drawGeode(B, 1, B.sc));
+    const a = B.enter > 0 ? clamp((1 - B.enter / BOSS_ENTER - 0.45) / 0.5, 0, 1) : 1;
+    if (B.bg <= 0) { if (a >= 0.999) drawGeode(B, 1, B.sc); else if (a > 0) faded(a, () => drawGeode(B, 1, B.sc)); } // (in his saucer he's drawn over the walls: drawGeodeFg)
     for (const l of B.links) { // a nerve back to him from the orb you popped
       ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1 - l.t / 0.35; ctx.strokeStyle = GEO_ORB_COL; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.quadraticCurveTo((l.x + B.x) / 2 + 8, (l.y + B.y) / 2 - 8, B.x, B.y); ctx.stroke();
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     }
+  }
+  // His saucer: its shadow on the floor below it; him, small, sitting in it; its hull over his lower half, rim lights
+  // chasing round it and a glow under it; a glass dome over him. It grows round him as he climbs in (B.bg).
+  function drawGeoSaucer(B) {
+    const e = geoEase(clamp(B.bg, 0, 1)), x = B.x, y = B.y, t = G.time, cry = ECOL.splitter, fl = B.hurt > 0.5, W = 7.2 * e, H = 2.4 * e;
+    if (e <= 0.01) { drawGeode(B, 1, B.sc); return; }
+    ctx.save();
+    ctx.globalAlpha = 0.35 * e; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(x + 2.5, y + 9 * e, W * 0.85, H * 0.8, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // its shadow, below it on the floor
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.25 + 0.1 * Math.sin(t * 9)) * e; ctx.fillStyle = cry; ctx.beginPath(); ctx.ellipse(x, y + H * 1.6, W * 0.45, H * 1.1, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); // its glow underneath
+    drawGeode(B, 1, B.sc); // him, in it
+    const hull = () => { ctx.beginPath(); ctx.ellipse(x, y + H * 0.7, W, H, 0, 0, Math.PI * 2); };
+    hull(); ctx.fillStyle = COL.ink; ctx.fill(); ctx.globalAlpha = fl ? 0.85 : 0.3; ctx.fillStyle = fl ? COL.chalk : COL.hull; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.45; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x, y + H * 1.25, W * 0.5, H * 0.45, 0, 0, Math.PI); ctx.strokeStyle = cry; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.8; ctx.stroke(); ctx.globalAlpha = 1; // its belly
+    for (let i = 0; i < 7; i++) { const a = Math.PI * (0.12 + 0.76 * i / 6), lx = x - Math.cos(a) * W * 0.82, ly = y + H * 0.7 + Math.sin(a) * H * 0.62, on = ((Math.floor(t * 8 - i) % 7) + 7) % 7 === 0; // lights chasing round its rim
+      ctx.fillStyle = on ? COL.chalk : i % 2 ? GEO_ORB_COL : GOLD(); ctx.globalAlpha = on ? 1 : 0.7; ctx.beginPath(); ctx.arc(lx, ly, on ? 0.55 : 0.4, 0, Math.PI * 2); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    if (B.st === 'wall' && B.hitCd > 0 && Math.floor(t * 18) % 2) { ctx.globalAlpha = 0.4 * clamp(B.hitCd / 0.4, 0, 1); ctx.strokeStyle = ECOL.splitter; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.ellipse(x, y, W * 1.15, W * 0.95, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; } // its shield, flickering after a hit
+    const dome = () => { ctx.beginPath(); ctx.ellipse(x, y + H * 0.2, W * 0.62, 6.2 * e, 0, Math.PI, 0); ctx.closePath(); };
+    dome(); ctx.fillStyle = cry; ctx.globalAlpha = 0.1 * e; ctx.fill(); ctx.globalAlpha = 0.85 * e; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3; ctx.stroke();
+    ctx.globalAlpha = 0.5 * e; ctx.beginPath(); ctx.ellipse(x - W * 0.25, y - 2.6 * e, W * 0.14, 1.6 * e, -0.5, 0, Math.PI * 2); ctx.fillStyle = COL.chalk; ctx.fill(); // a glint on the glass
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  // His mines on the floor: a crystal with a pink heart that beats faster and burns brighter as its fuse runs down, its
+  // reach ringed round it; flashing white just before it goes. Dropped, it falls the last bit from the saucer.
+  function drawGeoMines(B) {
+    const cry = ECOL.splitter, t = G.time;
+    for (const m of B.mines) {
+      const k = clamp(m.t / GEO_MINE_FUSE, 0, 1), drop = clamp(m.t / 0.25, 0, 1), y = m.y - (1 - drop) * 5, s = (0.4 + 0.6 * drop) * GEO_MINE_S, hot = m.t > GEO_MINE_FUSE - 0.35 && Math.floor(t * 20) % 2;
+      ctx.globalAlpha = drop * (0.05 + 0.12 * k); ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(m.x, m.y, GEO_MINE_R, 0, Math.PI * 2); ctx.fill(); // its reach
+      ctx.globalAlpha = drop * (0.25 + 0.55 * k); ctx.strokeStyle = hot ? COL.chalk : COL.threat; ctx.lineWidth = 0.3 + 0.2 * k; ctx.stroke();
+      ctx.globalAlpha = 1; ctx.beginPath(); for (let q = 0; q < 6; q++) { const a = q / 6 * Math.PI * 2 + 0.3; ctx.lineTo(m.x + Math.cos(a) * s, y + Math.sin(a) * s); } ctx.closePath();
+      ctx.fillStyle = COL.ink; ctx.fill(); ctx.globalAlpha = 0.4; ctx.fillStyle = cry; ctx.fill(); ctx.globalAlpha = 1; ctx.strokeStyle = hot ? COL.chalk : cry; ctx.lineWidth = 0.35; ctx.stroke();
+      const beat = 0.5 + 0.5 * Math.sin(t * (6 + 20 * k)), cr = s * (0.35 + 0.25 * k + 0.1 * beat);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3 + 0.5 * k; ctx.fillStyle = GEO_ORB_COL; ctx.beginPath(); ctx.arc(m.x, y, cr * 2, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      ctx.fillStyle = hot ? COL.chalk : GEO_ORB_COL; ctx.beginPath(); ctx.arc(m.x, y, cr, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
   // A shell crystal: a flat-faced glass block, square to him (k < 1 gives its top face).
   function geoGem(x, y, a, s, k = 1) {
@@ -5577,6 +5651,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // In the arena: his shell (and crystals flying in to rebuild it), and the warning before each shot.
   function drawGeodeFg(B) {
     const cry = ECOL.splitter, gems = [];
+    if (B.mines && B.mines.length) drawGeoMines(B);
+    if (B.bg > 0) drawGeoSaucer(B);
     for (const sl of B.slots) if (sl.on) { const [x, y] = geoSlot(B, sl); gems.push([x, y, Math.atan2(y - B.hy, x - B.hx), sl.flash > 0]); }
     for (const f of B.fly) { if (f.sl.on) continue; const k = clamp((f.t - f.d) / 0.85, 0, 1), e = geoEase(k), [x, y] = geoSlot(B, f.sl); gems.push([f.x0 + (x - f.x0) * e, f.y0 + (y - f.y0) * e, f.t * 8, false]); }
     if (gems.length) {
@@ -5598,8 +5674,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.strokeStyle = locked ? COL.chalk : COL.threat; ctx.globalAlpha = (locked ? 0.95 : 0.25 + 0.5 * k) * flick; ctx.lineWidth = locked ? 0.7 : 0.3 + 0.3 * k;
     ctx.beginPath();
-    if (B.plan) for (const q of B.plan) { (q.path || []).forEach(([px, py], i) => i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); } // each bank shot's path, bounces and all
-    else { ctx.moveTo(x, y); ctx.lineTo(x + ca * L, y + sa * L); }
+    ctx.moveTo(x, y); ctx.lineTo(x + ca * L, y + sa * L);
     ctx.stroke();
     ctx.globalAlpha = 0.25 * k * flick; ctx.lineWidth = 2.2; ctx.strokeStyle = COL.threat; ctx.stroke(); // its glow
     const gr = 1.6 + 4 * k;
