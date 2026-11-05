@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 05 00:33 UTC · 74e7772";</script>
+<script>window.RICOCHET_BUILD = "Nov 05 00:45 UTC · 38ef443";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -175,6 +175,8 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; t
 #mult.drop { animation: drop 0.5s ease-out; }
 @keyframes drop { 0%, 40% { color: var(--hot); } 10% { transform: translateX(-4px); } 20% { transform: translateX(4px); } 30% { transform: translateX(-2px); } 100% { transform: none; } }
 @keyframes bump { 0% { transform: scale(1.7); color: var(--gold); } 100% { transform: scale(1); } }
+.hull.gain i { animation: hullGain 1.4s ease-out; } /* a chest's hull reward: every slot flashes gold, big, and settles */
+@keyframes hullGain { 0%, 20% { transform: scale(1.6); border-color: var(--gold); background: var(--gold); box-shadow: 0 0 10px var(--gold); } 100% { transform: scale(1); } }
 
 .ov { position: fixed; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--ink) 78%, transparent); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px; overflow-y: auto; }
 .panel { width: 100%; max-width: 30rem; display: flex; flex-direction: column; gap: 18px; }
@@ -1655,7 +1657,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (more) items.push({ icon: 'slot', text: 'Hull +1 slot' });
     if (kind === 'slot' || kind === 'repair' || loop2) items.push({ icon: 'fix', text: 'Hull repaired' });
     if (pickups) items.push({ icon: 'pow', text: `${pickups} power-ups` });
-    G.chest = { x: clamp(x, 14, AW - 14), y: clamp(y, 18, AH * 0.62), t: 0, open: false, openT: 0, kind, pickups, items };
+    // the headline: what you got, big, in gold, when it opens
+    const head = balls ? { text: 'Extra ball!', sub: `Your ${G.balls.length === 1 ? 'second' : 'third'} ball: a wingman that flies out with every throw${loop2 ? '. Hull repaired' : ''}` }
+      : more ? { text: 'Hull +1!', sub: 'One more hull slot, and fully repaired' }
+      : kind === 'slot' || kind === 'repair' || loop2 ? { text: 'Hull repaired!', sub: 'Back to full' } : null;
+    G.chest = { x: clamp(x, 14, AW - 14), y: clamp(y, 18, AH * 0.62), t: 0, open: false, openT: 0, kind, pickups, items, head };
   }
   function openChest() {
     const C = G.chest; if (!C || C.open) return;
@@ -1664,7 +1670,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     burst(C.x, C.y - 2, 50, GOLD(), 70, 0.9, 0.7); burst(C.x, C.y - 2, 24, COL.chalk, 50, 0.6, 0.5); gridImpulse(C.x, C.y, 60, 220); shake(2.5); G.freeze = Math.max(G.freeze, 0.06); sfx.collect(); sfx.repair();
     if (C.kind === 'ball') wreckReward(C.x, C.y - 4); else if (C.kind === 'slot') hullSlot(); else if (C.kind === 'repair') { const p = G.player; p.hull = G.hullMax || HULL_MAX; ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); }
     for (let i = 0; i < C.pickups; i++) spawnPickup(C.x + rand(-6, 6), C.y + rand(-6, 6));
+    if (C.head) { G.banner = { text: C.head.text, sub: C.head.sub, t: 3, max: 3, at: C.y < AH * 0.45 ? 0.66 : clamp((C.y - 13 - C.items.length * 8.5 - 22) / AH, 0.1, 0.24), col: GOLD(), glow: true, huge: true }; sfx.boss(); } // away from the chest and its cards
+    if (C.head && C.kind !== 'ball') hullGain();
   }
+  // the hull meter up top flashes gold, so you see where the reward went
+  function hullGain() { const h = $('hull'); if (!h) return; h.classList.remove('gain'); void h.offsetWidth; h.classList.add('gain'); setTimeout(() => h.classList.remove('gain'), 1500); }
   function updateChest(dt) {
     const C = G.chest; if (!C) return;
     C.t += dt; if (C.open) C.openT += dt;
@@ -1694,7 +1704,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!C.open && drop >= 1) { ctx.font = `700 3px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = gold; ctx.globalAlpha = fade * (0.6 + 0.4 * Math.sin(t * 6)); ctx.fillText('REWARD', C.x, y - 11); }
     if (C.open) C.items.forEach((it, i) => { // a card for each thing you got, rising out of it one after another
       const k = clamp((C.openT - 0.15 - i * 0.18) / 0.4, 0, 1); if (k <= 0) return;
-      const cy = y - 12 - i * 7.5 - (1 - k) * 6, w = 34, h = 6; ctx.globalAlpha = fade * k;
+      const cy = y - 13 - i * 8.5 - (1 - k) * 6, w = 40, h = 7; ctx.globalAlpha = fade * k;
       ctx.beginPath(); ctx.roundRect(C.x - w / 2, cy - h / 2, w, h, 1.4); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = gold; ctx.lineWidth = 0.4; ctx.stroke();
       const ix = C.x - w / 2 + 4; ctx.fillStyle = it.icon === 'ball' ? heat(0) : it.icon === 'pow' ? COL.lilac : it.icon === 'pts' ? gold : COL.chalk; ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 0.4;
       if (it.icon === 'ball') { ctx.beginPath(); ctx.arc(ix, cy, 1.5, 0, Math.PI * 2); ctx.fill(); }
@@ -1702,7 +1712,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       else if (it.icon === 'fix') { ctx.fillRect(ix - 1.7, cy - 0.45, 3.4, 0.9); ctx.fillRect(ix - 0.45, cy - 1.7, 0.9, 3.4); }
       else if (it.icon === 'pow') { ctx.beginPath(); ctx.roundRect(ix - 1.9, cy - 1.1, 3.8, 2.2, 1); ctx.stroke(); }
       else { ctx.beginPath(); for (let q = 0; q < 10; q++) { const a = -Math.PI / 2 + q * Math.PI / 5, rr = q % 2 ? 0.7 : 1.7; ctx.lineTo(ix + Math.cos(a) * rr, cy + Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); }
-      ctx.font = `700 2.7px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = COL.chalk; ctx.fillText(it.text, ix + 3.2, cy + 0.1);
+      ctx.font = `700 3.2px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = COL.chalk; ctx.fillText(it.text, ix + 3.4, cy + 0.1);
     });
     ctx.restore(); ctx.globalAlpha = 1;
   }
@@ -1720,7 +1730,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (loopOf(G.wave) > 0) {
       const p = G.player; p.hull = G.hullMax || HULL_MAX;
-      float(p.x, p.y - 8, 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
+      float(p.x, p.y - 8, 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair(); hullGain();
     }
   }
   function defeatBoss() {
@@ -9537,9 +9547,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.banner && !G.attract) {
       const k = G.banner.t / G.banner.max;
       ctx.globalAlpha = Math.min(1, k * 3, (1 - k) * 6);
-      const top = G.banner.top || G.banner.low || G.banner.at, by = G.banner.low ? AH * 0.68 : G.banner.at ? AH * G.banner.at : top ? Math.min(16, AH * 0.12) : AH / 2, big = top ? Math.min(7, AW / 12) : Math.min(12, AW / 7);
-      ctx.fillStyle = COL.chalk; ctx.font = `700 ${big}px ${FONT}`;
-      ctx.fillText(G.banner.text.toUpperCase(), AW / 2, by);
+      const top = G.banner.top || G.banner.low || G.banner.at, by = G.banner.low ? AH * 0.68 : G.banner.at ? AH * G.banner.at : top ? Math.min(16, AH * 0.12) : AH / 2, big = G.banner.huge ? Math.min(11, AW / 8.5) : top ? Math.min(7, AW / 12) : Math.min(12, AW / 7);
+      ctx.fillStyle = G.banner.col || COL.chalk; ctx.font = `700 ${big}px ${FONT}`;
+      const pop = G.banner.huge ? 1 + 0.45 * Math.pow(clamp((k - 0.9) / 0.1, 0, 1), 2) : 1; // a reward pops in
+      ctx.save(); ctx.translate(AW / 2, by); ctx.scale(pop, pop);
+      if (G.banner.glow) { ctx.save(); ctx.shadowColor = G.banner.col || COL.chalk; ctx.shadowBlur = 16 * DPR; ctx.fillText(G.banner.text.toUpperCase(), 0, 0); ctx.restore(); } // ...and glows
+      ctx.fillText(G.banner.text.toUpperCase(), 0, 0); ctx.restore();
       if (G.banner.sub) { // wrapped to the arena: a long intro breaks onto more lines rather than running off the sides
         const fs = Math.min(3.6, AW / 26), maxW = AW * 0.88, lines = [];
         ctx.fillStyle = COL.dim; ctx.font = `500 ${fs}px ${FONT}`;
