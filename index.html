@@ -12,9 +12,39 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon.png">
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
+<script>
+// Updates: a home-screen app keeps its old copy of the page (and GitHub Pages lets it for 10 minutes), so reopening it
+// doesn't fetch a new build. Instead it checks for one itself, past every cache (a fresh query string): when it opens
+// and whenever it comes back to the front. A newer build found on the title screen loads at once; mid-run, a button
+// offers it, so a run is never cut short.
+(() => {
+  const base = () => location.href.split('#')[0].split('?')[0];
+  let busy = false, offered = false;
+  const onTitle = () => { const t = document.getElementById('ov-title'); return t && !t.hidden; };
+  const load = () => { try { sessionStorage.setItem('ricochet.upd', String(Date.now())); } catch (e) {} location.replace(base() + '?v=' + Date.now()); };
+  const justLoaded = () => { try { return Date.now() - (+sessionStorage.getItem('ricochet.upd') || 0) < 20000; } catch (e) { return false; } }; // never twice in a row
+  const stamp = new RegExp('RICOCHET_' + 'BUILD = "([^"]*)";</' + 'script>'); // (split up, so this line doesn't match itself)
+  async function check() {
+    if (busy || offered) return; busy = true;
+    try {
+      const r = await fetch(base() + '?v=' + Date.now(), { cache: 'no-store' }), m = (await r.text()).match(stamp);
+      if (m && window.RICOCHET_BUILD && m[1] !== window.RICOCHET_BUILD) {
+        if (onTitle() && !justLoaded()) { load(); return; }
+        offered = true;
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = 'New version: tap to update';
+        b.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 8px);transform:translateX(-50%);z-index:99;padding:10px 16px;border-radius:8px;border:2px solid #ffd400;background:#120d1c;color:#ffd400;font:700 14px system-ui,sans-serif';
+        b.onclick = load; document.body.appendChild(b);
+      }
+    } catch (e) {} finally { busy = false; }
+  }
+  addEventListener('load', () => setTimeout(check, 600));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  setInterval(() => { if (!document.hidden) check(); }, 3 * 60 * 1000);
+})();
+</script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 05 14:20 UTC · acf775c";</script>
+<script>window.RICOCHET_BUILD = "Nov 05 14:59 UTC · c693e82";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
