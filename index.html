@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 04 22:24 UTC · 2968d46";</script>
+<script>window.RICOCHET_BUILD = "Nov 05 00:33 UTC · 74e7772";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -531,11 +531,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     39: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
     13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
-    20: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only the head hurts, and it strikes',
+    20: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only its head hurts, and it strikes. Break its eggs before they hatch',
     16: 'Invasion: three formations, one after another. Break each before it lands. The top rows are tougher: charge your ball off the walls and bunkers',
     27: 'Fighter squadrons: one hit each. Put your ball through the formation',
     18: 'Serpent eggs: break a clutch before it hatches, or what hatches swarms you together. Hatchlings only bite with the head',
-    19: 'Something big is hatching. Vipers take three hits. And a Brute Wall marches in partway through',
+    19: 'Something big is hatching. Vipers are tough: hit them with a charged ball. A Brute Wall marches in partway through',
     29: 'Fighters overhead: something big is coming',
     30: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
     57: 'Walkers fire rockets at you. Hit a rocket with your ball to send it back',
@@ -7177,7 +7177,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // then. If one reaches the ground line, the invasion has landed: every invader left blows up, it costs one hull point (once, however
   // many were left) and the wave ends without its clear bonus. Invaders drop power-ups like any enemy, and the
   // mystery ship always drops one.
-  const INV_ROWS = 5, INV_GAP_X = 9, INV_GAP_Y = 7.5, INV_PASS = 24, INV_DROP = 5, INV_STRIP = 16, INV_SHOTS = 3, INV_SHOT_SPEED = 30, INV_ROUNDS = 3;
+  const INV_ROWS = 5, INV_GAP_X = 9, INV_GAP_Y = 7.5, INV_PASS = 24, INV_DROP = 5, INV_STRIP = 16, INV_SHOTS = 3, INV_SHOT_SPEED = 30, INV_ROUNDS = 3, INV_ENTER = 110;
   const INV_PTS = [60, 35, 35, 15, 15], INV_HP = [6, 4, 4, 2, 2], INV_BLK = 2.1, INV_GREEN = 'rgb(118, 236, 132)', INV_UFO_PTS = [150, 300, 500, 1000];
   // three kinds of invader, two frames each ('#' is a pixel)
   const INV_SPRITES = [
@@ -7190,13 +7190,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const invKind = row => row === 0 ? 0 : row < 3 ? 1 : 2;
   const invColor = k => [ECOL.swarm, ECOL.drifter, ECOL.brute][k];
   const stripTop = () => AH - INV_STRIP;
-  // A formation: INV_ROWS rows across; each round after the first starts a row lower (and more), closer to the ground
+  // A formation: INV_ROWS rows across. It flies in from above the top edge (at INV_ENTER) and settles where it starts
+  // marching (in a tall arena that's well down it, so the march to the ground is about the same length); every round
+  // alike.
   function invFormation(round, cycle) {
     const cols = clamp(Math.floor(AW * 0.62 / INV_GAP_X), 5, 11), x0 = AW / 2 - (cols - 1) * INV_GAP_X / 2;
-    const bunkerTop = stripTop() - 16, y0 = Math.max(12, bunkerTop - INV_ROWS * INV_GAP_Y - 72) + (round - 1) * INV_GAP_Y * 1.5; // tall arenas start lower, about the same march away
+    const bunkerTop = stripTop() - 16, y0 = Math.max(12, bunkerTop - INV_ROWS * INV_GAP_Y - 72); // tall arenas start lower, about the same march away
     for (let r = 0; r < INV_ROWS; r++) for (let c = 0; c < cols; c++) {
-      const e = makeEnemy('invader', x0 + c * INV_GAP_X, y0 + r * INV_GAP_Y);
-      Object.assign(e, { hp: INV_HP[r] + cycle * 2, maxHp: INV_HP[r] + cycle * 2, kind: invKind(r), pts: Math.round(INV_PTS[r] * [1, 0.5, 0.4][round - 1]), col: c, /* later formations pay less each (there are three times as many) */ spawnT: 0.25 + (INV_ROWS - 1 - r) * 0.12 });
+      const e = makeEnemy('invader', x0 + c * INV_GAP_X, y0 + r * INV_GAP_Y - (y0 + INV_ROWS * INV_GAP_Y + 4)); // above the top edge, coming down to its place
+      e.enterY = y0 + r * INV_GAP_Y;
+      Object.assign(e, { hp: INV_HP[r] + cycle * 2, maxHp: INV_HP[r] + cycle * 2, kind: invKind(r), pts: Math.round(INV_PTS[r] * [1, 0.5, 0.4][round - 1]), col: c, /* later formations pay less each (there are three times as many) */ spawnT: 0 });
       G.enemies.push(e);
     }
     return cols;
@@ -7236,13 +7239,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function updateInvaders(dt) {
     const V = G.inv, p = G.player, es = G.enemies, inv = es.filter(e => e.type === 'invader' && !e.gone);
-    if (G.between === null && !inv.length && !V.landed && (V.round || 1) < INV_ROUNDS) { // that formation's gone: the next comes in, lower, quicker, angrier
+    if (G.between === null && !inv.length && !V.landed && (V.round || 1) < INV_ROUNDS) { // that formation's gone: the next comes in at the top, angrier (more shots, and aimed)
       V.round = (V.round || 1) + 1; V.dir = 1; V.stepT = 1; invFormation(V.round, V.cycle || 0); V.fireT = 1.8;
-      G.banner = { text: `Formation ${V.round} of ${INV_ROUNDS}`, sub: V.round === INV_ROUNDS ? 'The last, and the fastest' : 'Lower, quicker, and they aim at you now', t: 1.6, max: 1.6, at: 0.45 }; sfx.boss();
+      G.banner = { text: `Formation ${V.round} of ${INV_ROUNDS}`, sub: V.round === INV_ROUNDS ? 'The last one' : 'They aim at you now', t: 1.6, max: 1.6, at: 0.45 }; sfx.boss();
       return;
     }
-    if (G.between !== null || !inv.length || inv.some(e => e.spawnT > 0)) return;
-    const R = V.round || 1, pace = [1, 0.8, 0.66][R - 1];
+    if (G.between !== null || !inv.length) return;
+    if (inv.some(e => e.enterY !== undefined)) { // flying in: the whole formation comes down together, then the march begins
+      const lead = inv.find(e => e.enterY !== undefined), dy = Math.min(INV_ENTER * dt, lead.enterY - lead.y);
+      for (const e of inv) { if (e.enterY === undefined) continue; e.y += dy; if (e.y >= e.enterY - 1e-3) { e.y = e.enterY; delete e.enterY; } }
+      return;
+    }
+    const R = V.round || 1, pace = 1; // every formation marches at the usual pace
     const left = inv.length, few = left <= 3;
     V.stepT -= dt;
     if (V.stepT <= 0) { // one step of the march
