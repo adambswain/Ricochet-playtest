@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 05 01:04 UTC · 6669888";</script>
+<script>window.RICOCHET_BUILD = "Nov 05 01:07 UTC · f545656";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8525,15 +8525,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const wallNormal = e => [Math.PI / 2, Math.PI, -Math.PI / 2, 0][e.side];
   // A turret: an armoured dome bolted to the wall (rivets round it, its health in it), and on it a gun head that turns
   // to follow you: twin barrels that kick back when it fires, a sensor eye that glows hotter as it charges and flashes
-  // white just before the shot, and a faint dashed sight down the line it's about to fire along.
+  // white just before the shot, and its muzzle heating up as it charges.
   function drawTurret(e, col, pierce, liveB = 0) { // (liveB: the hottest live ball's charge, for its pierce colour)
     const n = wallNormal(e), r = e.r, fl = e.flash > 0, line = fl ? COL.chalk : col, H3 = hex(COL.hull), t = G.time;
     const charge = clamp(1 - e.fire / 0.6, 0, 1), soon = e.fire < 0.25 && Math.floor(t * 16) % 2;
     const fill = (a = 0.22) => { ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},${a})`; ctx.fill(); };
-    if (charge > 0) { // its sight, down the line it'll fire along
-      ctx.save(); ctx.setLineDash([1.4, 1.2]); ctx.lineDashOffset = -t * 10; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.15 + 0.45 * charge; ctx.lineWidth = 0.3;
-      const reach = Math.hypot(G.player.x - e.x, G.player.y - e.y) + 4; ctx.beginPath(); ctx.moveTo(Math.cos(e.aim) * r * 1.9, Math.sin(e.aim) * r * 1.9); ctx.lineTo(Math.cos(e.aim) * reach, Math.sin(e.aim) * reach); ctx.stroke(); // all the way to you
-      ctx.globalAlpha = 0.25 + 0.6 * charge; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(Math.cos(e.aim) * r * 1.6, Math.sin(e.aim) * r * 1.6, 0.6 + charge * 1.1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); // its muzzle, heating
+    if (charge > 0) { // its muzzle, heating as it charges
+      ctx.save(); ctx.globalAlpha = 0.25 + 0.6 * charge; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(Math.cos(e.aim) * r * 1.6, Math.sin(e.aim) * r * 1.6, 0.6 + charge * 1.1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); // its muzzle, heating
     }
     ctx.save(); ctx.rotate(n - Math.PI / 2); // the wall along x, the arena toward +y
     ctx.beginPath(); ctx.moveTo(-r * 1.35, 0); ctx.lineTo(r * 1.35, 0); ctx.lineTo(r * 1.1, r * 0.35); ctx.lineTo(-r * 1.1, r * 0.35); ctx.closePath(); fill(0.3); ctx.strokeStyle = line; ctx.lineWidth = 0.4; ctx.stroke(); // the base plate
