@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 05 00:45 UTC · 38ef443";</script>
+<script>window.RICOCHET_BUILD = "Nov 05 01:04 UTC · 6669888";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3368,12 +3368,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       glow(() => { ctx.beginPath(); ctx.arc(lx, ly, 1.2 + heatK, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.25 + 0.6 * heatK);
       ctx.fillStyle = heatK > 0.6 && Math.floor(t * 16) % 2 ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(lx, ly, 0.55, 0, Math.PI * 2); ctx.fill();
       if (gunsHot) { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 30); ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(gx + ca * 5, gy + sa * 5, 1.1, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-        const sp = [0.45, 0.6, 0.75][B.phase - 1] / 2 + 0.06, n = [3, 4, 5][B.phase - 1], R = Math.hypot(AW, AH) * 0.6, fl = heatK > 0.7 && Math.floor(t * 20) % 2; // the fan it'll fire, as it charges
-        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
-        ctx.beginPath(); ctx.moveTo(gx, gy); ctx.arc(gx, gy, R, a - sp, a + sp); ctx.closePath(); ctx.fillStyle = COL.threat; ctx.globalAlpha = (0.04 + 0.08 * heatK) * (0.8 + 0.2 * Math.sin(t * 14)); ctx.fill();
-        ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.25 + 0.5 * heatK; ctx.setLineDash([1.6, 1.4]); ctx.lineDashOffset = -t * 14;
-        for (let q = 0; q < n; q++) { const b2 = a + (q / (n - 1) - 0.5) * (sp - 0.06) * 2; ctx.beginPath(); ctx.moveTo(gx + Math.cos(b2) * 5, gy + Math.sin(b2) * 5); ctx.lineTo(gx + Math.cos(b2) * R, gy + Math.sin(b2) * R); ctx.stroke(); } // each shot's line
-        ctx.setLineDash([]); ctx.restore(); ctx.globalAlpha = 1; }
+        // the fan it'll fire, as it charges: a short tick off the muzzle for each shot (its slow shots are easy to see
+        // coming; this only says how many, and which way), growing and brightening as it charges
+        const sp = [0.45, 0.6, 0.75][B.phase - 1] / 2, n = [3, 4, 5][B.phase - 1], L = 4 + 9 * heatK, fl = heatK > 0.8 && Math.floor(t * 20) % 2;
+        ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.35; ctx.lineCap = 'round'; ctx.globalAlpha = 0.3 + 0.55 * heatK;
+        for (let q = 0; q < n; q++) { const b2 = a + (q / (n - 1) - 0.5) * sp * 2, c2 = Math.cos(b2), s2 = Math.sin(b2); ctx.beginPath(); ctx.moveTo(gx + c2 * 6, gy + s2 * 6); ctx.lineTo(gx + c2 * (6 + L), gy + s2 * (6 + L)); ctx.stroke(); }
+        ctx.lineCap = 'butt'; ctx.globalAlpha = 1; }
     }
     // --- blast doors: armoured plates, hazard stripes along the edges that meet, a seam light
     for (const j of mawSolids(B)) {
@@ -6585,14 +6585,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // a stack of bricks from the wall inward. A new layer slides in at the wall every few seconds and pushes the stack in;
   // breaking a brick lets everything behind it slide back. The ball smashes through when its damage covers the brick's
   // HP, otherwise it chips it and bounces off (+1 charge, like a wall). Bricks score but never touch the multiplier.
-  const BRICK_T = 3.6, BRICK_W = 8.5, BRICK_GAP = 0.35, CRUSH_MIN_GAP = 3;
+  // The walls aren't there when the wave starts: the first layer slides in CRUSH_GO after your first throw (or after
+  // CRUSH_WAIT of play if you hold on to the ball), then one every interval.
+  const BRICK_T = 3.6, BRICK_W = 8.5, BRICK_GAP = 0.35, CRUSH_MIN_GAP = 3, CRUSH_WAIT = 4, CRUSH_GO = 0.8;
+  // has the wave got going (your first throw, or CRUSH_WAIT of play)? Ticks W.wait down; true once it has
+  const crushStarted = (W, dt) => { if (W.started) return true; if (G.between !== null) return false; W.wait -= dt; if (W.wait <= 0 || G.balls.some(o => o.state === 'live')) { W.started = true; W.timer = CRUSH_GO; } return W.started; };
   function setupCrusher(cycle) {
     const axis = AH > AW ? 'x' : 'y', along = axis === 'x' ? AH : AW, across = axis === 'x' ? AW : AH;
     const n = Math.max(4, Math.round(along / BRICK_W));
     G.crush = { axis, n, cw: along / n, maxPer: Math.floor((across - CRUSH_MIN_GAP) / BRICK_T), stacks: [[], []],
-                interval: Math.max(3.2, 5.5 - cycle * 0.6), timer: 3, cycle };
+                interval: Math.max(2.6, 4.2 - cycle * 0.5), timer: 0, cycle, wait: CRUSH_WAIT, started: false };
     for (let side = 0; side < 2; side++) for (let c = 0; c < n; c++) G.crush.stacks[side].push([]);
-    addBrickLayer(); addBrickLayer();
   }
   function newBrick(cycle) { return { hp: [1, 1, 1, 2, 2, 3][Math.floor(Math.random() * 6)] + cycle, flash: 0, vd: -1 }; }
   function addBrickLayer() {
@@ -6655,8 +6658,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateCrusher(dt) {
     const C = G.crush; if (!C) return;
     for (const st of C.stacks) for (const col of st) col.forEach((br, k) => { br.vd += (k - br.vd) * Math.min(1, dt * 10); br.flash -= dt; });
-    C.timer -= dt;
-    if (C.timer <= 0) { C.timer = C.interval; addBrickLayer(); sfx.advance(); shake(0.5); }
+    if (crushStarted(C, dt)) { C.timer -= dt; if (C.timer <= 0) { C.timer = C.interval; addBrickLayer(); sfx.advance(); shake(0.5); } }
     // squeezed between the walls: take a hit and blow a hole to escape
     const p = G.player;
     if (pushOutBricks(p, PLAYER_R)) {
@@ -6716,8 +6718,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const nx = Math.max(6, Math.round(AW / SIEGE_CELL)), ny = Math.max(6, Math.round(AH / SIEGE_CELL)), m = Math.min(nx, ny);
     const S = G.siege = { skin, cycle, nx, ny, cw: AW / nx, ch: AH / ny, kx: m / nx, ky: m / ny, depth: opt.depth ?? m / 2 - 2.5,
                           cols: [nx, ny, nx, ny].map(n => Array.from({ length: n }, () => [])), interval: opt.interval || 3, timer: opt.first ?? 2,
-                          broken: 0, orb: opt.orb || 0, ref: null };
-    for (let k = 0; k < (opt.layers || 1); k++) siegeLayer(true);
+                          broken: 0, orb: opt.orb || 0, ref: null, wait: CRUSH_WAIT, started: !opt.wait };
+    for (let k = 0; k < (opt.layers ?? 1); k++) siegeLayer(true);
     return S;
   }
   function sNewCell(S) {
@@ -6799,8 +6801,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateSiege(dt) {
     const S = G.siege; if (!S) return;
     S.cols.forEach(cols => cols.forEach(st => st.forEach((cell, k) => { cell.vd += (k - cell.vd) * Math.min(1, dt * 10); cell.flash -= dt; })));
-    S.timer -= dt;
-    if (S.timer <= 0) { S.timer = S.interval; siegeLayer(); }
+    if (crushStarted(S, dt)) { S.timer -= dt; if (S.timer <= 0) { S.timer = S.interval; siegeLayer(); } }
     // pinned by the walls: bricks hurt and blow a hole to escape; crystals just shatter round you
     const p = G.player;
     if (pushOutSiege(p, PLAYER_R)) {
@@ -7159,7 +7160,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (warden) q.unshift('warden'); // miniboss arrives last, after its escorts
       add('turret', f(turrets));
       if (sp === 'crusher') setupCrusher(cycle);
-      if (sp === 'crusher2') setupSiege('brick', cycle, { interval: Math.max(2, 2.8 - cycle * 0.4), first: 2.5, layers: 2 });
+      if (sp === 'crusher2') setupSiege('brick', cycle, { interval: Math.max(1.8, 2.4 - cycle * 0.4), layers: 0, wait: true }); // no walls until you've started
     }
     G.spawnQueue = q; G.spawnTimer = 0.2;
   }
