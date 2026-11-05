@@ -14,7 +14,7 @@
 <style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 05 01:22 UTC · 1424a24";</script>
+<script>window.RICOCHET_BUILD = "Nov 05 01:30 UTC · 95d4aa7";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4180,7 +4180,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_DEBRIS = 10;
   const MECH_CRAWL_T = 1.6, MECH_CRAWL_REACH = 0.6, MECH_CRAWL_DRAG = 0.5, MECH_CRAWL_STEP = 9, MECH_HAND = 14, MECH_SLAM_R = 12; // on its knees: an arm reaches out and slams down, then it drags itself after it
   const MECH_THROW_T = 6, MECH_THROW_FLY = 1.15, MECH_THROW_R = 7; // on its knees: wreckage hurled at you, lying where it lands
-  const MECH_PULSE_T = [5, 3.4], MECH_PULSE_WARN = 1, MECH_PULSE_V = 24, MECH_PULSE_GAP = 1.1, MECH_PULSE_W = 2.2, MECH_OVER = 0.66, MECH_MELT = 0.33; // its last stand: reactor pulses; overcharged, then meltdown
+  const MECH_PULSE_T = [5, 3.4], MECH_PULSE_WARN = 1, MECH_PULSE_V = 28, MECH_PULSE_GAP = 1.1, MECH_PULSE_W = 2.2, MECH_OVER = 0.66, MECH_MELT = 0.33; // its last stand: reactor pulses; overcharged, then meltdown
   const MECH_LANCE_AIM = 1.1, MECH_LANCE_LOCK = 0.45, MECH_LANCE_FIRE = 0.3, MECH_LANCE_W = 3.2; // on its knees, its reactor's lance: tracking you, locked (sidestep now), fired down the line
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
   const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.1, MECH_FLY_UP = 0.75, MECH_FLY_DOWN = 1.5, MECH_FLY_DROP = 0.4;
@@ -4300,8 +4300,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // One micro-missile: round with its loop as it drifts after you and closes; when it meets in the middle, it goes up.
   // (The loop itself moves once a frame, whichever missile gets there first.)
   function updateMicro(e, dt) {
-    const M = e.micro, g = M.g; M.t += dt;
+    const M = e.micro, g = M.g;
     if (!g) { e.gone = true; return; } // from an older save
+    if (G.boss && G.boss.kind === 'mech' && G.boss.beam) return; // the swarm holds where it is while Goliath's beam sweeps
+    M.t += dt;
     if (g.lastT !== G.time) { g.lastT = G.time; g.t += dt;
       const p = G.player, dx = p.x - g.cx, dy = p.y - g.cy, d = Math.hypot(dx, dy);
       if (d > 0.01) { const mv = Math.min(d, MECH_MICRO_FOLLOW * dt); g.cx += dx / d * mv; g.cy += dy / d * mv; }
@@ -4487,14 +4489,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.plate) { const q = B.plate; q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; if (q.y > AH + 40) B.plate = null; }
     B.rackT = Math.max(0, (B.rackT || 0) - dt);
     // its thrusters: now and then (when it isn't busy) it takes off and comes over in bombing runs
-    if (!B.fly && B.st === 'fight' && !mechBroken(B, 'jets') && (T.fly -= dt) <= 0 && !B.beam && !B.lance && !B.sweep && B.lockT <= 0 && !(B.walk && B.walk.land) && !(B.crawl && B.crawl.ph !== 'rest') && !G.enemies.some(e => e.micro)) {
+    if (!B.fly && B.st === 'fight' && !mechBroken(B, 'jets') && (T.fly -= dt) <= 0 && !B.beam && !B.beamDue && !B.lance && !B.sweep && B.lockT <= 0 && !(B.walk && B.walk.land) && !(B.crawl && B.crawl.ph !== 'rest') && !G.enemies.some(e => e.micro)) {
       B.fly = { ph: 'crouch', t: 0, air: false, hx: B.x, hy: B.y, runs: [], n: 0 }; sfx.blasterCharge(); float(B.x, B.y + 58 * B.s, 'Thrusters firing!', COL.threat, 3.4);
     }
     if (B.fly || B.bombs.length) updateMechFly(B, dt);
     if (B.throws && B.throws.length) updateMechThrows(B, dt);
     if (!B.fly) {
-    // its weapons: each one left keeps up its attack
-    const go = (key, base) => !mechBroken(B, key) && (T[key] -= dt) <= 0 && ((T[key] = base), true);
+    // its weapons: each one left keeps up its attack (all of them hold while its beam is up: that's all you have to watch)
+    if (B.down) B.beamDue = false;
+    const go = (key, base) => !B.beam && !B.beamDue && !mechBroken(B, key) && (T[key] -= dt) <= 0 && ((T[key] = base), true);
     if (go('gun', 4.2)) { const [gx, gy] = mechAt(B, ...MECH_PARTS.gun), c = Math.atan2(p.y - gy, p.x - gx), dir = Math.random() < 0.5 ? -1 : 1; B.sweep = { t: 0, a0: c - dir * 0.5, a1: c + dir * 0.5, a: c - dir * 0.5, shotT: 0 }; sfx.blasterCharge(); }
     if (B.sweep) {
       const S = B.sweep; S.t += dt; S.a = S.a0 + (S.a1 - S.a0) * clamp(S.t < TANK_SIGHT ? S.t / TANK_SIGHT : (S.t - TANK_SIGHT) / TANK_SPRAY, 0, 1);
@@ -4513,7 +4516,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     else {
       const W = B.walk, limp = mechBroken(B, 'kneeL') || mechBroken(B, 'kneeR'), stepT = MECH_STEP[limp ? 1 : 0], warn = MECH_STEP_WARN * (limp ? 1.6 : 1), stride = (limp ? MECH_STRIDE[1] : MECH_STRIDE[0]) * B.s;
-      W.t -= dt;
+      if (!B.beam && !(B.beamDue && !W.land)) W.t -= dt; // it stands its ground while its beam is coming and while it sweeps (a step under way finishes)
       if (!W.land && W.t <= warn) { // plan the step, its landing spot shown
         // where it's headed. Whole, it roams: strides down on you (till it's looming over you), then back up and across, over and over.
         // On one leg it drags itself after you, a short limping step at a time, never far from the top.
@@ -4541,7 +4544,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!B.beam && !B.lance && (T.beam -= dt * desp) <= 0 && B.down) { // on its knees: the lance, aimed at you
       T.beam = B.st === 'core' ? 3.2 : 3.8; B.lance = { t: 0, a: 0, locked: false, fired: false }; sfx.blasterCharge();
     }
-    else if (!B.beam && !B.lance && T.beam <= 0) {
+    else if (!B.beam && !B.lance && T.beam <= 0 && (B.beamDue = true) && !B.sweep && !(B.lockT > 0) && !(B.walk && B.walk.land)) {
+      // its beam is due: it starts nothing new and lets what's under way finish (a step, a gun sweep, a rocket lock), then
+      // beams; its rockets still flying fizzle out, and a micro-missile swarm holds where it is till the beam's done
+      B.beamDue = false;
+      for (let i = G.rockets.length - 1; i >= 0; i--) { const q = G.rockets[i]; if (q.friendly) continue; burst(q.x, q.y, 10, COL.dim, 30, 0.5, 0.3); ring(q.x, q.y, 1, 5, 0.2, COL.chalk, 0.6); G.rockets.splice(i, 1); }
       T.beam = Math.max(MECH_BEAM_CHARGE + MECH_BEAM_SWEEP + 1.5, B.st === 'core' ? 6.5 : 9); const [cx, cy] = mechAt(B, ...MECH_CORE_AT), c = Math.atan2(p.y - cy, p.x - cx), dir = Math.random() < 0.5 ? -1 : 1, gap = Math.PI * 2 - MECH_BEAM_ARC;
       const opts = []; for (let a = 0.3; a < Math.PI - 0.3; a += 0.1) if (Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c))) > 1.2) opts.push(a);
       const g = opts.length ? opts[Math.floor(Math.random() * opts.length)] : c + Math.PI, a0 = g + dir * gap / 2;
