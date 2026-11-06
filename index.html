@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 18:44 UTC · 2aeb18e";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 19:15 UTC · 72e4ee5";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1642,6 +1642,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function damageBoss(dmg, x, y) {
     const B = G.boss; if (!B || B.hp <= 0 || (B.enter > 0 && !mawIn(B))) return;
     if (B.kind === 'serpent') { B.x = x; B.y = y; } // so its defeat goes off where the last blow landed
+    if (B.kind === 'geode' && B.st !== 'wall' && B.st !== 'rise') { // Gorp's last GEO_FINAL can only come off in his cage: out of it, he's held there and his shell bursts
+      const floor = Math.min(B.hp, GEO_FINAL); // (in his last stretch, none of it comes off out here at all)
+      if (B.hp - dmg < floor) { dmg = Math.max(0, B.hp - floor); if (B.st === 'shell') { B.taken = 0; geoCrack(B, false); } else if (B.st === 'crack') B.stT = Math.min(B.stT, 0.4); }
+    }
     B.hp = Math.max(0, B.hp - dmg); B.flash = 0.15;
     const pts = Math.round(50 * dmg * G.mult); G.score += pts;
     float(x, y - 4, `−${dmg}`, ECOL.warden, 3.4);
@@ -5244,15 +5248,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //  - shell: he sits in the middle of the arena in a shell of crystals while enemies stream in. Crystals can't hurt you
   //    and breaking them doesn't hurt him, but every one you break is gone (a hot ball cracks the ones round its hit too,
   //    one more per 5 charge), opening gaps; a ball that gets through one hits him (1 + the ball's charge, with a meaty
-  //    thud). Once he's taken GEO_TRIP of his health this way, the rest of his shell bursts.
+  //    thud). Once he's taken GEO_TRIP damage this way, the rest of his shell bursts.
   //  - crack: a beat of stagger (GEO_STAGGER) after the shell bursts; strip every crystal before that and he takes
-  //    GEO_BARE of his health at once and staggers for GEO_EXPOSED seconds, wide open.
+  //    GEO_BARE damage at once and staggers for GEO_EXPOSED seconds, wide open.
   //  - wall: he climbs into his little saucer and flies about the arena laying mines (below). Crystal walls slide in from
   //    every edge, a layer at a time, pushing everything (your ship included) in toward the middle (siege walls,
   //    'crystal' rules: they can't hurt you, the ball always bounces and breaks one, each crystal hit keeps a hot ball
   //    from overloading). Set into the incoming layers are his orbs, fleshy cores beating like hearts: hitting one pops
   //    it and hurts him (GEO_ORB × the ball's damage).
-  //  - rebuild: after GEO_WALL seconds he comes forward into the middle again and the walls that are left fly in as his
+  //    His last GEO_FINAL health comes off only in his cage: out of it, he's held there and his shell bursts, and that cage
+  //    he stays in till you finish him (or GEO_WALL runs out). So the fight always ends in his cage.
+  //  - rebuild: once you've done GEO_CAGE damage to him in his cage (or after GEO_WALL seconds) he comes forward into the middle again and the walls that are left fly in as his
   //    next shell, GEO_THIN crystals thinner for every one you broke.
   // Except while he's cracked, he fires his blaster, always from its muzzle: first the muzzle flares and a targeting
   // laser runs from it to you, locking and flashing just before he fires; then a ring flies at you that grows as it goes
@@ -5265,12 +5271,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // room (geoBarsStart). The saucer flies over everything: the ball passes
   // under it. The orbs are the way to hurt him while it's up, and each one you pop bursts the wall round it
   // (GEO_ORB_BLAST), opening the room back up.
-  const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 500, GEO_ORB = 1.5, GEO_TRIP = 0.2, GEO_BARE = 0.1, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 25, GEO_THIN = 0.3;
-  const GEO_PUSH = [2.6, 2.1, 1.6], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
+  const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 700, GEO_ORB = 1.5, GEO_TRIP = 100, GEO_BARE = 50, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 40, GEO_CAGE = 150, GEO_FINAL = 120, GEO_THIN = 0.3;
+  const GEO_PUSH = [2.3, 1.85, 1.4], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
   const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
   const GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_V = [26, 30, 34];
-  const GEO_GB_EVERY = [4.2, 3.6, 3], GEO_GB_MAX = [2, 2, 3], GEO_GB_WIND = 0.6, GEO_GB_V0 = 46, GEO_GB_STEP = 5.5, GEO_GB_R0 = 1.8, GEO_GB_RSTEP = 0.1, GEO_GB_FUSE = 1, GEO_GB_BLAST = 13, GEO_ORB_BLAST = 16;
-  const GEO_BAR_EVERY = [5.5, 4.6, 3.8], GEO_BAR_FIRST = 3, GEO_BAR_WARN = 1.3, GEO_BAR_LOCK = 0.3, GEO_BAR_FIRE = 0.45, GEO_BAR_W = 4.5, GEO_BAR_GAP = 15;
+  const GEO_GB_EVERY = [3.6, 3.1, 2.6], GEO_GB_MAX = [2, 2, 3], GEO_GB_WIND = 0.6, GEO_GB_V0 = 46, GEO_GB_STEP = 5.5, GEO_GB_R0 = 1.8, GEO_GB_RSTEP = 0.1, GEO_GB_FUSE = 1, GEO_GB_BLAST = 13, GEO_ORB_BLAST = 16;
+  const GEO_BAR_EVERY = [4.5, 3.8, 3.2], GEO_BAR_FIRST = 3, GEO_BAR_WARN = 1.3, GEO_BAR_LOCK = 0.3, GEO_BAR_FIRE = 0.45, GEO_BAR_W = 4.5, GEO_BAR_GAP = 15;
   const geoEase = k => k * k * (3 - 2 * k);
   function setupGeode(B, cycle) {
     const slots = [];
@@ -5301,10 +5307,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     burst(B.hx, B.hy, 50, ECOL.splitter, 70, 1, 0.7); gridImpulse(B.hx, B.hy, 60, 200);
     float(B.hx, B.hy - GEO_RINGS[1] - 5, bare ? 'Stripped bare! Hit him!' : 'Shell shattered!', COL.chalk, 3.6);
     G.freeze = Math.max(G.freeze, 0.12); shake(3); sfx.shatter();
-    if (bare) { sfx.splat(15); damageBoss(Math.round(B.maxHp * GEO_BARE), B.hx, B.hy - GEO_R); }
+    if (bare) { sfx.splat(15); damageBoss(Math.round(GEO_BARE * (1 + B.cycle * 0.6)), B.hx, B.hy - GEO_R); }
   }
   function geoRise(B) { // the walls slide in from every edge as he climbs into his saucer
-    B.bars = null; B.barT = GEO_BAR_FIRST;
+    B.bars = null; B.barT = GEO_BAR_FIRST; B.cageHp0 = B.hp;
     B.st = 'rise'; B.stT = GEO_RISE; B.summon = 1; B.shotT = Math.max(B.shotT, GEO_RISE + 0.8);
     for (const e of G.enemies) { // crushed as the walls come in: nothing gets shoved into you, or you into it
       e.gone = true; burst(e.x, e.y, 10, ECOL[e.type] || COL.lilac, 30, 0.6, 0.35); ring(e.x, e.y, 1, e.r + 4, 0.25, ECOL.splitter, 0.6);
@@ -5465,7 +5471,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (B.st === 'wall') {
       const S = G.siege;
       if (S) { S.interval = GEO_PUSH[ph]; S.orb = GEO_ORBS[ph]; if (S.timer < dt * 1.5) B.summon = 1; } // he shoves with both arms as each layer goes in
-      if (!S || B.stT <= 0) geoRebuild(B);
+      if (!S || B.stT <= 0 || (B.cageHp0 - B.hp >= GEO_CAGE * (1 + B.cycle * 0.6) && B.hp > GEO_FINAL)) geoRebuild(B); // out once you've done GEO_CAGE to him in here (or after GEO_WALL); his last cage he stays in
     } else if (B.st === 'rebuild') {
       let all = true;
       for (const f of B.fly) {
@@ -5557,12 +5563,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     return 'bounce';
   }
-  // A hit on his body while he's in the middle; enough of them (GEO_TRIP of his health) and his shell bursts.
+  // A hit on his body while he's in the middle; enough of them (GEO_TRIP damage) and his shell bursts.
   function geoHurt(B, dmg, x, y) {
     damageBoss(dmg, x, y);
     if (G.boss !== B || B.st === 'crack') return;
     B.taken = (B.taken || 0) + dmg;
-    if (B.taken >= B.maxHp * GEO_TRIP) { B.taken = 0; geoCrack(B, false); }
+    if (B.taken >= GEO_TRIP * (1 + B.cycle * 0.6)) { B.taken = 0; geoCrack(B, false); } // a set amount, not a share of his health: the extra goes into his cage phases
   }
   function pushOutGeode(B, o, r) {
     if (B.bg > 0.5) return;
