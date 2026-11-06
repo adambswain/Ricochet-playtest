@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 16:35 UTC · c3a72e1";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 18:44 UTC · 2aeb18e";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -560,7 +560,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     10: 'Clanktank: smash its treads to immobilize it, then every hit hurts it. Don\'t let the repair crew get it moving again',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
-    40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, he flies about in his saucer throwing balls of his own: they bounce and charge like yours, and hurt. Smash them with a ball at least as hot. Hit the pink orbs in his walls: each one bursts the wall round it',
+    40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, he flies about in his saucer throwing balls of his own: they bounce and charge like yours, and hurt. Smash them with a ball at least as hot. Dodge his laser bars. Hit the pink orbs in his walls: each one bursts the wall round it',
     46: 'Bees! The Hive\'s scouts are out. Something big is buzzing nearby',
     39: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
@@ -5261,7 +5261,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // while the walls are up. Everything speeds up as he weakens.
   // In his saucer (wall) he doesn't shoot. He zips about inside the walls, now across you, now somewhere else in the open,
   // and throws balls of his own at you (GEO_GB_EVERY, up to GEO_GB_MAX at once; see geoThrow): they bounce and charge
-  // like yours, and the closer his walls come, the quicker they heat up. The saucer flies over everything: the ball passes
+  // like yours, and the closer his walls come, the quicker they heat up; and every so often he fires laser bars across the
+  // room (geoBarsStart). The saucer flies over everything: the ball passes
   // under it. The orbs are the way to hurt him while it's up, and each one you pop bursts the wall round it
   // (GEO_ORB_BLAST), opening the room back up.
   const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 500, GEO_ORB = 1.5, GEO_TRIP = 0.2, GEO_BARE = 0.1, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 25, GEO_THIN = 0.3;
@@ -5269,13 +5270,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
   const GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_V = [26, 30, 34];
   const GEO_GB_EVERY = [4.2, 3.6, 3], GEO_GB_MAX = [2, 2, 3], GEO_GB_WIND = 0.6, GEO_GB_V0 = 46, GEO_GB_STEP = 5.5, GEO_GB_R0 = 1.8, GEO_GB_RSTEP = 0.1, GEO_GB_FUSE = 1, GEO_GB_BLAST = 13, GEO_ORB_BLAST = 16;
+  const GEO_BAR_EVERY = [5.5, 4.6, 3.8], GEO_BAR_FIRST = 3, GEO_BAR_WARN = 1.3, GEO_BAR_LOCK = 0.3, GEO_BAR_FIRE = 0.45, GEO_BAR_W = 4.5, GEO_BAR_GAP = 15;
   const geoEase = k => k * k * (3 - 2 * k);
   function setupGeode(B, cycle) {
     const slots = [];
     GEO_RINGS.forEach((rr, ring) => { const n = Math.floor(Math.PI * 2 * rr / (GEO_CRY * 2.1)); for (let i = 0; i < n; i++) slots.push({ ring, a: (i + (ring % 2) * 0.5) / n * Math.PI * 2, on: false, flash: 0 }); });
     Object.assign(B, { r: GEO_R, x: AW / 2, y: AH * 0.48, hx: AW / 2, hy: AH * 0.48, hp: Math.round(GEO_HP * (1 + cycle * 0.6)), st: 'shell', stT: 0, bg: 0, sc: 1, spin: 0,
                        slots, fly: [], shotT: 2.5, chg: 0, gunA: Math.PI / 2, side: 1, recoil: 0, hurt: 0, blinkT: 2.5, summon: 0, escT: 3, links: [], shield: 0, hitCd: 0,
-                       aimX: AW / 2, aimY: AH / 2, gballs: [], gbT: 1.5, wind: 0, fx: AW / 2, fy: AH * 0.48, fvx: 0, fvy: 0, ftgt: null, legs: 0 });
+                       aimX: AW / 2, aimY: AH / 2, gballs: [], gbT: 1.5, wind: 0, bars: null, barT: GEO_BAR_FIRST, tilt: 0, fx: AW / 2, fy: AH * 0.48, fvx: 0, fvy: 0, ftgt: null, legs: 0 });
   }
   const geoExposed = B => B.st === 'shell' || B.st === 'crack' || B.st === 'rebuild'; // his body takes hits whenever he's in the middle
   const geoShelled = B => B.st === 'shell' || B.st === 'crack' || B.st === 'rebuild';
@@ -5301,7 +5303,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.freeze = Math.max(G.freeze, 0.12); shake(3); sfx.shatter();
     if (bare) { sfx.splat(15); damageBoss(Math.round(B.maxHp * GEO_BARE), B.hx, B.hy - GEO_R); }
   }
-  function geoRise(B) { // back he goes: the walls slide in from every edge as he rises into the background
+  function geoRise(B) { // the walls slide in from every edge as he climbs into his saucer
+    B.bars = null; B.barT = GEO_BAR_FIRST;
     B.st = 'rise'; B.stT = GEO_RISE; B.summon = 1; B.shotT = Math.max(B.shotT, GEO_RISE + 0.8);
     for (const e of G.enemies) { // crushed as the walls come in: nothing gets shoved into you, or you into it
       e.gone = true; burst(e.x, e.y, 10, ECOL[e.type] || COL.lilac, 30, 0.6, 0.35); ring(e.x, e.y, 1, e.r + 4, 0.25, ECOL.splitter, 0.6);
@@ -5321,7 +5324,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.fly = order.map((sl, i) => { const q = left[i % Math.max(1, left.length)] || [B.hx, B.hy]; return { x0: q[0], y0: q[1], sl, t: 0, d: rand(0, 0.3) }; });
     for (const [x, y] of left.slice(n)) if (Math.random() < 0.15) burst(x, y, 2, ECOL.splitter, 14, 0.5, 0.3); // the rest dissolve
     G.siege = null;
-    B.st = 'rebuild'; B.stT = GEO_RETURN; B.summon = 1; B.taken = 0;
+    B.st = 'rebuild'; B.stT = GEO_RETURN; B.summon = 1; B.taken = 0; B.bars = null;
     float(B.hx, B.hy - GEO_RINGS[1] - 5, n < B.slots.length * 0.5 ? 'Thin shell!' : 'Shell rebuilt', COL.chalk, 3.2);
     sfx.crystalGrow();
   }
@@ -5329,6 +5332,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // every so often a ball thrown at you (a pink one swelling under the saucer for GEO_GB_WIND first).
   function geoFly(B, dt, ph) {
     const p = G.player, S = G.siege, v = GEO_SAUCER_V[ph];
+    B.tilt += ((B.bars ? B.bars.tilt : 0) - B.tilt) * Math.min(1, dt * 7); // on its edge for bars across the arena
+    if (B.bars) { // flying to where it fires from, and holding there
+      const k = Math.min(1, dt * 6); B.fx += (B.bars.spot[0] - B.fx) * k; B.fy += (B.bars.spot[1] - B.fy) * k; B.fvx = B.fvy = 0;
+      geoBars(B, dt); return;
+    }
+    B.barT -= dt;
+    if (B.barT <= 0 && !(B.wind > 0)) { geoBarsStart(B, ph); return; }
     const open = (x, y) => { if (x < 9 || x > AW - 9 || y < 9 || y > AH - 9) return false; let ok = true; if (S) siegeNear(S, x, y, 5, () => (ok = false)); return ok; };
     if (!B.ftgt || Math.hypot(B.ftgt[0] - B.fx, B.ftgt[1] - B.fy) < 4 || !open(...B.ftgt)) {
       B.legs++; let t = null;
@@ -5345,6 +5355,45 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.gbT -= dt;
     if (B.gbT <= 0 && !(B.wind > 0) && B.gballs.length < GEO_GB_MAX[ph]) { B.wind = GEO_GB_WIND; sfx.blasterCharge(); }
     if (B.wind > 0) { B.wind -= dt; if (B.wind <= 0) { B.wind = 0; B.gbT = GEO_GB_EVERY[ph]; geoThrow(B); } }
+  }
+  // His laser bars, from the saucer: it flies to the end of a line through you (along the arena, or across it, flipping
+  // onto its edge for those), the bars light up across the open room for GEO_BAR_WARN (white for the last GEO_BAR_LOCK),
+  // then fire for GEO_BAR_FIRE. A bar always runs wall to wall through the open space, so the tighter the room, the less
+  // way out. One bar at first; then two (one on you, one beside it), then three with gaps between. Nothing else while
+  // he fires.
+  // The open stretch of a bar: along x (vertical, at coordinate c) or along y, the run of open floor round where you are
+  function geoBarSpan(dir, c) {
+    const S = G.siege, p = G.player, L = dir === 'v' ? AH : AW, at = dir === 'v' ? p.y : p.x;
+    const open = u => { const x = dir === 'v' ? c : u, y = dir === 'v' ? u : c; if (x < 0 || x > AW || y < 0 || y > AH) return false; let ok = true; if (S) siegeNear(S, x, y, 0.8, (side, k2, k, cell, R0) => { if (x >= R0.x0 - 0.5 && x <= R0.x1 + 0.5 && y >= R0.y0 - 0.5 && y <= R0.y1 + 0.5) { ok = false; return true; } return false; }); return ok; }; // (the thin seams between crystals count as wall)
+    let u0 = clamp(at, 1, L - 1);
+    if (!open(u0)) { let best = null; for (let u = 1; u < L; u += 1.5) if (open(u) && (best === null || Math.abs(u - at) < Math.abs(best - at))) best = u; if (best === null) return null; u0 = best; }
+    let a = u0, b = u0; while (a > 0 && open(a - 1)) a -= 1; while (b < L && open(b + 1)) b += 1;
+    return [a, b];
+  }
+  function geoBarsStart(B, ph) {
+    const p = G.player, dir = Math.random() < 0.5 ? 'v' : 'h', at = dir === 'v' ? p.x : p.y, side = Math.random() < 0.5 ? -1 : 1, L = dir === 'v' ? AW : AH;
+    const offs = ph === 0 ? [0] : ph === 1 ? [0, side * GEO_BAR_GAP] : [-GEO_BAR_GAP, 0, GEO_BAR_GAP];
+    const lines = offs.map(o => at + o).filter(c => c > 3 && c < L - 3);
+    const sp = geoBarSpan(dir, at) || [0, dir === 'v' ? AH : AW];
+    // where it fires from: the end of the middle bar (for a bar across the arena, whichever end it's nearer)
+    const spot = dir === 'v' ? [at, Math.max(7, sp[0] - 3)] : (Math.abs(B.fx - sp[0]) < Math.abs(B.fx - sp[1]) ? [Math.max(7, sp[0] - 3), at] : [Math.min(AW - 7, sp[1] + 3), at]);
+    const tilt = dir === 'v' ? 0 : spot[0] < AW / 2 ? -Math.PI / 2 : Math.PI / 2; // on its edge, its underside facing along the bars
+    B.bars = { t: 0, dir, lines, spot, tilt, fired: false, hit: false };
+    sfx.blasterCharge();
+  }
+  function geoBars(B, dt) {
+    const W = B.bars; W.t += dt;
+    if (!W.fired && W.t >= GEO_BAR_WARN) { // fire
+      W.fired = true; const p = G.player; sfx.blaster(); sfx.shock(); shake(2.2);
+      for (const c of W.lines) { const sp = geoBarSpan(W.dir, c); if (!sp) continue;
+        for (let u = sp[0]; u <= sp[1]; u += 8) gridImpulse(W.dir === 'v' ? c : u, W.dir === 'v' ? u : c, 10, 60);
+        for (const u of sp) burst(W.dir === 'v' ? c : u, W.dir === 'v' ? u : c, 10, GEO_ORB_COL, 40, 0.5, 0.3); }
+    }
+    if (W.fired && !W.hit && G.player.inv <= 0) { // in a bar while it fires: hit (once)
+      const p = G.player, pc = W.dir === 'v' ? p.x : p.y, pu = W.dir === 'v' ? p.y : p.x;
+      for (const c of W.lines) { if (Math.abs(pc - c) >= GEO_BAR_W / 2 + PLAYER_R * 0.6) continue; const sp = geoBarSpan(W.dir, c); if (sp && pu >= sp[0] - PLAYER_R && pu <= sp[1] + PLAYER_R) { W.hit = true; damagePlayer(); break; } }
+    }
+    if (W.t >= GEO_BAR_WARN + GEO_BAR_FIRE) { B.bars = null; B.barT = GEO_BAR_EVERY[B.phase - 1]; B.gbT = Math.max(B.gbT, 0.8); }
   }
   // His balls: thrown from the saucer at you. They bounce off the edges and off his walls (never breaking them), and every
   // bounce charges one, quicker and bigger, like yours. Touch one and it hurts. At full charge it burns for GEO_GB_FUSE
@@ -5664,6 +5713,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (e <= 0.01) { drawGeode(B, 1, B.sc); return; }
     ctx.save();
     ctx.globalAlpha = 0.35 * e; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(x + 2.5, y + 9 * e, W * 0.85, H * 0.8, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // its shadow, below it on the floor
+    if (B.tilt) { ctx.translate(x, y); ctx.rotate(B.tilt); ctx.translate(-x, -y); } // turned on its edge (the shadow stays as it was)
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.25 + 0.1 * Math.sin(t * 9)) * e; ctx.fillStyle = cry; ctx.beginPath(); ctx.ellipse(x, y + H * 1.6, W * 0.45, H * 1.1, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); // its glow underneath
     drawGeode(B, 1, B.sc); // him, in it
     if (B.wind > 0) { const k = 1 - B.wind / GEO_GB_WIND; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6 * k; ctx.fillStyle = GEO_ORB_COL; ctx.beginPath(); ctx.arc(x, y + H * 2.2, GEO_GB_R0 * 2.4 * k, 0, Math.PI * 2); ctx.fill(); ctx.restore(); } // a ball swelling under it, about to be thrown
@@ -5694,6 +5744,28 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     ctx.globalAlpha = 1; ctx.lineCap = 'butt';
   }
+  // His laser bars: lit across the open room as he charges (brightening, white and flickering for the last moment),
+  // then a beam down each, a glow round a white-hot core
+  function drawGeoBars(B) {
+    const W = B.bars, t = G.time, warn = !W.fired, k = clamp(W.t / GEO_BAR_WARN, 0, 1), locked = warn && W.t > GEO_BAR_WARN - GEO_BAR_LOCK, fl = Math.floor(t * 24) % 2;
+    const f = warn ? 0 : 1 - clamp((W.t - GEO_BAR_WARN) / GEO_BAR_FIRE, 0, 1);
+    ctx.save(); ctx.lineCap = 'butt';
+    for (const c of W.lines) {
+      const sp = geoBarSpan(W.dir, c); if (!sp) continue;
+      const seg = (w) => { ctx.beginPath(); if (W.dir === 'v') { ctx.moveTo(c, sp[0]); ctx.lineTo(c, sp[1]); } else { ctx.moveTo(sp[0], c); ctx.lineTo(sp[1], c); } ctx.lineWidth = w; ctx.stroke(); };
+      if (warn) {
+        ctx.strokeStyle = COL.threat; ctx.globalAlpha = (0.05 + 0.12 * k) * (0.8 + 0.2 * Math.sin(t * 16)); seg(GEO_BAR_W); // the strip it'll fill
+        ctx.strokeStyle = locked && fl ? COL.chalk : COL.threat; ctx.globalAlpha = locked ? 0.95 : 0.3 + 0.5 * k; seg(locked ? 0.7 : 0.3 + 0.3 * k); // its line
+      } else {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = GEO_ORB_COL; ctx.globalAlpha = 0.35 * f; seg(GEO_BAR_W * 2.2);
+        ctx.globalAlpha = 0.9 * f; seg(GEO_BAR_W);
+        ctx.strokeStyle = COL.chalk; ctx.globalAlpha = f * (0.8 + 0.2 * Math.sin(t * 60)); seg(GEO_BAR_W * 0.35);
+        ctx.restore();
+      }
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
   // A shell crystal: a flat-faced glass block, square to him (k < 1 gives its top face).
   function geoGem(x, y, a, s, k = 1) {
     const c = Math.cos(a), sn = Math.sin(a), h = s * 0.95 * k, pt = (u, v) => [x + c * u - sn * v, y + sn * u + c * v];
@@ -5702,6 +5774,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // In the arena: his shell (and crystals flying in to rebuild it), and the warning before each shot.
   function drawGeodeFg(B) {
     const cry = ECOL.splitter, gems = [];
+    if (B.bars) drawGeoBars(B);
     if (B.gballs && B.gballs.length) drawGeoBalls(B);
     if (B.bg > 0) drawGeoSaucer(B);
     for (const sl of B.slots) if (sl.on) { const [x, y] = geoSlot(B, sl); gems.push([x, y, Math.atan2(y - B.hy, x - B.hx), sl.flash > 0]); }
