@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 20:00 UTC · c9ad42a";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 20:33 UTC · 1fdd5d4";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1643,7 +1643,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function damageBoss(dmg, x, y) {
     const B = G.boss; if (!B || B.hp <= 0 || (B.enter > 0 && !mawIn(B))) return;
     if (B.kind === 'serpent') { B.x = x; B.y = y; } // so its defeat goes off where the last blow landed
-    if (B.kind === 'geode' && B.st !== 'wall' && B.st !== 'rise') { // Gorp's last GEO_FINAL can only come off in his cage: out of it, he's held there and his shell bursts
+    if (B.kind === 'geode' && (B.st === 'wall' || B.st === 'rise') && B.hp > GEO_LAST && B.hp - dmg < GEO_LAST) dmg = B.hp - GEO_LAST; // in his cage he goes down to GEO_LAST, no further: the rest is his last stand
+    if (B.kind === 'geode' && B.st !== 'wall' && B.st !== 'rise' && B.st !== 'last') { // Gorp's last GEO_FINAL can only come off in his cage: out of it, he's held there and his shell bursts
       const floor = Math.min(B.hp, GEO_FINAL); // (in his last stretch, none of it comes off out here at all)
       if (B.hp - dmg < floor) { dmg = Math.max(0, B.hp - floor); if (B.st === 'shell') { B.taken = 0; geoCrack(B, false); } else if (B.st === 'crack') B.stT = Math.min(B.stT, 0.4); }
     }
@@ -5273,10 +5274,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // room (geoBarsStart). The saucer flies over everything: the ball passes
   // under it. The orbs are the way to hurt him while it's up, and each one you pop bursts the wall round it
   // (GEO_ORB_BLAST), opening the room back up.
-  const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 700, GEO_ORB = 1.5, GEO_TRIP = 100, GEO_BARE = 50, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 40, GEO_CAGE = 150, GEO_FINAL = 120, GEO_THIN = 0.3;
+  const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 800, GEO_ORB = 1.5, GEO_TRIP = 100, GEO_BARE = 50, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 40, GEO_CAGE = 150, GEO_FINAL = 200, GEO_LAST = 120, GEO_THIN = 0.3;
   const GEO_PUSH = [2.3, 1.85, 1.4], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
   const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
-  const GEO_LASER_W = 2.6, GEO_LASER_T = 0.3, GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_V = [26, 30, 34];
+  const GEO_BOLT_V = 300, GEO_CRASH = 1.6, GEO_HOP_EVERY = 2.2, GEO_HOP_T = 0.6, GEO_HOP_R = 14, GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_V = [26, 30, 34];
   const GEO_GB_EVERY = [3.6, 3.1, 2.6], GEO_GB_MAX = [2, 2, 3], GEO_GB_WIND = 0.6, GEO_GB_V0 = 46, GEO_GB_STEP = 5.5, GEO_GB_R0 = 1.8, GEO_GB_RSTEP = 0.1, GEO_GB_FUSE = 1, GEO_GB_BLAST = 13, GEO_ORB_BLAST = 16;
   const GEO_BAR_EVERY = [4.5, 3.8, 3.2], GEO_BAR_FIRST = 3, GEO_BAR_WARN = 1.3, GEO_BAR_LOCK = 0.3, GEO_BAR_FIRE = 0.45, GEO_BAR_W = 4.5, GEO_BAR_GAP = 15;
   const geoEase = k => k * k * (3 - 2 * k);
@@ -5287,7 +5288,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
                        slots, fly: [], shotT: 2.5, chg: 0, gunA: Math.PI / 2, side: 1, recoil: 0, hurt: 0, blinkT: 2.5, summon: 0, escT: 3, links: [], shield: 0, hitCd: 0,
                        aimX: AW / 2, aimY: AH / 2, gballs: [], gbT: 1.5, wind: 0, bars: null, barT: GEO_BAR_FIRST, tilt: 0, fx: AW / 2, fy: AH * 0.48, fvx: 0, fvy: 0, ftgt: null, legs: 0 });
   }
-  const geoExposed = B => B.st === 'shell' || B.st === 'crack' || B.st === 'rebuild'; // his body takes hits whenever he's in the middle
+  const geoExposed = B => B.st === 'shell' || B.st === 'crack' || B.st === 'rebuild' || B.st === 'last'; // his body takes hits whenever he's in the middle
   const geoShelled = B => B.st === 'shell' || B.st === 'crack' || B.st === 'rebuild';
   const geoSlot = (B, sl) => { const a = sl.a + B.spin * (sl.ring % 2 ? -1 : 1), rr = GEO_RINGS[sl.ring]; return [B.hx + Math.cos(a) * rr, B.hy + Math.sin(a) * rr]; };
   // Where his blaster is, in the arena: his shoulder, out along his arm to the muzzle, at whatever size he's drawn.
@@ -5442,6 +5443,38 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (p.inv <= 0 && Math.hypot(p.x - g.x, p.y - g.y) < GEO_GB_BLAST + PLAYER_R * 0.6) damagePlayer();
   }
   // An orb popped: it hurts him, and (blast) it bursts the wall round it, any other orb in reach going too
+  // Shot down: in his last cage, at GEO_LAST health, his saucer spins down into the middle and bursts, his walls
+  // shattering; he climbs out of the wreck for his last stand (GEO_CRASH).
+  function geoCrash(B) {
+    B.st = 'crash'; B.stT = GEO_CRASH; B.bars = null; B.wind = 0; B.chg = 0; B.boomed = false;
+    for (const g of B.gballs) geoBallPop(g); B.gballs.length = 0;
+    const S = G.siege;
+    if (S) { S.cols.forEach((cols, side) => cols.forEach((st, c) => st.forEach((cell, k) => { if (Math.random() < 0.25) { const R0 = sRect(S, side, c, k); burst((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2, 2, cell.orb ? GEO_ORB_COL : ECOL.splitter, 30, 0.6, 0.4); } }))); G.siege = null; }
+    G.banner = { text: 'Saucer down!', sub: 'Gorp\'s last stand: hit him anywhere', t: 2.2, max: 2.2, at: 0.3 }; shake(4); sfx.boss(); sfx.shatter();
+  }
+  // His last stand, on foot: no shell, no saucer. He hops about the arena (his landing shown first, a shockwave where he
+  // lands), and between hops his gun fires faster than ever. Every hit on him counts.
+  function geoLast(B, dt) {
+    const p = G.player, H = B.hop;
+    if (H) {
+      H.t += dt; const k = clamp(H.t / GEO_HOP_T, 0, 1), e = k * k * (3 - 2 * k);
+      B.lx = H.x0 + (H.x1 - H.x0) * e; B.ly = H.y0 + (H.y1 - H.y0) * e; B.hopZ = Math.sin(k * Math.PI);
+      if (k >= 1) { // he lands: a shockwave
+        B.hop = null; B.hopZ = 0; B.hopT = GEO_HOP_EVERY;
+        ring(B.lx, B.ly, 2, GEO_HOP_R, 0.35, COL.threat, 1.2); ring(B.lx, B.ly, 1, GEO_HOP_R * 0.6, 0.25, COL.chalk, 0.8); burst(B.lx, B.ly + 6, 24, ECOL.splitter, 50, 0.6, 0.4);
+        gridImpulse(B.lx, B.ly, GEO_HOP_R * 2.2, 200); shake(2.5); sfx.rockBoom(2);
+        if (p.inv <= 0 && Math.hypot(p.x - B.lx, p.y - B.ly) < GEO_HOP_R + PLAYER_R * 0.6) damagePlayer();
+      }
+      return;
+    }
+    B.hopT -= dt;
+    if (B.hopT <= 0 && !(B.chg > 0)) { // off to somewhere near you (never on you)
+      let t = null;
+      for (let k = 0; k < 30 && !t; k++) { const a = rand(0, Math.PI * 2), d = rand(26, 42), x = clamp(p.x + Math.cos(a) * d, 16, AW - 16), y = clamp(p.y + Math.sin(a) * d, 18, AH - 18); if (Math.hypot(x - p.x, y - p.y) > GEO_HOP_R + 6 && Math.hypot(x - B.lx, y - B.ly) > 15) t = [x, y]; }
+      if (t) { B.hop = { t: 0, x0: B.lx, y0: B.ly, x1: t[0], y1: t[1] }; sfx.blasterCharge(); }
+      else B.hopT = 0.5;
+    }
+  }
   function geoOrbHit(x, y, dmg, blast = true) {
     const B = G.boss; if (!B || B.kind !== 'geode') return;
     B.hurt = 1; B.links.push({ x, y, t: 0 });
@@ -5455,26 +5488,34 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateGeode(B, dt) {
     const p = G.player, ph = B.phase - 1;
     B.recoil = Math.max(0, B.recoil - dt * 4); B.hurt = Math.max(0, B.hurt - dt * 4); B.summon = Math.max(0, B.summon - dt * 2); B.blinkT -= dt;
-    if (B.beam) { B.beam.t += dt; if (B.beam.t >= GEO_LASER_T) B.beam = null; }
     B.hitCd -= dt; B.spin += dt * 0.12;
     if (B.blinkT < -0.12) B.blinkT = rand(1.8, 4);
     for (const sl of B.slots) sl.flash -= dt;
     for (let i = B.links.length - 1; i >= 0; i--) { B.links[i].t += dt; if (B.links[i].t > 0.35) B.links.splice(i, 1); }
     // where he is: in the middle, or in his saucer (B.bg: how far into it), and moving between the two
-    if (B.st === 'rise') B.bg = 1 - B.stT / GEO_RISE; else if (B.st === 'rebuild') B.bg = Math.max(0, B.stT / GEO_RETURN); else B.bg = B.st === 'wall' ? 1 : 0;
+    if (B.st === 'crash') { // the saucer spins down into the middle and bursts; he climbs out
+      const k = 1 - B.stT / GEO_CRASH; B.bg = k < 0.55 ? 1 : Math.max(0, 1 - (k - 0.55) / 0.3); B.tilt = k < 0.55 ? k * 9 : 0;
+      if (k < 0.55) { const f = Math.min(1, dt * 5); B.fx += (AW / 2 - B.fx) * f; B.fy += (AH * 0.48 - B.fy) * f; }
+      else if (!B.boomed) { B.boomed = true; B.fx = AW / 2; B.fy = AH * 0.48; for (let i = 0; i < 4; i++) ring(B.fx, B.fy, 2, 14 + i * 10, 0.4 + i * 0.1, i % 2 ? COL.chalk : GEO_ORB_COL, 1.3); burst(B.fx, B.fy, 50, COL.chalk, 70, 0.9, 0.6); burst(B.fx, B.fy, 30, ECOL.splitter, 60, 0.8, 0.5); shake(5); G.freeze = Math.max(G.freeze, 0.08); sfx.overload(); }
+    } else if (B.st === 'last') B.bg = 0;
+    else if (B.st === 'rise') B.bg = 1 - B.stT / GEO_RISE; else if (B.st === 'rebuild') B.bg = Math.max(0, B.stT / GEO_RETURN); else B.bg = B.st === 'wall' ? 1 : 0;
     const e = geoEase(clamp(B.bg, 0, 1));
     B.hx = AW / 2; B.hy = AH * 0.48;
+    if (B.st === 'last') { geoLast(B, dt); B.hx = B.lx; B.hy = B.ly; B.fx = B.lx; B.fy = B.ly; }
     if (B.st === 'wall') geoFly(B, dt, ph); else if (B.st === 'rise') { B.fx = B.hx; B.fy = B.hy - 6 * e; B.fvx = B.fvy = 0; B.ftgt = null; } // it lifts off where he sat
     B.x = B.hx + (B.fx - B.hx) * e; B.y = B.hy + (B.fy - B.hy) * e; B.sc = 1 - (1 - GEO_SHRINK) * e;
+    if (B.st === 'last') { B.sc = 1 + 0.3 * (B.hopZ || 0); B.y -= 6 * (B.hopZ || 0); } // a hop: up and bigger as he leaves the ground
     geoBalls(B, dt);
     // the states
     B.stT -= dt;
-    if (B.st === 'crack' && B.stT <= 0) geoRise(B);
+    if (B.st === 'crash' && B.stT <= 0) { B.st = 'last'; B.lx = AW / 2; B.ly = AH * 0.48; B.hop = null; B.hopZ = 0; B.hopT = 1.2; for (const sl of B.slots) sl.on = false; }
+    else if (B.st === 'crack' && B.stT <= 0) geoRise(B);
     else if (B.st === 'rise' && B.stT <= 0) { B.st = 'wall'; B.stT = GEO_WALL; }
     else if (B.st === 'wall') {
       const S = G.siege;
       if (S) { S.interval = GEO_PUSH[ph]; S.orb = GEO_ORBS[ph]; if (S.timer < dt * 1.5) B.summon = 1; } // he shoves with both arms as each layer goes in
-      if (!S || B.stT <= 0 || (B.cageHp0 - B.hp >= GEO_CAGE * (1 + B.cycle * 0.6) && B.hp > GEO_FINAL)) geoRebuild(B); // out once you've done GEO_CAGE to him in here (or after GEO_WALL); his last cage he stays in
+      if (B.hp <= GEO_LAST || (B.stT <= 0 && B.hp <= GEO_FINAL)) geoCrash(B); // low enough in his last cage (or it's run its time): shot down
+      else if (!S || B.stT <= 0 || (B.cageHp0 - B.hp >= GEO_CAGE * (1 + B.cycle * 0.6) && B.hp > GEO_FINAL)) geoRebuild(B); // out once you've done GEO_CAGE to him in here (or after GEO_WALL); his last cage he stays in
     } else if (B.st === 'rebuild') {
       let all = true;
       for (const f of B.fly) {
@@ -5489,7 +5530,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.shotT > GEO_LOCK) { let d = want - B.gunA; d = Math.atan2(Math.sin(d), Math.cos(d)); B.gunA += clamp(d, -dt * 3, dt * 3); }
     if (Math.cos(B.gunA) > 0.3) B.side = 1; else if (Math.cos(B.gunA) < -0.3) B.side = -1;
     if (B.st === 'wall') { B.chg = 0; // in his saucer he lays mines instead
-    } else if (B.st !== 'crack') {
+    } else if (B.st !== 'crack' && B.st !== 'crash' && !B.hop) {
       // his gun takes turns: a laser (its line shown first, locking, then a beam down exactly that line), then rings
       // (no warning: they're slow, you see them coming)
       const [fx0, fy0] = geoShotFrom(B), laser = !(B.shotN % 2), close = laser && Math.hypot(fx0 - p.x, fy0 - p.y) < GEO_NEAR;
@@ -5500,11 +5541,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (B.shotT <= 0) {
         B.shotT = GEO_SHOT[ph] * (B.st === 'shell' ? 1.25 : 1); B.chg = 0; B.recoil = 1; B.shotN = (B.shotN || 0) + 1;
         const [fx, fy] = geoShotFrom(B), a0 = B.gunA;
-        if (laser) { // down the locked line, to the edge of the arena: in it, you're hit
-          B.beam = { x: fx, y: fy, a: a0, t: 0 }; shake(1.2); sfx.blaster(); sfx.shock();
-          const ux = Math.cos(a0), uy = Math.sin(a0), along = (p.x - fx) * ux + (p.y - fy) * uy, off = Math.abs((p.x - fx) * uy - (p.y - fy) * ux);
-          if (p.inv <= 0 && along > 0 && off < GEO_LASER_W / 2 + PLAYER_R * 0.6) damagePlayer();
-          for (let d = 6; d < Math.hypot(AW, AH); d += 10) gridImpulse(fx + ux * d, fy + uy * d, 8, 50);
+        if (laser) { // a bolt down the locked line, very fast: sidestep as it locks
+          G.bullets.push({ x: fx, y: fy, vx: Math.cos(a0) * GEO_BOLT_V, vy: Math.sin(a0) * GEO_BOLT_V, r: 1.1, bolt: true });
+          ring(fx, fy, 1, 8, 0.25, COL.chalk, 1); shake(1); sfx.blaster(); sfx.shock();
         } else { // rings that grow as they fly (two, then three, in the later phases)
           for (const off of ph === 2 ? [-0.24, 0, 0.24] : ph === 1 ? [-0.14, 0.14] : [0]) G.bullets.push({ x: fx, y: fy, vx: Math.cos(a0 + off) * GEO_SHOT_V, vy: Math.sin(a0 + off) * GEO_SHOT_V, r: 1.4, geo: true, grow: 0.085, rMax: 7 });
           ring(fx, fy, 1, 7, 0.25, COL.threat, 0.9); burst(fx, fy, 8, COL.threat, 30, 0.3, 0.25); sfx.blaster();
@@ -5578,7 +5617,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // A hit on his body while he's in the middle; enough of them (GEO_TRIP damage) and his shell bursts.
   function geoHurt(B, dmg, x, y) {
     damageBoss(dmg, x, y);
-    if (G.boss !== B || B.st === 'crack') return;
+    if (G.boss !== B || B.st === 'crack' || B.st === 'last') return;
     B.taken = (B.taken || 0) + dmg;
     if (B.taken >= GEO_TRIP * (1 + B.cycle * 0.6)) { B.taken = 0; geoCrack(B, false); } // a set amount, not a share of his health: the extra goes into his cage phases
   }
@@ -5792,12 +5831,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // In the arena: his shell (and crystals flying in to rebuild it), and the warning before each shot.
   function drawGeodeFg(B) {
     const cry = ECOL.splitter, gems = [];
-    if (B.beam) { // his laser, fired down the line it showed: a glow round a white-hot core, fading fast
-      const Q = B.beam, f = 1 - Q.t / GEO_LASER_T, L = Math.hypot(AW, AH), ex = Q.x + Math.cos(Q.a) * L, ey = Q.y + Math.sin(Q.a) * L;
-      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
-      const seg = w => { ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(Q.x, Q.y); ctx.lineTo(ex, ey); ctx.stroke(); };
-      ctx.strokeStyle = GEO_ORB_COL; ctx.globalAlpha = 0.4 * f; seg(GEO_LASER_W * 2.4); ctx.globalAlpha = 0.9 * f; seg(GEO_LASER_W);
-      ctx.strokeStyle = COL.chalk; ctx.globalAlpha = f; seg(GEO_LASER_W * 0.35); ctx.restore(); ctx.globalAlpha = 1;
+    if (B.hop) { // where he'll land: a ring closing in on it, the shockwave's reach
+      const H = B.hop, k = clamp(H.t / GEO_HOP_T, 0, 1), fl = k > 0.75 && Math.floor(G.time * 24) % 2;
+      ctx.save(); ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.06 + 0.12 * k; ctx.beginPath(); ctx.arc(H.x1, H.y1, GEO_HOP_R, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.globalAlpha = 0.4 + 0.5 * k; ctx.lineWidth = 0.5; ctx.stroke();
+      ctx.globalAlpha = 0.5; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.arc(H.x1, H.y1, GEO_HOP_R * (1 - k) + 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1;
     }
     if (B.bars) drawGeoBars(B);
     if (B.gballs && B.gballs.length) drawGeoBalls(B);
@@ -8681,7 +8719,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const p = G.player;
     for (let i = G.bullets.length - 1; i >= 0; i--) {
       const b = G.bullets[i];
-      b.x += b.vx * dt; b.y += b.vy * dt;
+      const bx0 = b.x, by0 = b.y; b.x += b.vx * dt; b.y += b.vy * dt;
       if (b.grow) b.r = Math.min(b.rMax, b.r + b.grow * Math.hypot(b.vx, b.vy) * dt); // the Geode's rings widen as they fly
       if (b.bank) bankBounce(b, dt);
       let dead = b.bank ? b.bounces < 0 || b.life <= 0 : b.x < b.r || b.x > AW - b.r || b.y < b.r || b.y > AH - b.r;
@@ -8698,7 +8736,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (!dead && G.inv) for (const c of G.inv.bunkers) if (c.hp > 0 && hitRect(b.x, b.y, b.r, c)) { chipBunker(c); dead = true; break; }
       if (dead) { burst(b.x, b.y, 4, COL.threat, 12, 0.4, 0.2); G.bullets.splice(i, 1); continue; }
-      if (p.inv <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < PLAYER_R * 0.9 + b.r) {
+      const near = b.bolt ? (() => { const ex = b.x - bx0, ey = b.y - by0, l2 = ex * ex + ey * ey || 1, t = clamp(((p.x - bx0) * ex + (p.y - by0) * ey) / l2, 0, 1); return Math.hypot(bx0 + ex * t - p.x, by0 + ey * t - p.y); })() : Math.hypot(b.x - p.x, b.y - p.y); // a bolt that fast is tested along its whole step
+      if (p.inv <= 0 && near < PLAYER_R * 0.9 + b.r) {
         G.bullets.splice(i, 1);
         burst(b.x, b.y, 10, COL.threat, 30, 0.6, 0.35);
         damagePlayer();
@@ -9384,7 +9423,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.rockets.length) drawRockets();
     // turret shots
     ctx.fillStyle = COL.threat; ctx.shadowColor = COL.threat; ctx.shadowBlur = 6 * DPR;
-    for (const b of G.bullets) if (!b.geo && !b.sting) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); }
+    for (const b of G.bullets) if (b.bolt) { // Gorp's bolt: a long streak, a glow round a white core
+      const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp; ctx.save(); ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      ctx.strokeStyle = GEO_ORB_COL; ctx.globalAlpha = 0.45; ctx.lineWidth = 2.8; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - ux * 12, b.y - uy * 12); ctx.stroke();
+      ctx.strokeStyle = COL.chalk; ctx.globalAlpha = 1; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - ux * 9, b.y - uy * 9); ctx.stroke(); ctx.restore();
+    }
+    for (const b of G.bullets) if (!b.geo && !b.sting && !b.bolt) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); }
     for (const b of G.bullets) if (b.sting) { // Vexa's needle
       const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp;
       ctx.beginPath(); ctx.moveTo(b.x + ux * 4.4, b.y + uy * 4.4); ctx.lineTo(b.x - ux * 4.6 - uy * 1.1, b.y - uy * 4.6 + ux * 1.1); ctx.lineTo(b.x - ux * 4.6 + uy * 1.1, b.y - uy * 4.6 - ux * 1.1); ctx.closePath(); ctx.fill(); // a long needle
