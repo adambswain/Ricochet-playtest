@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 05 15:03 UTC · 510bd54";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 16:30 UTC · 8d6183a";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -560,7 +560,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     10: 'Clanktank: smash its treads to immobilize it, then every hit hurts it. Don\'t let the repair crew get it moving again',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
-    40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, he flies about in his saucer throwing balls of his own: they bounce and charge like yours, and hurt. Smash them with a ball at least as hot. Hit the pink orbs in his walls, or chip at the saucer',
+    40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, he flies about in his saucer throwing balls of his own: they bounce and charge like yours, and hurt. Smash them with a ball at least as hot. Hit the pink orbs in his walls: each one bursts the wall round it',
     46: 'Bees! The Hive\'s scouts are out. Something big is buzzing nearby',
     39: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
@@ -5261,14 +5261,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // while the walls are up. Everything speeds up as he weakens.
   // In his saucer (wall) he doesn't shoot. He zips about inside the walls, now across you, now somewhere else in the open,
   // and throws balls of his own at you (GEO_GB_EVERY, up to GEO_GB_MAX at once; see geoThrow): they bounce and charge
-  // like yours, and the closer his walls come, the quicker they heat up. The saucer itself can be hit too, for GEO_SAUCER_K of the ball's damage (and its
-  // shield flickers for GEO_SAUCER_CD after): the orbs are still the way to really hurt him. The walls close in, so the
-  // mines get worse as the room goes.
+  // like yours, and the closer his walls come, the quicker they heat up. The saucer flies over everything: the ball passes
+  // under it. The orbs are the way to hurt him while it's up, and each one you pop bursts the wall round it
+  // (GEO_ORB_BLAST), opening the room back up.
   const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 500, GEO_ORB = 1.5, GEO_TRIP = 0.2, GEO_BARE = 0.1, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 25, GEO_THIN = 0.3;
-  const GEO_PUSH = [2.6, 2.1, 1.6], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
+  const GEO_PUSH = [2.6, 2.4, 2], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
   const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
-  const GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_K = 0, GEO_SAUCER_CD = 1.2, GEO_SAUCER_V = [26, 30, 34];
-  const GEO_GB_EVERY = [4.2, 3.6, 3], GEO_GB_MAX = [2, 2, 3], GEO_GB_WIND = 0.6, GEO_GB_V0 = 46, GEO_GB_STEP = 5.5, GEO_GB_R0 = 1.8, GEO_GB_RSTEP = 0.1, GEO_GB_FUSE = 1, GEO_GB_BLAST = 13;
+  const GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_V = [26, 30, 34];
+  const GEO_GB_EVERY = [4.2, 3.6, 3], GEO_GB_MAX = [2, 2, 3], GEO_GB_WIND = 0.6, GEO_GB_V0 = 46, GEO_GB_STEP = 5.5, GEO_GB_R0 = 1.8, GEO_GB_RSTEP = 0.1, GEO_GB_FUSE = 1, GEO_GB_BLAST = 13, GEO_ORB_BLAST = 16;
   const geoEase = k => k * k * (3 - 2 * k);
   function setupGeode(B, cycle) {
     const slots = [];
@@ -5384,11 +5384,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     gridImpulse(g.x, g.y, GEO_GB_BLAST * 2, 160); shake(2); sfx.overload();
     if (p.inv <= 0 && Math.hypot(p.x - g.x, p.y - g.y) < GEO_GB_BLAST + PLAYER_R * 0.6) damagePlayer();
   }
-  function geoOrbHit(x, y, dmg) {
+  // An orb popped: it hurts him, and (blast) it bursts the wall round it, any other orb in reach going too
+  function geoOrbHit(x, y, dmg, blast = true) {
     const B = G.boss; if (!B || B.kind !== 'geode') return;
     B.hurt = 1; B.links.push({ x, y, t: 0 });
     burst(x, y, 22, GEO_ORB_COL, 45, 0.9, 0.5); ring(x, y, 1, 10, 0.3, GEO_ORB_COL, 1.2); gridImpulse(x, y, 14, 60); shake(0.8);
     sfx.splat(dmg); damageBoss(Math.round(dmg * GEO_ORB), x, y);
+    const S = G.siege; if (!blast || !S) return;
+    const hit = []; siegeNear(S, x, y, GEO_ORB_BLAST, (side, c, k, cell, R0) => { if (Math.hypot(clamp(x, R0.x0, R0.x1) - x, clamp(y, R0.y0, R0.y1) - y) < GEO_ORB_BLAST) hit.push([side, c, k, cell, R0]); return false; });
+    hit.sort((a, q) => q[2] - a[2]).forEach(([side, c, k, cell, R0]) => { siegeBreak(side, c, k, 0, false); if (cell.orb) geoOrbHit((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2, dmg, false); }); // deepest first, so the indices hold
+    ring(x, y, 2, GEO_ORB_BLAST, 0.35, GEO_ORB_COL, 1.2); ring(x, y, 1, GEO_ORB_BLAST * 0.6, 0.25, COL.chalk, 0.8); gridImpulse(x, y, GEO_ORB_BLAST * 2, 160); shake(1.4); sfx.shatter();
   }
   function updateGeode(B, dt) {
     const p = G.player, ph = B.phase - 1;
@@ -5468,22 +5473,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (!(B.hotT > G.time)) { B.hotT = G.time + 1; float(g.x, g.y - 3, 'Too hot!', GEO_ORB_COL, 2.6); } sfx.clank();
       return 'bounce';
     }
-    if (B.bg > 0.5) { // in his saucer: it's a target
-      if (B.st !== 'wall') return '';
-      const dx = o.x - B.x, dy = o.y - B.y, d = Math.hypot(dx, dy) || 1e-6;
-      if (d >= GEO_SAUCER_R + r) return '';
-      const nx = dx / d, ny = dy / d, dot = o.vx * nx + o.vy * ny;
-      o.x = B.x + nx * (GEO_SAUCER_R + r + 0.05); o.y = B.y + ny * (GEO_SAUCER_R + r + 0.05);
-      if (dot >= 0) return '';
-      o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny;
-      if (B.hitCd <= 0) {
-        B.hitCd = GEO_SAUCER_CD; B.hurt = 1; B.fvx -= nx * 14; B.fvy -= ny * 14; // knocked off its line
-        burst(B.x - nx * GEO_SAUCER_R, B.y - ny * GEO_SAUCER_R, 12 + b, COL.chalk, 35, 0.6, 0.35); ring(B.x, B.y, GEO_SAUCER_R, GEO_SAUCER_R + 6, 0.3, heat(b), 0.9); shake(0.8);
-        if (GEO_SAUCER_K > 0) { sfx.splat(b); damageBoss(Math.max(1, Math.round((1 + b) * GEO_SAUCER_K)), B.x, B.y - 2); }
-        else { sfx.clank(); if (!(B.shieldT > G.time)) { B.shieldT = G.time + 1.5; float(B.x, B.y - 9, 'Shielded: hit his orbs', COL.chalk, 2.6); } } // his saucer is shielded: the orbs are the way to hurt him
-      }
-      return 'bounce';
-    }
+    if (B.bg > 0.5) return ''; // up in his saucer: the ball passes under it
     if (B.st === 'shell' || B.st === 'rebuild') {
       let hit = null, hx = 0, hy = 0, hd = 1e9;
       for (const sl of B.slots) {
@@ -5542,11 +5532,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (B.st === 'shell' && !B.slots.some(sl => sl.on)) geoCrack(B, true);
     }
     if (geoExposed(B) && B.bg < 0.5 && G.boss === B && Math.hypot(B.x - x, B.y - y) < rad + GEO_R) { B.hurt = 1; sfx.splat(4); geoHurt(B, dmg, B.x, B.y); }
-    if (GEO_SAUCER_K > 0 && B.st === 'wall' && G.boss === B && Math.hypot(B.x - x, B.y - y) < rad + GEO_SAUCER_R) { B.hurt = 1; sfx.splat(4); damageBoss(dmg, B.x, B.y); } // a blast that reaches his saucer
     for (let i = (B.gballs || []).length - 1; i >= 0; i--) { const g = B.gballs[i]; if (Math.hypot(g.x - x, g.y - y) < rad + gbR(g)) { geoBallPop(g); B.gballs.splice(i, 1); } } // and smashes his balls
     const S = G.siege; if (!S) return;
     const hit = []; siegeNear(S, x, y, rad, (side, c, k, cell, R0) => { if (Math.hypot(clamp(x, R0.x0, R0.x1) - x, clamp(y, R0.y0, R0.y1) - y) < rad) hit.push([side, c, k, cell, R0]); return false; });
-    hit.sort((a, q) => q[2] - a[2]).forEach(([side, c, k, cell, R0]) => { siegeBreak(side, c, k, 0, false); if (cell.orb) geoOrbHit((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2, dmg); });
+    hit.sort((a, q) => q[2] - a[2]).forEach(([side, c, k, cell, R0]) => { siegeBreak(side, c, k, 0, false); if (cell.orb) geoOrbHit((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2, dmg, false); });
   }
   // He's drawn under the walls: solid in the middle, big and faint in the background, with a nerve of light running from
   // each orb you pop back to him. When he dies he swells, his eyes go to X's, and he fades.
@@ -5685,7 +5674,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let i = 0; i < 7; i++) { const a = Math.PI * (0.12 + 0.76 * i / 6), lx = x - Math.cos(a) * W * 0.82, ly = y + H * 0.7 + Math.sin(a) * H * 0.62, on = ((Math.floor(t * 8 - i) % 7) + 7) % 7 === 0; // lights chasing round its rim
       ctx.fillStyle = on ? COL.chalk : i % 2 ? GEO_ORB_COL : GOLD(); ctx.globalAlpha = on ? 1 : 0.7; ctx.beginPath(); ctx.arc(lx, ly, on ? 0.55 : 0.4, 0, Math.PI * 2); ctx.fill(); }
     ctx.globalAlpha = 1;
-    if (B.st === 'wall' && B.hitCd > 0 && Math.floor(t * 18) % 2) { ctx.globalAlpha = 0.4 * clamp(B.hitCd / 0.4, 0, 1); ctx.strokeStyle = ECOL.splitter; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.ellipse(x, y, W * 1.15, W * 0.95, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; } // its shield, flickering after a hit
     const dome = () => { ctx.beginPath(); ctx.ellipse(x, y + H * 0.2, W * 0.62, 6.2 * e, 0, Math.PI, 0); ctx.closePath(); };
     dome(); ctx.fillStyle = cry; ctx.globalAlpha = 0.1 * e; ctx.fill(); ctx.globalAlpha = 0.85 * e; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3; ctx.stroke();
     ctx.globalAlpha = 0.5 * e; ctx.beginPath(); ctx.ellipse(x - W * 0.25, y - 2.6 * e, W * 0.14, 1.6 * e, -0.5, 0, Math.PI * 2); ctx.fillStyle = COL.chalk; ctx.fill(); // a glint on the glass
