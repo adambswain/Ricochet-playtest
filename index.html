@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 19:49 UTC · 94acb61";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 20:00 UTC · c9ad42a";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1182,11 +1182,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2, HIVE_FINALE = 25000;
   const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [4.5, 3.8, 3], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
   const VEXA_SC = 1.5, VEXA_CAGE_AT = 0.5, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [5, 4.3, 3.7, 3.2], VEXA_STING = [2.6, 2.2, 1.9, 1.5];
-  const VEXA_AIM = 0.9, VEXA_LOCK = 0.25, VEXA_NEEDLE = 105, VEXA_BEE_V = [38, 44, 50, 56], VEXA_COMB = [6.5, 5.5, 5, 4.5];
+  const VEXA_AIM = 1.05, VEXA_LOCK = 0.25, VEXA_NEEDLE = 160, VEXA_BEE_V = [38, 44, 50, 56], VEXA_COMB = [6.5, 5.5, 5, 4.5];
   // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
   const VEXA_BODY = [[0.82, 0.5, false], [0, 0.5, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
   const QUEEN_R = 9.5, QUEEN_HP = 350, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
-  const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 };
+  const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 }, FORM_LAYERS = [1, 3, 5, 7], FORM_LAYERS_COL = [1, 2, 3, 4]; // a formation's depth, by how tough she's got: the same line, more of it (a column, the arena's whole height, gets half as many: about as many bees)
   const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [6.5, 5.5, 5, 5];
   const VEXA_SWOOP = [12, 10, 9, 8], SWOOP_WARN = 1.2, SWOOP_DIVE = 0.6, SWOOP_PERCH = 3, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
@@ -1532,8 +1532,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     B.recoil = Math.max(0, (B.recoil || 0) - dt * 4);
-    // bee formations: the bees appear where they'll start and buzz there (FORM_WARN), then fly straight across
-    B.formT -= dt;
+    // bee formations: the bees appear where they'll start and buzz there (FORM_WARN), then fly straight across. The next
+    // one waits till the last has all but gone: two thick lines crossing would be a wall with no way through
+    if (G.enemies.filter(e => e.bee && e.form).length < 8) B.formT -= dt;
     if (B.formT <= 0) {
       B.formT = VEXA_FORM[ph2];
       const kinds = ['column', 'row', 'v'], kind = kinds[Math.floor(Math.random() * kinds.length)];
@@ -1873,15 +1874,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const m = makeEnemy('swarm', x, y);
       Object.assign(m, { bee: true, form: { vx, vy }, formWait: wait, hx: x, hy: y, seed: rand(0, 6), vx: 0, vy: 0, spawnT: 0.2 }); G.enemies.push(m);
     };
+    const layers = (kind === 'column' ? FORM_LAYERS_COL : FORM_LAYERS)[clamp(ph2, 0, FORM_LAYERS.length - 1)]; // the rows behind the first wait out of sight, then follow it in
     if (kind === 'column') { // at a side, top to bottom, with a gap near you; then across
       const x0 = side < 0 ? 2.5 : AW - 2.5, gy = clamp(p.y + rand(-15, 15), 14, AH - 14);
-      for (let y = 5; y < AH - 4; y += 5.5) if (Math.abs(y - gy) > gapW / 2) add(x0, y, -side * v, 0);
+      for (let L = 0; L < layers; L++) for (let y = 5; y < AH - 4; y += 5.5) if (Math.abs(y - gy) > gapW / 2) add(x0 + side * L * 5.5, y, -side * v, 0);
     } else if (kind === 'row') { // along the bottom, with a gap near you; then up
       const gx = clamp(p.x + rand(-18, 18), 14, AW - 14);
-      for (let x = 5; x < AW - 4; x += 5.5) if (Math.abs(x - gx) > gapW / 2) add(x, AH - 2.5, 0, -v * 0.9);
+      for (let L = 0; L < layers; L++) for (let x = 5; x < AW - 4; x += 5.5) if (Math.abs(x - gx) > gapW / 2) add(x, AH - 2.5 + L * 5.5, 0, -v * 0.9);
     } else { // a V under her abdomen; then down at where you are
       const [tx, ty] = vexaTip(B), n = 5 + ph2, fx = clamp(p.x + rand(-15, 15), 15, AW - 15);
-      for (let k = -n; k <= n; k++) add(tx + k * 4.5, ty + 4 - Math.abs(k) * 3.5, (fx - tx) * 0.35, v * 0.9);
+      for (let L = 0; L < layers; L++) for (let k = -n; k <= n; k++) add(tx + k * 4.5, ty + 4 - Math.abs(k) * 3.5 - L * 5, (fx - tx) * 0.35, v * 0.9);
     }
     sfx.field();
   }
@@ -1917,7 +1919,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // The cage is over: she swoops back down, furious. (dodged: you slipped it before it shut; she never left)
   function vexaReturn(B, dodged) {
-    B.mad = true; B.stingT = Math.max(B.stingT, 2.2); B.formT = Math.max(B.formT, 4); B.combT = Math.max(B.combT, 3);
+    B.mad = true; B.stingT = dodged ? 0.5 : 1; B.mode = 'hang'; B.formT = Math.min(Math.max(B.formT, 1.5), 2.5); B.combT = Math.max(B.combT, 2.5); // furious: she hits back at once
     G.banner = dodged ? { text: 'Vexa is furious!', sub: 'You slipped her cage. Everything comes faster', t: 2, max: 2, at: 0.45 } : { text: 'Vexa returns!', sub: 'Furious: everything comes faster', t: 2, max: 2, at: 0.45 }; shake(2); sfx.boss();
   }
   function updateCage(B, dt, ph2) {
@@ -8608,7 +8610,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       e.x += e.vx * dt; e.y += e.vy * dt;
       if (e.type === 'snake' || e.type === 'viper') snakeTrail(e);
-      if (e.form) { if (e.x < -12 || e.x > AW + 12 || e.y < -12 || e.y > AH + 12) e.gone = true; } // a formation flies straight through and out
+      if (e.form) { if ((e.x < -12 && e.vx <= 0) || (e.x > AW + 12 && e.vx >= 0) || (e.y < -12 && e.vy <= 0) || (e.y > AH + 12 && e.vy >= 0)) e.gone = true; } // a formation flies straight through and out (its back rows start off the edge, on their way in)
       else { keepIn(e, e.r); if (!e.mend && !e.fromMaw) pushOut(e, e.r); } // a worker flies over the comb; the Carrier's jets fly over the Carrier
     }
     // Warden shields: an enemy inside a Warden's aura carries a WARD_LAYERS shield. Each ball hit pops a layer (and
@@ -9385,7 +9387,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const b of G.bullets) if (!b.geo && !b.sting) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); }
     for (const b of G.bullets) if (b.sting) { // Vexa's needle
       const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp;
-      ctx.beginPath(); ctx.moveTo(b.x + ux * 3.2, b.y + uy * 3.2); ctx.lineTo(b.x - ux * 3 - uy * 1.1, b.y - uy * 3 + ux * 1.1); ctx.lineTo(b.x - ux * 3 + uy * 1.1, b.y - uy * 3 - ux * 1.1); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(b.x + ux * 4.4, b.y + uy * 4.4); ctx.lineTo(b.x - ux * 4.6 - uy * 1.1, b.y - uy * 4.6 + ux * 1.1); ctx.lineTo(b.x - ux * 4.6 + uy * 1.1, b.y - uy * 4.6 - ux * 1.1); ctx.closePath(); ctx.fill(); // a long needle
     }
     ctx.shadowBlur = 0;
     for (const b of G.bullets) if (b.geo) { // the Geode's rings: a bright rim round a faint disc
@@ -9608,7 +9610,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if ((p.hull <= 0 && ball.state === 'held') || (!VEC && (ball.state === 'held' || ball.state === 'queued'))) continue; // docked: shown as its cockpit light
       const bc = heat(ball.b), r = (ball.state === 'live' ? ballR(ball.b) * bigK() : BALL_R0) * (ball.wing ? WING_SCALE : 1); // wingmen a size down, so yours stands out
       let fill = bc;
-      const warned = ball.state === 'live' && ball.b >= WARN && !safeRound();
+      const warned = ball.state === 'live' && ball.b >= WARN && !safeRound() && !ball.wing; // (a wingman only goes up with your ball)
       if (warned && Math.floor(G.time * (8 + ball.b * 2)) % 2) fill = COL.chalk;
       if (ball.state === 'ember') fill = ball.fresh ? heat(0) : COL.dim;
       if (warned) {
@@ -9644,6 +9646,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         }
         ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
       }
+      if (ball.wing && ball.state === 'live') { // a wingman: a hollow ring in its colour, no glow, no number, so your ball (solid, glowing, ringed) is the one that stands out
+        ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(ball.x, ball.y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = fill; ctx.lineWidth = Math.max(0.5, r * 0.32); ctx.beginPath(); ctx.arc(ball.x, ball.y, r - ctx.lineWidth / 2, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = fill; ctx.globalAlpha = 0.8; ctx.beginPath(); ctx.arc(ball.x, ball.y, r * 0.22, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+        continue;
+      }
       ctx.shadowColor = fill; ctx.shadowBlur = (ball.state === 'live' ? 6 + ball.b * 1.6 : 4) * DPR;
       ctx.fillStyle = fill;
       ctx.beginPath(); ctx.arc(ball.x, ball.y, r * (ball.state === 'ember' ? 1 + Math.sin(G.time * 6) * 0.12 : 1), 0, Math.PI * 2); ctx.fill();
@@ -9652,9 +9660,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.fillStyle = COL.chalk; ctx.globalAlpha = ball.state === 'ember' ? 0.55 + Math.sin(G.time * 6) * 0.35 : 0.9; ctx.beginPath(); ctx.arc(ball.x, ball.y, r * 0.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
         ctx.strokeStyle = COL.ink; ctx.lineWidth = Math.max(0.3, r * 0.16); ctx.beginPath(); ctx.arc(ball.x, ball.y, r + ctx.lineWidth / 2, 0, Math.PI * 2); ctx.stroke();
       }
-      if (ball.state === 'live' && !ball.wing) { // your ball's halo: a thin white ring wingmen never have, so it's yours at any charge
-        ctx.globalAlpha = 0.85; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3;
-        ctx.beginPath(); ctx.arc(ball.x, ball.y, r + 0.9, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+      if (ball.state === 'live' && !ball.wing) { // your ball's halo: a bold white ring wingmen never have, so it's yours at any charge
+        ctx.globalAlpha = 1; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.55;
+        ctx.beginPath(); ctx.arc(ball.x, ball.y, r + 1, 0, Math.PI * 2); ctx.stroke();
       }
       if (ball.state === 'live' && ball.lit) { // the countdown: a ring burning down around the ball, flickering faster near the end;
         const f = ball.fuse / FUSE_TIME, a0 = -Math.PI / 2;  // once it's out (primed), a full ring strobing in the threat colour
