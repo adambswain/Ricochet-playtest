@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 22:00 UTC · 36e6142";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 22:12 UTC · 7d7758e";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -586,7 +586,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     29: 'Fighters overhead: something big is coming',
     30: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
     57: 'Walkers fire rockets at you. Hit a rocket with your ball to send it back',
-    58: 'Micro-missiles ring you, spin, then close in. Blast a gap and get out, or pop them as they bunch up',
+    58: 'Mortars: circles show where the shells will land, one right on you. Keep moving',
     59: 'Something huge is coming. Feel that?',
     60: 'Goliath: knees pin it down, weapons silence it, thrusters ground it. Break them all, then hit it anywhere. Hit its rockets back at it',
     50: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. When she cages you, break out before it hatches',
@@ -1184,9 +1184,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // out (shoot a cell out and slip through) before CAGE_TIME runs out, or every cell left hatches a bee in there with
   // you. While you're caged she flies up out of the arena; when it's over she swoops back down furious: everything
   // comes faster, and her sting fires a spread of three. Below VEXA_BERSERK of her health, faster still.
-  // Every VEXA_SWOOP she swoops: the lane she'll dive down lights up on the floor (SWOOP_WARN; she draws up and shivers),
-  // then she dives down it (her body hurts), perches low for SWOOP_PERCH with her abdomen in easy reach (and a hit there
-  // is worth SWOOP_K times as much), and flies back up. Nothing else comes while she swoops.
+  // Every VEXA_SWOOP she swoops: her shadow appears on the floor where she'll land, growing and darkening while she draws
+  // up and shivers (SWOOP_WARN), then she dives onto it (her body hurts), perches low for SWOOP_PERCH with her abdomen in
+  // easy reach (and a hit there is worth SWOOP_K times as much), and flies back up. Her bee walls keep coming meanwhile
+  // (from the sides and the bottom); her sting and her honeycomb wait.
   // Both halves throw honeycomb: a chunk of seven wax cells, flagged by a ring closing on an edge cell (or flung by the
   // queen), that flies and bounces off the walls COMB_BOUNCES times or for COMB_LIFE seconds, then crumbles. Its touch
   // hurts; each cell breaks in one hit and counts toward the chain, and breaking the core cell shatters the rest.
@@ -1201,7 +1202,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const QUEEN_R = 9.5, QUEEN_HP = 350, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
   const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 }, FORM_LAYERS = [1, 3, 5, 7], FORM_LAYERS_COL = [1, 2, 3, 4], FORM_THICK = 2; // a formation's depth, by how tough she's got: the same line, more of it (a column, the arena's whole height, gets half as many: about as many bees)
   const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [6.5, 5.5, 5, 5];
-  const VEXA_SWOOP = [12, 10, 9, 8], SWOOP_WARN = 1.2, SWOOP_DIVE = 0.6, SWOOP_PERCH = 3, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
+  const VEXA_SWOOP = [16, 14, 12, 11], SWOOP_WARN = 1.2, SWOOP_DIVE = 0.6, SWOOP_PERCH = 2, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
   function setupHive(B, cycle) {
     const S = HIVE_CELL, cx = AW / 2, cy = clamp(AH * 0.36, S * 9, AH * 0.45), cells = [];
@@ -1529,7 +1530,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (p.inv <= 0) for (const [x, y, rr] of vexaBody(B)) if (Math.hypot(p.x - x, p.y - y) < rr + PLAYER_R * 0.8) { damagePlayer(); break; }
     if (B.cage) { updateCage(B, dt, ph2); return; } // she holds her fire while you're caged
     if (!B.caged && B.hp <= B.maxHp * VEXA_CAGE_AT) { B.caged = true; B.swoop = null; vexaCage(B); return; } // once, at half health, whatever did the damage
-    if (B.swoop) { vexaSwoop(B, dt, ph2); return; } // nothing else while she swoops
+    if (B.swoop) { vexaSwoop(B, dt, ph2); vexaWalls(B, dt, ph2, true); return; } // while she swoops, only her bee walls keep coming
     B.swoopT -= dt;
     if (B.swoopT <= 0 && B.mode === 'hang') { vexaSwoopStart(B); return; }
     // the sting: the abdomen leans in and glows down a lane, locks, and fires a needle
@@ -1548,12 +1549,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // bee formations: the bees appear where they'll start and buzz there (FORM_WARN), then fly straight across, one every
     // VEXA_FORM. Thin ones can cross (each has its gap); once they're thick (FORM_THICK on), the next waits till the last
     // has all but gone: two thick lines crossing would be a wall with no way through
-    if (ph2 < FORM_THICK || G.enemies.filter(e => e.bee && e.form).length < 8) B.formT -= dt;
-    if (B.formT <= 0) {
-      B.formT = VEXA_FORM[ph2];
-      const kinds = ['column', 'row', 'v'], kind = kinds[Math.floor(Math.random() * kinds.length)];
-      vexaFormation(B, kind, ph2);
-    }
+    vexaWalls(B, dt, ph2, false);
     B.combT -= dt;
     if (B.combT <= 0 && B.combs.length < COMB_MAX) { B.combT = VEXA_COMB[ph2]; const [tx, ty] = vexaTip(B); throwComb(B, tx, ty + 6); }
   }
@@ -1902,7 +1898,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     sfx.field();
   }
-  // Her swoop: a perch low down near you, and the lane from where she hangs down to it
+  function vexaWalls(B, dt, ph2, swooping) {
+    if (ph2 < FORM_THICK || G.enemies.filter(e => e.bee && e.form).length < 8) B.formT -= dt;
+    if (B.formT > 0) return;
+    B.formT = VEXA_FORM[ph2];
+    const kinds = swooping ? ['column', 'row'] : ['column', 'row', 'v']; // (the V drops from under her: not while she's diving at you)
+    vexaFormation(B, kinds[Math.floor(Math.random() * kinds.length)], ph2);
+  }
+  // Her swoop: a perch low down near you
   function vexaSwoopStart(B) {
     const p = G.player, r = vexaR(), x1 = clamp(p.x + rand(-6, 6), AW * 0.22, AW * 0.78), y1 = Math.min(AH * 0.55, AH - 2.4 * r - 8);
     B.swoop = { ph: 'warn', t: 0, x0: B.x, y0: B.y, x1, y1 };
@@ -1922,27 +1925,29 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (W.t >= SWOOP_PERCH) { W.ph = 'rise'; W.t = 0; }
     } else { // back up to where she hangs
       const k = ease(clamp(W.t / SWOOP_RISE, 0, 1)), [hx, hy] = vexaHang(B); B.x = W.x1 + (hx - W.x1) * k; B.y = W.y1 + (hy - W.y1) * k;
-      if (W.t >= SWOOP_RISE) { B.swoop = null; B.swoopT = VEXA_SWOOP[ph2]; B.formT = Math.max(B.formT, 1.5); B.stingT = Math.max(B.stingT, 1); }
+      if (W.t >= SWOOP_RISE) { B.swoop = null; B.swoopT = VEXA_SWOOP[ph2]; B.stingT = Math.max(B.stingT, 1); }
     }
   }
-  // Her cage: a gold ring closes on where you are; if you're still inside when it shuts, a ring of wax cells grows there.
+  // Her cage: a gold ring closes on you, following you (there's no outrunning it), and a ring of wax cells grows round you.
   function vexaCage(B) {
     const p = G.player;
     B.cage = { st: 'warn', t: CAGE_WARN, x: clamp(p.x, CAGE_R + 4, AW - CAGE_R - 4), y: clamp(p.y, CAGE_R + 4, AH - CAGE_R - 4), cells: [] };
     B.mode = 'hang'; B.forms = []; B.taken = 0;
-    G.banner = { text: 'Caged!', sub: 'Get clear, or break out before it hatches', t: 1.8, max: 1.8, at: 0.45 }; // mid-screen: she fills the top sfx.boss(); shake(1);
+    G.banner = { text: 'Caged!', sub: 'Break out before it hatches', t: 1.8, max: 1.8, at: 0.45 }; // mid-screen: she fills the top sfx.boss(); shake(1);
   }
-  // The cage is over: she swoops back down, furious. (dodged: you slipped it before it shut; she never left)
-  function vexaReturn(B, dodged) {
-    B.mad = true; B.stingT = dodged ? 0.5 : 1; B.mode = 'hang'; B.formT = Math.min(Math.max(B.formT, 1.5), 2.5); B.combT = Math.max(B.combT, 2.5); // furious: she hits back at once
-    G.banner = dodged ? { text: 'Vexa is furious!', sub: 'You slipped her cage. Everything comes faster', t: 2, max: 2, at: 0.45 } : { text: 'Vexa returns!', sub: 'Furious: everything comes faster', t: 2, max: 2, at: 0.45 }; shake(2); sfx.boss();
+  // The cage is over: she swoops back down, furious.
+  function vexaReturn(B) {
+    B.mad = true; B.stingT = 1; B.mode = 'hang'; B.formT = Math.min(Math.max(B.formT, 1.5), 2.5); B.combT = Math.max(B.combT, 2.5); // furious: she hits back at once
+    G.banner = { text: 'Vexa returns!', sub: 'Furious: everything comes faster', t: 2, max: 2, at: 0.45 }; shake(2); sfx.boss();
   }
   function updateCage(B, dt, ph2) {
     const C = B.cage, p = G.player;
     C.t -= dt;
-    if (C.st === 'warn') {
+    if (C.st === 'warn') { // closing on you, wherever you go
+      C.x = clamp(p.x, CAGE_R + 4, AW - CAGE_R - 4); C.y = clamp(p.y, CAGE_R + 4, AH - CAGE_R - 4);
       if (C.t > 0) return;
-      if (Math.hypot(p.x - C.x, p.y - C.y) > CAGE_R) { float(p.x, p.y - 6, 'Dodged!', COL.chalk, 3.2); B.cage = null; vexaReturn(B, true); return; } // you got clear
+      const dx = p.x - C.x, dy = p.y - C.y, d = Math.hypot(dx, dy), m = CAGE_R - CAGE_CELL - PLAYER_R - 0.5;
+      if (d > m) { p.x = C.x + dx / d * m; p.y = C.y + dy / d * m; } // hugging a wall (the cage can't go through it): it shuts with you inside
       const n = Math.ceil(Math.PI * 2 * CAGE_R / (CAGE_CELL * 1.85)), hp = 1 + B.cycle;
       for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2; C.cells.push({ x: C.x + Math.cos(a) * CAGE_R, y: C.y + Math.sin(a) * CAGE_R, hp, max: hp, flash: 0, grow: -k * 0.02 }); }
       C.st = 'up'; C.t = C.max = CAGE_TIME[ph2]; sfx.clank(); shake(1.5); gridImpulse(C.x, C.y, CAGE_R * 2, 120);
@@ -1985,7 +1990,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const C = B.cage, gold = GOLD(), t = G.time;
     if (C.st === 'warn') {
       const k = 1 - C.t / CAGE_WARN, r = CAGE_R * (2.4 - 1.4 * k);
-      ctx.save(); ctx.setLineDash([2, 1.5]); ctx.lineDashOffset = -t * 10; ctx.strokeStyle = Math.floor(t * 12) % 2 ? COL.chalk : gold; ctx.lineWidth = 0.6 + 0.4 * k; ctx.globalAlpha = 0.5 + 0.5 * k;
+      ctx.save(); ctx.strokeStyle = Math.floor(t * 12) % 2 ? COL.chalk : gold; ctx.lineWidth = 0.6 + 0.4 * k; ctx.globalAlpha = 0.5 + 0.5 * k;
       ctx.beginPath(); ctx.arc(C.x, C.y, r, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
       ctx.globalAlpha = 0.08 + 0.12 * k; ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(C.x, C.y, CAGE_R, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
       return;
@@ -2803,12 +2808,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The queen in the fight: the stinger's lane while she aims, then Vexa, leaning with her abdomen toward you. She grows
   // as she emerges and shrinks back as she retreats; her face follows the fight (narrowed to aim, shut when hit, furious
   // below VEXA_BERSERK).
+  // Her swoop's warning: her shadow on the floor where she'll land, in the shape of her perched (all of it hurts as she
+  // lands), small and faint at first, growing and darkening as she draws up; its rim flashes just before she dives
+  function drawSwoopShadow(B) {
+    const W = B.swoop, k = W.ph === 'dive' ? 1 : clamp(W.t / SWOOP_WARN, 0, 1), e = k * k * (3 - 2 * k), r = vexaR(), sc = 0.55 + 0.45 * e;
+    const fl = (W.ph === 'dive' || W.t > SWOOP_WARN - 0.3) && Math.floor(G.time * 20) % 2;
+    ctx.save(); ctx.beginPath();
+    for (const [lx, rr] of VEXA_BODY) { const x = W.x1, y = W.y1 - lx * r * sc, R = rr * r * sc; ctx.moveTo(x + R, y); ctx.arc(x, y, R, 0, Math.PI * 2); }
+    ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.globalAlpha = 0.35 + 0.6 * e; ctx.lineWidth = 2 * (0.35 + 0.35 * e); ctx.stroke(); // its rim (the fill covers the inner half)
+    ctx.globalAlpha = 1; ctx.fillStyle = COL.ink; ctx.fill();
+    ctx.globalAlpha = 0.15 + 0.35 * e; ctx.fillStyle = '#000'; ctx.fill();
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
   function drawQueen(B) {
     const aiming = B.st === 'queen' && (B.mode === 'aim' || B.mode === 'lock'), threat = COL.threat;
-    if (B.swoop && B.swoop.ph === 'warn') { // the lane she'll dive down: from her, through her perch, as long as her body
-      const W = B.swoop, r = vexaR(), k = clamp(W.t / SWOOP_WARN, 0, 1), a = Math.atan2(W.y1 - W.y0, W.x1 - W.x0), L = Math.hypot(W.x1 - W.x0, W.y1 - W.y0) + 2.3 * r;
-      laneWarn(W.x0, W.y0, a, L, r * 0.62, k, W.t > SWOOP_WARN - 0.3);
-    }
     const em = B.st === 'emerge' ? 1 - B.modeT / QUEEN_EMERGE : B.st === 'retreat' ? B.modeT / VEXA_RETREAT : 1;
     const aimK = aiming ? (B.mode === 'lock' ? 1 : clamp(1 - (B.modeT - VEXA_LOCK) / (VEXA_AIM - VEXA_LOCK), 0, 1)) : 0;
     if (aiming) { // the stinger's lane, from the tip to the edge of the arena: it brightens, then locks (white, flashing)
@@ -4230,8 +4243,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //  - Its four weapons are its threats, each with its own health and attack, each flagged first: the gatling (left
   //    arm) sweeps an arc of bullets behind a laser sight; the rocket claw (right arm) locks on and fires heavy rockets
   //    that curve after you (hit one with the ball and it flies back at the nearest part you can hurt:
-  //    MECH_ROCKET_DMG); the missile rack (left shoulder) has no attack for now (its micro-missile swarm is gone from
-  //    the fight; waves 58-59 still have it); the launch rail (right shoulder) sends jets. Break one and that attack is gone; its wreck drops to the
+  //    MECH_ROCKET_DMG); the missile rack (left shoulder) lobs mortar barrages (mortarBarrage: shells landing round you,
+  //    their circles shown first, in two volleys); the launch rail (right shoulder) sends jets. Break one and that attack is gone; its wreck drops to the
   //    floor as debris the ball bounces off (MECH_DEBRIS). Break all four and it tears its chest plate off.
   //  - Its thrusters (jump-jet pods on its back, either side of the shoulders, one shared health) take it out of the
   //    arena now and then: it fires them up, blasts off out of the top and comes over in bombing runs, its shadow
@@ -4371,7 +4384,61 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.rockets.push({ x, y, vx: Math.cos(a) * MECH_ROCKET_V, vy: Math.sin(a) * MECH_ROCKET_V, t: 0, life: 7, friendly: false, from });
     burst(x, y, 8, COL.threat, 25, 0.4, 0.3); sfx.launch(x);
   }
-  // Rings of micro-missiles round you: they fly in from the edges of the arena, each to its place in its ring
+  // Mortar barrage (Goliath's missile rack; in waves 58-59, from somewhere off the screen): a volley of shells goes up,
+  // their landing circles appear round you (one right on you, landing first) and they come down one after another,
+  // MORTAR_FALL after the launch; MORTAR_SECOND later a second volley goes up, aimed at wherever you've gone.
+  const MORTAR_N = 6, MORTAR_R = 7, MORTAR_FALL = 1.3, MORTAR_RIPPLE = 0.12, MORTAR_SPREAD = 30, MORTAR_SPACE = 15, MORTAR_SECOND = 1.5, MECH_MORTAR_EVERY = 10;
+  const mortarBarrage = (src, volleys = 2) => G.barrage.push({ t: 0, left: volleys, src }); // src 'rack': from Goliath's rack (and none once it's broken)
+  function mortarVolley(at) {
+    const p = G.player, R = MORTAR_R, cx = clamp(p.x, R, AW - R), cy = clamp(p.y, R, AH - R), pts = [[cx, cy]];
+    for (let tries = 0; pts.length < MORTAR_N && tries < 120; tries++) {
+      const a = rand(0, Math.PI * 2), d = rand(MORTAR_SPACE, MORTAR_SPREAD), x = clamp(cx + Math.cos(a) * d, R, AW - R), y = clamp(cy + Math.sin(a) * d, R, AH - R);
+      if (pts.every(([qx, qy]) => Math.hypot(qx - x, qy - y) >= MORTAR_SPACE)) pts.push([x, y]);
+    }
+    pts.forEach(([x, y], i) => { const T = MORTAR_FALL + i * MORTAR_RIPPLE; G.mortars.push({ x, y, t: T, T }); });
+    if (at) pts.forEach((q, i) => G.mortarUp.push({ x: at[0] + rand(-2.5, 2.5), y: at[1], t: -i * 0.05 }));
+    sfx.launch(at ? at[0] : cx);
+  }
+  function updateMortars(dt) {
+    const p = G.player;
+    for (let i = G.barrage.length - 1; i >= 0; i--) {
+      const v = G.barrage[i]; v.t -= dt; if (v.t > 0) continue;
+      const B = G.boss, at = v.src === 'rack' ? (B && B.kind === 'mech' && !mechBroken(B, 'rack') ? mechAt(B, ...MECH_PARTS.rack) : null) : undefined;
+      if (at === null) { G.barrage.splice(i, 1); continue; } // its rack's gone: the rest of the barrage with it
+      mortarVolley(at);
+      if (--v.left <= 0) G.barrage.splice(i, 1); else v.t = MORTAR_SECOND;
+    }
+    for (let i = G.mortars.length - 1; i >= 0; i--) {
+      const m = G.mortars[i]; m.t -= dt; if (m.t > 0) continue;
+      G.mortars.splice(i, 1);
+      burst(m.x, m.y, 18, COL.threat, 45, 0.6, 0.35); burst(m.x, m.y, 8, COL.dim, 25, 0.7, 0.5); ring(m.x, m.y, 1, MORTAR_R + 1, 0.28, COL.threat, 1);
+      gridImpulse(m.x, m.y, MORTAR_R * 2.4, 140); shake(1);
+      if ((G.mortarN = (G.mortarN || 0) + 1) % 2) sfx.rockBoom(1);
+      if (p.inv <= 0 && p.hull > 0 && G.dying <= 0 && Math.hypot(p.x - m.x, p.y - m.y) < MORTAR_R + PLAYER_R * 0.6) damagePlayer();
+    }
+    for (let i = G.mortarUp.length - 1; i >= 0; i--) { const u = G.mortarUp[i]; u.t += dt; if (u.t > 0.6) G.mortarUp.splice(i, 1); }
+  }
+  // A shell's landing circle: filling in, a ring closing on it (flashing at the end), and the shell dropping onto it
+  function drawMortars() {
+    ctx.save(); ctx.lineCap = 'round';
+    for (const m of G.mortars) {
+      const k = clamp(1 - m.t / m.T, 0, 1), fl = m.t < 0.3 && Math.floor(G.time * 20) % 2;
+      ctx.beginPath(); ctx.arc(m.x, m.y, MORTAR_R, 0, Math.PI * 2);
+      ctx.globalAlpha = 0.05 + 0.17 * k; ctx.fillStyle = COL.threat; ctx.fill();
+      ctx.globalAlpha = 0.3 + 0.4 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(m.x, m.y, MORTAR_R * (1 + 1.3 * (1 - k)), 0, Math.PI * 2);
+      ctx.globalAlpha = 0.4 + 0.6 * k; ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.35 + 0.35 * k; ctx.stroke();
+      if (m.t < 0.28) { const y = m.y - 46 * m.t / 0.28; ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(m.x, y - 5); ctx.lineTo(m.x, y); ctx.stroke(); }
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  function drawMortarUp() { // shells leaving Goliath's rack, up off the top of the screen
+    ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.8;
+    for (const u of G.mortarUp) { if (u.t < 0) continue; const y = u.y - u.t * 150; ctx.globalAlpha = 0.9 * (1 - u.t / 0.6); ctx.beginPath(); ctx.moveTo(u.x, y); ctx.lineTo(u.x, y + 6); ctx.stroke(); }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  // Rings of micro-missiles round you (no longer launched: the mortar barrage replaced them; kept so a saved run with a
+  // swarm in it still plays): they fly in from the edges of the arena, each to its place in its ring
   function mechMicros(n = MECH_MICRO_N) {
     const p = G.player, id = (G.microId = (G.microId || 0) + 1);
     const g = { id, cx: clamp(p.x, 10, AW - 10), cy: clamp(p.y, 10, AH - 10), k: 0, a: rand(0, Math.PI * 2), dir: Math.random() < 0.5 ? -1 : 1, t: 0, lastT: -1, boom: false };
@@ -4577,7 +4644,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.plate) { const q = B.plate; q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; if (q.y > AH + 40) B.plate = null; }
     B.rackT = Math.max(0, (B.rackT || 0) - dt);
     // its thrusters: now and then (when it isn't busy) it takes off and comes over in bombing runs
-    if (!B.fly && B.st === 'fight' && !mechBroken(B, 'jets') && (T.fly -= dt) <= 0 && !B.beam && !B.beamDue && !B.lance && !B.sweep && B.lockT <= 0 && !(B.walk && B.walk.land) && !(B.crawl && B.crawl.ph !== 'rest') && !G.enemies.some(e => e.micro)) {
+    if (!B.fly && B.st === 'fight' && !mechBroken(B, 'jets') && (T.fly -= dt) <= 0 && !B.beam && !B.beamDue && !B.lance && !B.sweep && B.lockT <= 0 && !(B.walk && B.walk.land) && !(B.crawl && B.crawl.ph !== 'rest') && !G.barrage.length && !G.mortars.length) {
       B.fly = { ph: 'crouch', t: 0, air: false, hx: B.x, hy: B.y, runs: [], n: 0 }; sfx.blasterCharge(); float(B.x, B.y + 58 * B.s, 'Thrusters firing!', COL.threat, 3.4);
     }
     if (B.fly || B.bombs.length) updateMechFly(B, dt);
@@ -4594,6 +4661,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (!mechBroken(B, 'claw')) { if (B.lockT > 0) { B.lockT -= dt; if (B.lockT <= 0) { const [cx, cy] = mechAt(B, MECH_PARTS.claw[0], MECH_PARTS.claw[1] + 8); for (let i = 0; i < 3; i++) mechRocket(cx, cy, (i - 1) * 0.35); } }
       else if (go('claw', 5)) { B.lockT = 0.8; sfx.blasterCharge(); } }
+    if (go('rack', MECH_MORTAR_EVERY)) { B.rackT = 1; mortarBarrage('rack'); } // its rack lights up and lobs a mortar barrage: two volleys round you
     if (go('rail', 8)) { const [rx, ry] = mechAt(B, ...MECH_PARTS.rail); for (let i = 0; i < 4; i++) { const e = makeEnemy('dasher', clamp(rx + (i - 1) * 7, 6, AW - 6), ry + 10); Object.assign(e, { r: MAW_SHIP_R * 0.9, hp: 1, maxHp: 1, pts: 40, spawnT: 0, jet: { sq: null }, vx: (i - 1.5) * 14, vy: 30, stT: 0.5 + i * 0.2 }); G.enemies.push(e); } sfx.launch(rx); }
     // its legs: walking at you, a step at a time; one knee gone, limping; both, down on its knees where it stands
     if (B.down) { // on its knees: it crawls after you, and hurls wreckage
@@ -4631,8 +4699,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!B.beam && !B.lance && (T.beam -= dt * (B.down ? desp : Math.min(desp, MECH_BEAM_DESP))) <= 0 && B.down) { // on its knees: the lance, aimed at you
       T.beam = B.st === 'core' ? 3.2 : 3.8; B.lance = { t: 0, a: 0, locked: false, fired: false }; sfx.blasterCharge();
     }
-    else if (!B.beam && !B.lance && T.beam <= 0 && (B.beamDue = true) && !B.sweep && !(B.lockT > 0) && !(B.walk && B.walk.land)) {
-      // its beam is due: it starts nothing new and lets what's under way finish (a step, a gun sweep, a rocket lock), then
+    else if (!B.beam && !B.lance && T.beam <= 0 && (B.beamDue = true) && !B.sweep && !(B.lockT > 0) && !(B.walk && B.walk.land) && !G.barrage.length && !G.mortars.length) {
+      // its beam is due: it starts nothing new and lets what's under way finish (a step, a gun sweep, a rocket lock, a barrage), then
       // beams; its rockets still flying fizzle out
       B.beamDue = false;
       for (let i = G.rockets.length - 1; i >= 0; i--) { const q = G.rockets[i]; if (q.friendly) continue; burst(q.x, q.y, 10, COL.dim, 30, 0.5, 0.3); ring(q.x, q.y, 1, 5, 0.2, COL.chalk, 0.6); G.rockets.splice(i, 1); }
@@ -5122,7 +5190,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.beginPath(); ctx.arc(x, y, r * 0.16, 0, Math.PI * 2); ctx.fillStyle = lockK > 0.7 && Math.floor(t * 16) % 2 ? COL.chalk : COL.threat; ctx.fill();
       }
     }
-    { // the missile pod on the left shoulder: an armoured box of tubes, red noses showing; lit up when it calls a swarm
+    { // the missile pod on the left shoulder: an armoured box of tubes, red noses showing; lit up when it fires a barrage
       const P = B.parts.rack, [x, y, r] = at('rack'), pc = P.flash > 0 ? COL.chalk : col;
       if (P.hp <= 0) torn(x, y, r * 0.8);
       else {
@@ -5205,7 +5273,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_DIE_HIT = 0.3, MECH_BLOW = 2.2, MECH_AFTER = 2.6;
   function mechDie(B) {
     G.mechDeath = { B: { ...B, parts: JSON.parse(JSON.stringify(B.parts)), beam: null, sweep: null, flash: 0.2 }, t: 0, blown: false, result: G.result };
-    G.result = null; G.rockets = []; G.bullets = G.bullets.filter(q => !q.mg);
+    G.result = null; G.rockets = []; G.mortars = []; G.barrage = []; G.mortarUp = []; G.bullets = G.bullets.filter(q => !q.mg);
     G.freeze = Math.max(G.freeze, 0.2); shake(3); sfx.overload();
   }
   function updateMechDeath(dt) {
@@ -5256,7 +5324,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function updateMechSetup(dt) {
     const S = G.mechSetup; if (!S) return;
-    if (S.micro) { S.microT -= dt; if (S.microT <= 0) { S.microT = rand(12, 14); if (!G.enemies.some(e => e.micro)) mechMicros(24); } }
+    if (S.micro) { S.mortar = true; S.mortarT = S.microT; delete S.micro; } // saved before the mortars
+    if (S.mortar) { S.mortarT -= dt; if (S.mortarT <= 0) { S.mortarT = rand(9, 11); if (!G.barrage.length && !G.mortars.length) mortarBarrage(); } }
     if (S.steps) { S.stepT -= dt; if (S.stepT <= 0) { S.n = (S.n || 0) + 1; S.stepT = 2.4; const k = Math.min(1, S.n / 8); shake(0.6 + 2 * k); gridImpulse(AW / 2, 0, Math.max(AW, AH) * (0.4 + 0.5 * k), 100 + 120 * k); sfx.rockBoom(1 + Math.round(k * 2)); } }
   }
 
@@ -7277,7 +7346,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       balls: [Object.assign(makeBall(), { x: AW / 2, y: AH * 0.6 })],
       enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null, storm: null, rockets: [], debris: [], microQueue: [], mechSetup: null, mechDeath: null, squads: [], squadWarn: [], squadPlan: null, shadow: null,
       shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, lucky: null, table: null, siege: null, asteroidWave: ASTEROID_WAVES[Math.floor(Math.random() * ASTEROID_WAVES.length)], inv: null, result: null, boss: null, bombs: [],
-      pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [],
+      pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [], mortars: [], barrage: [], mortarUp: [],
       arenaTarget: ARENA_START, layoutPending: null, lastLayout: null,
       shake: 0, freeze: 0, dying: 0, banner: null, time: 0, pulling: false,
     };
@@ -7438,7 +7507,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (inLoop(n) === 18 || inLoop(n) === 19) { const k = inLoop(n) === 18 ? 5 : 6; for (let i = q.length - 1, cut = k; i >= 0 && cut > 0; i--) if (q[i] === 'drifter') { q.splice(i, 1); cut--; } add('snake', k - 3 + cycle); if (inLoop(n) === 19) add('viper', 1 + cycle); G.clutchWave = { n: inLoop(n) === 18 ? 2 : 3, t: 3, size: inLoop(n) === 18 ? 8 : 10, v: inLoop(n) === 19 ? 1 : 0 }; } // the Serpent's brood ahead of it, in place of some of the drifters: a few hatched, and clutches of its eggs laid about
       if (SQUAD_PLAN[inLoop(n)]) G.squadPlan = { at: [...SQUAD_PLAN[inLoop(n)]], t: 0, n: SQUAD_SIZE[inLoop(n)], shadow: inLoop(n) === 29 }; // the Carrier's fighters are out ahead of it
       if (inLoop(n) === 57 || inLoop(n) === 59) add('walker', inLoop(n) === 57 ? 4 + cycle : 3 + cycle); // Goliath's scouts
-      if (inLoop(n) === 58 || inLoop(n) === 59) G.mechSetup = { micro: true, microT: inLoop(n) === 58 ? 4 : 6, steps: inLoop(n) === 59, stepT: 1 }; // its micro-missiles; and its footsteps
+      if (inLoop(n) === 58 || inLoop(n) === 59) G.mechSetup = { mortar: true, mortarT: inLoop(n) === 58 ? 4 : 6, steps: inLoop(n) === 59, stepT: 1 }; // its mortars, from off the screen; and its footsteps
       if (DRUM_CLUSTERS[inLoop(n)]) G.drumWave = { n: DRUM_CLUSTERS[inLoop(n)], t: DRUM_RESTOCK, first: true }; // and its fuel drums stand about
       shuffle();
       if (wall) q.splice(Math.floor(q.length / 2), 0, 'wall');
@@ -7768,7 +7837,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.arenaTarget = arenaFor(next);
         crumbleBricks(); crumbleSiege(); finishInvaders();
         G.drumWave = null; G.clutchWave = null; for (const d of G.drums) d.gone = true; // the fuel drums fade away
-        G.squadPlan = null; G.squadWarn = []; G.shadow = null; G.mechSetup = null; G.rockets = []; G.debris = [];
+        G.squadPlan = null; G.squadWarn = []; G.shadow = null; G.mechSetup = null; G.rockets = []; G.debris = []; G.mortars = []; G.barrage = []; G.mortarUp = [];
         if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
         if (G.wave > 0 && !G.skipBonus) {
           const bonus = 100 * G.wave;
@@ -8871,7 +8940,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
     updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt); updateDrums(dt); updateClutches(dt); updateChest(dt); updateSquads(dt); updateStorm(dt); updateRockets(dt); updateDebris(dt); updateMicroQueue(dt); updateMechDeath(dt); updateMechSetup(dt);
-    updateBullets(dt * ws);
+    updateBullets(dt * ws); updateMortars(dt * ws);
     updateWaves(dt);
     if (scoreK(G.wave) > 1) G.score += Math.round((scoreK(G.wave) - 1) * (G.score - score0)); // later loops: every point counts more
     checkMilestones();
@@ -9407,6 +9476,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.debris.length) drawDebris();
     if (G.enemies.some(e => e.micro)) drawMicroCentres();
     if (G.squadWarn.length) drawSquadWarn();
+    if (G.boss && G.boss.kind === 'hive' && G.boss.swoop && (G.boss.swoop.ph === 'warn' || G.boss.swoop.ph === 'dive')) drawSwoopShadow(G.boss);
+    if (G.mortars.length) drawMortars();
     // enemies, clipped to the arena
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
     ctx.lineJoin = 'round';
@@ -9513,6 +9584,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
     drawChest();
     if (G.rockets.length) drawRockets();
+    if (G.mortarUp.length) drawMortarUp();
     // turret shots
     ctx.fillStyle = COL.threat; ctx.shadowColor = COL.threat; ctx.shadowBlur = 6 * DPR;
     for (const b of G.bullets) if (b.bolt) { // Gorp's bolt: a long streak, a glow round a white core
@@ -10304,7 +10376,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (!ok) setupBoss(['core', 'tank', 'maw', 'serpent', 'geode', 'hive', 'mech'].includes(B.kind) ? B.kind : 'tank', B.cycle || 0);
     }
     G.bombs = (G.bombs || []).filter(bm => Number.isFinite(bm.vx) && Number.isFinite(bm.vy));
-    G.ghosts = G.ghosts || [];
+    G.ghosts = G.ghosts || []; G.mortars = G.mortars || []; G.barrage = G.barrage || []; G.mortarUp = G.mortarUp || [];
     G.drums = G.drums || []; G.drumWave = G.drumWave || null; // saved before the fuel drums
     if (G.boss && G.boss.kind === 'serpent' && G.boss.twin) Object.setPrototypeOf(G.boss.twin, G.boss); // its twin shares the boss's health and the rest
     G.storm = G.storm || null; G.rockets = G.rockets || []; G.debris = G.debris || []; G.microQueue = []; G.mechSetup = G.mechSetup || null; G.mechDeath = null; if (G.chest && !G.chest.items) G.chest = null;
