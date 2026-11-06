@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 20:33 UTC · 1fdd5d4";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 21:04 UTC · 414863b";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -267,6 +267,17 @@ select.linkbtn option { background: var(--ink); color: var(--chalk); }
 .pauseBtn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 :root[data-look="cabinet"] .pauseBtn, :root[data-look="bone"] .pauseBtn { border-radius: 0; border-width: 2px; }
 .sideTip { display: none; }
+/* The first-run tutorial: one prompt at a time at the top of the arena, out of the way of both thumbs. Only Skip takes
+   a touch; the rest lets touches through to the game. */
+.tut { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: min(22rem, calc(100vw - 32px)); box-sizing: border-box; display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; padding: 10px 12px 12px; border: 1px solid var(--line); border-radius: 4px; background: color-mix(in srgb, var(--ink) 76%, transparent); pointer-events: none; }
+.tut[hidden] { display: none; }
+.tutLbl { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
+.tut p { grid-column: 1 / -1; margin: 0; font-size: 14px; line-height: 1.45; color: var(--chalk); text-wrap: pretty; }
+.tut.ok p::before { content: '✓ '; color: var(--gold); font-weight: 700; }
+.tut .linkbtn { pointer-events: auto; margin: 0; font-size: 12px; padding: 7px 14px; }
+.tutHi { outline: 1px solid var(--gold); outline-offset: 4px; border-radius: 3px; animation: tutHi 1.1s ease-in-out infinite; }
+@keyframes tutHi { 50% { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .tutHi { animation: none; } }
 @media (pointer: coarse) and (orientation: portrait) { .sideTip { display: block; } }
 
 /* Phones held sideways: the HUD moves into a column down each side, under the thumbs, so the arena gets the full
@@ -309,6 +320,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   <div class="charge" id="charge"><span class="lbl">Charge</span><div id="pips"></div><span id="note">In hand</span></div>
   <div class="tail"><span id="mode" class="mode">Pull</span><span id="mult">×1</span></div>
 </footer>
+<div class="tut" id="tut" hidden role="status" aria-live="polite"><span class="tutLbl" id="tutLbl">Tutorial</span><button class="linkbtn" id="tutSkip" type="button">Skip</button><p id="tutText"></p></div>
 
 <section class="ov" id="ov-title">
   <div class="panel title">
@@ -324,6 +336,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   <div class="panel">
     <p class="big">Settings</p>
     <div class="ctrl" id="startRow"><div><span>Start at</span> <select class="linkbtn" id="startWave" aria-label="Start at wave"></select> <span class="startNote" id="startNote" hidden>Practice run: doesn't count toward Best</span></div></div>
+    <div class="ctrl" id="tutRow"><div><span>Tutorial</span> <button class="linkbtn tutBtn" type="button">Play it again</button> <span class="startNote">Starts a new run on wave 1 with the tutorial</span></div></div>
     <div class="ctrl" id="titleSound"><div><span>Sound</span> </div></div>
     <div class="ctrl"><div><span>Screen shake</span> <button class="linkbtn shakeBtn" data-v="1" type="button">Full</button><button class="linkbtn shakeBtn" data-v="0.4" type="button">Reduced</button><button class="linkbtn shakeBtn" data-v="0" type="button">Off</button></div></div>
     <div class="ctrl"><div><span>Flashes</span> <button class="linkbtn flashBtn" data-v="1" type="button">Full</button><button class="linkbtn flashBtn" data-v="0" type="button">Reduced</button> <span class="startNote">Reduced: no full-screen flashes and no strobing lights</span></div></div>
@@ -352,7 +365,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       <div><span>Keyboard</span> · WASD or arrows to fly. Mouse click or Space: press to throw, hold to pull</div>
       <div><span>Mobile</span> · one thumb anywhere on the left half flies, the other on the right half holds to pull and swipes to throw. Landscape orientation is strongly recommended. <button class="linkbtn swapBtn" type="button">Move on left</button></div>
     </div>
-    <div class="btnrow"><button class="btn" id="howBack" type="button">Back</button></div>
+    <div class="btnrow"><button class="btn" id="howBack" type="button">Back</button><button class="btn ghost tutBtn" type="button">Play the tutorial</button></div>
   </div>
 </section>
 
@@ -4092,7 +4105,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     shake(2.5); G.freeze = Math.max(G.freeze, 0.04); sfx.overload();
     G.score += Math.round(60 * (1 + b) * G.mult);
     if (src) chainCredit(src, x, y, b);
-    for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (!isStone(e) && Math.hypot(e.x - x, e.y - y) < DRUM_BLAST + e.r) kill(j, b, 0, src || G.balls[0]); }
+    for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (e && !isStone(e) && Math.hypot(e.x - x, e.y - y) < DRUM_BLAST + e.r) kill(j, b, 0, src || G.balls[0]); }
     for (const o of G.drums) if (!o.gone && !(o.fuse > 0) && Math.hypot(o.x - x, o.y - y) < DRUM_BLAST) { o.fuse = DRUM_FUSE; o.src = src; o.b = b; } // the ones nearby go up next
   }
   // The ball against the drums: it bounces off and sets one off. True if it hit one.
@@ -4456,7 +4469,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (hitE >= 0) {
         const src = o.src && o.src.state ? o.src : G.balls[0];
         kill(hitE, 6, 0, src);
-        for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (!isStone(e) && Math.hypot(e.x - o.x, e.y - o.y) < 7 + e.r) kill(j, 6, 0, src); }
+        for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (e && !isStone(e) && Math.hypot(e.x - o.x, e.y - o.y) < 7 + e.r) kill(j, 6, 0, src); }
         pop(true);
       }
     }
@@ -5208,7 +5221,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         gridImpulse(x, y, Math.max(AW, AH) * 1.2, 340); G.freeze = Math.max(G.freeze, 0.15); G.screenFlash = 0.8; shake(9);
         sfx.overload(); sfx.shatter(); sfx.boss();
         const src = G.balls[0]; // the shockwave: everything left goes, on your chain
-        for (let j = G.enemies.length - 1; j >= 0; j--) if (!isStone(G.enemies[j])) kill(j, MAX_CHARGE, 0, src);
+        for (let j = G.enemies.length - 1; j >= 0; j--) if (G.enemies[j] && !isStone(G.enemies[j])) kill(j, MAX_CHARGE, 0, src);
         G.tele.length = 0; G.debris.length = 0;
         G.result = D.result; bossChest(x, y, 'repair', 5); // Goliath's reward, in a chest
       }
@@ -7270,7 +7283,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   // startAt: wave to begin on (test buttons); otherwise a link ending in #wave20 (any number) starts there
-  function startGame(startAt) {
+  function startGame(startAt, tutorial = false) {
     audioInit();
     if (typeof startAt !== 'number') {
       if (location.hash === '#asteroids') { startAt = 8; forceAsteroids = true; }
@@ -7282,6 +7295,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.winShown = G.wave; // starting just past a finale doesn't celebrate it
     if (startAt > 20) G.hullMax = HULL_MAX + (startAt > 40 ? 2 : 1); // starting past the Serpent (20) and Gorp (40) brings the hull slots they give
     if (startAt > 1) G.continued = 1; // skipping ahead is practice: it doesn't count toward Best
+    if (startAt === 1 && (tutorial || !tutDone)) G.tut = { i: -1, t: 0, ok: 0, moved: 0, pull: 0, caught: false, boomed: false, skip: {} };
     while (G.balls.length < ballsFor(startAt)) G.balls.push(Object.assign(makeBall(), { wing: true })); // starting later brings the wingmen earned by then
     mode = 'play';
     $('ov-title').hidden = true; $('ov-over').hidden = true; $('ov-pause').hidden = true;
@@ -7633,7 +7647,82 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
              seed: rand(0, 10), rot: rand(0, 6), st: 'walk', stT: rand(1.4, 2.6), dx: 0, dy: 0, fire: rand(1.4, 2.4), aim: 0, spawnT: 0.25, face: 0, wl: 0, wcd: WARD_FORM, sFlash: 0 };
   }
 
+  /* ---------- tutorial ---------- */
+  // A first run teaches the game on wave 1, before anything spawns: one prompt at a time, each waiting until you've
+  // done it, worded for the controls you're using. Skip ends it; How to play and Settings replay it.
+  let tutDone = false;
+  try { tutDone = localStorage.getItem('ricochet.tutorial') === 'done'; } catch (e) {}
+  const TUT_ORDER = ['move', 'throw', 'bounce', 'pull', 'catch', 'again', 'burn'];
+  const TUT_OK = 0.7; // a done step shows its tick this long
+  // min: a step that explains something stays up at least this long, and is never skipped
+  const tutBall = () => G.balls[0];
+  const TUT = {
+    move: { text: (T, c) => c.touch ? `Drag your ${c.L} thumb on the ${c.L} half of the screen to fly.` : 'Fly with WASD or the arrow keys.', done: T => T.moved > 22 },
+    throw: { text: (T, c) => (T.boomed ? 'Throw it again. ' : '') + (c.touch ? `Swipe your ${c.R} thumb on the ${c.R} half to throw the ball that way. A tap throws it straight ahead.` : 'Click to throw the ball at your cursor, or press Space.'), done: () => tutBall().state === 'live' },
+    bounce: { text: () => 'Every bounce adds 1 damage to your ball, and it speeds up. Watch the Charge bar fill.', done: () => tutBall().b >= 4, min: 2.5, hi: 'charge' },
+    pull: { text: (T, c) => c.touch ? `Now hold your ${c.R} thumb down on the ${c.R} half. The ball bends toward you.` : 'Now hold the mouse button, or Space. The ball bends toward you.', done: T => T.pull > 0.6, hi: 'mode' },
+    catch: { text: () => 'Keep holding until it flies into your ship. That catches it.', done: T => T.caught, hi: 'mode' },
+    again: { text: () => 'Caught! A catch takes 5 off its charge and it keeps the rest. In your hands it cools 1 a second. Throw it again.', done: () => tutBall().state === 'live', min: 2.5, hi: 'charge' },
+    burn: { text: () => 'At 15 charge your ball burns. After 2 seconds its next bounce blows it up: it kills everything nearby, but resets your multiplier. Every kill restarts the 2 seconds. Or catch it first.', done: () => true, min: 8 },
+    boom: { text: () => 'That was an overload. At 15 charge your ball burns, and its next bounce blows it up. Then it drifts back to you, empty: fly into it to grab it.', done: () => tutBall().state === 'held' },
+  };
+  function tutFinish(skipped) {
+    G.tut = null; tutDone = true;
+    try { localStorage.setItem('ricochet.tutorial', 'done'); } catch (e) {}
+    if (!skipped && touchHint) { touchHint = false; try { localStorage.setItem('ricochet.touchHint', 'done'); } catch (e) {} } // you've done it all now
+    showTut();
+  }
+  // the next step: skips any you've already done (a catch made early, the burn note after you've seen an overload)
+  function tutNext(T) {
+    for (;;) {
+      T.i++; T.t = 0; T.ok = 0;
+      const k = T.k = TUT_ORDER[T.i];
+      if (!k) { tutFinish(false); return; }
+      if (T.skip[k] || (!TUT[k].min && TUT[k].done(T))) continue;
+      return;
+    }
+  }
+  function updateTut(dt) {
+    const T = G.tut, p = G.player;
+    if (T.i < 0) tutNext(T);
+    if (!G.tut) return;
+    T.t += dt;
+    if (T.px !== undefined) T.moved += Math.hypot(p.x - T.px, p.y - T.py);
+    T.px = p.x; T.py = p.y;
+    if (T.k === 'pull' && G.pulling) T.pull += dt;
+    // an overload mid-tutorial gets explained on the spot, then you pick up where you were
+    if (T.k !== 'boom' && tutBall().state === 'ember') { T.back = T.caught ? TUT_ORDER.length : TUT_ORDER.indexOf('throw'); T.k = 'boom'; T.t = 0; T.ok = 0; T.boomed = true; T.skip.bounce = T.skip.burn = true; return; }
+    if (T.k === 'boom') {
+      if (T.ok > 0) { T.ok -= dt; if (T.ok <= 0) { T.i = T.back - 1; T.caught = false; tutNext(T); } }
+      else if (TUT.boom.done(T)) T.ok = TUT_OK;
+      return;
+    }
+    if (T.caught && (T.k === 'bounce' || T.k === 'pull')) { T.i = TUT_ORDER.indexOf('catch'); T.k = 'catch'; T.ok = TUT_OK; } // caught before we asked: straight to the catch's tick
+    if (T.ok > 0) { T.ok -= dt; if (T.ok <= 0) tutNext(T); return; }
+    const step = TUT[T.k];
+    if (T.t >= (step.min || 0) && step.done(T)) { if (T.k === 'burn') tutFinish(false); else T.ok = TUT_OK; }
+  }
+  // the prompt, kept in step with the game each frame (and hidden whenever play isn't on screen)
+  const tutC = {}, tutCoarse = matchMedia('(pointer: coarse)').matches;
+  function showTut() {
+    const T = G && !G.attract && mode === 'play' ? G.tut : null, el = $('tut');
+    if (!T || !T.k) { if (!el.hidden) { el.hidden = true; $('charge').classList.remove('tutHi'); $('mode').classList.remove('tutHi'); } return; }
+    el.hidden = false;
+    const touch = inputType === 'touch' || (tutCoarse && !aim), c = { touch, L: swapSides ? 'right' : 'left', R: swapSides ? 'left' : 'right' }, step = TUT[T.k]; // (a phone counts as touch before its first touch on the arena)
+    const text = step.text(T, c), ok = T.ok > 0, n = T.k === 'boom' ? '' : ` · ${TUT_ORDER.indexOf(T.k) + 1} of ${TUT_ORDER.length}`;
+    if (tutC.text !== text) { tutC.text = text; $('tutText').textContent = text; }
+    if (tutC.n !== n) { tutC.n = n; $('tutLbl').textContent = 'Tutorial' + n; }
+    el.classList.toggle('ok', ok);
+    $('tutSkip').textContent = T.k === 'burn' ? 'Start' : 'Skip';
+    const hi = ok ? null : step.hi; $('charge').classList.toggle('tutHi', hi === 'charge'); $('mode').classList.toggle('tutHi', hi === 'mode');
+    const pos = `${Math.round(AX + BW / 2)}|${Math.round(AY + 8)}|${Math.round(BW)}`;
+    if (tutC.pos !== pos) { tutC.pos = pos; el.style.left = `${Math.round(AX + BW / 2)}px`; el.style.top = `${Math.round(AY + 8)}px`; el.style.width = `min(22rem, ${Math.round(BW - 16)}px)`; }
+  }
+  $('tutSkip').addEventListener('click', () => { $('tutSkip').blur(); if (G && G.tut) tutFinish(G.tut.k !== 'burn'); }); // on the last note it reads Start
+  document.querySelectorAll('.tutBtn').forEach(b => b.addEventListener('click', () => { b.blur(); $('ov-how').hidden = true; $('ov-settings').hidden = true; startGame(1, true); }));
+
   function updateWaves(dt) {
+    if (G.tut) { updateTut(dt); return; } // nothing comes until the tutorial is through
     if (G.spawnQueue.length) {
       G.spawnTimer -= dt;
       if (G.spawnTimer <= 0) {
@@ -7972,6 +8061,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function catchBall(ball) {
     const b = ball.b, p = G.player;
     docked(ball); ball.state = 'held'; ball.b = Math.max(0, b - CATCH_COST); ball.fuse = 0; ball.lit = false; ball.trail = []; ball.coolT = 0; // it keeps all but CATCH_COST
+    if (G.tut) G.tut.caught = true;
     recallWings();
     for (const s of ptrs.values()) s.noTap = true; // releasing the pull finger must not throw
     if (touchAct) {
@@ -8441,6 +8531,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
       for (let i = G.enemies.length - 1; i >= 0; i--) {
         const e = G.enemies[i];
+        if (!e) continue; // a kill can take several with it (a crew, a chain): skip the slots they left
         if (isStone(e)) { // a block for now: bounce off it and gain charge
           const h = hitRect(ball.x, ball.y, r, stoneRect(e));
           if (!h) continue;
@@ -9860,7 +9951,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.globalAlpha = live ? 0.55 : 0.25; ctx.strokeStyle = live && hb ? heat(hb.b) : COL.chalk; ctx.lineWidth = live ? 3 : 1.5;
       ctx.beginPath(); ctx.arc(touchAct.ox, touchAct.oy, 30, 0, Math.PI * 2); ctx.stroke();
     }
-    if (touchHint) {
+    if (touchHint && !(G && G.tut)) { // (the tutorial says it instead)
       const W = innerWidth, y = $('meter').getBoundingClientRect().top - 24, left = swapSides ? 'right' : 'left';
       ctx.globalAlpha = 0.75; ctx.fillStyle = COL.chalk; ctx.font = `600 12px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('MOVE', left === 'left' ? W * 0.25 : W * 0.75, y);
@@ -10008,7 +10099,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Settings: a page from the title's gear button or the pause screen. Start at only makes sense before a run.
   const showSettings = on => {
     $('ov-settings').hidden = !on;
-    if (on) { $('startRow').hidden = mode === 'paused'; $('ov-settings').scrollTop = 0; updateHud(); $('setBack').focus({ preventScroll: true }); }
+    if (on) { $('startRow').hidden = $('tutRow').hidden = mode === 'paused'; $('ov-settings').scrollTop = 0; updateHud(); $('setBack').focus({ preventScroll: true }); }
     else { updateHud(); (mode === 'paused' ? $('resume') : $('play')).focus({ preventScroll: true }); }
   };
   document.querySelectorAll('.setBtn').forEach(b => b.addEventListener('click', () => { b.blur(); showSettings(true); }));
@@ -10179,11 +10270,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       slowFrames = frameEma > 24 ? slowFrames + 1 : 0;
       if (slowFrames > 120 && quality > 0) { quality--; slowFrames = 0; frameEma = 16; buildGrid(); sizeBloom(); }
     }
-    if (G && mode === 'play' && !G.attract && !document.hidden) G.clock = (G.clock || 0) + Math.min(raw, 250) / 1000; // the run's clock: time played, paused or not counted
+    if (G && mode === 'play' && !G.attract && !G.tut && !document.hidden) G.clock = (G.clock || 0) + Math.min(raw, 250) / 1000; // the run's clock: time played (not paused, not the tutorial)
     if (G && (mode === 'play' || G.attract)) step(dt);
     else if (G && (mode === 'over' || mode === 'win')) { G.time += dt; G.shake *= Math.exp(-9 * dt); stepFx(dt); }
     render();
-    updateHud();
+    updateHud(); showTut();
     audioUpdate();
   }
 
