@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 19:15 UTC · 72e4ee5";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 19:49 UTC · 94acb61";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5260,9 +5260,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    he stays in till you finish him (or GEO_WALL runs out). So the fight always ends in his cage.
   //  - rebuild: once you've done GEO_CAGE damage to him in his cage (or after GEO_WALL seconds) he comes forward into the middle again and the walls that are left fly in as his
   //    next shell, GEO_THIN crystals thinner for every one you broke.
-  // Except while he's cracked, he fires his blaster, always from its muzzle: first the muzzle flares and a targeting
-  // laser runs from it to you, locking and flashing just before he fires; then a ring flies at you that grows as it goes
-  // and cracks the crystal it meets (a shot fired from over his walls flies clear of them before it can hit one). He holds
+  // Except while he's cracked, he fires his blaster, always from its muzzle, by turns: a laser (the muzzle flares and a
+  // targeting line runs the length of the arena through you, locking and flashing just before he fires; then a beam down
+  // exactly that line), then rings with no warning, each flying at you and growing as it goes, cracking the crystal it meets (a shot fired from over his walls flies clear of them before it can hit one). He holds
   // his fire while his muzzle is within GEO_NEAR of you. As he walls you in, every enemy left is crushed, and none come
   // while the walls are up. Everything speeds up as he weakens.
   // In his saucer (wall) he doesn't shoot. He zips about inside the walls, now across you, now somewhere else in the open,
@@ -5274,7 +5274,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 700, GEO_ORB = 1.5, GEO_TRIP = 100, GEO_BARE = 50, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 40, GEO_CAGE = 150, GEO_FINAL = 120, GEO_THIN = 0.3;
   const GEO_PUSH = [2.3, 1.85, 1.4], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
   const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
-  const GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_V = [26, 30, 34];
+  const GEO_LASER_W = 2.6, GEO_LASER_T = 0.3, GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_V = [26, 30, 34];
   const GEO_GB_EVERY = [3.6, 3.1, 2.6], GEO_GB_MAX = [2, 2, 3], GEO_GB_WIND = 0.6, GEO_GB_V0 = 46, GEO_GB_STEP = 5.5, GEO_GB_R0 = 1.8, GEO_GB_RSTEP = 0.1, GEO_GB_FUSE = 1, GEO_GB_BLAST = 13, GEO_ORB_BLAST = 16;
   const GEO_BAR_EVERY = [4.5, 3.8, 3.2], GEO_BAR_FIRST = 3, GEO_BAR_WARN = 1.3, GEO_BAR_LOCK = 0.3, GEO_BAR_FIRE = 0.45, GEO_BAR_W = 4.5, GEO_BAR_GAP = 15;
   const geoEase = k => k * k * (3 - 2 * k);
@@ -5453,6 +5453,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateGeode(B, dt) {
     const p = G.player, ph = B.phase - 1;
     B.recoil = Math.max(0, B.recoil - dt * 4); B.hurt = Math.max(0, B.hurt - dt * 4); B.summon = Math.max(0, B.summon - dt * 2); B.blinkT -= dt;
+    if (B.beam) { B.beam.t += dt; if (B.beam.t >= GEO_LASER_T) B.beam = null; }
     B.hitCd -= dt; B.spin += dt * 0.12;
     if (B.blinkT < -0.12) B.blinkT = rand(1.8, 4);
     for (const sl of B.slots) sl.flash -= dt;
@@ -5487,16 +5488,25 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (Math.cos(B.gunA) > 0.3) B.side = 1; else if (Math.cos(B.gunA) < -0.3) B.side = -1;
     if (B.st === 'wall') { B.chg = 0; // in his saucer he lays mines instead
     } else if (B.st !== 'crack') {
-      const [fx0, fy0] = geoShotFrom(B), close = Math.hypot(fx0 - p.x, fy0 - p.y) < GEO_NEAR;
+      // his gun takes turns: a laser (its line shown first, locking, then a beam down exactly that line), then rings
+      // (no warning: they're slow, you see them coming)
+      const [fx0, fy0] = geoShotFrom(B), laser = !(B.shotN % 2), close = laser && Math.hypot(fx0 - p.x, fy0 - p.y) < GEO_NEAR;
       B.shotT = close ? Math.max(B.shotT - dt, GEO_LOCK + 0.01) : B.shotT - dt; // too close to you: he holds at full charge, still tracking
-      B.chg = B.shotT < GEO_CHARGE ? 1 - B.shotT / GEO_CHARGE : 0;
+      B.chg = laser && B.shotT < GEO_CHARGE ? 1 - B.shotT / GEO_CHARGE : 0;
       B.aimX = fx0; B.aimY = fy0;
-      if (B.shotT < GEO_CHARGE && B.shotT + dt >= GEO_CHARGE) sfx.blasterCharge();
-      if (B.shotT <= 0) { // fire: a ring that grows as it flies (two in the last phase)
-        B.shotT = GEO_SHOT[ph] * (B.st === 'shell' ? 1.25 : 1); B.chg = 0; B.recoil = 1;
-        const [fx, fy] = geoShotFrom(B), a0 = B.gunA; // straight down the locked laser
-        for (const off of ph === 2 ? [-0.24, 0, 0.24] : ph === 1 ? [-0.14, 0.14] : [0]) G.bullets.push({ x: fx, y: fy, vx: Math.cos(a0 + off) * GEO_SHOT_V, vy: Math.sin(a0 + off) * GEO_SHOT_V, r: 1.4, geo: true, grow: 0.085, rMax: 7 });
-        ring(fx, fy, 1, 7, 0.25, COL.threat, 0.9); sfx.blaster();
+      if (laser && B.shotT < GEO_CHARGE && B.shotT + dt >= GEO_CHARGE) sfx.blasterCharge();
+      if (B.shotT <= 0) {
+        B.shotT = GEO_SHOT[ph] * (B.st === 'shell' ? 1.25 : 1); B.chg = 0; B.recoil = 1; B.shotN = (B.shotN || 0) + 1;
+        const [fx, fy] = geoShotFrom(B), a0 = B.gunA;
+        if (laser) { // down the locked line, to the edge of the arena: in it, you're hit
+          B.beam = { x: fx, y: fy, a: a0, t: 0 }; shake(1.2); sfx.blaster(); sfx.shock();
+          const ux = Math.cos(a0), uy = Math.sin(a0), along = (p.x - fx) * ux + (p.y - fy) * uy, off = Math.abs((p.x - fx) * uy - (p.y - fy) * ux);
+          if (p.inv <= 0 && along > 0 && off < GEO_LASER_W / 2 + PLAYER_R * 0.6) damagePlayer();
+          for (let d = 6; d < Math.hypot(AW, AH); d += 10) gridImpulse(fx + ux * d, fy + uy * d, 8, 50);
+        } else { // rings that grow as they fly (two, then three, in the later phases)
+          for (const off of ph === 2 ? [-0.24, 0, 0.24] : ph === 1 ? [-0.14, 0.14] : [0]) G.bullets.push({ x: fx, y: fy, vx: Math.cos(a0 + off) * GEO_SHOT_V, vy: Math.sin(a0 + off) * GEO_SHOT_V, r: 1.4, geo: true, grow: 0.085, rMax: 7 });
+          ring(fx, fy, 1, 7, 0.25, COL.threat, 0.9); burst(fx, fy, 8, COL.threat, 30, 0.3, 0.25); sfx.blaster();
+        }
       }
     } else B.chg = 0;
     // enemies drop into the open space, never right on you (nor on him while he's in the middle)
@@ -5780,6 +5790,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // In the arena: his shell (and crystals flying in to rebuild it), and the warning before each shot.
   function drawGeodeFg(B) {
     const cry = ECOL.splitter, gems = [];
+    if (B.beam) { // his laser, fired down the line it showed: a glow round a white-hot core, fading fast
+      const Q = B.beam, f = 1 - Q.t / GEO_LASER_T, L = Math.hypot(AW, AH), ex = Q.x + Math.cos(Q.a) * L, ey = Q.y + Math.sin(Q.a) * L;
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      const seg = w => { ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(Q.x, Q.y); ctx.lineTo(ex, ey); ctx.stroke(); };
+      ctx.strokeStyle = GEO_ORB_COL; ctx.globalAlpha = 0.4 * f; seg(GEO_LASER_W * 2.4); ctx.globalAlpha = 0.9 * f; seg(GEO_LASER_W);
+      ctx.strokeStyle = COL.chalk; ctx.globalAlpha = f; seg(GEO_LASER_W * 0.35); ctx.restore(); ctx.globalAlpha = 1;
+    }
     if (B.bars) drawGeoBars(B);
     if (B.gballs && B.gballs.length) drawGeoBalls(B);
     if (B.bg > 0) drawGeoSaucer(B);
@@ -5799,7 +5816,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // the warning, at his muzzle: a flare that swells and pulls sparks in, and a targeting laser from it to you that
     // brightens and then locks (white, flashing) for the last GEO_LOCK seconds before the shot
     const k = B.chg, x = B.aimX, y = B.aimY, p = G.player, locked = B.shotT <= GEO_LOCK, ca = Math.cos(B.gunA), sa = Math.sin(B.gunA);
-    const L = Math.hypot(p.x - x, p.y - y) + 6, flick = locked ? (Math.floor(G.time * 30) % 2 ? 1 : 0.55) : 1;
+    const L = Math.hypot(AW, AH), flick = locked ? (Math.floor(G.time * 30) % 2 ? 1 : 0.55) : 1; // the whole length the beam will fire
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
     ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.strokeStyle = locked ? COL.chalk : COL.threat; ctx.globalAlpha = (locked ? 0.95 : 0.25 + 0.5 * k) * flick; ctx.lineWidth = locked ? 0.7 : 0.3 + 0.3 * k;
