@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 21:51 UTC · aa5bb0b";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 22:00 UTC · 36e6142";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7659,12 +7659,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const tutBall = () => G.balls[0];
   const tutHeat = c => `At 15 charges your ball overheats. Two seconds later, its next bounce makes it explode, killing everything nearby. Every kill restarts the 2 seconds. After it explodes, its charges reset to 0 and it drifts back to you. ${c.touch ? `Hold the ${c.R} side` : 'Hold the mouse button or Space'} to pull it toward you faster.`;
   const TUT = {
-    move: { text: (T, c) => c.touch ? `Drag your ${c.L} thumb on the ${c.L} half of the screen to fly.` : 'Fly with WASD or the arrow keys.', done: T => T.moved > 22 },
-    throw: { text: (T, c) => (T.boomed ? 'Throw it again. ' : '') + (c.touch ? `Tap the ${c.R} side of the screen to throw the ball in the direction you're facing. Tip: swipe in the direction you want to throw the ball.` : 'Click to throw the ball at your cursor, or press Space.'), done: () => tutBall().state === 'live' },
+    move: { text: (T, c) => c.touch ? `Drag on the ${c.L} side of the screen to fly.` : 'Fly with WASD or the arrow keys.', done: T => T.moved > 22 },
+    throw: { text: (T, c) => (T.boomed ? 'Throw it again. ' : '') + (c.touch ? `Tap the ${c.R} side of the screen to throw the ball in the direction you're facing. Tip: swipe in the direction you want to throw the ball.` : 'Click or press Space to throw the ball toward your cursor.'), done: () => tutBall().state === 'live' },
     bounce: { text: (T, c) => `Every bounce adds 1 damage to the ball and increases its speed. Keep an eye on the charge bar. ${tutHeat(c)}`, done: () => tutBall().b >= 4, min: 8, hi: 'charge' },
-    pull: { text: (T, c) => c.touch ? `Now hold your ${c.R} thumb down on the ${c.R} half. The ball bends toward you.` : 'Now hold the mouse button, or Space. The ball bends toward you.', done: T => T.pull > 0.6, hi: 'mode' },
-    catch: { text: () => 'Keep holding until it flies into your ship. That catches it.', done: T => T.caught, hi: 'mode' },
-    again: { text: () => 'Caught! A catch takes 5 off its charge and it keeps the rest. In your hands it cools 1 a second. Throw it again.', done: () => tutBall().state === 'live', min: 2.5, hi: 'charge' },
+    pull: { text: (T, c) => c.touch ? `Now hold the ${c.R} side of the screen. The ball bends toward you.` : 'Now hold the mouse button, or Space. The ball bends toward you.', done: T => T.pull > 0.6, hi: 'mode' },
+    catch: { text: () => 'Keep holding until it flies into your ship to catch it. Let go and it passes right through.', done: T => T.caught, hi: 'mode' },
+    again: { text: () => "Caught! A catch takes 5 off the ball's charge. While you hold it, it loses 1 more charge per second. Throw it again.", done: () => tutBall().state === 'live', min: 2.5, hi: 'charge' },
     boom: { text: (T, c) => tutHeat(c), done: () => tutBall().state === 'held' }, // it overheated: the second half of the bounce tip again
 
   };
