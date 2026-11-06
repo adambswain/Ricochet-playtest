@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 21:04 UTC · 414863b";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 21:30 UTC · 22a5b95";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1199,7 +1199,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
   const VEXA_BODY = [[0.82, 0.5, false], [0, 0.5, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
   const QUEEN_R = 9.5, QUEEN_HP = 350, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
-  const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 }, FORM_LAYERS = [1, 3, 5, 7], FORM_LAYERS_COL = [1, 2, 3, 4]; // a formation's depth, by how tough she's got: the same line, more of it (a column, the arena's whole height, gets half as many: about as many bees)
+  const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 }, FORM_LAYERS = [1, 3, 5, 7], FORM_LAYERS_COL = [1, 2, 3, 4], FORM_THICK = 2; // a formation's depth, by how tough she's got: the same line, more of it (a column, the arena's whole height, gets half as many: about as many bees)
   const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [6.5, 5.5, 5, 5];
   const VEXA_SWOOP = [12, 10, 9, 8], SWOOP_WARN = 1.2, SWOOP_DIVE = 0.6, SWOOP_PERCH = 3, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
@@ -1545,9 +1545,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     B.recoil = Math.max(0, (B.recoil || 0) - dt * 4);
-    // bee formations: the bees appear where they'll start and buzz there (FORM_WARN), then fly straight across. The next
-    // one waits till the last has all but gone: two thick lines crossing would be a wall with no way through
-    if (G.enemies.filter(e => e.bee && e.form).length < 8) B.formT -= dt;
+    // bee formations: the bees appear where they'll start and buzz there (FORM_WARN), then fly straight across, one every
+    // VEXA_FORM. Thin ones can cross (each has its gap); once they're thick (FORM_THICK on), the next waits till the last
+    // has all but gone: two thick lines crossing would be a wall with no way through
+    if (ph2 < FORM_THICK || G.enemies.filter(e => e.bee && e.form).length < 8) B.formT -= dt;
     if (B.formT <= 0) {
       B.formT = VEXA_FORM[ph2];
       const kinds = ['column', 'row', 'v'], kind = kinds[Math.floor(Math.random() * kinds.length)];
@@ -1863,7 +1864,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The royal cell is broken: the comb crumbles away and the queen comes out (untouchable while she emerges).
   function crackHive(B) {
     for (const c of B.cells) if (c.hp > 0) { burst(c.x, c.y, 6, GOLD(), 40, 0.7, 0.5); G.score += Math.round(20 * G.mult); c.hp = 0; }
-    Object.assign(B, { st: 'emerge', modeT: QUEEN_EMERGE, x: B.cx, y: B.cy, flash: 0.3, combT: VEXA_COMB[0], taken: 0, mode: 'hang', formT: 6, stingT: 2.4, forms: [], swoop: null, swoopT: 9 }); // her first bee wall only once she's settled in
+    Object.assign(B, { st: 'emerge', modeT: QUEEN_EMERGE, x: B.cx, y: B.cy, flash: 0.3, combT: VEXA_COMB[0], taken: 0, mode: 'hang', formT: 3, stingT: 2.4, forms: [], swoop: null, swoopT: 9 }); // her first bee wall soon after she's settled in
     B.outs = (B.outs || 0) + 1;
     for (const e of G.enemies) e.mend = null;
     for (let k = 0; k < 4; k++) ring(B.x, B.y, 2, B.r * (0.8 + k * 0.5), 0.6 + k * 0.15, k % 2 ? COL.chalk : GOLD(), 1.4);
@@ -4229,8 +4230,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //  - Its four weapons are its threats, each with its own health and attack, each flagged first: the gatling (left
   //    arm) sweeps an arc of bullets behind a laser sight; the rocket claw (right arm) locks on and fires heavy rockets
   //    that curve after you (hit one with the ball and it flies back at the nearest part you can hurt:
-  //    MECH_ROCKET_DMG); the missile rack (left shoulder) calls a swarm of micro-missiles in from the arena's edges to
-  //    ring you; the launch rail (right shoulder) sends jets. Break one and that attack is gone; its wreck drops to the
+  //    MECH_ROCKET_DMG); the missile rack (left shoulder) has no attack for now (its micro-missile swarm is gone from
+  //    the fight; waves 58-59 still have it); the launch rail (right shoulder) sends jets. Break one and that attack is gone; its wreck drops to the
   //    floor as debris the ball bounces off (MECH_DEBRIS). Break all four and it tears its chest plate off.
   //  - Its thrusters (jump-jet pods on its back, either side of the shoulders, one shared health) take it out of the
   //    arena now and then: it fires them up, blasts off out of the top and comes over in bombing runs, its shadow
@@ -4263,6 +4264,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_ROCKET_V = 30, MECH_ROCKET_TURN = 1.1, MECH_ROCKET_HOME = 2.8, MECH_ROCKET_BACK = 75, MECH_ROCKET_DMG = 12, MECH_ROCKET_R = 2.4;
   const MECH_MICRO_N = 30, MECH_MICRO_AOE = 6.5, MECH_MICRO_ORBIT = 1.6, MECH_MICRO_OUT = 8, MECH_MICRO_CLOSE = 10, MECH_MICRO_FOLLOW = 13, MECH_MICRO_SPIN = 0.2, MECH_MICRO_BOOM = 9;
   const MECH_STOMP_R = 16, MECH_STEP = [0.62, 2.1], MECH_STRIDE = [15, 5], MECH_STEP_WARN = 0.5, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
+  const MECH_BEAM_FIRST = 10, MECH_BEAM_EVERY = 16, MECH_BEAM_DESP = 1.3; // its first beam, then one every MECH_BEAM_EVERY (sooner as it grows desperate, but never more than MECH_BEAM_DESP times as often)
   const MECH_DEBRIS = 10;
   const MECH_CRAWL_T = 1.6, MECH_CRAWL_REACH = 0.6, MECH_CRAWL_DRAG = 0.5, MECH_CRAWL_STEP = 9, MECH_HAND = 14, MECH_SLAM_R = 12; // on its knees: an arm reaches out and slams down, then it drags itself after it
   const MECH_THROW_T = 6, MECH_THROW_FLY = 1.15, MECH_THROW_R = 7; // on its knees: wreckage hurled at you, lying where it lands
@@ -4284,7 +4286,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     parts.jets = { hp: Math.round(MECH_JETS * k), max: Math.round(MECH_JETS * k), flash: 0 };
     const core = Math.round(MECH_CORE * k);
     Object.assign(B, { s, x: AW / 2, y: 50 * s - 95 * s, x0: AW / 2, y0: 50 * s, introT: 0, roar: 0, r: 30 * s, parts, core, coreMax: core, hp: core + Object.values(parts).reduce((a, q) => a + q.hp, 0),
-      st: 'intro', t: 0, stT: 0, hitCd: 0, rage: 1, crit: false, timers: { gun: 2.5, claw: 4.5, rack: 7, rail: 5.5, backup: 10, beam: 3, fly: MECH_FLY_FIRST, throw: 3, pulse: 2.5 },
+      st: 'intro', t: 0, stT: 0, hitCd: 0, rage: 1, crit: false, timers: { gun: 2.5, claw: 4.5, rack: 7, rail: 5.5, backup: 10, beam: MECH_BEAM_FIRST, fly: MECH_FLY_FIRST, throw: 3, pulse: 2.5 },
       sweep: null, lockT: 0, beam: null, walk: { foot: 0, t: 0.8, from: null, to: null, land: null }, kneel: 0, open: 0, lift: 0, plate: null, roster: 0, pose: 0, fly: null, bombs: [], crawl: null, throws: [], pulses: [], pulseWarn: null });
   }
   const mechBroken = (B, key) => B.parts[key].hp <= 0;
@@ -4592,7 +4594,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (!mechBroken(B, 'claw')) { if (B.lockT > 0) { B.lockT -= dt; if (B.lockT <= 0) { const [cx, cy] = mechAt(B, MECH_PARTS.claw[0], MECH_PARTS.claw[1] + 8); for (let i = 0; i < 3; i++) mechRocket(cx, cy, (i - 1) * 0.35); } }
       else if (go('claw', 5)) { B.lockT = 0.8; sfx.blasterCharge(); } }
-    if (go('rack', 13) && !G.enemies.some(e => e.micro)) { B.rackT = 1; mechMicros(B.crit ? 36 : MECH_MICRO_N); } // its rack lights up, and the swarm comes in from all round (one swarm at a time)
     if (go('rail', 8)) { const [rx, ry] = mechAt(B, ...MECH_PARTS.rail); for (let i = 0; i < 4; i++) { const e = makeEnemy('dasher', clamp(rx + (i - 1) * 7, 6, AW - 6), ry + 10); Object.assign(e, { r: MAW_SHIP_R * 0.9, hp: 1, maxHp: 1, pts: 40, spawnT: 0, jet: { sq: null }, vx: (i - 1.5) * 14, vy: 30, stT: 0.5 + i * 0.2 }); G.enemies.push(e); } sfx.launch(rx); }
     // its legs: walking at you, a step at a time; one knee gone, limping; both, down on its knees where it stands
     if (B.down) { // on its knees: it crawls after you, and hurls wreckage
@@ -4627,15 +4628,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     // the reactor's beam: round nearly the whole circle; the gap (shown as it charges) somewhere below it, never where you are now. More often the more you've broken
-    if (!B.beam && !B.lance && (T.beam -= dt * desp) <= 0 && B.down) { // on its knees: the lance, aimed at you
+    if (!B.beam && !B.lance && (T.beam -= dt * (B.down ? desp : Math.min(desp, MECH_BEAM_DESP))) <= 0 && B.down) { // on its knees: the lance, aimed at you
       T.beam = B.st === 'core' ? 3.2 : 3.8; B.lance = { t: 0, a: 0, locked: false, fired: false }; sfx.blasterCharge();
     }
     else if (!B.beam && !B.lance && T.beam <= 0 && (B.beamDue = true) && !B.sweep && !(B.lockT > 0) && !(B.walk && B.walk.land)) {
       // its beam is due: it starts nothing new and lets what's under way finish (a step, a gun sweep, a rocket lock), then
-      // beams; its rockets still flying fizzle out, and a micro-missile swarm holds where it is till the beam's done
+      // beams; its rockets still flying fizzle out
       B.beamDue = false;
       for (let i = G.rockets.length - 1; i >= 0; i--) { const q = G.rockets[i]; if (q.friendly) continue; burst(q.x, q.y, 10, COL.dim, 30, 0.5, 0.3); ring(q.x, q.y, 1, 5, 0.2, COL.chalk, 0.6); G.rockets.splice(i, 1); }
-      T.beam = Math.max(MECH_BEAM_CHARGE + MECH_BEAM_SWEEP + 1.5, B.st === 'core' ? 6.5 : 9); const [cx, cy] = mechAt(B, ...MECH_CORE_AT), c = Math.atan2(p.y - cy, p.x - cx), dir = Math.random() < 0.5 ? -1 : 1, gap = Math.PI * 2 - MECH_BEAM_ARC;
+      T.beam = MECH_BEAM_EVERY; const [cx, cy] = mechAt(B, ...MECH_CORE_AT), c = Math.atan2(p.y - cy, p.x - cx), dir = Math.random() < 0.5 ? -1 : 1, gap = Math.PI * 2 - MECH_BEAM_ARC;
       const opts = []; for (let a = 0.3; a < Math.PI - 0.3; a += 0.1) if (Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c))) > 1.2) opts.push(a);
       const g = opts.length ? opts[Math.floor(Math.random() * opts.length)] : c + Math.PI, a0 = g + dir * gap / 2;
       B.beam = { t: 0, g, dir, a0, a1: a0 + dir * MECH_BEAM_ARC }; sfx.blasterCharge();
