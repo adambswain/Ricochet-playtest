@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 21:30 UTC · 22a5b95";</script>
+<script>window.RICOCHET_BUILD = "Nov 06 21:37 UTC · 2b19b23";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7653,19 +7653,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // done it, worded for the controls you're using. Skip ends it; How to play and Settings replay it.
   let tutDone = false;
   try { tutDone = localStorage.getItem('ricochet.tutorial') === 'done'; } catch (e) {}
-  const TUT_ORDER = ['move', 'throw', 'bounce', 'pull', 'catch', 'again', 'burn'];
+  const TUT_ORDER = ['move', 'throw', 'bounce', 'pull', 'catch', 'again'];
   const TUT_OK = 0.7; // a done step shows its tick this long
   // min: a step that explains something stays up at least this long, and is never skipped
   const tutBall = () => G.balls[0];
+  const tutHeat = c => `At 15 charges your ball begins to overheat... Its charges reset to 0 and it drifts back to you. ${c.touch ? `Hold the ${c.R} side` : 'Hold the mouse button or Space'} to pull it toward you faster.`;
   const TUT = {
     move: { text: (T, c) => c.touch ? `Drag your ${c.L} thumb on the ${c.L} half of the screen to fly.` : 'Fly with WASD or the arrow keys.', done: T => T.moved > 22 },
-    throw: { text: (T, c) => (T.boomed ? 'Throw it again. ' : '') + (c.touch ? `Swipe your ${c.R} thumb on the ${c.R} half to throw the ball that way. A tap throws it straight ahead.` : 'Click to throw the ball at your cursor, or press Space.'), done: () => tutBall().state === 'live' },
-    bounce: { text: () => 'Every bounce adds 1 damage to your ball, and it speeds up. Watch the Charge bar fill.', done: () => tutBall().b >= 4, min: 2.5, hi: 'charge' },
+    throw: { text: (T, c) => (T.boomed ? 'Throw it again. ' : '') + (c.touch ? `Tap the ${c.R} side of the screen to throw the ball in the direction you're facing. Tip: swipe in the direction you want to throw the ball.` : 'Click to throw the ball at your cursor, or press Space.'), done: () => tutBall().state === 'live' },
+    bounce: { text: (T, c) => `Every bounce adds 1 damage to the ball and increases its speed. Keep an eye on the charge bar. ${tutHeat(c)}`, done: () => tutBall().b >= 4, min: 6, hi: 'charge' },
     pull: { text: (T, c) => c.touch ? `Now hold your ${c.R} thumb down on the ${c.R} half. The ball bends toward you.` : 'Now hold the mouse button, or Space. The ball bends toward you.', done: T => T.pull > 0.6, hi: 'mode' },
     catch: { text: () => 'Keep holding until it flies into your ship. That catches it.', done: T => T.caught, hi: 'mode' },
     again: { text: () => 'Caught! A catch takes 5 off its charge and it keeps the rest. In your hands it cools 1 a second. Throw it again.', done: () => tutBall().state === 'live', min: 2.5, hi: 'charge' },
-    burn: { text: () => 'At 15 charge your ball burns. After 2 seconds its next bounce blows it up: it kills everything nearby, but resets your multiplier. Every kill restarts the 2 seconds. Or catch it first.', done: () => true, min: 8 },
-    boom: { text: () => 'That was an overload. At 15 charge your ball burns, and its next bounce blows it up. Then it drifts back to you, empty: fly into it to grab it.', done: () => tutBall().state === 'held' },
+    boom: { text: (T, c) => tutHeat(c), done: () => tutBall().state === 'held' }, // it overheated: the second half of the bounce tip again
+
   };
   function tutFinish(skipped) {
     G.tut = null; tutDone = true;
@@ -7673,7 +7674,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!skipped && touchHint) { touchHint = false; try { localStorage.setItem('ricochet.touchHint', 'done'); } catch (e) {} } // you've done it all now
     showTut();
   }
-  // the next step: skips any you've already done (a catch made early, the burn note after you've seen an overload)
+  // the next step: skips any you've already done (a catch made early; the bounce tip after you've seen an overload)
   function tutNext(T) {
     for (;;) {
       T.i++; T.t = 0; T.ok = 0;
@@ -7692,7 +7693,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     T.px = p.x; T.py = p.y;
     if (T.k === 'pull' && G.pulling) T.pull += dt;
     // an overload mid-tutorial gets explained on the spot, then you pick up where you were
-    if (T.k !== 'boom' && tutBall().state === 'ember') { T.back = T.caught ? TUT_ORDER.length : TUT_ORDER.indexOf('throw'); T.k = 'boom'; T.t = 0; T.ok = 0; T.boomed = true; T.skip.bounce = T.skip.burn = true; return; }
+    if (T.k !== 'boom' && tutBall().state === 'ember') { T.back = T.caught ? TUT_ORDER.length : TUT_ORDER.indexOf('throw'); T.k = 'boom'; T.t = 0; T.ok = 0; T.boomed = true; T.skip.bounce = true; return; }
     if (T.k === 'boom') {
       if (T.ok > 0) { T.ok -= dt; if (T.ok <= 0) { T.i = T.back - 1; T.caught = false; tutNext(T); } }
       else if (TUT.boom.done(T)) T.ok = TUT_OK;
@@ -7701,7 +7702,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (T.caught && (T.k === 'bounce' || T.k === 'pull')) { T.i = TUT_ORDER.indexOf('catch'); T.k = 'catch'; T.ok = TUT_OK; } // caught before we asked: straight to the catch's tick
     if (T.ok > 0) { T.ok -= dt; if (T.ok <= 0) tutNext(T); return; }
     const step = TUT[T.k];
-    if (T.t >= (step.min || 0) && step.done(T)) { if (T.k === 'burn') tutFinish(false); else T.ok = TUT_OK; }
+    if (T.t >= (step.min || 0) && step.done(T)) T.ok = TUT_OK;
   }
   // the prompt, kept in step with the game each frame (and hidden whenever play isn't on screen)
   const tutC = {}, tutCoarse = matchMedia('(pointer: coarse)').matches;
@@ -7714,12 +7715,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (tutC.text !== text) { tutC.text = text; $('tutText').textContent = text; }
     if (tutC.n !== n) { tutC.n = n; $('tutLbl').textContent = 'Tutorial' + n; }
     el.classList.toggle('ok', ok);
-    $('tutSkip').textContent = T.k === 'burn' ? 'Start' : 'Skip';
     const hi = ok ? null : step.hi; $('charge').classList.toggle('tutHi', hi === 'charge'); $('mode').classList.toggle('tutHi', hi === 'mode');
     const pos = `${Math.round(AX + BW / 2)}|${Math.round(AY + 8)}|${Math.round(BW)}`;
     if (tutC.pos !== pos) { tutC.pos = pos; el.style.left = `${Math.round(AX + BW / 2)}px`; el.style.top = `${Math.round(AY + 8)}px`; el.style.width = `min(22rem, ${Math.round(BW - 16)}px)`; }
   }
-  $('tutSkip').addEventListener('click', () => { $('tutSkip').blur(); if (G && G.tut) tutFinish(G.tut.k !== 'burn'); }); // on the last note it reads Start
+  $('tutSkip').addEventListener('click', () => { $('tutSkip').blur(); if (G && G.tut) tutFinish(true); });
   document.querySelectorAll('.tutBtn').forEach(b => b.addEventListener('click', () => { b.blur(); $('ov-how').hidden = true; $('ov-settings').hidden = true; startGame(1, true); }));
 
   function updateWaves(dt) {
