@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 07 01:32 UTC · a0bb9dc";</script>
+<script>window.RICOCHET_BUILD = "Nov 07 02:17 UTC · 6a4f46b";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -783,6 +783,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       voice({ noise: true, filter: 'lowpass', ff: 1100, ff2: 260, dur: 0.14, vol: 0.24 });
       voice({ noise: true, filter: 'bandpass', ff: 1900, q: 5, dur: 0.05, vol: 0.09 });
     },
+    vexaBuzz() { voice({ type: 'sine', f: 1900, f2: 2600, dur: 0.12, vol: 0.05 }); voice({ type: 'sawtooth', f: 140, f2: 440, dur: SWOOP_WARN, vol: 0.05, filter: 'lowpass', ff: 1500 }); voice({ type: 'square', f: 70, f2: 220, dur: SWOOP_WARN, vol: 0.03, filter: 'lowpass', ff: 600 }); }, // Vexa's swoop tell: a glint, then a rising buzz
     blasterCharge() { voice({ type: 'sine', f: 260, f2: 980, dur: GEO_CHARGE, vol: 0.06, wet: 0.2 }); voice({ type: 'sawtooth', f: 130, f2: 490, dur: GEO_CHARGE, vol: 0.03, filter: 'lowpass', ff: 900 }); },
     blaster() { voice({ type: 'square', f: 720, f2: 170, dur: 0.22, vol: 0.12, filter: 'lowpass', ff: 2400 }); voice({ f: 90, f2: 50, dur: 0.18, vol: 0.2 }); voice({ noise: true, filter: 'bandpass', ff: 1400, q: 1, dur: 0.1, vol: 0.08 }); },
     geoSwell() { voice({ type: 'sine', f: 180, f2: 1100, dur: GEO_POP, vol: 0.09, wet: 0.3 }); voice({ type: 'sawtooth', f: 90, f2: 420, dur: GEO_POP, vol: 0.05, filter: 'lowpass', ff: 700 }); },
@@ -1183,11 +1184,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // ring closes on where you are (CAGE_WARN; get clear and it's nothing), then a ring of wax cells grows there. Break
   // out (shoot a cell out and slip through) before CAGE_TIME runs out, or every cell left hatches a bee in there with
   // you. While you're caged she flies up out of the arena; when it's over she swoops back down furious: everything
-  // comes faster, and her sting fires a spread of three. Below VEXA_BERSERK of her health, faster still.
-  // Every VEXA_SWOOP she swoops: her shadow appears on the floor where she'll land, growing and darkening while she draws
-  // up and shivers (SWOOP_WARN), then she dives onto it (her body hurts), perches low for SWOOP_PERCH with her abdomen in
-  // easy reach (and a hit there is worth SWOOP_K times as much), and flies back up. Her bee walls keep coming meanwhile
-  // (from the sides and the bottom); her sting and her honeycomb wait.
+  // comes faster. From her second phase (below two thirds) her sting fires a spread of three. Below VEXA_BERSERK of her health, faster still.
+  // Every VEXA_SWOOP she swoops. No marker, just her tell (SWOOP_WARN): a glint, a rising buzz, and she rears back,
+  // shivering. Then she dives at where you are that moment (her body hurts: keep moving), perches there for SWOOP_PERCH
+  // with her abdomen in easy reach (and a hit there is worth SWOOP_K times as much), and flies back up. Her bee walls keep
+  // coming meanwhile (from the sides and the bottom); her sting and her honeycomb wait.
   // Both halves throw honeycomb: a chunk of seven wax cells, flagged by a ring closing on an edge cell (or flung by the
   // queen), that flies and bounces off the walls COMB_BOUNCES times or for COMB_LIFE seconds, then crumbles. Its touch
   // hurts; each cell breaks in one hit and counts toward the chain, and breaking the core cell shatters the rest.
@@ -1200,10 +1201,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const VEXA_AIM = 1.05, VEXA_LOCK = 0.25, VEXA_NEEDLE = 160, VEXA_BEE_V = [38, 44, 50, 56], VEXA_COMB = [6.5, 5.5, 5, 4.5];
   // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
   const VEXA_BODY = [[0.82, 0.5, false], [0, 0.5, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
-  const QUEEN_R = 9.5, QUEEN_HP = 350, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
+  const QUEEN_R = 9.5, QUEEN_HP = 550, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
   const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 }, FORM_LAYERS = [1, 3, 5, 7], FORM_LAYERS_COL = [1, 2, 3, 4], FORM_THICK = 2; // a formation's depth, by how tough she's got: the same line, more of it (a column, the arena's whole height, gets half as many: about as many bees)
   const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [6.5, 5.5, 5, 5];
-  const VEXA_SWOOP = [16, 14, 12, 11], SWOOP_WARN = 1.2, SWOOP_DIVE = 0.6, SWOOP_PERCH = 2, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
+  const VEXA_LULL = 0.6; // with nothing coming at you, her next wall (and sting) comes this soon
+  const VEXA_SWOOP = [16, 14, 12, 11], SWOOP_WARN = 0.9, SWOOP_DIVE = 0.6, SWOOP_PERCH = 2, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
   function setupHive(B, cycle) {
     const S = HIVE_CELL, cx = AW / 2, cy = clamp(AH * 0.36, S * 9, AH * 0.45), cells = [];
@@ -1530,7 +1532,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!B.swoop) { B.x += (hang[0] - B.x) * Math.min(1, dt * 2); B.y += (hang[1] - B.y) * Math.min(1, dt * 2); }
     const [tx0, ty0] = vexaTip(B), want = clamp(Math.atan2(p.y - ty0, p.x - tx0) - Math.PI / 2, -0.4, 0.4); // her abdomen leans toward you
     if (B.mode !== 'lock' && !B.swoop) B.face += (-Math.PI / 2 + want - B.face) * Math.min(1, dt * 2.5);
-    if (p.inv <= 0) for (const [x, y, rr] of vexaBody(B)) if (Math.hypot(p.x - x, p.y - y) < rr + PLAYER_R * 0.8) { damagePlayer(); break; }
+    if (p.inv <= 0) for (const [x, y, rr] of vexaBody(B)) if (Math.hypot(p.x - x, p.y - y) < rr + PLAYER_R + 0.3) { damagePlayer(); break; } // touching her (she's solid: pushOut holds you at arm's length, so touching is that close)
     if (B.cage) { updateCage(B, dt, ph2); return; } // she holds her fire while you're caged
     if (!B.caged && B.hp <= B.maxHp * VEXA_CAGE_AT) { B.caged = true; B.swoop = null; vexaCage(B); return; } // once, at half health, whatever did the damage
     if (B.swoop) { vexaSwoop(B, dt, ph2); vexaWalls(B, dt, ph2, true); return; } // while she swoops, only her bee walls keep coming
@@ -1544,7 +1546,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const [tx, ty] = vexaTip(B);
       if (B.modeT > VEXA_LOCK) B.aimA = Math.atan2(p.y - ty, p.x - tx); else B.mode = 'lock';
       if (B.modeT <= 0) {
-        for (const off of B.mad ? [-0.22, 0, 0.22] : [0]) G.bullets.push({ x: tx, y: ty, vx: Math.cos(B.aimA + off) * VEXA_NEEDLE, vy: Math.sin(B.aimA + off) * VEXA_NEEDLE, r: 1.6, sting: true }); // furious: a spread of three
+        for (const off of B.mad || B.phase >= 2 ? [-0.22, 0, 0.22] : [0]) G.bullets.push({ x: tx, y: ty, vx: Math.cos(B.aimA + off) * VEXA_NEEDLE, vy: Math.sin(B.aimA + off) * VEXA_NEEDLE, r: 1.6, sting: true }); // furious: a spread of three
         B.mode = 'hang'; B.stingT = VEXA_STING[ph2]; B.recoil = 1; shake(0.8); sfx.blaster();
       }
     }
@@ -1902,6 +1904,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     sfx.field();
   }
   function vexaWalls(B, dt, ph2, swooping) {
+    const quiet = !G.enemies.some(e => e.bee && e.form) && !G.bullets.some(q => q.sting) && B.mode === 'hang'; // nothing coming at you
+    if (quiet) { B.formT = Math.min(B.formT, VEXA_LULL); if (!swooping) B.stingT = Math.min(B.stingT, VEXA_LULL); }
     if (ph2 < FORM_THICK || G.enemies.filter(e => e.bee && e.form).length < 8) B.formT -= dt;
     if (B.formT > 0) return;
     B.formT = VEXA_FORM[ph2];
@@ -1910,15 +1914,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Her swoop: a perch low down near you
   function vexaSwoopStart(B) {
-    const p = G.player, r = vexaR(), x1 = clamp(p.x + rand(-6, 6), AW * 0.22, AW * 0.78), y1 = Math.min(AH * 0.55, AH - 2.4 * r - 8);
-    B.swoop = { ph: 'warn', t: 0, x0: B.x, y0: B.y, x1, y1 };
-    sfx.blasterCharge(); float(B.x, B.y + r * 1.5, 'Swoop!', COL.threat, 3.2);
+    B.swoop = { ph: 'warn', t: 0, x0: B.x, y0: B.y };
+    const [hx, hy] = vexaBody(B)[0]; ring(hx, hy, 1, vexaR() * 1.2, 0.3, COL.chalk, 1.1); sfx.vexaBuzz(); // her tell starts with a glint
   }
   function vexaSwoop(B, dt, ph2) {
     const W = B.swoop, ease = k => k * k * (3 - 2 * k); W.t += dt;
     if (W.ph === 'warn') { // drawing up and shivering, her lane lit below her
-      const k = clamp(W.t / SWOOP_WARN, 0, 1); B.x = W.x0 + Math.sin(G.time * 60) * 0.5 * k; B.y = W.y0 - 4 * ease(k); B.face = -Math.PI / 2;
-      if (W.t >= SWOOP_WARN) { W.ph = 'dive'; W.t = 0; W.ys = B.y; sfx.boss(); }
+      const k = clamp(W.t / SWOOP_WARN, 0, 1); B.x = W.x0 + Math.sin(G.time * 60) * 0.8 * k; B.y = W.y0 - 7 * ease(k); B.face = -Math.PI / 2;
+      if (W.t >= SWOOP_WARN) { // she dives at where you are now: her body lands on you unless you've moved
+        const p = G.player, r = vexaR(); W.x1 = clamp(p.x, r * 1.2, AW - r * 1.2); W.y1 = clamp(p.y - r * 0.6, r * 1.2, AH - 2.3 * r);
+        W.ph = 'dive'; W.t = 0; W.ys = B.y; sfx.boss(); }
     } else if (W.ph === 'dive') { // down the lane, quicker and quicker
       const k = clamp(W.t / SWOOP_DIVE, 0, 1), e = k * k; B.x = W.x0 + (W.x1 - W.x0) * e; B.y = W.ys + (W.y1 - W.ys) * e;
       B.face = -Math.PI / 2 + clamp((W.x1 - W.x0) * 0.004, -0.3, 0.3);
@@ -2811,18 +2816,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The queen in the fight: the stinger's lane while she aims, then Vexa, leaning with her abdomen toward you. She grows
   // as she emerges and shrinks back as she retreats; her face follows the fight (narrowed to aim, shut when hit, furious
   // below VEXA_BERSERK).
-  // Her swoop's warning: her shadow on the floor where she'll land, in the shape of her perched (all of it hurts as she
-  // lands), small and faint at first, growing and darkening as she draws up; its rim flashes just before she dives
-  function drawSwoopShadow(B) {
-    const W = B.swoop, k = W.ph === 'dive' ? 1 : clamp(W.t / SWOOP_WARN, 0, 1), e = k * k * (3 - 2 * k), r = vexaR(), sc = 0.55 + 0.45 * e;
-    const fl = (W.ph === 'dive' || W.t > SWOOP_WARN - 0.3) && Math.floor(G.time * 20) % 2;
-    ctx.save(); ctx.beginPath();
-    for (const [lx, rr] of VEXA_BODY) { const x = W.x1, y = W.y1 - lx * r * sc, R = rr * r * sc; ctx.moveTo(x + R, y); ctx.arc(x, y, R, 0, Math.PI * 2); }
-    ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.globalAlpha = 0.35 + 0.6 * e; ctx.lineWidth = 2 * (0.35 + 0.35 * e); ctx.stroke(); // its rim (the fill covers the inner half)
-    ctx.globalAlpha = 1; ctx.fillStyle = COL.ink; ctx.fill();
-    ctx.globalAlpha = 0.15 + 0.35 * e; ctx.fillStyle = '#000'; ctx.fill();
-    ctx.restore(); ctx.globalAlpha = 1;
-  }
   function drawQueen(B) {
     const aiming = B.st === 'queen' && (B.mode === 'aim' || B.mode === 'lock'), threat = COL.threat;
     const em = B.st === 'emerge' ? 1 - B.modeT / QUEEN_EMERGE : B.st === 'retreat' ? B.modeT / VEXA_RETREAT : 1;
@@ -2838,7 +2831,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     const sc = 1 - Math.pow(1 - clamp(em, 0, 1), 2);
     if (sc <= 0.01) return;
-    drawVexa(B, 1, sc, { aim: aimK, hurt: B.hurt || 0, mad: B.st === 'queen' && B.mad ? 1 : 0, rot: (B.face ?? -Math.PI / 2) + Math.PI / 2, curl: 0.4 });
+    const glint = B.st === 'queen' && B.swoop && B.swoop.ph === 'warn' ? clamp(1 - B.swoop.t / 0.35, 0, 1) : 0; // her swoop's tell
+    drawVexa(B, 1, sc, { aim: aimK, hurt: glint > 0.55 ? 1 : B.hurt || 0, mad: B.st === 'queen' && B.mad ? 1 : 0, rot: (B.face ?? -Math.PI / 2) + Math.PI / 2, curl: 0.4 });
+    if (glint > 0) { // a four-point sparkle on her head
+      const [hx, hy, hr] = vexaBody(B)[0], s2 = hr * (0.6 + 1.6 * Math.sin(glint * Math.PI)), w = s2 * 0.16;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.chalk; ctx.globalAlpha = Math.min(1, glint * 1.6);
+      ctx.beginPath(); ctx.moveTo(hx - s2, hy); ctx.lineTo(hx, hy - w); ctx.lineTo(hx + s2, hy); ctx.lineTo(hx, hy + w); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(hx, hy - s2); ctx.lineTo(hx + w, hy); ctx.lineTo(hx, hy + s2); ctx.lineTo(hx - w, hy); ctx.closePath(); ctx.fill();
+      ctx.restore(); ctx.globalAlpha = 1;
+    }
   }
   // The Carrier's death. The hit (MAW_DIE_HIT): a freeze and a flash. The chain (to MAW_BLOW): explosions go off all over
   // the hull, faster and faster, the docked and parked jets cook off one by one, the launched ones blow up in the air,
@@ -9479,7 +9480,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.debris.length) drawDebris();
     if (G.enemies.some(e => e.micro)) drawMicroCentres();
     if (G.squadWarn.length) drawSquadWarn();
-    if (G.boss && G.boss.kind === 'hive' && G.boss.swoop && (G.boss.swoop.ph === 'warn' || G.boss.swoop.ph === 'dive')) drawSwoopShadow(G.boss);
     if (G.mortars.length) drawMortars();
     // enemies, clipped to the arena
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
