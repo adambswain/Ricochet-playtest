@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 06 22:12 UTC · 7d7758e";</script>
+<script>window.RICOCHET_BUILD = "Nov 07 01:32 UTC · a0bb9dc";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -386,7 +386,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 <section class="ov" id="ov-win" hidden>
   <div class="panel">
     <p class="big" id="w-title">Loop 1 complete</p>
-    <p class="tag" id="w-sub">The Hive has fallen</p>
+    <p class="tag" id="w-sub">Vexa has fallen</p>
     <div class="row">
       <div class="stat"><span class="lbl">Score</span><span class="val" id="w-score">0</span></div>
       <div class="stat"><span class="lbl">Time</span><span class="val" id="w-time">0:00</span></div>
@@ -574,7 +574,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
     40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, he flies about in his saucer throwing balls of his own: they bounce and charge like yours, and hurt. Smash them with a ball at least as hot. Dodge his laser bars. Hit the pink orbs in his walls: each one bursts the wall round it',
-    46: 'Bees! The Hive\'s scouts are out. Something big is buzzing nearby',
+    46: 'Bees! Vexa\'s scouts are out. Something big is buzzing nearby',
     39: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
     13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
@@ -589,7 +589,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     58: 'Mortars: circles show where the shells will land, one right on you. Keep moving',
     59: 'Something huge is coming. Feel that?',
     60: 'Goliath: knees pin it down, weapons silence it, thrusters ground it. Break them all, then hit it anywhere. Hit its rockets back at it',
-    50: 'The Hive: dig to the royal cell to bring out Queen Vexa, then hit her glowing abdomen. When she cages you, break out before it hatches',
+    50: 'Vexa: dig through her hive to the royal cell to bring her out, then hit her glowing abdomen. When she cages you, break out before it hatches',
     23: 'Swarm Storm: hold out for 25 seconds while swarm after swarm blows in. Chain them',
     26: 'Titans close in from every side. When one stomps, get clear. Each cracks into brutes, and each brute into splinters',
     38: 'Crusher: brick walls close in. Break them to push them back',
@@ -1122,7 +1122,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const bossFor = n => { const k = inLoop(n); return k % 10 === 0 ? BOSSES[(k / 10 - 1) % BOSSES.length] : null; };
   // how many times this boss has come before, so each visit is harder than its last
   const bossCycle = n => loopOf(n);
-  const BOSS_NAMES = { core: 'The Core', tank: 'Clanktank', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'The Hive', mech: 'Goliath' };
+  const BOSS_NAMES = { core: 'The Core', tank: 'Clanktank', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'Vexa', mech: 'Goliath' };
   const BOSS_TITLES = { geode: 'the Jailer' }; // shown under the name as it lands
   const RAM_AIM = 1.2, RAM_LOCK = 0.35, RAM_SPEED = 110, RAM_STUN = 2.4;
   const CORE_R = 16, CORE_SPEED = 9, BOMB_R = 3.6, BOMB_SPEED = 16, BOMB_RETURN = 90, BOMB_FUSE = 10, BOMB_FUSE_BLAST = 14, BOMB_MAX = 4;
@@ -1195,6 +1195,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const COMB_SPEED = 50, COMB_BOUNCES = 3, COMB_LIFE = 7, COMB_MAX = 2, COMB_WARN = 0.7, COMB_EVERY = [6, 5, 4], WAX_S = 3;
   const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2, HIVE_FINALE = 25000;
   const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [4.5, 3.8, 3], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
+  const HIVE_LULL = 0.6, COMB_LULL = 1; // during the dig, once you've cleared every bee (or every chunk of honeycomb), the next comes this soon
   const VEXA_SC = 1.5, VEXA_CAGE_AT = 0.5, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [5, 4.3, 3.7, 3.2], VEXA_STING = [2.6, 2.2, 1.9, 1.5];
   const VEXA_AIM = 1.05, VEXA_LOCK = 0.25, VEXA_NEEDLE = 160, VEXA_BEE_V = [38, 44, 50, 56], VEXA_COMB = [6.5, 5.5, 5, 4.5];
   // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
@@ -1467,7 +1468,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.st === 'comb') { // an outer cell flashes, then hatches bees
       // an edge cell facing you is marked by a closing ring, then throws a chunk of comb
       B.combT -= dt;
-      const thrower = B.cells.find(c => c.throwT > 0);
+      const thrower = B.cells.find(c => c.throwT > 0), clear = !G.enemies.some(e => e.bee && !e.gone);
+      if (!B.combs.length && !thrower) B.combT = Math.min(B.combT, COMB_LULL); // no honeycomb out: the next chunk soon
       if (thrower) {
         thrower.throwT -= dt;
         if (thrower.throwT <= 0) {
@@ -1505,6 +1507,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       B.hatchT -= dt;
       const warm = B.cells.find(c => c.hatch > 0);
+      if (clear && !warm) B.hatchT = Math.min(B.hatchT, HIVE_LULL); // you've cleared the bees: the next cell flashes at once
       if (warm) { warm.hatch -= dt; if (warm.hatch <= 0) { warm.hatch = 0; if (warm.hp > 0) spawnBees(warm.x, warm.y, HIVE_BEES); } }
       else if (B.hatchT <= 0) {
         B.hatchT = HIVE_HATCH[ph];
@@ -1802,7 +1805,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'mech') G.result = { text: 'Goliath has fallen', sub: `+${bonus.toLocaleString()} (×${G.mult.toFixed(1)})`, t: 4, max: 4 };
     if (B.kind === 'geode' || B.kind === 'maw' || B.kind === 'tank' || B.kind === 'mech') { /* the reward comes with the bang (geoPop, mawBlow, the Tank's blow) */ }
     else if (B.kind === 'hive') { // the finale's reward (the hull repaired to full) comes when she bursts (vexaPop)
-      G.result = { text: 'The Hive has fallen', sub: `+${bonus.toLocaleString()} (×${G.mult.toFixed(1)})`, t: 4, max: 4 };
+      G.result = { text: 'Vexa has fallen', sub: `+${bonus.toLocaleString()} (×${G.mult.toFixed(1)})`, t: 4, max: 4 };
       for (const e of G.enemies) if (e.bee || e.type === 'egg' || e.type === 'wax') e.gone = true; // the swarm dies with its queen
     } else if (B.kind === 'serpent') { // the Serpent's reward (its twin goes up with it)
       if (B.twin && B.twin.st === 'pass') { const T = B.twin; for (const q of [[T.hx, T.hy], ...T.segs.map(s2 => [s2.x, s2.y])]) burst(q[0], q[1], 14, COL.threat, 50, 0.7, 0.5); ring(T.hx, T.hy, 2, 40, 0.6, COL.threat, 1.2); }
