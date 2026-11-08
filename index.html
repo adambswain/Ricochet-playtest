@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 08 23:06 UTC · 897e5ae";</script>
+<script>window.RICOCHET_BUILD = "Nov 08 23:24 UTC · d7a7c46";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1141,16 +1141,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // eggs as it passes, SERP_EGGS in a clump, and every egg not broken in SEGG_HATCH hatches, all together, into a school
   // of hatchlings that swims at you as one; a whole clutch is a real threat, a few stragglers aren't. Like it, only a
   // hatchling's head bites, and a hit anywhere on one kills it. When it splits, a brood bursts out of the cut.
-  // Once a pass, the head strikes: when it's in the arena and near you it slows and turns on you, a line showing
+  // Up to SERP_STRIKES times a pass (SERP_STRIKE_GAP apart), the head strikes: when it's in the arena and near you it slows and turns on you, a line showing
   // where it'll go (SERP_AIM, locking for the last SERP_LOCK), then lunges (SERP_LUNGE at SERP_DASH × speed).
   // At half health it splits at the middle of its body: the tail half grows a head (a little smaller) and swims off
   // on passes of its own, and both halves grow fresh armour (every plate shut again, one tougher), so the second half
   // of the fight starts over rather than finishing off cores you'd already opened. Two serpents, one health bar. Barely a pause between passes.
-  const SERP_HP = 200;
+  const SERP_HP = 320;
   const SERP_N = 14, SERP_GAP = 10.5, SERP_HEAD = 12, SERP_SPEED = [48, 56, 66], SERP_REST = [0.7, 0.5, 0.35], SERP_CROWD = [18, 22, 26];
   const SERP_CLUTCH = [6, 5, 4], SERP_EGGS = [8, 10, 12], SEGG_HATCH = 5.5; // how often it lays a clutch, how many eggs in one, how long they take to hatch
   const PACK_SEP = 6.5, PACK_COH = 0.6; // a hatched clutch swims as a school: how far apart its hatchlings keep, how hard they hold together
-  const SERP_AIM = 0.8, SERP_LOCK = 0.25, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 70, SERP_SPLIT = 0.5;
+  const SERP_AIM = 0.8, SERP_LOCK = 0.25, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 90, SERP_SPLIT = 0.5;
+  const SERP_STRIKES = 2, SERP_STRIKE_GAP = 1.5; // strikes a pass (at most), and the least time between them
   // Both serpents: the boss itself, and once it's split, its twin (which shares its health, phase and the rest)
   const serpents = B => B.twin ? [B, B.twin] : [B];
   const serpHead = S => SERP_HEAD * (S.hs || 1);
@@ -1336,7 +1337,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function serpentStart(B) { // line the body up outside the entry wall, facing in
     const [ex, ey] = B.next.at, [tx, ty] = B.next.to, a = Math.atan2(ty - ey, tx - ex), m = SERP_HEAD + 3;
-    B.ha = a; B.hx = ex - Math.cos(a) * m; B.hy = ey - Math.sin(a) * m; B.st = 'pass'; B.passT = 0; B.wig = rand(0, 6); B.lock = false; B.struck = false; B.strike = null;
+    B.ha = a; B.hx = ex - Math.cos(a) * m; B.hy = ey - Math.sin(a) * m; B.st = 'pass'; B.passT = 0; B.wig = rand(0, 6); B.lock = false; B.struck = false; B.strikes = 0; B.strikeAt = 1.2; B.strike = null;
     B.segs.forEach((s2, i) => { s2.x = B.hx - Math.cos(a) * SERP_GAP * (i + 1); s2.y = B.hy - Math.sin(a) * SERP_GAP * (i + 1); });
     shake(1.5); gridImpulse(ex, ey, 30, 160); burst(ex, ey, 30, COL.threat, 60, 0.8, 0.5); sfx.boss();
   }
@@ -1383,7 +1384,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.split = true;
     const k = B.segs.length >> 1, tail = B.segs.splice(k), front = tail.shift(), back = tail[0] || B.segs[B.segs.length - 1];
     const T = Object.create(B);
-    Object.assign(T, { twin: null, segs: tail, hx: front.x, hy: front.y, hs: 0.8, st: 'pass', stT: 0, passT: 0, lock: false, wig: rand(0, 6), strike: null, struck: false, flash: 0.3, hitCd: 0 });
+    Object.assign(T, { twin: null, segs: tail, hx: front.x, hy: front.y, hs: 0.8, st: 'pass', stT: 0, passT: 0, lock: false, wig: rand(0, 6), strike: null, struck: false, strikes: 0, strikeAt: 1.2, flash: 0.3, hitCd: 0 });
     T.ha = Math.atan2(front.y - back.y, front.x - back.x) + (Math.random() < 0.5 ? -1 : 1) * 1.3;
     serpentPlan(T); B.twin = T;
     for (const s2 of [...B.segs, ...T.segs]) { const was = s2.open; s2.max += 1; s2.hp = s2.max; s2.open = false; s2.flash = 0.3; if (was) ring(s2.x, s2.y, s2.r, s2.r + 5, 0.35, COL.wall, 0.8); } // both halves grow fresh armour (a little thicker): the second half starts over
@@ -1405,18 +1406,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     // swim: steer toward a point well past the exit wall with a slow wave, the body following link by link.
     // Once the head is out (or the pass drags on) it stops steering and dives straight out, so it can never
-    // circle a point on the wall. Once a pass, near you, it strikes.
+    // circle a point on the wall. Up to SERP_STRIKES times a pass, near you, it strikes.
     let sp = SERP_SPEED[S.phase - 1] * (1 + S.cycle * 0.1);
     const tx = S.next.to[0] + S.next.n[0] * 80, ty = S.next.to[1] + S.next.n[1] * 80, HR = serpHead(S);
     S.passT += dt;
-    if (!S.struck && !S.strike && !S.lock && S.passT > 1.2 && !offArena(S.hx, S.hy, -10) && Math.hypot(p.x - S.hx, p.y - S.hy) < SERP_REACH) { S.strike = { st: 'aim', t: SERP_AIM }; sfx.blasterCharge(); }
+    if ((S.strikes || 0) < SERP_STRIKES && !S.strike && !S.lock && S.passT > (S.strikeAt ?? 1.2) && !offArena(S.hx, S.hy, -10) && Math.hypot(p.x - S.hx, p.y - S.hy) < SERP_REACH) { S.strike = { st: 'aim', t: SERP_AIM }; sfx.blasterCharge(); }
     if (S.strike) { // it rears and turns on you, locks, and lunges
       const K = S.strike; K.t -= dt;
       if (K.st === 'aim') {
         sp *= 0.25;
         if (K.t > SERP_LOCK) { let da = Math.atan2(p.y - S.hy, p.x - S.hx) - S.ha; da = Math.atan2(Math.sin(da), Math.cos(da)); S.ha += clamp(da, -5 * dt, 5 * dt); }
         if (K.t <= 0) { K.st = 'lunge'; K.t = SERP_LUNGE; shake(1.5); sfx.boss(); }
-      } else { sp *= SERP_DASH; if (K.t <= 0) { S.strike = null; S.struck = true; } }
+      } else { sp *= SERP_DASH; if (K.t <= 0) { S.strike = null; S.struck = true; S.strikes = (S.strikes || 0) + 1; S.strikeAt = S.passT + SERP_STRIKE_GAP; } }
     } else {
       if (!S.lock && S.passT > 12) { S.lock = true; S.ha = Math.atan2(ty - S.hy, tx - S.hx); }
       if (!S.lock && (S.hx - S.next.to[0]) * S.next.n[0] + (S.hy - S.next.to[1]) * S.next.n[1] > HR) S.lock = true; // out past the exit wall
@@ -3504,7 +3505,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a)); // an angle wrapped to -π..π
   /* ---------- the Tank ---------- */
   // Wave 10. Two fights in one.
-  // The tank (phase one): a big armoured tank drives round the arena, its turret tracking you, firing a shell
+  // Its shells (both phases) burst. The tank (phase one): a big armoured tank drives round the arena, its turret tracking you, firing a shell
   // (telegraphed for TANK_AIM: the muzzle glows and a line shows the shot) that bursts (TANK_BLAST) as far out as you
   // were when it fired, or on whatever it hits first; and ramming like the old Core: it stops, swings round till it
   // faces you, locks on and charges, and is stunned when it hits the wall. Its treads (TANK_TREAD each)
@@ -3521,7 +3522,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The bar is the treads and the reactor (TANK_TREAD × 2 ≈ a fifth of it): the pods are optional.
   const TANK_S = 1.45, TANK_TREAD = 32, TANK_REACTOR = 126, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 0.45, TANK_LIMP = 0.45;
   const TANK_FIRE = [3.2, 2.8, 2.4], TANK_BURST = [4, 3.5, 3], TANK_AIM = 0.9, TANK_SHELL = 52, TANK_SHELL_DUG = 40, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
-  const TANK_BLAST = 7, TANK_RAM_TURN = 2.6; // its shell's blast (phase one); how fast it swings round on you before a ram
+  const TANK_BLAST = 7, TANK_RAM_TURN = 2.6; // its shells' blast; how fast it swings round on you before a ram
   const TANK_DIG_M = 40, TANK_RAM = [6.5, 5.5, 4.5], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 3, TANK_TRICKLE = [10, 7];
   const TANK_SWEEP = [5.6, 4.8, 4], TANK_SIGHT = 1.1, TANK_SPRAY = 1, TANK_ARC = 0.95, TANK_MG = 40, TANK_MG_GAP = 0.13;
   // its parts, in its own units before TANK_S: x across (the left tread at -x), y forward (the way it drives)
@@ -3714,7 +3715,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.mode !== 'ram') { B.fireT -= dt; if (B.fireT <= 0) { B.fireT = TANK_FIRE[B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1); tankShell(B); } }
     if (B.phase >= 2) { B.trickleT -= dt; if (B.trickleT <= 0) { B.trickleT = TANK_TRICKLE[0]; tankBackup(B, 1); } }
   }
-  // Clanktank's shell going off (phase one): a blast that hurts you within TANK_BLAST
+  // Clanktank's shell going off: a blast that hurts you within TANK_BLAST
   function shellBlast(x, y) {
     const p = G.player;
     ring(x, y, 1, TANK_BLAST, 0.3, COL.threat, 1.1); ring(x, y, 0.5, TANK_BLAST * 0.6, 0.22, COL.chalk, 0.6);
@@ -3724,7 +3725,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function tankShell(B) {
     const [mx, my] = tankMuzzle(B);
     const sp = B.dug ? TANK_SHELL_DUG : TANK_SHELL, q = { x: mx, y: my, vx: Math.cos(B.aim) * sp, vy: Math.sin(B.aim) * sp, r: 2.2, shell: true };
-    if (!B.dug) q.boom = Math.hypot(G.player.x - mx, G.player.y - my); // phase one: it bursts as far out as you were when it fired, or on whatever it hits first
+    q.boom = Math.hypot(G.player.x - mx, G.player.y - my); // it bursts as far out as you were when it fired, or on whatever it hits first
     G.bullets.push(q);
     B.recoil = 1; burst(mx, my, 10, COL.threat, 35, 0.4, 0.3); shake(1.2); sfx.blaster();
   }
