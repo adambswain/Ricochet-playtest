@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 07 02:17 UTC · 6a4f46b";</script>
+<script>window.RICOCHET_BUILD = "Nov 08 20:54 UTC · 308af1f";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1432,7 +1432,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (d > SERP_GAP) { s2.x += dx / d * (d - SERP_GAP); s2.y += dy / d * (d - SERP_GAP); }
       px = s2.x; py = s2.y;
     }
-    if (p.inv <= 0 && Math.hypot(p.x - S.hx, p.y - S.hy) < HR + PLAYER_R * 0.8) damagePlayer(); // only the head bites
+    if (p.inv <= 0 && Math.hypot(p.x - S.hx, p.y - S.hy) < HR + PLAYER_R + 0.3) damagePlayer(); // only the head bites (touching it: the body's solid, so pushOut holds you at arm's length)
     // the pass is over once the head has crossed and the tail has left (a lunge can carry it out early, any wall)
     const gone = offArena(S.hx, S.hy, HR + 2) && S.segs.every(s2 => offArena(s2.x, s2.y, s2.r + 2));
     if ((gone && (S.lock || S.struck)) || S.passT > 30) {
@@ -3518,10 +3518,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Both phases: four armour tiles across its front (one hit each) and two fuel drums on its back (one hit: they explode,
   // doing TANK_DRUM_DMG to every part within TANK_DRUM_R, and to the reactor once it's open, and wrecking escorts there).
   // The bar is the treads and the reactor (TANK_TREAD × 2 ≈ a fifth of it): the pods are optional.
-  const TANK_S = 1.45, TANK_TREAD = 20, TANK_REACTOR = 126, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 0.45, TANK_LIMP = 0.45;
-  const TANK_FIRE = [3.9, 3.3, 2.8], TANK_BURST = [4, 3.5, 3], TANK_AIM = 0.9, TANK_SHELL = 40, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
-  const TANK_DIG_M = 40, TANK_RAM = [9, 7.5, 6], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 3, TANK_TRICKLE = [10, 7];
-  const TANK_SWEEP = [5.6, 4.8, 4], TANK_SIGHT = 1.1, TANK_SPRAY = 1, TANK_ARC = 0.95, TANK_MG = 40, TANK_MG_GAP = 0.13;
+  const TANK_S = 1.45, TANK_TREAD = 32, TANK_REACTOR = 190, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 0.45, TANK_LIMP = 0.45;
+  const TANK_FIRE = [3.2, 2.8, 2.4], TANK_BURST = [3.4, 3, 2.6], TANK_AIM = 0.9, TANK_SHELL = 52, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
+  const TANK_DIG_M = 40, TANK_RAM = [6.5, 5.5, 4.5], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 3, TANK_TRICKLE = [10, 7];
+  const TANK_SWEEP = [4.6, 4, 3.4], TANK_SIGHT = 1.1, TANK_SPRAY = 1, TANK_ARC = 0.95, TANK_MG = 40, TANK_MG_GAP = 0.13;
   // its parts, in its own units before TANK_S: x across (the left tread at -x), y forward (the way it drives)
   const TANK_TILES = [-6, -2, 2, 6].map(x => ({ x0: x - 1.8, x1: x + 1.8, y0: 12.2, y1: 14.8 }));
   const TANK_DRUMS = [[-5.5, -16.4], [5.5, -16.4]], TANK_DRUM_RR = 2.3;
@@ -3649,7 +3649,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.hitCd -= dt; B.armorT = (B.armorT || 0) - dt; B.recoil = Math.max(0, B.recoil - dt * 3);
     for (const k in B.parts) B.parts[k].flash -= dt;
     const da = wrapA(Math.atan2(p.y - B.y, p.x - B.x) - B.aim); B.aim += clamp(da, -(B.dug ? 2.4 : 1.5) * dt, (B.dug ? 2.4 : 1.5) * dt); // the turret tracks you
-    if (p.inv <= 0) { const [lx, ly] = tankLocal(B, p.x, p.y); if (hitRect(lx, ly, PLAYER_R * 0.8 / TANK_S, TANK_BOX)) damagePlayer(); }
+    if (p.inv <= 0) { const [lx, ly] = tankLocal(B, p.x, p.y); if (hitRect(lx, ly, (PLAYER_R + 0.3) / TANK_S, TANK_BOX)) damagePlayer(); } // touching it hurts (it's solid: pushOut holds you at arm's length, so touching is that close)
     tankCrewCall(B, dt);
     if (B.dug) { // the gun emplacement
       if (B.digT > 0) { B.digT -= dt; if (B.digFrom) { const k = clamp(1 - B.digT / TANK_DIG, 0, 1), e = k * k * (3 - 2 * k); B.x = B.digFrom[0] + (B.digTo[0] - B.digFrom[0]) * e; B.y = B.digFrom[1] + (B.digTo[1] - B.digFrom[1]) * e; } return; }
