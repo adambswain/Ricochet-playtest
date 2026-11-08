@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 08 23:43 UTC · 204b632";</script>
+<script>window.RICOCHET_BUILD = "Nov 08 23:54 UTC · dfac6ed";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1182,10 +1182,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // is the target (1 + charge a hit); her head and thorax are armour. She launches bee formations (a column sweeping in
   // from a side, a row rising from the bottom, each with a gap; a V dropping from her), aims her stinger down a lane
   // (it glows, locks, then fires a needle), and throws honeycomb. A formation's bees appear first where it starts (at
-  // the edge it'll come from, or under her) and buzz there, shaking, for FORM_WARN, then fly; its gap is near you. At half her health (VEXA_CAGE_AT), once, she cages you: a gold
-  // ring closes on where you are (CAGE_WARN; get clear and it's nothing), then a ring of wax cells grows there. Break
-  // out (shoot a cell out and slip through) before CAGE_TIME runs out, or every cell left hatches a bee in there with
-  // you. While you're caged she flies up out of the arena; when it's over she swoops back down furious: everything
+  // the edge it'll come from, or under her) and buzz there, shaking, for FORM_WARN, then fly; its gap is near you. Three times a fight (VEXA_CAGES of her health) she cages you: a gold
+  // ring closes on you, following you, then CAGE_LAYERS rings of wax cells grow round you, inside out. Break out
+  // (shoot through a cell in each and slip out) before CAGE_TIME runs out, or the innermost wax hatches, a bee a cell, in
+  // there with you; either way the rest crumbles, a ripple out from where it broke. From the half-health one
+  // (VEXA_CAGE_AT) she's furious. While you're caged she flies up out of the arena; when it's over she swoops back down furious: everything
   // comes faster. From her second phase (below two thirds) her sting fires a spread of three. Below VEXA_BERSERK of her health, faster still.
   // Every VEXA_SWOOP she swoops. No marker, just her tell (SWOOP_WARN): a glint and a rising buzz; she rears back,
   // shivering, cocks her stinger at you and flashes white twice; then (SWOOP_HOLD on) she holds dead still, her stinger
@@ -1206,7 +1207,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const VEXA_BODY = [[0.82, 0.5, false], [0, 0.5, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
   const QUEEN_R = 9.5, QUEEN_HP = 550, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
   const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 }, FORM_LAYERS = [1, 3, 5, 7], FORM_LAYERS_COL = [1, 2, 3, 4], FORM_THICK = 2; // a formation's depth, by how tough she's got: the same line, more of it (a column, the arena's whole height, gets half as many: about as many bees)
-  const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [6.5, 5.5, 5, 5];
+  const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [7.5, 7, 6.5, 6.5];
+  const VEXA_CAGES = [0.75, 0.5, 0.25], CAGE_LAYERS = 3, CAGE_STEP = 6.8; // she cages you at these fractions of her health; its wax layers, and how far apart
   const VEXA_LULL = 0.6; // with nothing coming at you, her next wall (and sting) comes this soon
   const VEXA_SWOOP = [16, 14, 12, 11], SWOOP_WARN = 0.9, SWOOP_HOLD = 0.65, SWOOP_DIVE = 0.63, SWOOP_PERCH = 2, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
@@ -1537,7 +1539,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.mode !== 'lock' && !B.swoop) B.face += (-Math.PI / 2 + want - B.face) * Math.min(1, dt * 2.5);
     if (p.inv <= 0) for (const [x, y, rr] of vexaBody(B)) if (Math.hypot(p.x - x, p.y - y) < rr + PLAYER_R + 0.3) { damagePlayer(); break; } // touching her (she's solid: pushOut holds you at arm's length, so touching is that close)
     if (B.cage) { updateCage(B, dt, ph2); return; } // she holds her fire while you're caged
-    if (!B.caged && B.hp <= B.maxHp * VEXA_CAGE_AT) { B.caged = true; B.swoop = null; vexaCage(B); return; } // once, at half health, whatever did the damage
+    if ((B.cages || 0) < VEXA_CAGES.length && B.hp <= B.maxHp * VEXA_CAGES[B.cages || 0]) { // three times a fight, whatever did the damage (one cage, if a big hit passes two marks)
+      B.cages = (B.cages || 0) + 1; while (B.cages < VEXA_CAGES.length && B.hp <= B.maxHp * VEXA_CAGES[B.cages]) B.cages++;
+      B.swoop = null; vexaCage(B); return;
+    }
     if (B.swoop) { vexaSwoop(B, dt, ph2); vexaWalls(B, dt, ph2, true); return; } // while she swoops, only her bee walls keep coming
     B.swoopT -= dt;
     if (B.swoopT <= 0 && B.mode === 'hang') { vexaSwoopStart(B); return; }
@@ -1947,25 +1952,42 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Her cage: a gold ring closes on you, following you (there's no outrunning it), and a ring of wax cells grows round you.
   function vexaCage(B) {
     const p = G.player;
-    B.cage = { st: 'warn', t: CAGE_WARN, x: clamp(p.x, CAGE_R + 4, AW - CAGE_R - 4), y: clamp(p.y, CAGE_R + 4, AH - CAGE_R - 4), cells: [] };
+    B.cage = { st: 'warn', t: CAGE_WARN, x: clamp(p.x, CAGE_R + 4, AW - CAGE_R - 4), y: clamp(p.y, CAGE_R + 4, AH - CAGE_R - 4), R: CAGE_R + (CAGE_LAYERS - 1) * CAGE_STEP, cells: [] };
     B.mode = 'hang'; B.forms = []; B.taken = 0;
-    G.banner = { text: 'Caged!', sub: 'Break out before it hatches', t: 1.8, max: 1.8, at: 0.45 }; // mid-screen: she fills the top sfx.boss(); shake(1);
+    if (!B.cageShown) { B.cageShown = true; G.banner = { text: 'Caged!', sub: 'Break out before it hatches', t: 1.8, max: 1.8, at: 0.45 }; } // mid-screen (she fills the top); the first time only
+    sfx.boss(); shake(1);
   }
   // The cage is over: she swoops back down, furious.
   function vexaReturn(B) {
-    B.mad = true; B.stingT = 1; B.mode = 'hang'; B.formT = Math.min(Math.max(B.formT, 1.5), 2.5); B.combT = Math.max(B.combT, 2.5); // furious: she hits back at once
+    B.mad = B.mad || B.hp <= B.maxHp * VEXA_CAGE_AT; // furious from her half-health cage on B.stingT = 1; B.mode = 'hang'; B.formT = Math.min(Math.max(B.formT, 1.5), 2.5); B.combT = Math.max(B.combT, 2.5); // furious: she hits back at once
     shake(2); sfx.boss(); // no banner: you see her come back
   }
   function updateCage(B, dt, ph2) {
     const C = B.cage, p = G.player;
+    if (C.st === 'crumble') { // breaking up, a ripple out from where you got out: every cell pops, scoring
+      C.t += dt; let left = false;
+      for (const c of C.cells) {
+        if (c.hp <= 0) continue;
+        if (C.t < c.pop) { left = true; continue; }
+        c.hp = 0; burst(c.x, c.y, 8, GOLD(), 30, 0.5, 0.35); G.score += Math.round(20 * G.mult);
+        if ((C.n = (C.n || 0) + 1) % 3 === 1) sfx.brick(4);
+      }
+      if (!left) B.cage = null;
+      return;
+    }
     C.t -= dt;
     if (C.st === 'warn') { // closing on you, wherever you go
       C.x = clamp(p.x, CAGE_R + 4, AW - CAGE_R - 4); C.y = clamp(p.y, CAGE_R + 4, AH - CAGE_R - 4);
       if (C.t > 0) return;
       const dx = p.x - C.x, dy = p.y - C.y, d = Math.hypot(dx, dy), m = CAGE_R - CAGE_CELL - PLAYER_R - 0.5;
       if (d > m) { p.x = C.x + dx / d * m; p.y = C.y + dy / d * m; } // hugging a wall (the cage can't go through it): it shuts with you inside
-      const n = Math.ceil(Math.PI * 2 * CAGE_R / (CAGE_CELL * 1.85)), hp = 1 + B.cycle;
-      for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2; C.cells.push({ x: C.x + Math.cos(a) * CAGE_R, y: C.y + Math.sin(a) * CAGE_R, hp, max: hp, flash: 0, grow: -k * 0.02 }); }
+      const hp = 1 + B.cycle, e = CAGE_CELL * 0.6;
+      for (let L = 0; L < CAGE_LAYERS; L++) { // ring on ring of wax, staggered like honeycomb, growing from the inside out (an arena wall stands in for what won't fit)
+        const r = CAGE_R + L * CAGE_STEP, n = Math.ceil(Math.PI * 2 * r / (CAGE_CELL * 1.85)), off = L % 2 ? Math.PI / n : 0;
+        for (let k = 0; k < n; k++) { const a = off + k / n * Math.PI * 2, x = C.x + Math.cos(a) * r, y = C.y + Math.sin(a) * r;
+          if (x < e || x > AW - e || y < e || y > AH - e) continue;
+          C.cells.push({ x, y, L, hp, max: hp, flash: 0, grow: -k * 0.012 - L * 0.14 }); }
+      }
       C.st = 'up'; C.t = C.max = CAGE_TIME[ph2]; sfx.clank(); shake(1.5); gridImpulse(C.x, C.y, CAGE_R * 2, 120);
       return;
     }
@@ -1975,15 +1997,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy), m = CAGE_CELL + PLAYER_R;
       if (d < m && d > 1e-6) { p.x = c.x + dx / d * m; p.y = c.y + dy / d * m; }
     }
-    if (!live.length || Math.hypot(p.x - C.x, p.y - C.y) > CAGE_R + 2) { // you're out: the rest of it crumbles
-      for (const c of live) { burst(c.x, c.y, 8, GOLD(), 30, 0.5, 0.35); G.score += Math.round(20 * G.mult); }
-      ring(C.x, C.y, CAGE_R * 0.5, CAGE_R * 1.8, 0.4, GOLD(), 1); sfx.shatter(); shake(1);
-      float(p.x, p.y - 6, 'Broke free!', COL.chalk, 3.4); B.cage = null; vexaReturn(B);
+    const crumble = (x, y) => { for (const c of C.cells) if (c.hp > 0) c.pop = Math.hypot(c.x - x, c.y - y) * 0.012; C.st = 'crumble'; C.t = 0; vexaReturn(B); };
+    if (!live.length || Math.hypot(p.x - C.x, p.y - C.y) > (C.R || CAGE_R) + 2) { // you're out: the rest of it crumbles, from where you broke through
+      ring(p.x, p.y, 1, CAGE_R * 1.2, 0.35, GOLD(), 1); sfx.shatter(); shake(1.2);
+      float(p.x, p.y - 6, 'Broke free!', COL.chalk, 3.4); crumble(p.x, p.y);
       return;
     }
-    if (C.t <= 0) { // too slow: every cell left hatches a bee, in there with you
-      for (const c of live) { spawnBees(c.x, c.y, 1); const e = G.enemies[G.enemies.length - 1]; if (e && e.bee) { const a = Math.atan2(C.y - c.y, C.x - c.x); e.vx = Math.cos(a) * 30; e.vy = Math.sin(a) * 30; } }
-      ring(C.x, C.y, 2, CAGE_R * 1.5, 0.4, COL.threat, 1); sfx.boss(); B.cage = null; vexaReturn(B);
+    if (C.t <= 0) { // too slow: the innermost wax left hatches, a bee a cell, in there with you; the rest crumbles
+      const L0 = Math.min(...live.map(c => c.L || 0));
+      for (const c of live) if ((c.L || 0) === L0) { c.hp = 0; spawnBees(c.x, c.y, 1); const e = G.enemies[G.enemies.length - 1]; if (e && e.bee) { const a = Math.atan2(C.y - c.y, C.x - c.x); e.vx = Math.cos(a) * 30; e.vy = Math.sin(a) * 30; } }
+      ring(C.x, C.y, 2, CAGE_R * 1.5, 0.4, COL.threat, 1); sfx.boss(); crumble(C.x, C.y);
     }
   }
   // The ball against the cage's cells: it bounces, and a cell breaks (1 hit, 2 when hot)
@@ -2005,15 +2028,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function drawCage(B) {
     const C = B.cage, gold = GOLD(), t = G.time;
     if (C.st === 'warn') {
-      const k = 1 - C.t / CAGE_WARN, r = CAGE_R * (2.4 - 1.4 * k);
+      const k = 1 - C.t / CAGE_WARN, R = C.R || CAGE_R, r = R * (1.9 - 0.9 * k);
       ctx.save(); ctx.strokeStyle = Math.floor(t * 12) % 2 ? COL.chalk : gold; ctx.lineWidth = 0.6 + 0.4 * k; ctx.globalAlpha = 0.5 + 0.5 * k;
       ctx.beginPath(); ctx.arc(C.x, C.y, r, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
       ctx.globalAlpha = 0.08 + 0.12 * k; ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(C.x, C.y, CAGE_R, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
       return;
     }
-    const k = C.t / C.max, soon = C.t < 1.5 && Math.floor(t * 12) % 2;
+    const up = C.st === 'up', k = up ? C.t / C.max : 0, soon = up && C.t < 1.5 && Math.floor(t * 12) % 2;
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.1 + 0.05 * Math.sin(t * 6); ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(C.x, C.y, CAGE_R, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-    ctx.beginPath(); ctx.arc(C.x, C.y, CAGE_R + CAGE_CELL + 2.2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.7; ctx.lineCap = 'round'; ctx.globalAlpha = 0.85; ctx.stroke(); ctx.globalAlpha = 1; // the countdown
+    if (up) { ctx.beginPath(); ctx.arc(C.x, C.y, (C.R || CAGE_R) + CAGE_CELL + 2.2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.7; ctx.lineCap = 'round'; ctx.globalAlpha = 0.85; ctx.stroke(); ctx.globalAlpha = 1; } // the countdown
     for (const c of C.cells) {
       if (c.hp <= 0 || c.grow <= 0) continue;
       const s = CAGE_CELL * 1.08 * Math.min(1, c.grow);
