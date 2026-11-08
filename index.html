@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 08 23:37 UTC · d77b7ac";</script>
+<script>window.RICOCHET_BUILD = "Nov 08 23:41 UTC · 7b79fb6";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1149,7 +1149,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // of the fight starts over rather than finishing off cores you'd already opened. Two serpents, one health bar. Barely a pause between passes.
   const SERP_HP = 320;
   const SERP_N = 14, SERP_GAP = 10.5, SERP_HEAD = 12, SERP_SPEED = [48, 56, 66], SERP_REST = [0.7, 0.5, 0.35], SERP_CROWD = [18, 22, 26];
-  const SERP_CLUTCH = [6, 5, 4], SERP_EGGS = [8, 10, 12], SEGG_HATCH = 5.5; // how often it lays a clutch, how many eggs in one, how long they take to hatch
+  const SERP_CLUTCH = [6, 5, 4], SERP_EGGS = [8, 10, 12], SEGG_HATCH = 5.5, SEGG_HATCH_BOSS = 2.9; // how often it lays a clutch, how many eggs in one, how long they take to hatch (the Serpent's own: quicker)
   const PACK_SEP = 6.5, PACK_COH = 0.6; // a hatched clutch swims as a school: how far apart its hatchlings keep, how hard they hold together
   const SERP_AIM = 0.8, SERP_LOCK = 0.25, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 90, SERP_SPLIT = 0.5;
   const SERP_STRIKES = 2, SERP_STRIKE_GAP = 1.5; // strikes a pass (at most), and the least time between them
@@ -1357,7 +1357,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const R = 2.05 * Math.sqrt(size) + 2, sd = (-dy * (AW / 2 - sg.x) + dx * (AH / 2 - sg.y)) >= 0 ? 1 : -1; // beside its body (not under it), on the open side
         const x = sg.x - dy * sd * (8 + R), y = sg.y + dx * sd * (8 + R);
         if (offArena(x, y, -R - 8) || Math.hypot(x - G.player.x, y - G.player.y) < 30 + R) continue;
-        layClutch(x, y, size, B.phase >= 3 ? 2 : 0); B.crowdT = SERP_CLUTCH[B.phase - 1]; break;
+        layClutch(x, y, size, B.phase >= 3 ? 2 : 0, SEGG_HATCH_BOSS); B.crowdT = SERP_CLUTCH[B.phase - 1]; break;
       }
     }
     if (!B.twin && !B.split && B.hp <= B.maxHp * SERP_SPLIT && B.st === 'pass' && B.segs.length >= 8 && !offArena(B.segs[B.segs.length >> 1].x, B.segs[B.segs.length >> 1].y, -8)) serpentSplit(B);
@@ -1366,11 +1366,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // A clutch of the Serpent's eggs at (x, y): n of them packed in a clump like spawn (the middle v of them viper eggs,
   // bigger, darker). They hatch together after SEGG_HATCH (a ripple out from the middle), unless broken, and what hatches
   // swims as one school (its pack). The clump is tight, so a ball through it breaks a row of them at once.
-  function layClutch(x, y, n, v = 0) {
+  function layClutch(x, y, n, v = 0, hatch = SEGG_HATCH) {
     const pack = G.packN = (G.packN || 0) + 1, c = 2.05, R = c * Math.sqrt(n) + 2;
     x = clamp(x, 6 + R, AW - 6 - R); y = clamp(y, 6 + R, AH - 6 - R);
     for (let i = 0; i < n; i++) { const a = i * 2.39996 + rand(-0.15, 0.15), d = c * Math.sqrt(i + 0.5), e = makeEnemy('segg', x + Math.cos(a) * d, y + Math.sin(a) * d);
-      Object.assign(e, { spawnT: 0.3 + i * 0.02, hatchT: SEGG_HATCH + d * 0.025, viper: i < v, r: i < v ? 2.5 : 1.9, pack, px: x, py: y }); G.enemies.push(e); }
+      Object.assign(e, { spawnT: 0.3 + i * 0.02, hatchT: hatch + d * 0.025, hatch0: hatch, viper: i < v, r: i < v ? 2.5 : 1.9, pack, px: x, py: y }); G.enemies.push(e); }
     ring(x, y, 2, R + 6, 0.4, COL.threat, 1); burst(x, y, 18, COL.threat, 34, 0.6, 0.4); sfx.clank();
   }
   // Clutches laid about in a wave (the Serpent's brood ahead of it): n of them, one every so often, away from you
@@ -3153,7 +3153,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The jelly a clutch is laid in, under its eggs: one soft blob round the lot, so a clump reads as one clutch; it
   // pulses quicker as they near hatching
   function drawSpawnGoo() {
-    const eggs = G.enemies.filter(e => e.type === 'segg'), k = Math.max(...eggs.map(e => 1 - clamp(e.hatchT / SEGG_HATCH, 0, 1)));
+    const eggs = G.enemies.filter(e => e.type === 'segg'), k = Math.max(...eggs.map(e => 1 - clamp(e.hatchT / (e.hatch0 || SEGG_HATCH), 0, 1)));
     ctx.save(); ctx.fillStyle = COL.threat;
     for (const [grow, a] of [[1.75, 0.1], [1.3, 0.12]]) {
       ctx.globalAlpha = a * (1 + k * (0.6 + 0.4 * Math.sin(G.time * (3 + 9 * k)))); ctx.beginPath();
@@ -3165,7 +3165,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // A Serpent's egg: a pale leathery oval, pink veins glowing through it, the curled shape of what's inside showing as it
   // gets close; it rocks, then cracks
   function drawSerpEgg(e) {
-    const r = e.r, k = 1 - clamp(e.hatchT / SEGG_HATCH, 0, 1), t = G.time + e.seed, fl = e.flash > 0, wob = Math.sin(t * (4 + 18 * k)) * 0.12 * k;
+    const r = e.r, k = 1 - clamp(e.hatchT / (e.hatch0 || SEGG_HATCH), 0, 1), t = G.time + e.seed, fl = e.flash > 0, wob = Math.sin(t * (4 + 18 * k)) * 0.12 * k;
     ctx.save(); ctx.rotate(wob);
     ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.ellipse(0, r * 1.05, r * 0.8, r * 0.25, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // its shadow
     const shell = () => { ctx.beginPath(); ctx.ellipse(0, 0, r * 0.82, r * 1.08, 0, 0, Math.PI * 2); };
@@ -3528,7 +3528,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Both phases: four armour tiles across its front (one hit each) and two fuel drums on its back (one hit: they explode,
   // doing TANK_DRUM_DMG to every part within TANK_DRUM_R, and to the reactor once it's open, and wrecking escorts there).
   // The bar is the treads and the reactor (TANK_TREAD × 2 ≈ a fifth of it): the pods are optional.
-  const TANK_S = 1.45, TANK_TREAD = 32, TANK_REACTOR = 190, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 0.45, TANK_LIMP = 0.45;
+  const TANK_S = 1.45, TANK_TREAD = 45, TANK_REACTOR = 190, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 0.45, TANK_LIMP = 0.45;
   const TANK_FIRE = [3.2, 2.8, 2.4], TANK_BURST = [4, 3.5, 3], TANK_AIM = 0.9, TANK_SHELL = 52, TANK_SHELL_DUG = 40, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
   const TANK_BLAST = 7, TANK_RAM_TURN = 2.6; // its shells' blast; how fast it swings round on you before a ram
   const TANK_DIG_M = 40, TANK_RAM = [6.5, 5.5, 4.5], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 3, TANK_TRICKLE = [10, 7];
