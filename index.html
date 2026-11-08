@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 08 23:24 UTC · d7a7c46";</script>
+<script>window.RICOCHET_BUILD = "Nov 08 23:34 UTC · cbc13cc";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -783,6 +783,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       voice({ noise: true, filter: 'lowpass', ff: 1100, ff2: 260, dur: 0.14, vol: 0.24 });
       voice({ noise: true, filter: 'bandpass', ff: 1900, q: 5, dur: 0.05, vol: 0.09 });
     },
+    vexaGo() { voice({ type: 'square', f: 1700, f2: 2300, dur: 0.07, vol: 0.05, filter: 'lowpass', ff: 3200 }); }, // her tell's last beat: she's about to dive
     vexaBuzz() { voice({ type: 'sine', f: 1900, f2: 2600, dur: 0.12, vol: 0.05 }); voice({ type: 'sawtooth', f: 140, f2: 440, dur: SWOOP_WARN, vol: 0.05, filter: 'lowpass', ff: 1500 }); voice({ type: 'square', f: 70, f2: 220, dur: SWOOP_WARN, vol: 0.03, filter: 'lowpass', ff: 600 }); }, // Vexa's swoop tell: a glint, then a rising buzz
     blasterCharge() { voice({ type: 'sine', f: 260, f2: 980, dur: GEO_CHARGE, vol: 0.06, wet: 0.2 }); voice({ type: 'sawtooth', f: 130, f2: 490, dur: GEO_CHARGE, vol: 0.03, filter: 'lowpass', ff: 900 }); },
     blaster() { voice({ type: 'square', f: 720, f2: 170, dur: 0.22, vol: 0.12, filter: 'lowpass', ff: 2400 }); voice({ f: 90, f2: 50, dur: 0.18, vol: 0.2 }); voice({ noise: true, filter: 'bandpass', ff: 1400, q: 1, dur: 0.1, vol: 0.08 }); },
@@ -1186,8 +1187,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // out (shoot a cell out and slip through) before CAGE_TIME runs out, or every cell left hatches a bee in there with
   // you. While you're caged she flies up out of the arena; when it's over she swoops back down furious: everything
   // comes faster. From her second phase (below two thirds) her sting fires a spread of three. Below VEXA_BERSERK of her health, faster still.
-  // Every VEXA_SWOOP she swoops. No marker, just her tell (SWOOP_WARN): a glint, a rising buzz, and she rears back,
-  // shivering. Then she dives at where you are that moment (her body hurts: keep moving), perches there for SWOOP_PERCH
+  // Every VEXA_SWOOP she swoops. No marker, just her tell (SWOOP_WARN): a glint and a rising buzz; she rears back,
+  // shivering, cocks her stinger at you and flashes white twice; then (SWOOP_HOLD on) she holds dead still, her stinger
+  // lit, with a click. Then she dives at where you are that moment (her body hurts: keep moving), perches there for SWOOP_PERCH
   // with her abdomen in easy reach (and a hit there is worth SWOOP_K times as much), and flies back up. Her bee walls keep
   // coming meanwhile (from the sides and the bottom); her sting and her honeycomb wait.
   // Both halves throw honeycomb: a chunk of seven wax cells, flagged by a ring closing on an edge cell (or flung by the
@@ -1206,7 +1208,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 }, FORM_LAYERS = [1, 3, 5, 7], FORM_LAYERS_COL = [1, 2, 3, 4], FORM_THICK = 2; // a formation's depth, by how tough she's got: the same line, more of it (a column, the arena's whole height, gets half as many: about as many bees)
   const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [6.5, 5.5, 5, 5];
   const VEXA_LULL = 0.6; // with nothing coming at you, her next wall (and sting) comes this soon
-  const VEXA_SWOOP = [16, 14, 12, 11], SWOOP_WARN = 0.9, SWOOP_DIVE = 0.6, SWOOP_PERCH = 2, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
+  const VEXA_SWOOP = [16, 14, 12, 11], SWOOP_WARN = 0.9, SWOOP_HOLD = 0.65, SWOOP_DIVE = 0.63, SWOOP_PERCH = 2, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
   function setupHive(B, cycle) {
     const S = HIVE_CELL, cx = AW / 2, cy = clamp(AH * 0.36, S * 9, AH * 0.45), cells = [];
@@ -1921,7 +1923,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function vexaSwoop(B, dt, ph2) {
     const W = B.swoop, ease = k => k * k * (3 - 2 * k); W.t += dt;
     if (W.ph === 'warn') { // drawing up and shivering, her lane lit below her
-      const k = clamp(W.t / SWOOP_WARN, 0, 1); B.x = W.x0 + Math.sin(G.time * 60) * 0.8 * k; B.y = W.y0 - 7 * ease(k); B.face = -Math.PI / 2;
+      // her tell: she rears back, cocks her stinger at you and flashes twice; then (from SWOOP_HOLD) a beat dead still, stinger lit
+      const p = G.player, k = clamp(W.t / SWOOP_HOLD, 0, 1), hold = W.t >= SWOOP_HOLD;
+      B.x = W.x0 + (hold ? 0 : Math.sin(G.time * 60) * 0.8 * k); B.y = W.y0 - 14 * ease(k);
+      const lean = -Math.PI / 2 + clamp(wrapA(Math.atan2(B.y - p.y, B.x - p.x) + Math.PI / 2), -0.7, 0.7); // her abdomen toward you
+      B.face += (lean - B.face) * Math.min(1, dt * 8);
+      if (hold && !W.held) { W.held = true; sfx.vexaGo(); }
       if (W.t >= SWOOP_WARN) { // she dives at where you are now: her body lands on you unless you've moved
         const p = G.player, r = vexaR(); W.x1 = clamp(p.x, r * 1.2, AW - r * 1.2); W.y1 = clamp(p.y - r * 0.6, r * 1.2, AH - 2.3 * r);
         W.ph = 'dive'; W.t = 0; W.ys = B.y; sfx.boss(); }
@@ -2832,8 +2839,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     const sc = 1 - Math.pow(1 - clamp(em, 0, 1), 2);
     if (sc <= 0.01) return;
-    const glint = B.st === 'queen' && B.swoop && B.swoop.ph === 'warn' ? clamp(1 - B.swoop.t / 0.35, 0, 1) : 0; // her swoop's tell
-    drawVexa(B, 1, sc, { aim: aimK, hurt: glint > 0.55 ? 1 : B.hurt || 0, mad: B.st === 'queen' && B.mad ? 1 : 0, rot: (B.face ?? -Math.PI / 2) + Math.PI / 2, curl: 0.4 });
+    const W = B.st === 'queen' && B.swoop && B.swoop.ph === 'warn' ? B.swoop : null; // her swoop's tell: a sparkle, two white flashes, then her stinger lit
+    const glint = W ? clamp(1 - W.t / 0.35, 0, 1) : 0, flash = W && (W.t < 0.1 || (W.t > 0.32 && W.t < 0.42)), held = W && W.t >= SWOOP_HOLD;
+    drawVexa(B, 1, sc, { aim: held ? 1 : aimK, hurt: flash ? 1 : B.hurt || 0, mad: B.st === 'queen' && B.mad ? 1 : 0, rot: (B.face ?? -Math.PI / 2) + Math.PI / 2, curl: 0.4 });
     if (glint > 0) { // a four-point sparkle on her head
       const [hx, hy, hr] = vexaBody(B)[0], s2 = hr * (0.6 + 1.6 * Math.sin(glint * Math.PI)), w = s2 * 0.16;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.chalk; ctx.globalAlpha = Math.min(1, glint * 1.6);
@@ -4292,7 +4300,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // you slower than you move (MECH_MICRO_FOLLOW); meeting in the middle, it detonates. Each dies in one hit and blows
   // up (MECH_MICRO_AOE), taking any within reach with it: sparse at first, so a hit pops one and opens a gap to slip
   // out through, but as the loop tightens they bunch up and go off in chains. Touching one hurts.
-  const MECH_W = { gun: 58, claw: 58, rack: 58, rail: 58 }, MECH_KNEE = 100, MECH_CORE = 800, MECH_CRIT = 0.1;
+  const MECH_W = { gun: 58, claw: 58, rack: 58, rail: 58 }, MECH_KNEE = 220, MECH_CORE = 1000, MECH_CRIT = 0.1;
   const MECH_ROCKET_V = 30, MECH_ROCKET_TURN = 1.1, MECH_ROCKET_HOME = 2.8, MECH_ROCKET_BACK = 75, MECH_ROCKET_DMG = 12, MECH_ROCKET_R = 2.4;
   const MECH_MICRO_N = 30, MECH_MICRO_AOE = 6.5, MECH_MICRO_ORBIT = 1.6, MECH_MICRO_OUT = 8, MECH_MICRO_CLOSE = 10, MECH_MICRO_FOLLOW = 13, MECH_MICRO_SPIN = 0.2, MECH_MICRO_BOOM = 9;
   const MECH_STOMP_R = 16, MECH_STEP = [0.62, 2.1], MECH_STRIDE = [15, 5], MECH_STEP_WARN = 0.5, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
@@ -4335,9 +4343,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const [lx, ly, r] of MECH_ARMOUR) { if (B.st === 'core' && ly !== -21) continue; const [x, y] = mechAt(B, lx, ly); out.push([x, y, r * s, null, false]); } // on its knees its chest is the target, not armour
     for (const key in MECH_PARTS) { const [lx, ly, r] = MECH_PARTS[key], [x, y0] = mechAt(B, lx, ly), y = y0 + mechArmOff(B, key === 'gun' ? -1 : key === 'claw' ? 1 : 0) * s, live = !mechBroken(B, key);
       out.push([x, y, (live ? r * 1.25 : r * 0.55) * s, key, live && B.st === 'fight']); } // generous reach on the live ones
-    for (const side of [-1, 1]) { const key = side < 0 ? 'kneeL' : 'kneeR', [x, y] = mechKnee(B, side), live = !mechBroken(B, key);
-      out.push([x, y, (live ? 8 : 6) * s, key, live && B.st === 'fight']);
-      const [fx, fy] = mechFoot(B, side); out.push([fx, fy, 6 * s, null, false]);
+    for (const side of [-1, 1]) { const key = side < 0 ? 'kneeL' : 'kneeR', [x, y] = mechKnee(B, side), live = !mechBroken(B, key), leg = live && B.st === 'fight';
+      // the whole leg is the target (thigh, knee, shin and foot), not just its knee cap
+      const [hx, hy] = mechAt(B, side * 9, 20), [fx, fy] = mechFoot(B, side);
+      out.push([x, y, (live ? 8 : 6) * s, key, leg]);
+      out.push([(hx + x) / 2, (hy + y) / 2, 5.5 * s, leg ? key : null, leg], [(x + fx) / 2, (y + fy) / 2, 5.5 * s, leg ? key : null, leg], [fx, fy, 6 * s, leg ? key : null, leg]);
       const [jx, jy] = mechAt(B, side * MECH_JET_AT[0], MECH_JET_AT[1]), jl = !mechBroken(B, 'jets'); out.push([jx, jy, (jl ? MECH_JET_R * 1.25 : MECH_JET_R * 0.6) * s, 'jets', jl && B.st === 'fight']); }
     if (B.st === 'core') { const [x, y] = mechAt(B, ...MECH_CORE_AT); out.unshift([x, y, 16 * s, 'core', true]); return out.map(c => [c[0], c[1], c[2], 'core', true]); } // its last stand: every bit of it is a way to hurt the reactor
     return out;
@@ -5118,15 +5128,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       glow(() => { const g = ctx.createRadialGradient(sd * 20.5, -39 + up, 0, sd * 20.5, -41 + up, 5); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(sd * 20.5, -41 + up, 3, 5, 0, 0, Math.PI * 2); ctx.fill(); }, fire, 0.35 + 0.25 * Math.sin(t * 7 + sd) );
       if (Math.random() < 0.08) { const [x, y] = mechAt(B, sd * 20.5, -40); burst(x, y - 1, 1, Math.random() < 0.5 ? fire : COL.dim, 12, 0.5, 0.6); }
     }
-    // legs: a hip joint, a thigh plate, a piston to the knee, the knee cap (a target in phase two), the shin, a clawed foot
+    // legs: a hip joint, a thigh plate, a piston to the knee, the knee cap, the shin, a clawed foot (the whole leg is a target while it stands)
     for (const side of [-1, 1]) {
       const key = side < 0 ? 'kneeL' : 'kneeR', P = B.parts[key], live = P.hp > 0, L = mechLift(B, side);
       const kx = side * (17 + B.kneel * 4), ky = 34 - L * 4 + B.kneel * 13, fx = side * (21 + B.kneel * 7), fy = 51 - L * 7 + B.kneel * 1, hx = side * 9, hy = 20 + up;
       piston(side * 5, 18 + up, kx - side * 2, ky - 4, 2.4);
-      plate([[hx - 4, hy - 2], [hx + 4, hy - 2], [kx + side * 4.5, ky - 4], [kx - side * 1, ky - 5]].map(([x, y]) => [x, y]), { bolts: [[hx, hy + 1]] }); // thigh
-      plate([[kx - 5.5, ky + 2], [kx + 5.5, ky + 2], [fx + 4.5, fy - 6], [fx - 4.5, fy - 6]], { bolts: [[kx, ky + 5]] }); // shin, its greave
+      const legHit = live && P.flash > 0; // the whole leg flashes when it's hit
+      plate([[hx - 4, hy - 2], [hx + 4, hy - 2], [kx + side * 4.5, ky - 4], [kx - side * 1, ky - 5]].map(([x, y]) => [x, y]), { bolts: [[hx, hy + 1]], flash: legHit }); // thigh
+      plate([[kx - 5.5, ky + 2], [kx + 5.5, ky + 2], [fx + 4.5, fy - 6], [fx - 4.5, fy - 6]], { bolts: [[kx, ky + 5]], flash: legHit }); // shin, its greave
       piston(kx, ky + 3, fx, fy - 5, 1.6);
-      plate([[fx - 4, fy - 6], [fx + 4, fy - 6], [fx + 10, fy], [fx + 8, fy + 2.6], [fx - 8, fy + 2.6], [fx - 10, fy]], { lit: 0.3 }); // the foot
+      plate([[fx - 4, fy - 6], [fx + 4, fy - 6], [fx + 10, fy], [fx + 8, fy + 2.6], [fx - 8, fy + 2.6], [fx - 10, fy]], { lit: 0.3, flash: legHit }); // the foot
       for (const tx of [-8, 0, 8]) { poly([[fx + tx - 1.6, fy + 2.4], [fx + tx + 1.6, fy + 2.4], [fx + tx, fy + 5]]); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W2); } // its toe claws
       joint(hx, hy, 3.2);
       if (live) { const cap = [[kx, ky - 6.5], [kx + 5.6, ky - 3], [kx + 5.6, ky + 3], [kx, ky + 6.5], [kx - 5.6, ky + 3], [kx - 5.6, ky - 3]];
