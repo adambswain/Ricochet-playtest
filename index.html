@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 08 23:41 UTC · 7b79fb6";</script>
+<script>window.RICOCHET_BUILD = "Nov 08 23:43 UTC · 204b632";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1954,7 +1954,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The cage is over: she swoops back down, furious.
   function vexaReturn(B) {
     B.mad = true; B.stingT = 1; B.mode = 'hang'; B.formT = Math.min(Math.max(B.formT, 1.5), 2.5); B.combT = Math.max(B.combT, 2.5); // furious: she hits back at once
-    G.banner = { text: 'Vexa returns!', sub: 'Furious: everything comes faster', t: 2, max: 2, at: 0.45 }; shake(2); sfx.boss();
+    shake(2); sfx.boss(); // no banner: you see her come back
   }
   function updateCage(B, dt, ph2) {
     const C = B.cage, p = G.player;
