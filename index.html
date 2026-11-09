@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 09 16:48 UTC · 37069f6";</script>
+<script>window.RICOCHET_BUILD = "Nov 09 16:59 UTC · cb0a73c";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4979,6 +4979,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // its touch hurts, and nothing passes through it
     if (p.inv <= 0) for (const [x, y, r, , , , safe] of mechCircles(B)) if (!safe && Math.hypot(p.x - x, p.y - y) < r + PLAYER_R * 0.8) { damagePlayer(); break; }
     if (B.st === 'intro') { mechIntro(B, dt); return; }
+    if (G.lastStandTest && B.st === 'fight') { G.lastStandTest = false; for (const k of ['gun', 'claw', 'rack', 'rail', 'jets', 'kneeL', 'kneeR']) if (!mechBroken(B, k)) mechHit(B, k, 1e6, B.x, B.y); return; } // the test start: break it all at once
     if (B.plate) { const q = B.plate; q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; if (q.y > AH + 40) B.plate = null; }
     if (B.walker) { updateArmWalk(B, dt); return; } // its last stand: the arm walker,
     if (B.storm) { updateScrap(B, dt); return; } // then (for now) the scrap storm
@@ -10663,6 +10664,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const startSel = $('startWave');
   startSel.add(new Option('Wave 1', '1'));
   startSel.add(new Option('Asteroid Field', 'ast'));
+  startSel.add(new Option("Goliath's last stand (test)", 'last')); // wave 60 with every part already broken: straight to its last stand
   for (let n = 2; n <= LOOP_LEN; n++) {
     const tag = bossFor(n) ? BOSS_NAMES[bossFor(n)] : setPiece(n) ? SET_NAMES[setPiece(n)] : '';
     startSel.add(new Option(`Wave ${n}${tag ? ' · ' + tag : ''}`, String(n)));
@@ -10671,7 +10673,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   startSel.addEventListener('change', () => { $('startNote').hidden = startSel.value === '1'; startSel.blur(); });
   function startChosen() {
     const v = startSel.value;
-    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v !== '1') startGame(+v); else startGame();
+    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v !== '1') startGame(+v); else startGame();
   }
   $('play').addEventListener('click', startChosen);
   $('again').addEventListener('click', startChosen);
