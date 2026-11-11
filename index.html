@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 11 20:41 UTC · d6a6ee7";</script>
+<script>window.RICOCHET_BUILD = "Nov 11 20:52 UTC · 783187b";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4895,13 +4895,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Goliath's last stand, form one: the arm walker. With everything broken, its head tears free and its two arm stumps
   // lock in under it as legs; the rest of it (torso, legs, pauldrons) slumps where it knelt, a dim wreck in the
   // background (not solid, not a target). Its arms are plated (ARM_PLATES each over a bare frame): every hit chips them
-  // and past each mark of an arm's health a plate comes off (the one nearest the hit), clattering down as wreckage;
+  // and past each mark of an arm's health a plate comes off (the one nearest the hit), clattering down as wreckage, and
+  // counting as a kill (the chain; a burning ball's countdown refilled);
   // stripped bare, the arm snaps at the elbow (its forearm crashing down) and it limps on the stump. Both gone and this
   // form's over (for now, the scrap storm takes over). A hit on its head goes to the arm with the most left. It walks
   // at you hand over hand (a lifted hand glows, then slams down), and now and then pulls an arm back (glowing,
   // shaking) and sweeps it in a wide low arc round its shoulder; past half its arms' health, both arms, one after
   // the other. Touching any of it hurts.
-  const WALK_S = 0.85, ARM_HP = 300, ARM_FORM = 1.1, ARM_STEP_T = 0.55, ARM_STEP_GAP = 0.12, ARM_STRIDE = 20, ARM_PLATES = 12, PLATE_T = [0.1, 0.26, 0.42, 0.58, 0.74, 0.9];
+  const WALK_S = 0.85, ARM_HP = 300, ARM_FORM = 1.1, ARM_STEP_T = 0.55, ARM_STEP_GAP = 0.12, ARM_STRIDE = 20, ARM_PLATES = 18, PLATE_T = [0.07, 0.18, 0.29, 0.4, 0.51, 0.62, 0.73, 0.84, 0.95];
   const ARM_ATK = [3.2, 2.6], ARM_WIND = [0.8, 0.6], ARM_SWING = 0.35, ARM_REC = 0.3, ARM_L1 = 21, ARM_L2 = 13;
   const armWalkLate = B => B.walker.arms[0].hp + B.walker.arms[1].hp <= ARM_HP / 2;
   function armWalkStart(B) {
@@ -4934,8 +4935,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (!W.arms[i].lost) out.push([(ex + hx) / 2, (ey + hy) / 2, 3.4 * ws, key, true, null, false], [hx, hy, 3.8 * ws, key, true, null, false]); }
     return out;
   }
-  // Where an arm's plate sits: [x, y] (k < 6: the upper arm, else the forearm)
-  function armWalkPlate(B, i, k) { const [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i), [x0, y0, x1, y1] = k < 6 ? [sx, sy, ex, ey] : [ex, ey, hx, hy], t = PLATE_T[k % 6]; return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t]; }
+  // Where an arm's plate sits: [x, y] (k < 9: the upper arm, else the forearm)
+  function armWalkPlate(B, i, k) { const [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i), [x0, y0, x1, y1] = k < 9 ? [sx, sy, ex, ey] : [ex, ey, hx, hy], t = PLATE_T[k % 9]; return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t]; }
   // A hit on the walker: chips sparks off; past each mark a plate comes off (the nearest the hit); stripped, the arm snaps
   function armWalkHit(B, key, dmg, x, y) {
     const W = B.walker, ws = B.s * WALK_S, live = [0, 1].filter(i => !W.arms[i].lost); if (!live.length) return;
@@ -4950,12 +4951,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       A.plates[k] = false; const [px, py] = armWalkPlate(B, i, k);
       G.debris.push({ x: px, y: py, vx: rand(-25, 25), vy: -30, floor: clamp(py + rand(12, 24), 6, AH - 4), r: 2.6 * ws, a: rand(0, 6), va: rand(-8, 8), t: 0, life: MECH_DEBRIS * 0.6, down: false });
       burst(px, py, 14, heat(MAX_CHARGE * 0.75), 40, 0.5, 0.35); ring(px, py, 0.5, 5, 0.2, COL.chalk, 0.6); shake(0.7); sfx.brick(8); G.score += Math.round(60 * G.mult);
+      if (B.hitBall) chainCredit(B.hitBall, px, py, B.hitBall.b); // a plate knocked off is a kill: on the chain, and a burning ball's countdown refilled
     }
     if (A.hp <= 0 && !A.lost) { // stripped bare: it snaps at the elbow, and the forearm crashes down
       const [, , ex, ey, hx, hy] = armWalkArm(B, i); A.lost = true;
       G.debris.push({ x: (ex + hx) / 2, y: (ey + hy) / 2, vx: rand(-20, 20), vy: -40, floor: clamp((ey + hy) / 2 + rand(14, 26), 6, AH - 4), r: 5.5 * ws, a: rand(0, 6), va: rand(-6, 6), t: 0, life: MECH_DEBRIS, down: false });
       burst(ex, ey, 34, heat(MAX_CHARGE * 0.75), 70, 0.8, 0.55); ring(ex, ey, 1, 14, 0.35, COL.threat, 1.2); gridImpulse(ex, ey, 50, 220); shake(3); sfx.shatter(); sfx.overload(); G.score += Math.round(500 * G.mult);
-      float(ex, ey - 8, 'Arm off!', COL.chalk, 3.6);
+      float(ex, ey - 8, 'Arm off!', COL.chalk, 3.6); if (B.hitBall) chainCredit(B.hitBall, ex, ey, B.hitBall.b);
       if (W.sw && W.sw.i === i) { W.sw = null; W.atkT = 1.4; }
     }
   }
@@ -5366,7 +5368,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const [x, y, rr, key, hurts] = best, d = Math.hypot(o.x - x, o.y - y) || 1e-6, nx = (o.x - x) / d, ny = (o.y - y) / d;
     o.x = x + nx * (rr + r + 0.05); o.y = y + ny * (rr + r + 0.05);
     const dot = o.vx * nx + o.vy * ny; if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
-    if (hurts && B.hitCd <= 0) { B.hitCd = 0.1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); sfx.brick(b); mechHit(B, key, 1 + b, o.x, o.y); }
+    if (hurts && B.hitCd <= 0) { B.hitCd = 0.1; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.8); sfx.brick(b); B.hitBall = o; mechHit(B, key, 1 + b, o.x, o.y); B.hitBall = null; } // (the ball, so what breaks off counts on its chain)
     else { ring(o.x, o.y, 0.5, 4, 0.2, COL.chalk, 0.5); sfx.clank(); }
     return 'bounce';
   }
@@ -5489,8 +5491,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         piston(sx, sy, ex, ey, 3); limb(sx, sy, ex, ey, 1.5, 1.9, { lit: 0.1 }); joint(ex, ey, 3.2); // the bare frame
         if (!A.lost) { piston(ex, ey, hx, hy, 2.4); limb(ex, ey, hx, hy, 1.6, 2, { lit: 0.1 }); torn(hx, hy, 6); } else torn(ex, ey, 5); // its forearm gone: a torn elbow
         for (let k = 0; k < ARM_PLATES; k++) { // the armour still on it
-          if (!A.plates[k]) continue; const [x0, y0, x1, y1] = k < 6 ? [sx, sy, ex, ey] : [ex, ey, hx, hy], tt = PLATE_T[k % 6], dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, cx = x0 + dx * tt, cy = y0 + dy * tt, hl = L * 0.072;
-          limb(cx - dx / L * hl, cy - dy / L * hl, cx + dx / L * hl, cy + dy / L * hl, k < 6 ? 4.2 : 3.8, k < 6 ? 4.5 : 4.4, { flash: fl, lit: 0.3 });
+          if (!A.plates[k]) continue; const [x0, y0, x1, y1] = k < 9 ? [sx, sy, ex, ey] : [ex, ey, hx, hy], tt = PLATE_T[k % 9], dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, cx = x0 + dx * tt, cy = y0 + dy * tt, hl = L * 0.048;
+          limb(cx - dx / L * hl, cy - dy / L * hl, cx + dx / L * hl, cy + dy / L * hl, k < 9 ? 4.2 : 3.8, k < 9 ? 4.5 : 4.4, { flash: fl, lit: 0.3 });
         }
         joint(sx, sy, 4.4);
         if (!A.lost && H.lift > 0.05 && !(W.sw && W.sw.i === i)) glow(() => { ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.4 * H.lift); // a lifted hand, about to come down
