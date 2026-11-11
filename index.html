@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 11 21:31 UTC · 34bed93";</script>
+<script>window.RICOCHET_BUILD = "Nov 11 21:38 UTC · e10fd7f";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -275,6 +275,8 @@ select.linkbtn option { background: var(--ink); color: var(--chalk); }
 .tut p { grid-column: 1 / -1; margin: 0; font-size: 14px; line-height: 1.45; color: var(--chalk); text-wrap: pretty; }
 .tut.ok p::before { content: '✓ '; color: var(--gold); font-weight: 700; }
 .tut .linkbtn { pointer-events: auto; margin: 0; font-size: 12px; padding: 7px 14px; }
+.tut .tutGo { grid-column: 1 / -1; justify-self: end; font-size: 13px; padding: 8px 18px; }
+.tut .tutGo[hidden] { display: none; }
 .tutHi { outline: 1px solid var(--gold); outline-offset: 4px; border-radius: 3px; animation: tutHi 1.1s ease-in-out infinite; }
 @keyframes tutHi { 50% { outline-color: transparent; } }
 @media (prefers-reduced-motion: reduce) { .tutHi { animation: none; } }
@@ -320,7 +322,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   <div class="charge" id="charge"><span class="lbl">Charge</span><div id="pips"></div><span id="note">In hand</span></div>
   <div class="tail"><span id="mode" class="mode">Pull</span><span id="mult">×1</span></div>
 </footer>
-<div class="tut" id="tut" hidden role="status" aria-live="polite"><span class="tutLbl" id="tutLbl">Tutorial</span><button class="linkbtn" id="tutSkip" type="button">Skip</button><p id="tutText"></p></div>
+<div class="tut" id="tut" hidden role="status" aria-live="polite"><span class="tutLbl" id="tutLbl">Tutorial</span><button class="linkbtn" id="tutSkip" type="button">Skip</button><p id="tutText"></p><button class="linkbtn tutGo" id="tutGo" type="button" hidden>Got it</button></div>
 
 <section class="ov" id="ov-title">
   <div class="panel title">
@@ -8309,16 +8311,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const TUT_ORDER = ['move', 'throw', 'bounce', 'pull', 'catch', 'again'];
   const TUT_OK = 0.7; // a done step shows its tick this long
   // min: a step that explains something stays up at least this long, and is never skipped
+  // ack: a long read; it stays up until you tap Got it (and while the bounce tip's up, the ball holds short of overheating)
   const tutBall = () => G.balls[0];
   const tutHeat = c => `At 15 charges your ball overheats. Two seconds later, its next bounce makes it explode, killing everything nearby. Every kill restarts the 2 seconds. After it explodes, its charges reset to 0 and it drifts back to you. ${c.touch ? `Hold the ${c.R} side` : 'Hold the mouse button or Space'} to pull it toward you faster.`;
   const TUT = {
     move: { text: (T, c) => c.touch ? `Drag on the ${c.L} side of the screen to fly.` : 'Fly with WASD or the arrow keys.', done: T => T.moved > 22 },
     throw: { text: (T, c) => (T.boomed ? 'Throw it again. ' : '') + (c.touch ? `Tap the ${c.R} side of the screen to throw the ball in the direction you're facing. Tip: swipe in the direction you want to throw the ball.` : 'Click or press Space to throw the ball toward your cursor.'), done: () => tutBall().state === 'live' },
-    bounce: { text: (T, c) => `Every bounce adds 1 damage to the ball and increases its speed. Keep an eye on the charge bar. ${tutHeat(c)}`, done: () => tutBall().b >= 4, min: 8, hi: 'charge' },
+    bounce: { text: (T, c) => `Every bounce adds 1 damage to the ball and increases its speed. Keep an eye on the charge bar. ${tutHeat(c)}`, done: T => T.ack, ack: true, hi: 'charge' },
     pull: { text: (T, c) => c.touch ? `Now hold the ${c.R} side of the screen. The ball bends toward you.` : 'Now hold the mouse button, or Space. The ball bends toward you.', done: T => T.pull > 0.6, hi: 'mode' },
     catch: { text: () => 'Keep holding until it flies into your ship to catch it. Let go and it passes right through.', done: T => T.caught, hi: 'mode' },
     again: { text: () => "Caught! A catch takes 5 off the ball's charge. While you hold it, it loses 1 more charge per second. Throw it again.", done: () => tutBall().state === 'live', min: 2.5, hi: 'charge' },
-    boom: { text: (T, c) => tutHeat(c), done: () => tutBall().state === 'held' }, // it overheated: the second half of the bounce tip again
+    boom: { text: (T, c) => tutHeat(c), done: T => T.ack && tutBall().state === 'held', ack: true }, // it overheated: the second half of the bounce tip again
 
   };
   function tutFinish(skipped) {
@@ -8330,7 +8333,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // the next step: skips any you've already done (a catch made early; the bounce tip after you've seen an overload)
   function tutNext(T) {
     for (;;) {
-      T.i++; T.t = 0; T.ok = 0;
+      T.i++; T.t = 0; T.ok = 0; T.ack = false;
       const k = T.k = TUT_ORDER[T.i];
       if (!k) { tutFinish(false); return; }
       if (T.skip[k] || (!TUT[k].min && TUT[k].done(T))) continue;
@@ -8346,7 +8349,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     T.px = p.x; T.py = p.y;
     if (T.k === 'pull' && G.pulling) T.pull += dt;
     // an overload mid-tutorial gets explained on the spot, then you pick up where you were
-    if (T.k !== 'boom' && tutBall().state === 'ember') { T.back = T.caught ? TUT_ORDER.length : TUT_ORDER.indexOf('throw'); T.k = 'boom'; T.t = 0; T.ok = 0; T.boomed = true; T.skip.bounce = true; return; }
+    if (T.k !== 'boom' && tutBall().state === 'ember') { T.back = T.caught ? TUT_ORDER.length : TUT_ORDER.indexOf('throw'); T.k = 'boom'; T.t = 0; T.ok = 0; T.ack = false; T.boomed = true; T.skip.bounce = true; return; }
     if (T.k === 'boom') {
       if (T.ok > 0) { T.ok -= dt; if (T.ok <= 0) { T.i = T.back - 1; T.caught = false; tutNext(T); } }
       else if (TUT.boom.done(T)) T.ok = TUT_OK;
@@ -8368,11 +8371,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (tutC.text !== text) { tutC.text = text; $('tutText').textContent = text; }
     if (tutC.n !== n) { tutC.n = n; $('tutLbl').textContent = 'Tutorial' + n; }
     el.classList.toggle('ok', ok);
+    const go = !!step.ack && !T.ack && !ok; if (tutC.go !== go) { tutC.go = go; $('tutGo').hidden = !go; }
     const hi = ok ? null : step.hi; $('charge').classList.toggle('tutHi', hi === 'charge'); $('mode').classList.toggle('tutHi', hi === 'mode');
     const pos = `${Math.round(AX + BW / 2)}|${Math.round(AY + 8)}|${Math.round(BW)}`;
     if (tutC.pos !== pos) { tutC.pos = pos; el.style.left = `${Math.round(AX + BW / 2)}px`; el.style.top = `${Math.round(AY + 8)}px`; el.style.width = `min(22rem, ${Math.round(BW - 16)}px)`; }
   }
   $('tutSkip').addEventListener('click', () => { $('tutSkip').blur(); if (G && G.tut) tutFinish(true); });
+  $('tutGo').addEventListener('click', () => { $('tutGo').blur(); if (G && G.tut) G.tut.ack = true; });
   document.querySelectorAll('.tutBtn').forEach(b => b.addEventListener('click', () => { b.blur(); $('ov-how').hidden = true; $('ov-settings').hidden = true; startGame(1, true); }));
 
   function updateWaves(dt) {
@@ -8649,7 +8654,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (G.table) { ball.tb = (ball.tb || 0) + (ball.kick ? 1 : 0.34); while (ball.tb >= 1) { ball.tb -= 1; if (ball.b < TABLE_MAX_B) ball.b++; } } // on the pinball table: bumpers, slings and the flipper heat it a step, the many plain walls a third of one; and it heats only so far
     else if (inMawBay(ball)) { if (ball.b < WARN - 1) ball.b++; } // inside the Maw the ball heats only to just under the warning, so it comes out catchable
     else if (ball.b >= MAX_CHARGE) { if (ball.lit && ball.fuse <= 0) { overload(ball); return; } } // primed: this bounce blows it
-    else ball.b++;
+    else if (!(G.tut && G.tut.k === 'bounce' && !G.tut.ack && ball.b >= MAX_CHARGE - 1)) ball.b++; // (while you read the tutorial's bounce tip, it holds just short of overheating)
     if (wall) {
       gridImpulse(ball.x, ball.y, 7 + ball.b * 0.4, 18 + ball.b * 3);
       const vert = wall === 'L' || wall === 'R';
