@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 09 16:59 UTC · cb0a73c";</script>
+<script>window.RICOCHET_BUILD = "Nov 11 20:41 UTC · d6a6ee7";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4379,6 +4379,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Damage to a part (a weapon or a knee), or to the reactor; the bar is the sum of everything.
   function mechHit(B, key, dmg, x, y) {
+    if (key === 'wL' || key === 'wR' || key === 'wH') { if (B.walker) armWalkHit(B, key, dmg, x, y); return; } // the arm walker
     if (key === 'core') { if (B.st === 'core') { B.core = Math.max(0, B.core - dmg); B.coreFlash = 0.15; damageBoss(dmg, x, y); } return; }
     const P = B.parts[key]; if (!P || P.hp <= 0) return;
     const d = Math.min(dmg, P.hp); P.hp -= d; P.flash = 0.15; damageBoss(d, x, y);
@@ -4685,28 +4686,27 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.roar = Math.max(0, B.roar - dt * 0.8);
     if (t >= MECH_IN_END) { B.st = 'fight'; B.walk = { foot: 0, t: 1.2, lift: 0 }; B.y = y1; B.t = 0; }
   }
-  // The scrap storm: Goliath's last stand. With everything broken, its reactor turns into a magnet: its body tears apart
-  // and every piece of it (and the wreckage on the floor) whirls round the reactor as it rises into the arena. Any hit
-  // on the scrap (or the reactor) hurts the reactor; touching the scrap hurts you; a piece in the whirl knocks the ball
-  // back out (away from the reactor), so a hot ball can't get trapped in there shredding it. As the reactor drains,
-  // scrap falls away (lying as wreckage the ball bounces off) and the storm shrinks. It drifts round the upper arena and
-  // reshapes its scrap to attack, one at a time, by tells rather than markers:
-  //  - the fist: scrap gathers over you into a fist that follows you, swelling, then holds dead still (a click) and
-  //    slams down where you are (FIST_R). Up in the air, it doesn't collide.
-  //  - the bar: scrap lines up across the arena through where you are (a row or a column), holds, then snaps into a
-  //    solid bar for a moment: get off the line. In meltdown, a row and a column at once.
-  //  - the fling: the whirl speeds up and some pieces glow, then they're flung at you in a spread, landing as
-  //    wreckage; a while later the magnet pulls wreckage back in.
-  // Below MECH_OVER of its reactor it's overcharged (quicker); below MECH_MELT, meltdown: quicker still, two slams to a
-  // fist, two volleys to a fling, the cross of bars, alarms.
+  // The scrap storm: Goliath's last gasp. Its reactor turns into a magnet and whirls scrap round itself, tearing more
+  // off its wreck. Everything breaks and everything that moves hurts: a piece of scrap your ball hits shatters (a crunch,
+  // shards, points, on the chain; a little off the reactor: SCRAP_DMG, more the hotter the ball), and a hit on the
+  // reactor itself counts extra (one every SCRAP_CORE_CD at most); any piece that touches you hurts you (whirling, flying in, flung, punched, in a wall). The magnet
+  // rebuilds what you smash (REBUILD_T a piece: wreckage on the floor first, lifting back in, else scrap torn off its
+  // wreck), holding less as the reactor drains, so you're racing it. It drifts round the upper arena and attacks:
+  //  - the punch: scrap gathers into a fist beside the storm on your side, winds back (shaking, aiming at you), then
+  //    flies straight at you (PUNCH_V) and smashes into the wall, lying there as wreckage.
+  //  - the wall: scrap lines up in a row across the arena below the storm, with a gap away from you, holds (shaking),
+  //    then sweeps down the arena: get to the gap, or smash your own hole through it.
+  //  - the fling: the whirl speeds up and some pieces glow, then they're flung at you in a spread, landing as wreckage.
+  // Below MECH_OVER of its share it's overcharged (quicker); below MECH_MELT, meltdown: quicker still, two punches, two
+  // volleys, alarms.
   const STORM_N = 40, STORM_MIN = 12, STORM_FORM = 1.8, STORM_V = 16, STORM_GAP = [2.2, 1.7, 1.2];
-  const FIST_GATHER = 0.55, FIST_TRACK = [1, 0.85, 0.7], FIST_HOLD = 0.3, FIST_SLAM = 0.12, FIST_R = 11;
-  const BAR_ALIGN = [1, 0.85, 0.75], BAR_LOCK = 0.25, BAR_SNAP = 0.35, BAR_W = 2.4, FLING_WIND = 0.6, FLING_N = [5, 7, 9], FLING_V = 72;
+  const PUNCH_GATHER = 0.5, PUNCH_WIND = [0.6, 0.5, 0.45], PUNCH_V = 120, WALL_FORM = 0.9, WALL_HOLD = 0.35, WALL_V = [42, 50, 58];
+  const FLING_WIND = 0.6, FLING_N = [5, 7, 9], FLING_V = 72, SCRAP_DMG = 2, SCRAP_CORE_CD = 0.2, REBUILD_T = [0.45, 0.35, 0.25];
   const scrapLvl = B => B.melt ? 2 : B.over ? 1 : 0;
   const scrapPiece = (x, y) => ({ x, y, r: rand(2.4, 4), sh: Array.from({ length: 6 }, () => rand(0.7, 1.1)), rot: rand(0, Math.PI * 2), va: rand(-3, 3), a: rand(0, Math.PI * 2), ra: rand(0.45, 1), sp: 0, m: 'gather', delay: 0, flash: 0 });
   const scrapOrbit = (S, q) => [S.x + Math.cos(q.a) * q.ra * S.R, S.y + Math.sin(q.a) * q.ra * S.R];
-  function scrapStart(B, at) {
-    const [cx, cy] = at || mechAt(B, ...MECH_CORE_AT), S = B.storm = { max: B.core, x: cx, y: cy, x0: cx, y0: cy, tx: AW / 2, ty: AH * 0.3, wT: 2.5, st: 'form', t: 0, pcs: [], atk: null, atkT: 2.2, order: [], spin: 1, fallT: 0, fillT: 0, R: 28 };
+  function scrapStart(B, at, wreck = null) {
+    const [cx, cy] = at || mechAt(B, ...MECH_CORE_AT), S = B.storm = { max: B.core, wreck, x: cx, y: cy, x0: cx, y0: cy, tx: AW / 2, ty: AH * 0.3, wT: 2.5, st: 'form', t: 0, pcs: [], atk: null, atkT: 2.2, order: [], spin: 1, fallT: 0, fillT: 0, R: 28 };
     const anchors = [...MECH_ARMOUR, ...Object.values(MECH_PARTS), [-50, -22], [50, -22], [-24, -12], [24, -12], [-37, 5], [37, 5], [-42, 13], [42, 13], [-9, 20], [9, 20], [0, 18]].map(([x, y]) => mechAt(B, x, y));
     for (const sd of [-1, 1]) anchors.push(mechKnee(B, sd), mechFoot(B, sd));
     for (const d of G.debris) S.pcs.push(scrapPiece(d.x, d.y)); // the wreckage on the floor lifts too
@@ -4716,42 +4716,52 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.beam = null; B.sweep = null; B.lance = null; B.pulses = []; B.pulseWarn = null; B.throws = []; B.crawl = null; B.plate = null; G.banner = null; // (not "It's down!": it's the storm now)
     G.screenFlash = Math.max(G.screenFlash || 0, 0.5); G.slowT = Math.max(G.slowT, 0.6); shake(5); gridImpulse(cx, cy, Math.max(AW, AH), 300); sfx.overload(); sfx.shatter(); sfx.boss();
   }
-  // What the storm is made of right now, for the ball, your ship and blasts: [x, y, r, 'core', hurts, piece]. The fist,
-  // up in the air, isn't in it; nor is anything while it's still forming (but the reactor).
+  // What the storm is made of right now, for the ball, your ship and blasts: [x, y, r, 'core', hurts, piece]: the
+  // reactor and every piece (all of it hurts to touch); nothing while it's still forming (but the reactor).
   function scrapCircles(B) {
-    const S = B.storm, out = [[S.x, S.y, 6.5, 'core', true, null]];
+    const S = B.storm, out = [[S.x, S.y, 6.5, 'core', true, null, false]];
     if (S.st === 'form') return out;
-    for (const q of S.pcs) if (q.m !== 'fist' && !(q.m === 'gather' && q.delay > 0)) out.push([q.x, q.y, q.r, 'core', true, q, q.m === 'bar' || q.safe > 0]); // (a bar's pieces, and ones flying home from an attack, don't hurt to touch: the bar hurts when it snaps)
+    for (const q of S.pcs) if (!(q.m === 'gather' && q.delay > 0)) out.push([q.x, q.y, q.r, 'core', true, q, false]);
     return out;
+  }
+  function scrapShatter(q, b) { // a piece breaking: shards, a crunch, points
+    burst(q.x, q.y, 12, heat(Math.max(b, 6)), 35, 0.5, 0.35); burst(q.x, q.y, 6, COL.dim, 25, 0.6, 0.4); ring(q.x, q.y, 0.5, q.r + 3, 0.2, COL.chalk, 0.6);
+    for (let k = 0; k < 5; k++) { const a = rand(0, Math.PI * 2), sp = rand(20, 50); G.shards.push({ x: q.x, y: q.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: a, va: rand(-12, 12), size: rand(0.6, 1.1), t: 0, max: rand(0.35, 0.6), color: COL.threat, lit: 1 }); }
+    shake(0.5); sfx.brick(Math.max(b, 4)); G.score += Math.round(30 * G.mult);
   }
   function ballScrap(B, o, r, b) {
     const S = B.storm; let best = null, bo = 0;
     for (const c of scrapCircles(B)) { const over = c[2] + r - Math.hypot(o.x - c[0], o.y - c[1]); if (over > bo) { bo = over; best = c; } }
     if (!best) return '';
-    const q = best[5], radial = !q || q.m === 'orbit' || q.m === 'gather', cx = radial ? S.x : best[0], cy = radial ? S.y : best[1]; // the whirl knocks it back out, away from the reactor
+    const q = best[5], cx = q ? q.x : S.x, cy = q ? q.y : S.y;
     let nx = o.x - cx, ny = o.y - cy; const d = Math.hypot(nx, ny) || 1; nx /= d; ny /= d;
     o.x += nx * bo; o.y += ny * bo;
     const dot = o.vx * nx + o.vy * ny; if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
-    if (q) q.flash = 0.12;
-    if (B.hitCd <= 0) { B.hitCd = 0.1; ring(o.x, o.y, 1, 6, 0.25, heat(b), 0.8); sfx.brick(b); mechHit(B, 'core', 1 + b, o.x, o.y); } else sfx.clank();
+    if (q) { // a piece of scrap: it shatters
+      const i = S.pcs.indexOf(q); if (i >= 0) S.pcs.splice(i, 1);
+      scrapShatter(q, b); chainCredit(o, q.x, q.y, b); mechHit(B, 'core', SCRAP_DMG + Math.floor(b / 5), q.x, q.y);
+    } else if (B.hitCd <= 0) { // the reactor itself: it counts extra (but only so often)
+      B.hitCd = SCRAP_CORE_CD; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.9); burst(o.x, o.y, 10, heat(MAX_CHARGE * 0.75), 35, 0.5, 0.35); sfx.brick(b); mechHit(B, 'core', Math.round((1 + b) * 1.5), o.x, o.y);
+    } else sfx.clank();
     return 'bounce';
   }
   // Take n pieces from the whirl for an attack, the nearest (x, y) first
   const scrapTake = (S, n, x, y) => S.pcs.filter(q => q.m === 'orbit').sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y)).slice(0, n);
-  function scrapFist(B, S) {
-    const p = G.player, pcs = scrapTake(S, clamp(Math.round(S.pcs.length * 0.25), 6, 10), p.x, p.y);
+  function scrapPunch(B, S, n) {
+    const p = G.player, pcs = scrapTake(S, clamp(Math.round(S.pcs.length * 0.22), 6, 9), p.x, p.y);
+    if (pcs.length < 3) { scrapEnd(B, S); return; }
     pcs.forEach((q, i) => { q.m = 'fist'; const a = i * 2.4, rr = 2.3 * Math.sqrt(i); q.fx = Math.cos(a) * rr; q.fy = Math.sin(a) * rr; });
-    S.atk = { k: 'fist', ph: 'gather', t: 0, x: S.x, y: S.y, sc: 1, pcs, n: B.melt ? 2 : 1 }; sfx.blasterCharge();
+    const a = Math.atan2(p.y - S.y, p.x - S.x);
+    S.atk = { k: 'punch', ph: 'gather', t: 0, a, x: S.x + Math.cos(a) * (S.R + 9), y: S.y + Math.sin(a) * (S.R + 9), pcs, n: n ?? (B.melt ? 2 : 1) };
   }
-  function scrapBar(B, S) {
-    const p = G.player; S.barH = !S.barH;
-    const lines = (B.melt ? [{ h: true }, { h: false }] : [{ h: S.barH }]).map(L => ({ ...L, c: L.h ? clamp(p.y, 4, AH - 4) : clamp(p.x, 4, AW - 4) }));
-    const per = Math.max(4, Math.floor((S.pcs.filter(q => q.m === 'orbit').length - 4) / lines.length));
-    for (const L of lines) {
-      const len = L.h ? AW : AH, n = Math.min(per, Math.ceil(len / 7)), pcs = scrapTake(S, n, L.h ? S.x : L.c, L.h ? L.c : S.y);
-      pcs.forEach((q, i) => { q.m = 'bar'; const u = (i + 0.5) / pcs.length * len; q.bx = L.h ? u : L.c; q.by = L.h ? L.c : u; }); L.pcs = pcs;
-    }
-    S.atk = { k: 'bar', ph: 'align', t: 0, lines, hit: false }; sfx.field();
+  function scrapWall(B, S) {
+    const p = G.player, y0 = clamp(S.y + S.R + 10, 14, AH * 0.5), slots = [];
+    const gapX = p.x < AW / 2 ? AW * rand(0.62, 0.88) : AW * rand(0.12, 0.38); // its gap, away from you: get there, or smash your own
+    for (let x = 4; x < AW - 3; x += 7) if (Math.abs(x - gapX) > 11) slots.push(x);
+    if (S.pcs.filter(q => q.m === 'orbit').length - 6 < slots.length) { scrapFling(B, S); return; } // not enough scrap for a wall
+    const pcs = scrapTake(S, slots.length, AW / 2, y0).sort((a, b) => a.x - b.x);
+    pcs.forEach((q, i) => { q.m = 'wall'; q.wx = slots[i]; });
+    S.atk = { k: 'wall', ph: 'form', t: 0, y: y0, v: WALL_V[scrapLvl(B)], pcs, gapX }; sfx.field();
   }
   function scrapFling(B, S) {
     const p = G.player, pcs = scrapTake(S, FLING_N[scrapLvl(B)], p.x, p.y);
@@ -4759,31 +4769,44 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     S.atk = { k: 'fling', ph: 'wind', t: 0, pcs, n: B.melt ? 2 : 1 }; S.spin = 2.6; sfx.blasterCharge();
   }
   function scrapEnd(B, S) { S.atk = null; S.atkT = STORM_GAP[scrapLvl(B)]; S.spin = 1; }
+  const scrapLand = (S, q) => { // a piece crashing down: it lies there as wreckage (until the magnet lifts it back in)
+    const i = S.pcs.indexOf(q); if (i >= 0) S.pcs.splice(i, 1);
+    const x = clamp(q.x, 3, AW - 3), y = clamp(q.y, 3, AH - 3); G.debris.push({ x, y, vx: 0, vy: 0, floor: y, r: q.r * 1.2, a: q.rot, va: 0, t: 0, life: MECH_DEBRIS * 0.8, down: true });
+  };
   function updateScrapAtk(B, S, dt) {
-    const A = S.atk, p = G.player, lvl = scrapLvl(B); A.t += dt;
-    if (A.k === 'fist') {
-      const follow = rate => { const k = Math.min(1, dt * rate); A.x += (p.x - A.x) * k; A.y += (p.y - A.y) * k; };
-      if (A.ph === 'gather') { follow(3); if (A.t >= FIST_GATHER) { A.ph = 'track'; A.t = 0; } }
-      else if (A.ph === 'track') { follow(4.5); A.sc = 1 + 0.4 * clamp(A.t / FIST_TRACK[lvl], 0, 1); if (A.t >= FIST_TRACK[lvl]) { A.ph = 'hold'; A.t = 0; sfx.vexaGo(); } }
-      else if (A.ph === 'hold') { if (A.t >= FIST_HOLD) { A.ph = 'slam'; A.t = 0; } }
-      else if (A.ph === 'slam') {
-        A.sc = 1.4 - 0.4 * clamp(A.t / FIST_SLAM, 0, 1);
-        if (A.t >= FIST_SLAM) { // it comes down
-          ring(A.x, A.y, 1, FIST_R, 0.3, COL.threat, 1.4); ring(A.x, A.y, 0.5, FIST_R * 0.6, 0.22, COL.chalk, 0.8); burst(A.x, A.y, 26, heat(MAX_CHARGE * 0.75), 55, 0.6, 0.4); burst(A.x, A.y, 10, COL.dim, 30, 0.7, 0.5);
-          gridImpulse(A.x, A.y, FIST_R * 2.6, 220); shake(3); sfx.rockBoom(3); sfx.clank();
-          if (p.inv <= 0 && Math.hypot(p.x - A.x, p.y - A.y) < FIST_R + PLAYER_R * 0.6) damagePlayer();
-          if (--A.n > 0) { A.ph = 'track'; A.t = FIST_TRACK[lvl] * 0.4; } else { A.ph = 'back'; A.t = 0; for (const q of A.pcs) { q.m = 'orbit'; q.safe = 0.8; } }
+    const A = S.atk, p = G.player, lvl = scrapLvl(B), e = k => { k = clamp(k, 0, 1); return k * k * (3 - 2 * k); }; A.t += dt;
+    const alive = (A.pcs || []).filter(q => S.pcs.includes(q));
+    if (A.k === 'punch') {
+      if (A.ph === 'gather' || A.ph === 'wind') { // beside the storm on your side; winding back it shakes, aiming at you (locked for its last beat)
+        const W = PUNCH_WIND[lvl], da = Math.atan2(Math.sin(Math.atan2(p.y - S.y, p.x - S.x) - A.a), Math.cos(Math.atan2(p.y - S.y, p.x - S.x) - A.a));
+        if (!(A.ph === 'wind' && A.t > W - 0.15)) A.a += clamp(da, -3 * dt, 3 * dt);
+        const j = A.ph === 'wind' ? clamp(A.t / W, 0, 1) * 1.2 : 0, rr = S.R + 9 - (A.ph === 'wind' ? 6 * e(A.t / W) : 0);
+        A.x = S.x + Math.cos(A.a) * rr + rand(-j, j); A.y = S.y + Math.sin(A.a) * rr + rand(-j, j);
+        if (A.ph === 'gather' && A.t >= PUNCH_GATHER) { A.ph = 'wind'; A.t = 0; sfx.blasterCharge(); }
+        else if (A.ph === 'wind' && A.t >= W) { A.ph = 'fly'; A.t = 0; A.vx = Math.cos(A.a) * PUNCH_V; A.vy = Math.sin(A.a) * PUNCH_V; sfx.launch(A.x); shake(1); }
+      } else { // flying at you: it hurts what it hits, and smashes into the wall
+        A.x += A.vx * dt; A.y += A.vy * dt;
+        if (A.x < 4 || A.x > AW - 4 || A.y < 4 || A.y > AH - 4 || !alive.length) {
+          A.x = clamp(A.x, 4, AW - 4); A.y = clamp(A.y, 4, AH - 4);
+          if (alive.length) { for (const q of alive) scrapLand(S, q); burst(A.x, A.y, 30, heat(MAX_CHARGE * 0.75), 60, 0.7, 0.5); ring(A.x, A.y, 1, 12, 0.3, COL.threat, 1.2); gridImpulse(A.x, A.y, 40, 220); shake(2.5); sfx.rockBoom(2); }
+          if (A.n > 1) scrapPunch(B, S, A.n - 1); else scrapEnd(B, S);
+          return;
         }
-      } else if (A.t >= 0.4) scrapEnd(B, S);
-      if (A.ph !== 'back') for (const q of A.pcs) { if (!S.pcs.includes(q)) continue; const tx = A.x + q.fx * A.sc, ty = A.y + q.fy * A.sc, k = Math.min(1, dt * (A.ph === 'gather' ? 6 : 14)); q.x += (tx - q.x) * k; q.y += (ty - q.y) * k; }
-    } else if (A.k === 'bar') {
-      if (A.ph === 'align') { if (A.t >= BAR_ALIGN[lvl]) { A.ph = 'lock'; A.t = 0; sfx.clank(); } }
-      else if (A.ph === 'lock') { if (A.t >= BAR_LOCK) { A.ph = 'snap'; A.t = 0; shake(1.5); sfx.zap(AW / 2); for (const L of A.lines) gridImpulse(L.h ? AW / 2 : L.c, L.h ? L.c : AH / 2, Math.max(AW, AH) * 0.5, 120); } }
-      else if (A.ph === 'snap') {
-        if (!A.hit && p.inv <= 0 && A.lines.some(L => Math.abs((L.h ? p.y : p.x) - L.c) < BAR_W + PLAYER_R * 0.6)) { A.hit = true; damagePlayer(); }
-        if (A.t >= BAR_SNAP) { A.ph = 'back'; A.t = 0; for (const L of A.lines) for (const q of L.pcs) { q.m = 'orbit'; q.safe = 0.8; } }
-      } else if (A.t >= 0.4) scrapEnd(B, S);
-      if (A.ph !== 'back') for (const L of A.lines) for (const q of L.pcs) { if (!S.pcs.includes(q)) continue; const k = Math.min(1, dt * (A.ph === 'align' ? 6 : 20)), j = A.ph === 'snap' ? 0.6 : 0; q.x += (q.bx + rand(-j, j) - q.x) * k; q.y += (q.by + rand(-j, j) - q.y) * k; }
+      }
+      for (const q of alive) { const k = Math.min(1, dt * (A.ph === 'fly' ? 30 : A.ph === 'gather' ? 6 : 14)); q.x += (A.x + q.fx - q.x) * k; q.y += (A.y + q.fy - q.y) * k; }
+    } else if (A.k === 'wall') {
+      if (A.ph === 'form' && A.t >= WALL_FORM) { A.ph = 'hold'; A.t = 0; sfx.clank(); }
+      else if (A.ph === 'hold' && A.t >= WALL_HOLD) { A.ph = 'sweep'; A.t = 0; sfx.launch(AW / 2); }
+      else if (A.ph === 'sweep') {
+        A.y += A.v * dt;
+        if (A.y > AH - 3 || !alive.length) { // it crashes into the bottom of the arena
+          for (const q of alive) { q.y = AH - 3; scrapLand(S, q); burst(q.x, AH - 3, 4, COL.dim, 20, 0.5, 0.3); }
+          if (alive.length) { gridImpulse(AW / 2, AH, AW, 160); shake(2); sfx.rockBoom(2); }
+          scrapEnd(B, S); return;
+        }
+      }
+      const j = A.ph === 'hold' ? 0.6 : 0, k = Math.min(1, dt * (A.ph === 'form' ? 5 : 25));
+      for (const q of alive) { q.x += (q.wx + rand(-j, j) - q.x) * k; q.y += (A.y + rand(-j, j) - q.y) * k; }
     } else { // the fling
       if (A.ph === 'wind' && A.t >= FLING_WIND) {
         const n = A.pcs.length;
@@ -4802,13 +4825,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.melt) { B.alarmT = (B.alarmT || 0) - dt; if (B.alarmT <= 0) { B.alarmT = 1.4; sfx.alarm(); } }
     S.R = 15 + 13 * frac; // it shrinks as the reactor drains
     if (S.st === 'form') { const k = ease(clamp(S.t / (STORM_FORM * 0.85), 0, 1)); S.x = S.x0 + (S.tx - S.x0) * k; S.y = S.y0 + (S.ty - S.y0) * k; if (S.t >= STORM_FORM) S.st = 'storm'; }
-    else if (!(S.atk && S.atk.k === 'fist' && S.atk.ph === 'slam')) { // drifting round the upper arena
+    else { // drifting round the upper arena
       S.wT -= dt; if (S.wT <= 0 || Math.hypot(S.tx - S.x, S.ty - S.y) < 4) { S.wT = rand(3, 5); S.tx = rand(AW * 0.25, AW * 0.75); S.ty = rand(AH * 0.2, AH * 0.42); }
       const dx = S.tx - S.x, dy = S.ty - S.y, d = Math.hypot(dx, dy) || 1, v = Math.min(d, STORM_V * (B.melt ? 1.3 : 1) * dt); S.x += dx / d * v; S.y += dy / d * v;
     }
     // the pieces: gathering in, whirling, flung
     for (let i = S.pcs.length - 1; i >= 0; i--) {
-      const q = S.pcs[i]; q.rot += q.va * dt * (q.m === 'orbit' ? S.spin : 1); q.flash -= dt; if (q.safe > 0) q.safe -= dt;
+      const q = S.pcs[i]; q.rot += q.va * dt * (q.m === 'orbit' ? S.spin : 1); q.flash -= dt;
       if (q.m === 'gather') { if ((q.delay -= dt) > 0) continue; q.a += q.sp * S.spin * dt; const [ox, oy] = scrapOrbit(S, q), k = Math.min(1, dt * 5); q.x += (ox - q.x) * k; q.y += (oy - q.y) * k; if ((q.g = (q.g || 0) + dt) > 0.9) q.m = 'orbit'; } // flying in to its place in the whirl (which moves), then whirling
       else if (q.m === 'orbit') { q.a += q.sp * S.spin * dt; const [ox, oy] = scrapOrbit(S, q), k = Math.min(1, dt * 8); q.x += (ox - q.x) * k; q.y += (oy - q.y) * k; }
       else if (q.m === 'fling') {
@@ -4821,22 +4844,27 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (S.st === 'storm') {
-      // scrap falls away as the reactor drains (lying as wreckage); the magnet pulls wreckage back in when the storm's short
-      const want = Math.round(STORM_MIN + (STORM_N - STORM_MIN) * frac), have = S.pcs.filter(q => q.m !== 'fling').length;
-      S.fallT -= dt; S.fillT -= dt;
-      if (have > want && S.fallT <= 0) { const q = S.pcs.find(q => q.m === 'orbit'); if (q) { S.pcs.splice(S.pcs.indexOf(q), 1); G.debris.push({ x: q.x, y: q.y, vx: rand(-12, 12), vy: -18, floor: clamp(q.y + rand(18, 36), 8, AH - 8), r: q.r * 1.2, a: q.rot, va: rand(-5, 5), t: 0, life: MECH_DEBRIS * 0.6, down: false }); burst(q.x, q.y, 6, heat(MAX_CHARGE * 0.75), 20, 0.5, 0.3); } S.fallT = 0.15; }
-      else if (have < want - 2 && S.fillT <= 0) { const d = G.debris.find(d => d.down && d.t > 2.5); if (d) { G.debris.splice(G.debris.indexOf(d), 1); const q = scrapPiece(d.x, d.y); q.sp = 1.4 - 0.6 * q.ra; S.pcs.push(q); ring(d.x, d.y, 0.5, 4, 0.25, COL.threat, 0.6); } S.fillT = 0.5; }
+      // the magnet rebuilds what you smash: wreckage on the floor first (lifting back in), else scrap torn off its wreck, never on a path through you; it holds less as the reactor drains
+      const want = Math.round(STORM_MIN + (STORM_N - STORM_MIN) * frac), have = S.pcs.filter(q => q.m === 'orbit' || q.m === 'gather').length;
+      if ((S.fillT -= dt) <= 0 && have < want) {
+        S.fillT = REBUILD_T[scrapLvl(B)];
+        const clear = (x, y) => { const ex = S.x - x, ey = S.y - y, l2 = ex * ex + ey * ey || 1, u = clamp(((p.x - x) * ex + (p.y - y) * ey) / l2, 0, 1); return Math.hypot(x + ex * u - p.x, y + ey * u - p.y) > 18; }; // its way in mustn't cross you: scrap flying up through you out of nowhere would be a cheap hit
+        const d = G.debris.find(d => d.down && d.t > 1.5 && clear(d.x, d.y)), w = S.wreck && [S.wreck[0] + rand(-30, 30) * B.s, S.wreck[1] + rand(-20, 30) * B.s], [fx, fy] = d ? [d.x, d.y] : w && clear(...w) ? w : [NaN, NaN];
+        if (d) G.debris.splice(G.debris.indexOf(d), 1);
+        if (!isNaN(fx)) { const q = scrapPiece(fx, fy); q.sp = 1.4 - 0.6 * q.ra; S.pcs.push(q); ring(fx, fy, 0.5, 4, 0.25, COL.threat, 0.6); }
+      }
       if (!S.atk && (S.atkT -= dt) <= 0) {
-        if (!S.order.length) { S.order = ['fist', 'bar', 'fling'].sort(() => Math.random() - 0.5); if (S.order[0] === S.last) S.order.push(S.order.shift()); }
-        const k = S.order.shift(); S.last = k; (k === 'fist' ? scrapFist : k === 'bar' ? scrapBar : scrapFling)(B, S);
+        if (!S.order.length) { S.order = ['punch', 'wall', 'fling'].sort(() => Math.random() - 0.5); if (S.order[0] === S.last) S.order.push(S.order.shift()); }
+        const k = S.order.shift(); S.last = k; (k === 'punch' ? scrapPunch : k === 'wall' ? scrapWall : scrapFling)(B, S);
       }
       if (S.atk) updateScrapAtk(B, S, dt);
     }
   }
-  // The storm, drawn: magnetic arcs from the reactor, the scrap whirling, the reactor (its eye), the bars, and the fist
-  // over everything (it's up in the air)
+  // The storm, drawn: its wreck behind (dim), magnetic arcs from the reactor, the scrap (glowing as an attack winds up),
+  // the reactor and its eye
   function drawScrap(B, blown = false) {
     const S = B.storm, t = G.time, H3 = hex(COL.hull), fire = heat(MAX_CHARGE * 0.75), A = S.atk, die = B.die || 0;
+    if (S.wreck) faded(0.42 * (blown ? 0.5 : 1), () => drawMech({ ...B, storm: null, walker: null, wreck: true, st: 'wreck', x: S.wreck[0], y: S.wreck[1], kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
     const piece = (q, sc = 1, glow = 0) => {
       const n = q.sh.length, r = q.r * sc;
       ctx.beginPath(); for (let i = 0; i < n; i++) { const a = q.rot + i / n * Math.PI * 2, rr = r * q.sh[i], x = q.x + Math.cos(a) * rr, y = q.y + Math.sin(a) * rr; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.closePath();
@@ -4851,7 +4879,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       S.pcs.forEach((q, i) => { if (q.m !== 'orbit' || (i + Math.floor(t * 9)) % 4) return; const mx = (S.x + q.x) / 2 + rand(-1.5, 1.5), my = (S.y + q.y) / 2 + rand(-1.5, 1.5); ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.moveTo(S.x, S.y); ctx.lineTo(mx, my); ctx.lineTo(q.x, q.y); ctx.stroke(); });
       ctx.restore();
     }
-    for (const q of S.pcs) if (q.m !== 'fist') piece(q, 1, q.hot ? 0.3 + 0.3 * Math.sin(t * 30) : 0);
+    const fl30 = 0.3 + 0.3 * Math.sin(t * 30), winding = q => q.hot || (A && ((A.k === 'punch' && A.ph === 'wind' && q.m === 'fist') || (A.k === 'wall' && A.ph === 'hold' && q.m === 'wall')));
+    for (const q of S.pcs) piece(q, q.m === 'fist' ? 1.15 : 1, winding(q) ? fl30 : 0);
     if (!blown) { // the reactor: a hot core with its machine eye, a ring turning round it
       const fl = (B.coreFlash || 0) > 0, pul = 0.5 + 0.5 * Math.sin(t * (B.melt ? 14 : 6)), R0 = 6.5 * (1 + die * 0.4);
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -4861,34 +4890,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); ctx.ellipse(S.x, S.y, R0 * 0.5, R0 * 0.17, 0, 0, Math.PI * 2); ctx.fillStyle = COL.threat; ctx.fill(); ctx.beginPath(); ctx.arc(S.x, S.y, R0 * 0.12, 0, Math.PI * 2); ctx.fillStyle = COL.chalk; ctx.fill(); // its eye
       ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.8; for (let k = 0; k < 3; k++) { const a = t * 1.6 + k * Math.PI * 2 / 3; ctx.beginPath(); ctx.arc(S.x, S.y, R0 + 1.6, a, a + 1.1); ctx.stroke(); } ctx.globalAlpha = 1;
     }
-    if (A && A.k === 'bar') for (const L of A.lines) { // the bar's line: faint as it lines up, flickering when it locks, solid when it snaps
-      const x0 = L.h ? 0 : L.c, y0 = L.h ? L.c : 0, x1 = L.h ? AW : L.c, y1 = L.h ? L.c : AH;
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
-      if (A.ph === 'align') { ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.1 + 0.2 * clamp(A.t / BAR_ALIGN[scrapLvl(B)], 0, 1); ctx.stroke(); }
-      else if (A.ph === 'lock') { ctx.strokeStyle = Math.floor(t * 30) % 2 ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.7; ctx.stroke(); }
-      else if (A.ph === 'snap') { ctx.strokeStyle = fire; ctx.lineWidth = BAR_W * 2.2; ctx.globalAlpha = 0.55; ctx.stroke(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.8; ctx.globalAlpha = 1; ctx.stroke(); }
-      ctx.restore();
-    }
-    if (A && A.k === 'fist' && A.ph !== 'back') { // up in the air over you: bigger as it rises, white when it holds
-      const hold = A.ph === 'hold' && Math.floor(t * 24) % 2;
-      for (const q of A.pcs) piece(q, A.sc, hold ? 0.6 : 0.12);
-    }
     ctx.restore();
   }
   // Goliath's last stand, form one: the arm walker. With everything broken, its head tears free and its two arm stumps
   // lock in under it as legs; the rest of it (torso, legs, pauldrons) slumps where it knelt, a dim wreck in the
-  // background (not solid, not a target). It walks at you hand over hand: a hand lifts (glowing) and slams down a
-  // stride on, hurting you right under it (ARM_SLAM_R). Now and then it plants one arm and pulls the other back
-  // (glowing, shaking: ARM_WIND), then sweeps it in a wide low arc round its shoulder (ARM_SWING): out of its reach, or
-  // you're hit. Past half of this form's health it sweeps with both arms, one after the other. Any hit on its head or
-  // arms hurts the reactor; touching its head hurts you (its arms only by slamming and sweeping). When this form's
-  // share of the reactor (ARM_HP) is gone, its arms are wrecked (for now, the scrap storm takes over).
-  const WALK_S = 0.85, ARM_HP = 300, ARM_FORM = 1.1, ARM_STEP_T = 0.55, ARM_STEP_GAP = 0.12, ARM_STRIDE = 20, ARM_SLAM_R = 6;
+  // background (not solid, not a target). Its arms are plated (ARM_PLATES each over a bare frame): every hit chips them
+  // and past each mark of an arm's health a plate comes off (the one nearest the hit), clattering down as wreckage;
+  // stripped bare, the arm snaps at the elbow (its forearm crashing down) and it limps on the stump. Both gone and this
+  // form's over (for now, the scrap storm takes over). A hit on its head goes to the arm with the most left. It walks
+  // at you hand over hand (a lifted hand glows, then slams down), and now and then pulls an arm back (glowing,
+  // shaking) and sweeps it in a wide low arc round its shoulder; past half its arms' health, both arms, one after
+  // the other. Touching any of it hurts.
+  const WALK_S = 0.85, ARM_HP = 300, ARM_FORM = 1.1, ARM_STEP_T = 0.55, ARM_STEP_GAP = 0.12, ARM_STRIDE = 20, ARM_PLATES = 12, PLATE_T = [0.1, 0.26, 0.42, 0.58, 0.74, 0.9];
   const ARM_ATK = [3.2, 2.6], ARM_WIND = [0.8, 0.6], ARM_SWING = 0.35, ARM_REC = 0.3, ARM_L1 = 21, ARM_L2 = 13;
-  const armWalkLate = B => B.core <= B.walker.hp0 - ARM_HP / 2;
+  const armWalkLate = B => B.walker.arms[0].hp + B.walker.arms[1].hp <= ARM_HP / 2;
   function armWalkStart(B) {
     const s = B.s, ws = s * WALK_S, [hx, hy] = mechAt(B, 0, -21);
-    const W = B.walker = { st: 'form', t: 0, wx: B.x, wy: B.y, hp0: B.core, hands: [], step: null, next: 0, stepGap: 0.2, atkT: 2.2, sw: null, fx: hx, fy: hy };
+    const W = B.walker = { st: 'form', t: 0, wx: B.x, wy: B.y, hp0: B.core, hands: [], step: null, next: 0, stepGap: 0.2, atkT: 2.2, sw: null, fx: hx, fy: hy,
+      arms: [0, 1].map(() => ({ hp: ARM_HP / 2, max: ARM_HP / 2, plates: Array(ARM_PLATES).fill(true), lost: false, flash: 0 })) };
     for (const sd of [-1, 1]) { const [x, y] = mechAt(B, sd * 42, 13); W.hands.push({ x, y, x0: x, y0: y, tx: clamp(hx + sd * 24 * ws, 6, AW - 6), ty: clamp(hy + 30 * ws + 8, 10, AH - 4), lift: 0 }); }
     B.x = hx; B.y = hy; B.walk = null; B.beam = null; B.sweep = null; B.lance = null; B.pulses = []; B.pulseWarn = null; B.throws = []; B.crawl = null; B.plate = null; G.banner = null;
     for (const [x, y] of [[hx, hy + 8 * s], ...W.hands.map(h => [h.x, h.y])]) { burst(x, y, 18, heat(MAX_CHARGE * 0.75), 45, 0.6, 0.45); ring(x, y, 1, 10, 0.3, COL.threat, 1); }
@@ -4900,7 +4919,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const W = B.walker, ws = B.s * WALK_S, sd = i ? 1 : -1, sx = B.x + sd * 11 * ws, sy = B.y + 6 * ws, H = W.hands[i];
     let hx = H.x, hy = H.y - (H.lift || 0) * 10 * ws;
     if (W.sw && W.sw.i === i && W.sw.pos) [hx, hy] = W.sw.pos;
-    const L1 = ARM_L1 * ws, L2 = ARM_L2 * ws; let dx = hx - sx, dy = hy - sy, d = Math.hypot(dx, dy) || 1e-6;
+    const L1 = ARM_L1 * ws, L2 = (W.arms && W.arms[i].lost ? 2 : ARM_L2) * ws; let dx = hx - sx, dy = hy - sy, d = Math.hypot(dx, dy) || 1e-6; // (a lost arm: only its stump)
     if (d > L1 + L2 - 0.01) { const k = (L1 + L2 - 0.01) / d; hx = sx + dx * k; hy = sy + dy * k; dx = hx - sx; dy = hy - sy; d = L1 + L2 - 0.01; }
     const a = Math.atan2(dy, dx), b = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));
     const e1 = [sx + Math.cos(a - b) * L1, sy + Math.sin(a - b) * L1], e2 = [sx + Math.cos(a + b) * L1, sy + Math.sin(a + b) * L1], [ex, ey] = e1[1] < e2[1] ? e1 : e2;
@@ -4908,21 +4927,47 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Its head (it hurts to touch) and its arms (hit them, but they only hurt by slamming and sweeping)
   function armWalkCircles(B) {
-    const W = B.walker, ws = B.s * WALK_S, out = [[B.x, B.y, 8 * ws, 'core', true, null, false]];
+    const W = B.walker, ws = B.s * WALK_S, out = [[B.x, B.y, 8 * ws, 'wH', true, null, false]];
     if (W.st === 'form') return out;
-    for (const i of [0, 1]) { const [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i);
-      out.push([(sx + ex) / 2, (sy + ey) / 2, 4 * ws, 'core', true, null, true], [ex, ey, 3.6 * ws, 'core', true, null, true], [(ex + hx) / 2, (ey + hy) / 2, 3.4 * ws, 'core', true, null, true], [hx, hy, 3.8 * ws, 'core', true, null, true]); }
+    for (const i of [0, 1]) { const key = i ? 'wR' : 'wL', [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i);
+      out.push([(sx + ex) / 2, (sy + ey) / 2, 4 * ws, key, true, null, false], [ex, ey, 3.6 * ws, key, true, null, false]);
+      if (!W.arms[i].lost) out.push([(ex + hx) / 2, (ey + hy) / 2, 3.4 * ws, key, true, null, false], [hx, hy, 3.8 * ws, key, true, null, false]); }
     return out;
   }
-  function armWalkSlam(x, y) { // a hand coming down
-    const p = G.player; ring(x, y, 1, ARM_SLAM_R + 1, 0.25, COL.threat, 1); burst(x, y, 12, COL.dim, 30, 0.6, 0.4); gridImpulse(x, y, ARM_SLAM_R * 3, 120); shake(1.1); sfx.clank();
-    if (p.inv <= 0 && Math.hypot(p.x - x, p.y - y) < ARM_SLAM_R + PLAYER_R * 0.6) damagePlayer();
+  // Where an arm's plate sits: [x, y] (k < 6: the upper arm, else the forearm)
+  function armWalkPlate(B, i, k) { const [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i), [x0, y0, x1, y1] = k < 6 ? [sx, sy, ex, ey] : [ex, ey, hx, hy], t = PLATE_T[k % 6]; return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t]; }
+  // A hit on the walker: chips sparks off; past each mark a plate comes off (the nearest the hit); stripped, the arm snaps
+  function armWalkHit(B, key, dmg, x, y) {
+    const W = B.walker, ws = B.s * WALK_S, live = [0, 1].filter(i => !W.arms[i].lost); if (!live.length) return;
+    let i = key === 'wL' ? 0 : key === 'wR' ? 1 : -1;
+    if (i < 0 || W.arms[i].lost) i = live.reduce((a, j) => W.arms[j].hp > W.arms[a].hp ? j : a, live[0]); // its head: the arm with the most left takes it
+    const A = W.arms[i], d = Math.min(dmg, A.hp); A.hp -= d; A.flash = 0.12;
+    B.core = Math.max(0, B.core - d); B.coreFlash = 0.15; damageBoss(d, x, y);
+    burst(x, y, 6, heat(MAX_CHARGE * 0.75), 30, 0.4, 0.25); // a chip
+    const keep = Math.max(0, Math.ceil(A.hp / A.max * (ARM_PLATES + 1)) - 1);
+    while (A.plates.filter(Boolean).length > keep) {
+      let k = -1, bd = 1e9; A.plates.forEach((on, j) => { if (!on) return; const [px, py] = armWalkPlate(B, i, j), dd = Math.hypot(px - x, py - y); if (dd < bd) { bd = dd; k = j; } });
+      A.plates[k] = false; const [px, py] = armWalkPlate(B, i, k);
+      G.debris.push({ x: px, y: py, vx: rand(-25, 25), vy: -30, floor: clamp(py + rand(12, 24), 6, AH - 4), r: 2.6 * ws, a: rand(0, 6), va: rand(-8, 8), t: 0, life: MECH_DEBRIS * 0.6, down: false });
+      burst(px, py, 14, heat(MAX_CHARGE * 0.75), 40, 0.5, 0.35); ring(px, py, 0.5, 5, 0.2, COL.chalk, 0.6); shake(0.7); sfx.brick(8); G.score += Math.round(60 * G.mult);
+    }
+    if (A.hp <= 0 && !A.lost) { // stripped bare: it snaps at the elbow, and the forearm crashes down
+      const [, , ex, ey, hx, hy] = armWalkArm(B, i); A.lost = true;
+      G.debris.push({ x: (ex + hx) / 2, y: (ey + hy) / 2, vx: rand(-20, 20), vy: -40, floor: clamp((ey + hy) / 2 + rand(14, 26), 6, AH - 4), r: 5.5 * ws, a: rand(0, 6), va: rand(-6, 6), t: 0, life: MECH_DEBRIS, down: false });
+      burst(ex, ey, 34, heat(MAX_CHARGE * 0.75), 70, 0.8, 0.55); ring(ex, ey, 1, 14, 0.35, COL.threat, 1.2); gridImpulse(ex, ey, 50, 220); shake(3); sfx.shatter(); sfx.overload(); G.score += Math.round(500 * G.mult);
+      float(ex, ey - 8, 'Arm off!', COL.chalk, 3.6);
+      if (W.sw && W.sw.i === i) { W.sw = null; W.atkT = 1.4; }
+    }
+  }
+  function armWalkSlam(x, y, ws) { // a hand coming down: it hurts if it lands on you
+    const p = G.player; ring(x, y, 1, 7, 0.25, COL.threat, 1); burst(x, y, 12, COL.dim, 30, 0.6, 0.4); gridImpulse(x, y, 18, 120); shake(1.1); sfx.clank();
+    if (p.inv <= 0 && Math.hypot(p.x - x, p.y - y) < 3.8 * ws + PLAYER_R * 0.8) damagePlayer();
   }
   function updateArmWalk(B, dt) {
     const W = B.walker, p = G.player, ws = B.s * WALK_S, ease = k => k * k * (3 - 2 * k); W.t += dt;
-    if (B.core <= W.hp0 - ARM_HP) { // its arms are wrecked: (for now) the scrap storm takes over
-      for (const i of [0, 1]) { const [, , ex, ey, hx, hy] = armWalkArm(B, i); burst(ex, ey, 20, heat(MAX_CHARGE * 0.75), 50, 0.7, 0.5); burst(hx, hy, 14, heat(MAX_CHARGE * 0.75), 40, 0.6, 0.4); }
-      burst(W.wx, W.wy, 30, COL.dim, 50, 0.8, 0.6); B.walker = null; scrapStart(B, [B.x, B.y]); return;
+    for (const A of W.arms) A.flash -= dt;
+    if (W.arms.every(A => A.lost)) { // both arms gone: (for now) the scrap storm takes over, tearing scrap off its wreck
+      const wreck = [W.wx, W.wy]; B.walker = null; scrapStart(B, [B.x, B.y], wreck); return;
     }
     const plant = (i, x, y) => { const H = W.hands[i]; H.x = clamp(x, 6, AW - 6); H.y = clamp(y, AH * 0.12, AH - 4); };
     const mid = () => [(W.hands[0].x + W.hands[1].x) / 2, (W.hands[0].y + W.hands[1].y) / 2];
@@ -4930,7 +4975,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const k = ease(clamp(W.t / ARM_FORM, 0, 1));
       for (const H of W.hands) { H.x = H.x0 + (H.tx - H.x0) * k; H.y = H.y0 + (H.ty - H.y0) * k; H.lift = Math.sin(Math.PI * k) * 1.2; }
       const [mx, my] = mid(); B.x = W.fx + (mx - W.fx) * k; B.y = W.fy + (my - 30 * ws - W.fy) * k;
-      if (W.t >= ARM_FORM) { W.st = 'walk'; for (const H of W.hands) { H.lift = 0; armWalkSlam(H.x, H.y); } }
+      if (W.t >= ARM_FORM) { W.st = 'walk'; for (const H of W.hands) { H.lift = 0; armWalkSlam(H.x, H.y, ws); } }
       return;
     }
     // the sweep: wind up, swing, plant it again
@@ -4949,19 +4994,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (S.t >= ARM_SWING) { S.ph = 'rec'; S.t = 0; S.from = [...S.pos]; const [mx, my] = mid(); S.to = [clamp(B.x + sd * 24 * ws, 6, AW - 6), clamp(B.y + 30 * ws, AH * 0.12, AH - 4)]; shake(1.5); gridImpulse(hx, hy, 30, 140); }
       } else {
         const k = ease(clamp(S.t / ARM_REC, 0, 1)); S.pos = [S.from[0] + (S.to[0] - S.from[0]) * k, S.from[1] + (S.to[1] - S.from[1]) * k - Math.sin(Math.PI * k) * 6 * ws];
-        if (S.t >= ARM_REC) { plant(S.i, ...S.to); armWalkSlam(W.hands[S.i].x, W.hands[S.i].y);
-          if (S.n > 1) W.sw = { i: 1 - S.i, ph: 'wind', t: 0, T: ARM_WIND[1] * 0.75, n: S.n - 1, h0: [W.hands[1 - S.i].x, W.hands[1 - S.i].y] }; // late on: the other arm, straight after
+        if (S.t >= ARM_REC) { plant(S.i, ...S.to); armWalkSlam(W.hands[S.i].x, W.hands[S.i].y, ws);
+          if (S.n > 1 && !W.arms[1 - S.i].lost) W.sw = { i: 1 - S.i, ph: 'wind', t: 0, T: ARM_WIND[1] * 0.75, n: S.n - 1, h0: [W.hands[1 - S.i].x, W.hands[1 - S.i].y] }; // late on: the other arm, straight after
           else { W.sw = null; W.atkT = ARM_ATK[armWalkLate(B) ? 1 : 0]; W.stepGap = 0.2; } }
       }
     } else if (!W.step && (W.atkT -= dt) <= 0) { // time to sweep: the arm on the far side from you, so it comes round at you
-      const i = p.x < B.x ? 1 : 0; W.sw = { i, ph: 'wind', t: 0, T: ARM_WIND[armWalkLate(B) ? 1 : 0], n: armWalkLate(B) ? 2 : 1, h0: [W.hands[i].x, W.hands[i].y] }; sfx.blasterCharge();
+      let i = p.x < B.x ? 1 : 0; if (W.arms[i].lost) i = 1 - i; const both = !W.arms[0].lost && !W.arms[1].lost;
+      W.sw = { i, ph: 'wind', t: 0, T: ARM_WIND[armWalkLate(B) ? 1 : 0], n: armWalkLate(B) && both ? 2 : 1, h0: [W.hands[i].x, W.hands[i].y] }; sfx.blasterCharge();
     }
     // walking: a hand at a time, a stride on toward you (straddling you)
     if (!W.sw) {
       if (W.step) {
         const St = W.step, H = W.hands[St.i]; St.t += dt; const k = clamp(St.t / ARM_STEP_T, 0, 1);
         H.x = St.from[0] + (St.to[0] - St.from[0]) * ease(k); H.y = St.from[1] + (St.to[1] - St.from[1]) * ease(k); H.lift = Math.sin(Math.PI * k);
-        if (k >= 1) { H.lift = 0; armWalkSlam(H.x, H.y); W.step = null; W.stepGap = ARM_STEP_GAP; }
+        if (k >= 1) { H.lift = 0; if (!W.arms[St.i].lost) armWalkSlam(H.x, H.y, ws); else { burst(H.x, H.y, 6, COL.dim, 20, 0.5, 0.3); sfx.clank(); } W.step = null; W.stepGap = ARM_STEP_GAP; }
       } else if ((W.stepGap -= dt) <= 0) {
         const [mx, my] = mid(), gx = clamp(p.x, 24 * ws + 6, AW - 24 * ws - 6), gy = clamp(p.y + 8, AH * 0.2, AH - 6), dx = gx - mx, dy = gy - my, d = Math.hypot(dx, dy);
         if (d > 5) { const i = W.next, sd = i ? 1 : -1, st = Math.min(ARM_STRIDE * ws, d), nx = mx + dx / d * st, ny = my + dy / d * st;
@@ -5437,12 +5483,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.save(); ctx.translate(B.x + rand(-shkW, shkW), B.y + rand(-shkW, shkW)); ctx.scale(ws, ws); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
       const limb = (x0, y0, x1, y1, w0, w1, o = {}) => { const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d; plate([[x0 + nx * w0, y0 + ny * w0], [x1 + nx * w1, y1 + ny * w1], [x1 - nx * w1, y1 - ny * w1], [x0 - nx * w0, y0 - ny * w0]], o); };
       for (const i of [0, 1]) {
-        const [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i).map((v, j) => (v - (j % 2 ? B.y : B.x)) / ws), H = W.hands[i];
-        const hot = W.sw && W.sw.i === i && W.sw.ph !== 'rec', fl = (B.coreFlash || 0) > 0;
+        const [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i).map((v, j) => (v - (j % 2 ? B.y : B.x)) / ws), H = W.hands[i], A = W.arms[i];
+        const hot = W.sw && W.sw.i === i && W.sw.ph !== 'rec', fl = A.flash > 0;
         if (hot) glow(() => { ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.lineWidth = 9; ctx.stroke(); }, COL.threat, 0.25 + 0.2 * Math.sin(t * 30));
-        piston(sx, sy, ex, ey, 3); limb(sx, sy, ex, ey, 3, 4.4, { flash: fl, bolts: [[(sx + ex) / 2, (sy + ey) / 2]] }); joint(ex, ey, 3.6);
-        limb(ex, ey, hx, hy, 3.8, 4.8, { lit: 0.3, flash: fl }); torn(hx, hy, 6); joint(sx, sy, 4.4);
-        if (H.lift > 0.05 && !(W.sw && W.sw.i === i)) glow(() => { ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.4 * H.lift); // a lifted hand, about to come down
+        piston(sx, sy, ex, ey, 3); limb(sx, sy, ex, ey, 1.5, 1.9, { lit: 0.1 }); joint(ex, ey, 3.2); // the bare frame
+        if (!A.lost) { piston(ex, ey, hx, hy, 2.4); limb(ex, ey, hx, hy, 1.6, 2, { lit: 0.1 }); torn(hx, hy, 6); } else torn(ex, ey, 5); // its forearm gone: a torn elbow
+        for (let k = 0; k < ARM_PLATES; k++) { // the armour still on it
+          if (!A.plates[k]) continue; const [x0, y0, x1, y1] = k < 6 ? [sx, sy, ex, ey] : [ex, ey, hx, hy], tt = PLATE_T[k % 6], dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, cx = x0 + dx * tt, cy = y0 + dy * tt, hl = L * 0.072;
+          limb(cx - dx / L * hl, cy - dy / L * hl, cx + dx / L * hl, cy + dy / L * hl, k < 6 ? 4.2 : 3.8, k < 6 ? 4.5 : 4.4, { flash: fl, lit: 0.3 });
+        }
+        joint(sx, sy, 4.4);
+        if (!A.lost && H.lift > 0.05 && !(W.sw && W.sw.i === i)) glow(() => { ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.4 * H.lift); // a lifted hand, about to come down
       }
       head(21); // its helmet, over its arms
       ctx.restore(); return;
