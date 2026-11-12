@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 12 18:55 UTC · 32801fa";</script>
+<script>window.RICOCHET_BUILD = "Nov 12 19:42 UTC · ac2bad3";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4329,7 +4329,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // you slower than you move (MECH_MICRO_FOLLOW); meeting in the middle, it detonates. Each dies in one hit and blows
   // up (MECH_MICRO_AOE), taking any within reach with it: sparse at first, so a hit pops one and opens a gap to slip
   // out through, but as the loop tightens they bunch up and go off in chains. Touching one hurts.
-  const MECH_W = { gun: 58, claw: 58, rack: 58, rail: 58 }, MECH_KNEE = 220, MECH_CORE = 700, MECH_CRIT = 0.1;
+  const MECH_W = { gun: 58, claw: 58, rack: 58, rail: 58 }, MECH_KNEE = 220, MECH_CORE = 850, MECH_CRIT = 0.1;
   const MECH_ROCKET_V = 30, MECH_ROCKET_TURN = 1.1, MECH_ROCKET_HOME = 2.8, MECH_ROCKET_BACK = 75, MECH_ROCKET_DMG = 12, MECH_ROCKET_R = 2.4;
   const MECH_MICRO_N = 30, MECH_MICRO_AOE = 6.5, MECH_MICRO_ORBIT = 1.6, MECH_MICRO_OUT = 8, MECH_MICRO_CLOSE = 10, MECH_MICRO_FOLLOW = 13, MECH_MICRO_SPIN = 0.2, MECH_MICRO_BOOM = 9;
   const MECH_STOMP_R = 16, MECH_STEP = [0.62, 2.1], MECH_STRIDE = [15, 5], MECH_STEP_WARN = 0.5, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
@@ -4368,6 +4368,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Everything solid, as circles: [x, y, r, key or null (armour), hits hurt it?]
   function mechCircles(B) {
     if (B.walker) return armWalkCircles(B);
+    if (B.legs) return legWalkCircles(B);
     if (B.storm) return scrapCircles(B);
     const out = [], s = B.s;
     if (B.fly && B.fly.air) return out; // up in the air: nothing to hit, nothing in the way
@@ -4386,6 +4387,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Damage to a part (a weapon or a knee), or to the reactor; the bar is the sum of everything.
   function mechHit(B, key, dmg, x, y) {
     if (key === 'wL' || key === 'wR' || key === 'wH') { if (B.walker) armWalkHit(B, key, dmg, x, y); return; } // the arm walker
+    if (key === 'gL' || key === 'gR' || key === 'gH') { if (B.legs) legWalkHit(B, key, dmg, x, y); return; } // the leg walker
     if (key === 'core') { if (B.st === 'core') { B.core = Math.max(0, B.core - dmg); B.coreFlash = 0.15; damageBoss(dmg, x, y); } return; }
     const P = B.parts[key]; if (!P || P.hp <= 0) return;
     const d = Math.min(dmg, P.hp); P.hp -= d; P.flash = 0.15; damageBoss(d, x, y);
@@ -4939,7 +4941,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // the reactor and its eye
   function drawScrap(B, blown = false) {
     const S = B.storm, t = G.time, H3 = hex(COL.hull), fire = heat(MAX_CHARGE * 0.75), A = S.atk, die = B.die || 0;
-    if (S.wreck) faded(0.42 * (blown ? 0.5 : 1), () => drawMech({ ...B, storm: null, walker: null, wreck: true, st: 'wreck', x: S.wreck[0], y: S.wreck[1], kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
+    if (S.wreck) faded(0.42 * (blown ? 0.5 : 1), () => drawMech({ ...B, storm: null, walker: null, legs: null, wreck: true, noLegs: true, st: 'wreck', x: S.wreck[0], y: S.wreck[1], kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
     const piece = (q, sc = 1, glow = 0) => {
       const n = q.sh.length, r = q.r * sc;
       ctx.beginPath(); for (let i = 0; i < n; i++) { const a = q.rot + i / n * Math.PI * 2, rr = r * q.sh[i], x = q.x + Math.cos(a) * rr, y = q.y + Math.sin(a) * rr; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.closePath();
@@ -4984,7 +4986,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    wind-up, and an arm swung round in a wide low arc.
   // And its wreck keeps spitting out scrap crawlers (CRAWL_*): little scuttling things, one hit each, that come at you.
   // Late: half its arms' health gone.
-  const WALK_S = 0.85, ARM_HP = 300, ARM_FORM = 1.1, ARM_STEP_T = 0.24, ARM_STEP_GAP = 0.02, ARM_STRIDE = 16, ARM_RANGE = 52, ARM_PLATES = 18, PLATE_T = [0.07, 0.18, 0.29, 0.4, 0.51, 0.62, 0.73, 0.84, 0.95];
+  const WALK_S = 0.85, ARM_HP = 250, ARM_FORM = 1.1, ARM_STEP_T = 0.24, ARM_STEP_GAP = 0.02, ARM_STRIDE = 16, ARM_RANGE = 52, ARM_PLATES = 18, PLATE_T = [0.07, 0.18, 0.29, 0.4, 0.51, 0.62, 0.73, 0.84, 0.95];
   const ARM_ATK = [1.3, 1.0], ARM_WIND = [0.42, 0.34], ARM_SWING = 0.3, ARM_REC = 0.3, ARM_L1 = 21, ARM_L2 = 13;
   const POUNCE_CROUCH = [0.6, 0.42], POUNCE_AGAIN = 0.32, POUNCE_H = 22, POUNCE_SKID = 0.22, POUNCE_REC = [0.55, 0.4];
   const THROW_REACH = 0.22, THROW_DIG = 0.32, THROW_WIND = [0.5, 0.38], THROW_V = 85, THROW_REC = 0.25;
@@ -5171,9 +5173,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateArmWalk(B, dt) {
     const W = B.walker, p = G.player, ws = B.s * WALK_S, ease = k => k * k * (3 - 2 * k), L = armWalkLate(B) ? 1 : 0; W.t += dt;
     for (const A of W.arms) A.flash -= dt;
-    if (W.arms.every(A => A.lost)) { // both arms gone: (for now) the scrap storm takes over, tearing scrap off its wreck
-      const wreck = [W.wx, W.wy]; B.walker = null; scrapStart(B, [B.x, B.y], wreck); return;
-    }
+    if (W.arms.every(A => A.lost)) { B.walker = null; legWalkStart(B, W); return; } // both arms gone: it takes the wreck's legs
     const mid = () => [(W.hands[0].x + W.hands[1].x) / 2, (W.hands[0].y + W.hands[1].y) / 2];
     if (W.st === 'form') { // its head rises out of the wreck as its arms swing down under it
       const k = ease(clamp(W.t / ARM_FORM, 0, 1));
@@ -5209,6 +5209,143 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     // its head rides over its hands (sinking as it crouches)
     if (ride) { const [mx, my] = mid(), k = Math.min(1, dt * 9); B.x += (mx - B.x) * k; B.y += (clamp(my - 30 * ws, 10, AH) + W.crouch - B.y) * k; }
+  }
+  // Goliath's last stand, form two: the leg walker. With its arms gone, its head flies back to the wreck, its legs tear
+  // free, and their feet lock flat as treads: now it drives, fast and smooth, sliding round you out at LEG_RANGE. The
+  // wreck stays behind (legless now), still spitting crawlers. Its legs are plated like the arms were (LEG_PLATES each,
+  // every one knocked off a kill); stripped bare a leg snaps at the knee and it drags itself on the other (slower);
+  // both gone and the scrap storm takes over. A hit on its head goes to the leg with the most left. Touching any of it
+  // hurts. Its eye's laser ignites as a blade (LEG_BLADE long; flickering and growing for LEG_IGNITE is the tell, and
+  // it's harmless till it's lit), and it:
+  //  - lunges: the blade levelled at you (following you, flickering), then it locks (going solid, a flash, a clank: step
+  //    aside now), its treads screaming, then a straight dash down it (LUNGE_V), skidding to a stop and sitting a beat.
+  //  - spins: it drives in on you with the blade lit behind it, then round it goes, SPIN_TURNS full turns: get out of
+  //    its reach (or slip in behind the blade as it passes).
+  //  - late (half its legs' health gone), the spin travels: it spins as it drives at you, for TSPIN_T.
+  const LEG_HP = 250, LEG_FORM = 1.2, LEG_PLATES = 18, LEG_RANGE = 52, LEG_V = 34, LEG_L1 = 16, LEG_L2 = 16;
+  const LEG_ATK = [1.4, 1.1], LEG_BLADE = 36, LEG_IGNITE = [0.65, 0.55], LUNGE_V = 120, LUNGE_T = 0.42, LUNGE_SKID = 0.25, LUNGE_REC = [0.5, 0.35];
+  const SPIN_W = Math.PI * 2 / 0.85, SPIN_TURNS = [1.5, 2], SPIN_REC = 0.45, TSPIN_T = 2.6, TSPIN_V = 24;
+  const legWalkLate = B => B.legs.legs[0].hp + B.legs.legs[1].hp <= LEG_HP / 2;
+  function legWalkStart(B, W) {
+    const s = B.s, ws = s * WALK_S, wx = W.wx, wy = W.wy, tx = clamp(wx, 26 * ws, AW - 26 * ws), ty = clamp(wy + 14 * s, AH * 0.06, AH - 38 * ws);
+    const Lg = B.legs = { st: 'form', t: 0, wx, wy, fx: B.x, fy: B.y, tx, ty, vx: 0, vy: 0, orb: Math.random() < 0.5 ? -1 : 1, flipT: 0, bag: [], atkT: 1.6, atk: null, crawlT: W.crawlT, tread: 0,
+      legs: [0, 1].map(() => ({ hp: LEG_HP / 2, max: LEG_HP / 2, plates: Array(LEG_PLATES).fill(true), lost: false, flash: 0 })),
+      feet: [-1, 1].map(sd => { const x = wx + sd * 28 * s, y = wy + 52 * s; return { x, y, x0: x, y0: y }; }) }; // its legs, from where they knelt on the wreck
+    for (const sd of [-1, 1]) { const x = wx + sd * 9 * s, y = wy + 20 * s; burst(x, y, 24, heat(MAX_CHARGE * 0.75), 50, 0.6, 0.45); ring(x, y, 1, 10, 0.3, COL.threat, 1); }
+    G.screenFlash = Math.max(G.screenFlash || 0, 0.3); G.slowT = Math.max(G.slowT, 0.4); shake(4); gridImpulse(wx, wy, Math.max(AW, AH), 240); sfx.shatter(); sfx.boss();
+  }
+  // A leg in the world: hip, knee (bent out to the side), foot (a tread). A lost leg: only its stump.
+  function legWalkLeg(B, i) {
+    const Lg = B.legs, ws = B.s * WALK_S, sd = i ? 1 : -1, hx = B.x + sd * 9 * ws, hy = B.y + 7 * ws, F = Lg.feet[i];
+    let fx = F.x, fy = F.y; const L1 = LEG_L1 * ws, L2 = (Lg.legs[i].lost ? 2 : LEG_L2) * ws; let dx = fx - hx, dy = fy - hy, d = Math.hypot(dx, dy) || 1e-6;
+    if (d > L1 + L2 - 0.01) { const k = (L1 + L2 - 0.01) / d; fx = hx + dx * k; fy = hy + dy * k; dx = fx - hx; dy = fy - hy; d = L1 + L2 - 0.01; }
+    const a = Math.atan2(dy, dx), b = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));
+    const e1 = [hx + Math.cos(a - b) * L1, hy + Math.sin(a - b) * L1], e2 = [hx + Math.cos(a + b) * L1, hy + Math.sin(a + b) * L1], [kx, ky] = (e1[0] - B.x) * sd > (e2[0] - B.x) * sd ? e1 : e2;
+    return [hx, hy, kx, ky, fx, fy];
+  }
+  // Its head and its legs: all of it hurts to touch (not while it's forming) and all of it can be hit
+  function legWalkCircles(B) {
+    const Lg = B.legs, ws = B.s * WALK_S, safe = Lg.st === 'form', out = [[B.x, B.y, 8 * ws, 'gH', true, null, safe]];
+    for (const i of [0, 1]) { const key = i ? 'gR' : 'gL', [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i);
+      out.push([(hx + kx) / 2, (hy + ky) / 2, 4 * ws, key, true, null, safe], [kx, ky, 3.8 * ws, key, true, null, safe]);
+      if (!Lg.legs[i].lost) out.push([(kx + fx) / 2, (ky + fy) / 2, 3.6 * ws, key, true, null, safe], [fx, fy, 4.6 * ws, key, true, null, safe]); }
+    return out;
+  }
+  function legWalkPlate(B, i, k) { const [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i), [x0, y0, x1, y1] = k < 9 ? [hx, hy, kx, ky] : [kx, ky, fx, fy], t = PLATE_T[k % 9]; return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t]; }
+  // A hit on it: like the arms, plates off past each mark (each a kill), and stripped bare the leg snaps at the knee
+  function legWalkHit(B, key, dmg, x, y) {
+    const Lg = B.legs, ws = B.s * WALK_S, live = [0, 1].filter(i => !Lg.legs[i].lost); if (!live.length) return;
+    let i = key === 'gL' ? 0 : key === 'gR' ? 1 : -1;
+    if (i < 0 || Lg.legs[i].lost) i = live.reduce((a, j) => Lg.legs[j].hp > Lg.legs[a].hp ? j : a, live[0]);
+    const A = Lg.legs[i], d = Math.min(dmg, A.hp); A.hp -= d; A.flash = 0.12;
+    B.core = Math.max(0, B.core - d); B.coreFlash = 0.15; damageBoss(d, x, y);
+    burst(x, y, 6, heat(MAX_CHARGE * 0.75), 30, 0.4, 0.25);
+    const keep = Math.max(0, Math.ceil(A.hp / A.max * (LEG_PLATES + 1)) - 1);
+    while (A.plates.filter(Boolean).length > keep) {
+      let k = -1, bd = 1e9; A.plates.forEach((on, j) => { if (!on) return; const [px, py] = legWalkPlate(B, i, j), dd = Math.hypot(px - x, py - y); if (dd < bd) { bd = dd; k = j; } });
+      A.plates[k] = false; const [px, py] = legWalkPlate(B, i, k);
+      G.debris.push({ x: px, y: py, vx: rand(-25, 25), vy: -30, floor: clamp(py + rand(10, 20), 6, AH - 4), r: 2.6 * ws, a: rand(0, 6), va: rand(-8, 8), t: 0, life: MECH_DEBRIS * 0.6, down: false });
+      burst(px, py, 14, heat(MAX_CHARGE * 0.75), 40, 0.5, 0.35); ring(px, py, 0.5, 5, 0.2, COL.chalk, 0.6); shake(0.7); sfx.brick(8); G.score += Math.round(60 * G.mult);
+      if (B.hitBall) chainCredit(B.hitBall, px, py, B.hitBall.b);
+    }
+    if (A.hp <= 0 && !A.lost) { // stripped bare: it snaps at the knee, shin and tread crashing down
+      const [, , kx, ky, fx, fy] = legWalkLeg(B, i); A.lost = true;
+      G.debris.push({ x: (kx + fx) / 2, y: (ky + fy) / 2, vx: rand(-20, 20), vy: -40, floor: clamp((ky + fy) / 2 + rand(10, 20), 6, AH - 4), r: 5.5 * ws, a: rand(0, 6), va: rand(-6, 6), t: 0, life: MECH_DEBRIS, down: false });
+      burst(kx, ky, 34, heat(MAX_CHARGE * 0.75), 70, 0.8, 0.55); ring(kx, ky, 1, 14, 0.35, COL.threat, 1.2); gridImpulse(kx, ky, 50, 220); shake(3); sfx.shatter(); sfx.overload(); G.score += Math.round(500 * G.mult);
+      float(kx, ky - 8, 'Leg off!', COL.chalk, 3.6); if (B.hitBall) chainCredit(B.hitBall, kx, ky, B.hitBall.b);
+    }
+  }
+  // Its blade: lunge or spin (or, late on, the travelling spin). Returns the velocity it wants, and whether that's hard (not eased into).
+  function legWalkAtk(B, Lg, dt, L, limp) {
+    const A = Lg.atk, p = G.player, ws = B.s * WALK_S, Lb = LEG_BLADE * ws, toP = Math.atan2(p.y - B.y, p.x - B.x), dP = Math.hypot(p.x - B.x, p.y - B.y), fire = heat(MAX_CHARGE * 0.75); A.t += dt;
+    const turnTo = (a, b, m) => a + clamp(Math.atan2(Math.sin(b - a), Math.cos(b - a)), -m, m);
+    let v = [0, 0], hard = false; A.prev = A.a;
+    if (A.ph === 'ignite') { // the blade flickering on, growing
+      const T = LEG_IGNITE[L]; A.on = clamp(A.t / T, 0, 1);
+      if (A.k === 'lunge') { if (A.t < T * 0.6) A.a = turnTo(A.a, toP, 6 * dt); else if (!A.locked) { A.locked = true; ring(B.x + Math.cos(A.a) * 6 * ws, B.y + Math.sin(A.a) * 6 * ws, 1, 7, 0.2, COL.chalk, 1); sfx.clank(); } Lg.tread += 90 * dt; if (Math.random() < 0.7) for (const F of Lg.feet) burst(F.x, F.y + 2 * ws, 1, fire, 25, 0.3, 0.2); } // levelled at you, its treads screaming
+      else { A.a = toP + Math.PI; if (dP > 16) v = [Math.cos(toP) * LEG_V * limp, Math.sin(toP) * LEG_V * limp]; } // driving in on you, the blade lit behind it
+      if (A.t >= T) { A.on = 1; A.t = 0; A.prev = A.a; A.go = 0;
+        if (A.k === 'lunge') { A.ph = 'dash'; A.dx = Math.cos(A.a); A.dy = Math.sin(A.a); sfx.launch(B.x); shake(1.2); for (const F of Lg.feet) burst(F.x, F.y, 12, COL.dim, 35, 0.5, 0.35); }
+        else { A.ph = 'spin'; sfx.blaster(); } }
+    } else if (A.ph === 'dash') { // straight down the blade
+      v = [A.dx * LUNGE_V * limp, A.dy * LUNGE_V * limp]; hard = true;
+      if (A.t >= LUNGE_T || A.wall) { A.ph = 'skid'; A.t = 0; }
+    } else if (A.ph === 'skid') { // skidding to a stop, sparks off its treads
+      if (Math.random() < 0.8) for (const F of Lg.feet) burst(F.x, F.y + 2 * ws, 2, fire, 30, 0.3, 0.2);
+      if (A.t >= LUNGE_SKID) { A.ph = 'rec'; A.t = 0; }
+    } else if (A.ph === 'spin') { // round it goes
+      const w = SPIN_W * A.dir; A.a += w * dt; const g0 = A.go; A.go += Math.abs(w) * dt;
+      if (Math.floor(A.go / Math.PI) !== Math.floor(g0 / Math.PI)) sfx.blaster();
+      if (A.k === 'tspin' && dP > 6) v = [Math.cos(toP) * TSPIN_V * limp, Math.sin(toP) * TSPIN_V * limp]; // and late on, after you
+      if (A.k === 'tspin' ? A.t >= TSPIN_T : A.go >= SPIN_TURNS[L] * Math.PI * 2) { A.ph = 'rec'; A.t = 0; }
+    } else { // the blade goes out, and it sits a beat
+      A.on = Math.max(0, 1 - A.t / 0.2);
+      if (A.t >= (A.k === 'lunge' ? LUNGE_REC[L] : SPIN_REC)) { Lg.atk = null; Lg.atkT = LEG_ATK[L]; }
+    }
+    // the blade cuts (once it's lit; once an attack)
+    if (A.on >= 1 && !A.hit && (A.ph === 'dash' || A.ph === 'skid' || A.ph === 'spin') && p.inv <= 0) {
+      const pr = 1.4 + PLAYER_R * 0.8, x0 = B.x + Math.cos(A.a) * 6 * ws, y0 = B.y + Math.sin(A.a) * 6 * ws;
+      let cut = !segClear(x0, y0, B.x + Math.cos(A.a) * Lb, B.y + Math.sin(A.a) * Lb, pr);
+      if (!cut && A.ph === 'spin' && dP > 6 * ws - pr && dP < Lb + pr) { // swept: did it pass over you since last frame?
+        const tau = Math.PI * 2, rel = A.dir > 0 ? (((toP - A.prev) % tau) + tau) % tau : (((A.prev - toP) % tau) + tau) % tau; cut = rel <= Math.abs(A.a - A.prev);
+      }
+      if (cut) { A.hit = true; damagePlayer(); }
+    }
+    return [v, hard];
+  }
+  function updateLegWalk(B, dt) {
+    const Lg = B.legs, p = G.player, ws = B.s * WALK_S, ease = k => k * k * (3 - 2 * k), L = legWalkLate(B) ? 1 : 0; Lg.t += dt;
+    for (const A of Lg.legs) A.flash -= dt;
+    if (Lg.legs.every(A => A.lost)) { const wreck = [Lg.wx, Lg.wy]; B.legs = null; scrapStart(B, [B.x, B.y], wreck); return; } // both legs gone: the scrap storm
+    const stance = (i, x, y) => [x + (i ? 1 : -1) * 13 * ws, y + 33 * ws];
+    if (Lg.st === 'form') { // its head flies to the legs as they tear free of the wreck and swing under it
+      const k = ease(clamp(Lg.t / LEG_FORM, 0, 1));
+      B.x = Lg.fx + (Lg.tx - Lg.fx) * k; B.y = Lg.fy + (Lg.ty - Lg.fy) * k - Math.sin(Math.PI * k) * 16 * ws;
+      Lg.feet.forEach((F, i) => { const [sx, sy] = stance(i, Lg.tx, Lg.ty); F.x = F.x0 + (sx - F.x0) * k; F.y = F.y0 + (sy - F.y0) * k - Math.sin(Math.PI * k) * 6 * ws; });
+      if (Lg.t >= LEG_FORM) { Lg.st = 'drive'; for (const F of Lg.feet) { ring(F.x, F.y, 1, 8, 0.25, COL.threat, 1); burst(F.x, F.y, 16, COL.dim, 40, 0.6, 0.4); } shake(3); gridImpulse(B.x, B.y + 30 * ws, 60, 200); sfx.rockBoom(2); sfx.clank(); }
+      return;
+    }
+    armWalkCrawl(B, Lg, dt, L); Lg.flipT -= dt;
+    const limp = Lg.legs.some(A => A.lost) ? 0.65 : 1, xm = 24 * ws, yMin = AH * 0.06, yMax = AH - 38 * ws;
+    let v = [0, 0], hard = false;
+    if (Lg.atk) [v, hard] = legWalkAtk(B, Lg, dt, L, limp);
+    else {
+      if ((Lg.atkT -= dt) <= 0) { // the blade: a lunge or a spin (late on, the travelling spin)
+        if (!Lg.bag.length) Lg.bag = ['lunge', 'spin', 'lunge', 'spin'].sort(() => Math.random() - 0.5);
+        let k = Lg.bag.shift(); if (k === 'spin' && L) k = 'tspin'; const toP = Math.atan2(p.y - B.y, p.x - B.x);
+        Lg.atk = { k, ph: 'ignite', t: 0, on: 0, a: k === 'lunge' ? toP : toP + Math.PI, prev: 0, dir: Math.random() < 0.5 ? -1 : 1, go: 0 }; sfx.blasterCharge();
+      }
+      // driving: out at LEG_RANGE, working its way round you
+      const a = Math.atan2(B.y - p.y, B.x - p.x) + Lg.orb * 0.7, gx = p.x + Math.cos(a) * LEG_RANGE, gy = p.y + Math.sin(a) * LEG_RANGE, cx = clamp(gx, xm, AW - xm), cy = clamp(gy, yMin, yMax);
+      if (Math.hypot(cx - gx, cy - gy) > 12 && Lg.flipT <= 0) { Lg.orb = -Lg.orb; Lg.flipT = 1.5; }
+      const dx = cx - B.x, dy = cy - B.y, d = Math.hypot(dx, dy) || 1, sp = LEG_V * limp * Math.min(1, d / 10); v = [dx / d * sp, dy / d * sp];
+    }
+    if (hard) { Lg.vx = v[0]; Lg.vy = v[1]; } else { const k = Math.min(1, dt * 4); Lg.vx += (v[0] - Lg.vx) * k; Lg.vy += (v[1] - Lg.vy) * k; }
+    const nx = B.x + Lg.vx * dt, ny = B.y + Lg.vy * dt; B.x = clamp(nx, xm, AW - xm); B.y = clamp(ny, yMin, yMax);
+    if ((B.x !== nx || B.y !== ny) && Lg.atk && Lg.atk.ph === 'dash' && !Lg.atk.wall) { Lg.atk.wall = true; shake(2); burst(B.x, B.y, 20, heat(MAX_CHARGE * 0.75), 45, 0.5, 0.35); sfx.clank(); } // it hits the edge: a dead stop
+    Lg.tread += Math.hypot(Lg.vx, Lg.vy) * dt;
+    if (limp < 1 && Math.hypot(Lg.vx, Lg.vy) > 5 && Math.random() < 0.4) { const i = Lg.legs[0].lost ? 0 : 1, [, , kx, ky] = legWalkLeg(B, i); burst(kx, ky + 2 * ws, 2, heat(MAX_CHARGE * 0.75), 25, 0.3, 0.2); } // its stump scraping
+    Lg.feet.forEach((F, i) => { const [sx, sy] = stance(i, B.x, B.y), tx = sx - Lg.vx * 0.04, ty = sy - Lg.vy * 0.04, k = Math.min(1, dt * 14); F.x = clamp(F.x + (tx - F.x) * k, 3, AW - 3); F.y = clamp(F.y + (ty - F.y) * k, 3, AH - 3); });
   }
   // A chunk of its scrap, hurled: straight on past where you were, then it crashes down as wreckage
   function updateJunk(e, dt) {
@@ -5252,7 +5389,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.lastStandTest && B.st === 'fight') { G.lastStandTest = false; for (const k of ['gun', 'claw', 'rack', 'rail', 'jets', 'kneeL', 'kneeR']) if (!mechBroken(B, k)) mechHit(B, k, 1e6, B.x, B.y); return; } // the test start: break it all at once
     if (B.plate) { const q = B.plate; q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; if (q.y > AH + 40) B.plate = null; }
     if (B.walker) { updateArmWalk(B, dt); return; } // its last stand: the arm walker,
-    if (B.storm) { updateScrap(B, dt); return; } // then (for now) the scrap storm
+    if (B.legs) { updateLegWalk(B, dt); return; } // the leg walker,
+    if (B.storm) { updateScrap(B, dt); return; } // then the scrap storm
     B.rackT = Math.max(0, (B.rackT || 0) - dt);
     // its thrusters: now and then (when it isn't busy) it takes off and comes over in bombing runs
     if (!B.fly && B.st === 'fight' && !mechBroken(B, 'jets') && (T.fly -= dt) <= 0 && !B.beam && !B.beamDue && !B.lance && !B.sweep && B.lockT <= 0 && !(B.walk && B.walk.land) && !(B.crawl && B.crawl.ph !== 'rest') && !G.barrage.length && !G.mortars.length) {
@@ -5595,7 +5733,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     return 'bounce';
   }
   function pushOutMech(B, o, r) {
-    if (B.storm || B.walker) return; // the last stand isn't solid: it just hurts
+    if (B.storm || B.walker || B.legs) return; // the last stand isn't solid: it just hurts
     for (const [x, y, rr] of mechCircles(B)) { const dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy) || 1e-6; if (d < rr + r) { o.x = x + dx / d * (rr + r); o.y = y + dy / d * (rr + r); } }
   }
   // Goliath, front on, built of separate armoured pieces: every plate its own (bevelled, lit from the upper left, an
@@ -5699,6 +5837,41 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (const [cx, cy, sx, sy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) { ctx.moveTo(cx + sx * L, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + sy * L); }
       ctx.stroke(); ctx.globalAlpha = 1;
     }
+    if (B.legs && !B.wreck) { // the leg walker: the wreck behind (dim, legless), its shadow, legs and treads, its head, its blade
+      const Lg = B.legs, ws = s * WALK_S, A = Lg.atk, shkL = die * 0.8 + (A && A.ph === 'ignite' ? A.on * 0.6 : 0);
+      faded(0.42, () => drawMech({ ...B, legs: null, walker: null, wreck: true, noLegs: true, st: 'wreck', x: Lg.wx, y: Lg.wy, kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
+      ctx.save(); ctx.translate(B.x + rand(-shkL, shkL), B.y + rand(-shkL, shkL)); ctx.scale(ws, ws); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      const limb = (x0, y0, x1, y1, w0, w1, o = {}) => { const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d; plate([[x0 + nx * w0, y0 + ny * w0], [x1 + nx * w1, y1 + ny * w1], [x1 - nx * w1, y1 - ny * w1], [x0 - nx * w0, y0 - ny * w0]], o); };
+      if (Lg.st !== 'form') { ctx.fillStyle = `rgba(${I3.join(',')},0.45)`; ctx.beginPath(); ctx.ellipse(0, 35, 22, 5, 0, 0, Math.PI * 2); ctx.fill(); } // its shadow
+      if (A && A.ph === 'spin' && A.on > 0) { // the blade's sweep: a fading fan behind it
+        const a0 = A.a - A.dir * 1.1; glow(() => { const g = ctx.createRadialGradient(0, 0, 6, 0, 0, LEG_BLADE); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, COL.threat); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, LEG_BLADE, a0, A.a, A.dir < 0); ctx.closePath(); ctx.fill(); }, COL.threat, 0.22);
+      }
+      for (const i of [0, 1]) {
+        const [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i).map((v, j) => (v - (j % 2 ? B.y : B.x)) / ws), Q = Lg.legs[i], fl = Q.flash > 0;
+        piston(hx, hy, kx, ky, 3); limb(hx, hy, kx, ky, 1.6, 1.9, { lit: 0.1 }); // the bare frame
+        if (!Q.lost) {
+          piston(kx, ky, fx, fy, 2.4); limb(kx, ky, fx, fy, 1.8, 1.6, { lit: 0.1 });
+          // its foot, locked flat as a tread: a block, its track's cleats running past
+          const tw = 4.6, th = 6.4; ctx.beginPath(); ctx.roundRect(fx - tw, fy - th, tw * 2, th * 2, 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.25)`; ctx.fill(); stroke(W1, 1, fl ? COL.chalk : col);
+          ctx.save(); ctx.beginPath(); ctx.roundRect(fx - tw, fy - th, tw * 2, th * 2, 2); ctx.clip(); ctx.beginPath(); const off = (Lg.tread / ws) % 2.4;
+          for (let y = -th - 2.4 + off; y < th + 2.4; y += 2.4) { ctx.moveTo(fx - tw, fy + y); ctx.lineTo(fx + tw, fy + y); } stroke(W2, 0.75); ctx.restore();
+          joint(fx, fy - th + 1.5, 2.2);
+        } else torn(kx, ky, 5); // its shin gone: a torn knee
+        for (let k = 0; k < LEG_PLATES; k++) { // the armour still on it
+          if (!Q.plates[k]) continue; const [x0, y0, x1, y1] = k < 9 ? [hx, hy, kx, ky] : [kx, ky, fx, fy], tt = PLATE_T[k % 9], dx = x1 - x0, dy = y1 - y0, Ln = Math.hypot(dx, dy) || 1, cx = x0 + dx * tt, cy = y0 + dy * tt, hl = Ln * 0.048;
+          limb(cx - dx / Ln * hl, cy - dy / Ln * hl, cx + dx / Ln * hl, cy + dy / Ln * hl, k < 9 ? 4.2 : 3.8, k < 9 ? 4.5 : 4.2, { flash: fl, lit: 0.3 });
+        }
+        joint(kx, ky, 3.4); joint(hx, hy, 4);
+      }
+      head(21); // its helmet, over its legs
+      if (A && A.on > 0 && (A.ph !== 'ignite' || A.locked || Math.random() < 0.35 + 0.65 * A.on)) { // the blade (flickering on as it ignites; solid once a lunge locks)
+        const Lb = LEG_BLADE * A.on, x0 = Math.cos(A.a) * 6, y0 = Math.sin(A.a) * 6, x1 = Math.cos(A.a) * Math.max(6, Lb), y1 = Math.sin(A.a) * Math.max(6, Lb);
+        glow(() => { ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineWidth = 4.4; ctx.stroke(); }, COL.threat, A.ph === 'ignite' ? 0.35 : 0.65);
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineWidth = 1.3; ctx.strokeStyle = COL.chalk; ctx.stroke();
+        glow(() => { ctx.beginPath(); ctx.arc(x0, y0, 3, 0, Math.PI * 2); ctx.fill(); }, COL.chalk, 0.5); // where it comes out of its eye
+      }
+      ctx.restore(); return;
+    }
     if (B.walker && !B.wreck) { // the arm walker: the wreck behind (dim), its arms' sweep trail, then its arms and head
       const W = B.walker, ws = s * WALK_S, shkW = die * 0.8 + (W.tense || 0) * 0.7;
       faded(0.42, () => drawMech({ ...B, walker: null, wreck: true, st: 'wreck', x: W.wx, y: W.wy, kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
@@ -5768,6 +5941,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const side of [-1, 1]) {
       const key = side < 0 ? 'kneeL' : 'kneeR', P = B.parts[key], live = P.hp > 0, L = mechLift(B, side);
       const kx = side * (17 + B.kneel * 4), ky = 34 - L * 4 + B.kneel * 13, fx = side * (21 + B.kneel * 7), fy = 51 - L * 7 + B.kneel * 1, hx = side * 9, hy = 20 + up;
+      if (B.noLegs) { torn(hx, hy + 2, 5); continue; } // the wreck, its legs taken: torn hips
       piston(side * 5, 18 + up, kx - side * 2, ky - 4, 2.4);
       const legHit = live && P.flash > 0; // the whole leg flashes when it's hit
       plate([[hx - 4, hy - 2], [hx + 4, hy - 2], [kx + side * 4.5, ky - 4], [kx - side * 1, ky - 5]].map(([x, y]) => [x, y]), { bolts: [[hx, hy + 1]], flash: legHit }); // thigh
