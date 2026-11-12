@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 12 21:31 UTC · 79cc9f5";</script>
+<script>window.RICOCHET_BUILD = "Nov 12 21:55 UTC · 2a3cf8b";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -637,6 +637,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     wax:      { r: 2.6, hp: 1, spd: 0,   pts: 25 },   // a cell of thrown honeycomb (moved by its chunk, in updateHive)
     junk:     { r: 2.8, hp: 1, spd: 0,   pts: 40 },   // scrap hurled by Goliath's arm walker (flown by updateJunk)
     scrapper: { r: 2.6, hp: 1, spd: 15,  pts: 25 },   // a scrap crawler, torn loose from Goliath's wreck
+    missile:  { r: 1.9, hp: 1, spd: 0,   pts: 25 },   // Bombardment: falling on your bases (flown by updateMissile)
+    bomber:   { r: 6,   hp: 3, spd: 0,   pts: 500 },  // Bombardment: crossing the top, dropping missiles
   };
 
   let DPR = 1, U = 1, AX = 0, AY = 0, AW = 100, AH = 100, BW = 100, BH = 100, arenaShort = ARENA_START;
@@ -8341,6 +8343,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       add('bulwark', 2 + cycle); add('blinker', cycle * 2); shuffle();
       add('swarm', 3 + cycle);
       G.storm = { t: STORM_TIME, gustT: 2, n: 0, cycle }; // then the gusts
+    } else if (G.bombNext) {
+      G.bombNext = false; forceBomb = false; setupBomb(cycle);
     } else if (G.asteroidNext) {
       G.lastAsteroids = n; G.asteroidNext = false; forceAsteroids = false; G.saucerT = 9; G.fieldMax = 0;
       add('rock', Math.min(9, 4 + Math.floor((n - 7) / 5))); // (wave 28: eight)
@@ -8541,6 +8545,143 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.globalAlpha = 1;
   }
 
+  // Bombardment: a throwback to the missile-defence arcade games, drawn in our own style. Missiles fall from the top on
+  // your BOMB_BASES bases along the ground, each trailing its smoke all the way back to where it launched. Hit one with
+  // your ball and it blows up in a blast (BOMB_BLAST, plus BOMB_BLAST_B for every charge on the ball) that takes any
+  // missile it touches with it, and theirs blow too, a little smaller each time: chains. Every missile is a kill. Three
+  // salvos (BOMB_N missiles over BOMB_SPAN s, falling at BOMB_V), each thicker and faster; from the second, splitters
+  // (BOMB_SPLIT of them) break into three partway down, and a bomber crosses the top dropping more (it takes a hit or
+  // two: big points). A missile that reaches the ground flattens the base it lands on. Missiles hurt to touch; your
+  // blasts don't hurt you. At the end, a bonus for every base still standing; lose them all and it's over, no bonus.
+  const BOMB_BASES = 5, BOMB_GROUND = 9, BOMB_SALVOS = 3, BOMB_N = [12, 15, 18], BOMB_V = [17, 20, 23], BOMB_SPLIT = [0, 3, 5], BOMB_SPAN = [10, 11, 12];
+  const BOMB_BLAST = 7, BOMB_BLAST_B = 0.55, BOMB_BLAST_T = 0.55, BOMB_BASE_PTS = 1000, BOMB_BREATH = 2.5, BOMBER_HP = 3, BOMBER_V = 20, BOMBER_DROP = 1.6;
+  let forceBomb = false; // the start menu's test option
+  const bombGround = () => AH - BOMB_GROUND;
+  function setupBomb(cycle) {
+    const y = bombGround();
+    G.bomb = { salvo: 0, t: 0, plan: [], breath: 0.6, cycle, blasts: [], craters: [], done: false, bomber: false,
+      bases: Array.from({ length: BOMB_BASES }, (_, i) => ({ x: AW * (i + 0.5) / BOMB_BASES, y, alive: true, flash: 0 })) };
+    const p = G.player; p.x = AW / 2; p.y = y - 30;
+  }
+  // a missile: from (x, y) toward the ground at tx; its trail runs back to where it set out
+  function bombLaunch(x, y, tx, split) {
+    const B = G.bomb, gy = bombGround(), v = BOMB_V[Math.min(B.salvo, BOMB_SALVOS) - 1] * (1 + 0.15 * B.cycle), a = Math.atan2(gy - y, tx - x), e = makeEnemy('missile', x, y);
+    Object.assign(e, { hp: 1, maxHp: 1, spawnT: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v, mis: { x0: x, y0: y, split, splitY: rand(AH * 0.28, AH * 0.48) } });
+    G.enemies.push(e);
+  }
+  const bombTarget = () => { const live = G.bomb.bases.filter(b => b.alive); return live.length && Math.random() < 0.75 ? live[Math.floor(Math.random() * live.length)].x + rand(-2, 2) : rand(6, AW - 6); };
+  function bombSalvo() { // the next salvo's plan: when each missile sets out, and which split
+    const B = G.bomb, k = B.salvo - 1, n = BOMB_N[k] + B.cycle * 3, times = Array.from({ length: n }, () => rand(0, BOMB_SPAN[k])).sort((a, b) => a - b), split = new Set();
+    while (split.size < Math.min(n, BOMB_SPLIT[k] + (k ? B.cycle : 0))) split.add(Math.floor(Math.random() * n));
+    B.plan = times.map((t, i) => ({ t, split: split.has(i) })); B.t = 0; B.bomber = k >= 1;
+  }
+  // an interception blast: it grows, holds, and takes every missile it touches with it
+  function bombBlast(x, y, R, src, b) {
+    G.bomb && G.bomb.blasts.push({ x, y, R, r: 0, t: 0, src, b });
+    ring(x, y, 1, R, 0.3, heat(Math.max(b, 4)), 1); burst(x, y, 14, heat(Math.max(b, 4)), 40, 0.5, 0.35); gridImpulse(x, y, R * 2, 120);
+  }
+  function updateBomb(dt) {
+    const B = G.bomb, gy = bombGround(), p = G.player; if (!B || B.done) return;
+    for (const b of B.bases) b.flash -= dt;
+    // the blasts: growing, holding, fading; a missile they touch blows too (a little smaller)
+    for (let j = B.blasts.length - 1; j >= 0; j--) {
+      const X = B.blasts[j]; X.t += dt; X.r = X.R * (X.t < 0.15 ? X.t / 0.15 : X.t < BOMB_BLAST_T ? 1 : Math.max(0, 1 - (X.t - BOMB_BLAST_T) / 0.2));
+      if (X.t > BOMB_BLAST_T + 0.2) { B.blasts.splice(j, 1); continue; }
+      for (let i = G.enemies.length - 1; i >= 0; i--) { const e = G.enemies[i]; if (!e || !(e.mis || e.bomber) || e.gone) continue; if (Math.hypot(e.x - X.x, e.y - X.y) < X.r + e.r) kill(i, Math.max(0, Math.floor(X.b * 0.7)), 1, X.src || G.balls[0]); }
+    }
+    if (B.breath > 0) { // between salvos
+      if ((B.breath -= dt) <= 0) { B.salvo++; bombSalvo(); if (B.salvo > 1) { G.banner = { text: `Salvo ${B.salvo} of ${BOMB_SALVOS}`, sub: B.salvo === BOMB_SALVOS ? 'The last one' : 'Splitters, and a bomber', t: 1.6, max: 1.6, at: 0.45 }; sfx.boss(); } }
+      return;
+    }
+    B.t += dt;
+    while (B.plan.length && B.plan[0].t <= B.t) { const q = B.plan.shift(); bombLaunch(rand(4, AW - 4), -2, bombTarget(), q.split); if (Math.random() < 0.5) sfx.launch(AW / 2); }
+    if (B.bomber && B.t >= 2.5) { // the bomber: across the top, dropping more
+      B.bomber = false; const side = Math.random() < 0.5, e = makeEnemy('bomber', side ? -10 : AW + 10, 15);
+      Object.assign(e, { hp: BOMBER_HP + B.cycle, maxHp: BOMBER_HP + B.cycle, spawnT: 0, vx: (side ? 1 : -1) * BOMBER_V, vy: 0, bomber: { dropT: 1 } }); G.enemies.push(e); sfx.boss();
+    }
+    // salvo over: the next, or the tally
+    const left = G.enemies.some(e => (e.mis || e.bomber) && !e.gone);
+    if (!B.plan.length && !left && !B.blasts.length && !B.bomber) {
+      if (B.salvo < BOMB_SALVOS) B.breath = BOMB_BREATH;
+      else bombTally();
+    }
+  }
+  function updateMissile(e, dt) { // falling: it splits partway down (a splitter), or it lands
+    const B = G.bomb, M = e.mis, gy = bombGround();
+    e.x += e.vx * dt; e.y += e.vy * dt;
+    if (M.split && e.y >= M.splitY) { // a splitter: three, each to its own target
+      e.gone = true; for (let k = 0; k < 3; k++) bombLaunch(e.x, e.y, bombTarget(), false);
+      ring(e.x, e.y, 0.5, 6, 0.25, COL.threat, 0.8); burst(e.x, e.y, 8, COL.threat, 25, 0.4, 0.3); sfx.pop(); return;
+    }
+    if (e.y >= gy - 0.5 || !B) { // it's down: flattening the base it hit (if it hit one)
+      e.gone = true; if (!B) return;
+      const base = B.bases.find(b => b.alive && Math.abs(b.x - e.x) < 7);
+      B.craters.push({ x: e.x, y: gy, t: 0 }); burst(e.x, gy - 1, 18, heat(MAX_CHARGE * 0.75), 40, 0.6, 0.4); ring(e.x, gy, 1, 8, 0.3, COL.threat, 1); gridImpulse(e.x, gy, 30, 160); shake(base ? 3 : 1.2); sfx.rockBoom(base ? 3 : 1);
+      if (base) { base.alive = false; burst(base.x, gy - 3, 40, heat(MAX_CHARGE * 0.75), 60, 0.8, 0.6); for (let i = 0; i < 3; i++) ring(base.x, gy - 3, 2, 10 + i * 6, 0.4 + i * 0.1, i ? COL.chalk : COL.threat, 1.2); float(base.x, gy - 14, 'Base lost', COL.threat, 3); sfx.shatter();
+        if (!B.bases.some(b => b.alive)) { // all gone: the bombardment's over
+          for (const m of G.enemies) if (m.mis || m.bomber) { m.gone = true; burst(m.x, m.y, 6, COL.dim, 20, 0.4, 0.3); }
+          B.plan = []; B.done = true; G.skipBonus = true; G.result = { text: 'Bases lost', sub: 'No bonus', t: 2.6, max: 2.6 }; shake(4); sfx.boss();
+        } }
+    }
+  }
+  function updateBomber(e, dt) {
+    e.x += e.vx * dt; e.y = 15 + Math.sin(G.time * 2) * 1.5;
+    if ((e.bomber.dropT -= dt) <= 0 && e.x > 6 && e.x < AW - 6 && G.bomb && !G.bomb.done) { e.bomber.dropT = BOMBER_DROP; bombLaunch(e.x, e.y + 3, bombTarget(), false); sfx.launch(e.x); }
+    if (e.x < -14 || e.x > AW + 14) e.gone = true; // it's away
+  }
+  function bombTally() {
+    const B = G.bomb; B.done = true; const n = B.bases.filter(b => b.alive).length, each = BOMB_BASE_PTS * (1 + B.cycle);
+    B.bases.forEach((b, i) => { if (!b.alive) return; b.flash = 0.6; const pts = Math.round(each * G.mult); G.score += pts; float(b.x, b.y - 14 - (i % 2) * 5, `+${pts * scoreK(G.wave)}`, COL.chalk, 3); });
+    G.result = { text: `Bases saved ${n}/${BOMB_BASES}`, sub: n === BOMB_BASES ? 'Not a scratch!' : 'A bonus for every one still standing', t: 2.6, max: 2.6 }; sfx.repair();
+  }
+  function finishBomb() { if (G.bomb) { for (const e of G.enemies) if (e.mis || e.bomber) e.gone = true; G.bomb = null; } }
+  // the ground, the bases (domes with a mast and lit windows), the craters, the blasts
+  function drawBomb() {
+    const B = G.bomb; if (!B) return;
+    const gy = bombGround(), t = G.time, friend = heat(0), H3 = hex(COL.hull);
+    ctx.globalAlpha = 0.5; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3; ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(AW, gy); ctx.stroke();
+    ctx.globalAlpha = 0.08; ctx.fillStyle = COL.chalk; ctx.fillRect(0, gy, AW, AH - gy); ctx.globalAlpha = 1;
+    for (const c of B.craters) { ctx.globalAlpha = 0.55; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(c.x, c.y + 0.6, 4.5, 1.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    for (const b of B.bases) {
+      ctx.save(); ctx.translate(b.x, b.y); ctx.lineJoin = 'round';
+      if (!b.alive) { // rubble
+        ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-4.5, -1.6); ctx.lineTo(-2.5, -0.8); ctx.lineTo(-0.5, -2.4); ctx.lineTo(1.5, -1); ctx.lineTo(3.6, -2); ctx.lineTo(6, 0); ctx.closePath();
+        ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = COL.dim; ctx.lineWidth = 0.35; ctx.stroke();
+        if (Math.random() < 0.15) burst(b.x + rand(-4, 4), b.y - 2, 1, COL.dim, 8, 0.6, 0.8); // smoke
+        ctx.restore(); continue;
+      }
+      const fl = b.flash > 0;
+      ctx.beginPath(); ctx.moveTo(-6.5, 0); ctx.lineTo(-6.5, -2.2); ctx.lineTo(6.5, -2.2); ctx.lineTo(6.5, 0); ctx.closePath(); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill(); ctx.strokeStyle = fl ? COL.chalk : friend; ctx.lineWidth = 0.4; ctx.stroke(); // its footing
+      ctx.beginPath(); ctx.arc(0, -2.2, 4.4, Math.PI, 0); ctx.closePath(); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.22)`; ctx.fill(); ctx.stroke(); // its dome
+      ctx.beginPath(); ctx.moveTo(0, -6.6); ctx.lineTo(0, -9); ctx.moveTo(-1.2, -8.2); ctx.lineTo(1.2, -8.2); ctx.lineWidth = 0.3; ctx.stroke(); // a mast
+      ctx.fillStyle = friend; ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 3 + b.x); ctx.beginPath(); ctx.arc(0, -9.3, 0.45, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // its beacon
+      for (const wx of [-2.6, 0, 2.6]) { ctx.fillStyle = friend; ctx.globalAlpha = fl ? 1 : 0.55; ctx.fillRect(wx - 0.5, -4.2, 1, 1); } ctx.globalAlpha = 1; // lit windows
+      ctx.restore();
+    }
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const X of B.blasts) { if (X.r <= 0.2) continue; const g = ctx.createRadialGradient(X.x, X.y, 0, X.x, X.y, X.r), c = heat(Math.max(X.b, 4)); g.addColorStop(0, COL.chalk); g.addColorStop(0.45, c); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(X.x, X.y, X.r, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 0.9; ctx.strokeStyle = c; ctx.lineWidth = 0.5; ctx.stroke(); }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  function drawMissile(e) { // its smoke trail back to where it set out, fading; a hot head
+    const M = e.mis, tx = M.x0 - e.x, ty = M.y0 - e.y, g = ctx.createLinearGradient(0, 0, tx, ty);
+    g.addColorStop(0, COL.threat); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.strokeStyle = g; ctx.lineWidth = 0.6; ctx.globalAlpha = 0.75; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(tx, ty); ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.5 + 0.3 * Math.random(); ctx.beginPath(); ctx.arc(0, 0, e.r * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    const a = Math.atan2(e.vy, e.vx); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(e.r * 1.2, 0); ctx.lineTo(-e.r * 0.8, -e.r * 0.6); ctx.lineTo(-e.r * 0.8, e.r * 0.6); ctx.closePath();
+    ctx.fillStyle = e.flash > 0 ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.35; ctx.stroke();
+    if (M.split) { ctx.beginPath(); ctx.arc(0, 0, e.r * 1.9, 0, Math.PI * 2); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.25; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(G.time * 12); ctx.stroke(); ctx.globalAlpha = 1; } // a splitter: ringed
+  }
+  function drawBomber(e) { // a flying wing, its engines glowing, its health as pips
+    const fl = e.flash > 0, dir = Math.sign(e.vx) || 1, line = fl ? COL.chalk : COL.threat, H3 = hex(COL.hull);
+    ctx.save(); ctx.scale(dir, 1);
+    ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-2, -2.2); ctx.lineTo(-6, -6.5); ctx.lineTo(-7.5, -6.5); ctx.lineTo(-5, -1); ctx.lineTo(-5, 1); ctx.lineTo(-7.5, 6.5); ctx.lineTo(-6, 6.5); ctx.lineTo(-2, 2.2); ctx.closePath();
+    ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 0.45; ctx.stroke();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = heat(MAX_CHARGE * 0.75); for (const y of [-3.5, 3.5]) { ctx.globalAlpha = 0.5 + 0.4 * Math.random(); ctx.beginPath(); ctx.arc(-5.5, y, 1.1, 0, Math.PI * 2); ctx.fill(); } ctx.restore();
+    ctx.restore();
+    for (let k = 0; k < e.maxHp; k++) { ctx.beginPath(); ctx.arc((k - (e.maxHp - 1) / 2) * 1.7, 8.5, 0.6, 0, Math.PI * 2); ctx.fillStyle = k < e.hp ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.2; ctx.stroke(); }
+  }
+
   // Asteroid Field: an homage to the 1979 arcade game. Exactly one per run, on one of ASTEROID_WAVES picked at random when
   // the run starts (normal waves either side of 15, which is a set piece). Big vector rocks drift in straight
   // lines and wrap around the edges; a hit that kills one splits it into two smaller, faster rocks (big > medium > small),
@@ -8582,7 +8723,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   function makeEnemy(type, x, y) {
     const d = ENEMY[type], s = 1 + Math.min(G.wave, SPEED_CAP_WAVE) * 0.025;
-    const hp = type === 'mini' || type === 'swarm' || type === 'micro' || type === 'segg' || type === 'junk' || type === 'scrapper' ? 1 : type === 'walker' ? d.hp : Math.max(d.hp, Math.round(d.hp * hpScale(G.wave)));
+    const hp = type === 'mini' || type === 'swarm' || type === 'micro' || type === 'segg' || type === 'junk' || type === 'scrapper' || type === 'missile' ? 1 : type === 'walker' ? d.hp : Math.max(d.hp, Math.round(d.hp * hpScale(G.wave)));
     return { type, x, y, vx: 0, vy: 0, r: d.r, hp, maxHp: hp, spd: d.spd * s, pts: d.pts, hitCd: 0, flash: 0,
              seed: rand(0, 10), rot: rand(0, 6), st: 'walk', stT: rand(1.4, 2.6), dx: 0, dy: 0, fire: rand(1.4, 2.4), aim: 0, spawnT: 0.25, face: 0, wl: 0, wcd: WARD_FORM, sFlash: 0 };
   }
@@ -8701,7 +8842,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.between === null) {
-      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !(G.clutchWave && G.clutchWave.n > 0) && !G.chest && !(G.inv && !G.inv.landed && (G.inv.round || 1) < INV_ROUNDS) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm && !G.mechDeath) {
+      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !(G.clutchWave && G.clutchWave.n > 0) && !G.chest && !(G.inv && !G.inv.landed && (G.inv.round || 1) < INV_ROUNDS) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm && !G.mechDeath && !(G.bomb && !G.bomb.done)) {
         if (inLoop(G.wave) === LOOP_LEN && G.winShown !== G.wave && !G.attract) { // the loop's finale is down
           if (!G.result) showWin(); // once its banner has had its moment
           return;
@@ -8710,7 +8851,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const next = G.wave + 1;
         G.between = G.wave === 0 ? 0.9 : 1.8; // waves with something to read wait long enough to read it (set with the banner below)
         G.arenaTarget = arenaFor(next);
-        crumbleBricks(); crumbleSiege(); finishInvaders();
+        crumbleBricks(); crumbleSiege(); finishInvaders(); finishBomb();
         G.drumWave = null; G.clutchWave = null; for (const d of G.drums) d.gone = true; // the fuel drums fade away
         G.squadPlan = null; G.squadWarn = []; G.shadow = null; G.mechSetup = null; G.rockets = []; G.debris = []; G.mortars = []; G.barrage = []; G.mortarUp = [];
         if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
@@ -8723,12 +8864,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const newBall = G.balls.some(o => o.fresh);
         G.asteroidNext = asteroidRoll(next);
         if (G.asteroidNext) G.layoutPending = null;
+        G.bombNext = forceBomb && !setPiece(next) && !bossFor(next); if (G.bombNext) { G.asteroidNext = false; G.layoutPending = null; } // (for now only from the start menu)
         const loopStart = next > 1 && inLoop(next) === 1;
         if (loopStart) setLoopTint(loopOf(next)); // the arena runs hot from the Loop banner on
         const sub = loopStart ? `Overdrive: everything comes ${Math.round((overdrive(next) - 1) * 100)}% faster, and every point counts ×${scoreK(next)}`
-          : newBall ? 'A wingman! Grab the new ball: from now on it flies out with every throw' : G.asteroidNext ? 'No walls: your ball flies through the edges, and every rock it hits charges it' : introFor(next);
+          : newBall ? 'A wingman! Grab the new ball: from now on it flies out with every throw' : G.bombNext ? 'Missiles are falling on your bases. Hit one and it blows up, taking the missiles around it with it. The hotter your ball, the bigger the blast' : G.asteroidNext ? 'No walls: your ball flies through the edges, and every rock it hits charges it' : introFor(next);
         if (sub && G.wave > 0) G.between = clamp(1.8 + sub.length / 26, 3, 5.5); // time to read it, by its length
-        G.banner = { text: loopStart ? `Loop ${loopOf(next) + 1}` : G.asteroidNext ? 'Asteroid Field' : `Wave ${next}`, sub, t: G.between, max: G.between };
+        G.banner = { text: loopStart ? `Loop ${loopOf(next) + 1}` : G.bombNext ? 'Bombardment' : G.asteroidNext ? 'Asteroid Field' : `Wave ${next}`, sub, t: G.between, max: G.between };
         if (sub) G.lastIntro = { wave: next, text: sub }; // the pause screen shows it again
         sfx.wave();
       }
@@ -9093,6 +9235,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ring(e.x, e.y, e.r * 0.6, e.r + 3, 0.16, ECOL.swarm, 0.5); ring(e.x, e.y, e.r * 0.3, e.r + 1.5, 0.12, heat(b), 0.35);
       burst(e.x, e.y, 3, ECOL.swarm, 20, 0.4, 0.2);
       shake(0.25); sfx.kill(b, e.x);
+      if (G.powers.bolt > 0 && depth < BOLT_HOPS) G.boltQueue.push({ x: e.x, y: e.y, b, depth: depth + 1 });
+      if (!G.attract && G.pickups.length < PICKUP_MAX && (chain === CHAIN_DROP || Math.random() < DROP_CHANCE)) spawnPickup(e.x, e.y, src);
+      return;
+    }
+    if (e.mis || e.bomber) { // Bombardment: it blows, and its blast takes the missiles it touches with it (bigger the hotter the ball)
+      bombBlast(e.x, e.y, (BOMB_BLAST + b * BOMB_BLAST_B) * (e.bomber ? 1.5 : 1), src, b); sfx.kill(b, e.x); shake(e.bomber ? 2 : 0.4);
       if (G.powers.bolt > 0 && depth < BOLT_HOPS) G.boltQueue.push({ x: e.x, y: e.y, b, depth: depth + 1 });
       if (!G.attract && G.pickups.length < PICKUP_MAX && (chain === CHAIN_DROP || Math.random() < DROP_CHANCE)) spawnPickup(e.x, e.y, src);
       return;
@@ -9572,6 +9720,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (e.crew) { updateCrew(e, dt); continue; } // the Tank's repair crew ride along with it
       if (e.micro) { updateMicro(e, dt); continue; } // flown by its ring
       if (e.junk) { updateJunk(e, dt); continue; } // hurled by Goliath's arm walker
+      if (e.mis) { updateMissile(e, dt); continue; } // Bombardment
+      if (e.bomber) { updateBomber(e, dt); continue; }
       if (e.type === 'walker' && updateWalker(e, dt)) continue; // planted, firing
       if (e.type === 'titan' && titanStomp(e, dt)) { const k = Math.exp(-6 * dt); e.vx *= k; e.vy *= k; e.x += e.vx * dt; e.y += e.vy * dt; keepIn(e, e.r); continue; } // planted for a stomp
       if (e.formWait > 0) { // a formation's bee, buzzing where it starts before it goes
@@ -9724,7 +9874,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // keep enemies from stacking into one blob
     for (let i = 0; i < es.length; i++) for (let j = i + 1; j < es.length; j++) {
       const a = es[i], b = es[j], dx = b.x - a.x, dy = b.y - a.y, min = a.r + b.r, d2 = dx * dx + dy * dy;
-      if (a.type === 'rock' || b.type === 'rock' || a.type === 'saucer' || b.type === 'saucer' || a.type === 'wax' || b.type === 'wax' || a.type === 'invader' || b.type === 'invader' || a.junk || b.junk) continue;
+      if (a.type === 'rock' || b.type === 'rock' || a.type === 'saucer' || b.type === 'saucer' || a.type === 'wax' || b.type === 'wax' || a.type === 'invader' || b.type === 'invader' || a.junk || b.junk || a.mis || b.mis || a.bomber || b.bomber) continue;
       if (d2 > 0 && d2 < min * min) {
         const d = Math.sqrt(d2), push = (min - d) / 2, nx = dx / d, ny = dy / d;
         const at = a.type === 'turret' || a.type === 'titan' || isStone(a), bt = b.type === 'turret' || b.type === 'titan' || isStone(b); // walls and titans don't get shoved
@@ -9825,6 +9975,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const ws = (G.powers.warp > 0 ? WARP_SCALE : 1) * overdrive(G.wave); // Time Warp slows them; Overdrive (later loops) speeds them up
     updateBonus(dt); updateCoins(dt); updateLucky(dt); updateTable(dt);
     if (G.inv) updateInvaders(dt * ws);
+    if (G.bomb) updateBomb(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
     updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt); updateDrums(dt); updateClutches(dt); updateChest(dt); updateSquads(dt); updateStorm(dt); updateRockets(dt); updateDebris(dt); updateMicroQueue(dt); updateMechDeath(dt); updateMechSetup(dt);
@@ -10215,7 +10366,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     drawGeodeBg();
     drawBricks();
     drawSiege();
-    drawInvasion();
+    drawInvasion(); drawBomb();
     drawBumpers();
     drawCoins();
     drawLucky();
@@ -10421,6 +10572,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (e.crew) { drawCrew(e); ctx.restore(); continue; }
       if (e.micro) { drawMicro(e); ctx.restore(); continue; }
       if (e.junk) { drawJunk(e); ctx.restore(); continue; }
+      if (e.mis) { drawMissile(e); ctx.restore(); continue; }
+      if (e.bomber) { drawBomber(e); ctx.restore(); continue; }
       if (e.type === 'scrapper') { drawScrapper(e); ctx.restore(); continue; }
       if (e.type === 'walker') { drawWalker(e, stroke); for (let k = 0; k < e.maxHp; k++) { const on = k < e.hp, px = (k - (e.maxHp - 1) / 2) * 1.7; ctx.beginPath(); ctx.arc(px, e.r + 2.2, 0.6, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.2; ctx.stroke(); } ctx.restore(); continue; }
       if (e.tankette) { // a tank, its armour plates as pips under it
@@ -11182,6 +11335,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const startSel = $('startWave');
   startSel.add(new Option('Wave 1', '1'));
   startSel.add(new Option('Asteroid Field', 'ast'));
+  startSel.add(new Option('Bombardment (test)', 'bomb'));
   startSel.add(new Option("Goliath's last stand (test)", 'last')); // wave 60 with every part already broken: straight to its last stand
   for (let n = 2; n <= LOOP_LEN; n++) {
     const tag = bossFor(n) ? BOSS_NAMES[bossFor(n)] : setPiece(n) ? SET_NAMES[setPiece(n)] : '';
@@ -11191,7 +11345,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   startSel.addEventListener('change', () => { $('startNote').hidden = startSel.value === '1'; startSel.blur(); });
   function startChosen() {
     const v = startSel.value;
-    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v !== '1') startGame(+v); else startGame();
+    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'bomb') { forceBomb = true; startGame(8); } else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v !== '1') startGame(+v); else startGame();
   }
   $('play').addEventListener('click', startChosen);
   $('again').addEventListener('click', startChosen);
