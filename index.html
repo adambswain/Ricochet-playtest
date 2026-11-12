@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 12 16:14 UTC · ee1e2c8";</script>
+<script>window.RICOCHET_BUILD = "Nov 12 18:05 UTC · a10e805";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8369,20 +8369,22 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // done it, worded for the controls you're using. Skip ends it; How to play and Settings replay it.
   let tutDone = false;
   try { tutDone = localStorage.getItem('ricochet.tutorial') === 'done'; } catch (e) {}
-  const TUT_ORDER = ['move', 'throw', 'bounce', 'pull', 'catch', 'again'];
+  const TUT_ORDER = ['move', 'throw', 'bounce', 'heat', 'pull', 'catch', 'again'];
   const TUT_OK = 0.7; // a done step shows its tick this long
   // min: a step that explains something stays up at least this long, and is never skipped
-  // ack: a long read; it stays up until you tap Got it (and while the bounce tip's up, the ball holds short of overheating)
+  // ack: a long read; it stays up until you tap Got it
+  // The overheat is shown, not just told: the ball holds just short of it (14) through the bounce tip and the heat tip;
+  // once you've read the heat tip it overheats and blows, and the boom tip explains what happens after.
   const tutBall = () => G.balls[0];
-  const tutHeat = c => `At 15 charges your ball overheats. Two seconds later, its next bounce makes it explode, killing everything nearby. Every kill restarts the 2 seconds. After it explodes, its charges reset to 0 and it drifts back to you. ${c.touch ? `Hold the ${c.R} side` : 'Hold the mouse button or Space'} to pull it toward you faster.`;
   const TUT = {
     move: { text: (T, c) => c.touch ? `Drag on the ${c.L} side of the screen to fly.` : 'Fly with WASD or the arrow keys.', done: T => T.moved > 22 },
     throw: { text: (T, c) => (T.boomed ? 'Throw it again. ' : '') + (c.touch ? `Tap the ${c.R} side of the screen to throw the ball in the direction you're facing. Tip: swipe in the direction you want to throw the ball.` : 'Click or press Space to throw the ball toward your cursor.'), done: () => tutBall().state === 'live' },
-    bounce: { text: (T, c) => `Every bounce adds 1 damage to the ball and increases its speed. Keep an eye on the charge bar. ${tutHeat(c)}`, done: T => T.ack, ack: true, hi: 'charge' },
+    bounce: { text: () => 'Every bounce adds 1 damage to the ball and increases its speed. Keep an eye on the charge bar.', done: () => tutBall().b >= 5, min: 6, hi: 'charge' },
+    heat: { text: () => 'At 15 charges your ball overheats. Two seconds later, its next bounce makes it explode, killing everything nearby. Every kill restarts the 2 seconds.', done: () => false, ack: true, hi: 'charge' }, // ends when it blows (the boom tip), or you catch it
     pull: { text: (T, c) => c.touch ? `Now hold the ${c.R} side of the screen. The ball bends toward you.` : 'Now hold the mouse button, or Space. The ball bends toward you.', done: T => T.pull > 0.6, hi: 'mode' },
     catch: { text: () => 'Keep holding until it flies into your ship to catch it. Let go and it passes right through.', done: T => T.caught, hi: 'mode' },
     again: { text: () => "Caught! A catch takes 5 off the ball's charge. While you hold it, it loses 1 more charge per second. Throw it again.", done: () => tutBall().state === 'live', min: 2.5, hi: 'charge' },
-    boom: { text: (T, c) => tutHeat(c), done: T => T.ack && tutBall().state === 'held', ack: true }, // it overheated: the second half of the bounce tip again
+    boom: { text: () => 'After it explodes, its charges reset to 0 and it drifts back to you.', done: T => T.ack && tutBall().state === 'held', ack: true }, // it blew (shown after the heat tip, and whenever it blows again)
 
   };
   function tutFinish(skipped) {
@@ -8410,13 +8412,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     T.px = p.x; T.py = p.y;
     if (T.k === 'pull' && G.pulling) T.pull += dt;
     // an overload mid-tutorial gets explained on the spot, then you pick up where you were
-    if (T.k !== 'boom' && tutBall().state === 'ember') { T.back = T.caught ? TUT_ORDER.length : TUT_ORDER.indexOf('throw'); T.k = 'boom'; T.t = 0; T.ok = 0; T.ack = false; T.boomed = true; T.skip.bounce = true; return; }
+    if (T.k !== 'boom' && tutBall().state === 'ember') { T.back = T.caught ? TUT_ORDER.length : TUT_ORDER.indexOf('throw'); T.k = 'boom'; T.t = 0; T.ok = 0; T.ack = false; T.boomed = true; T.skip.bounce = true; T.skip.heat = true; return; }
     if (T.k === 'boom') {
       if (T.ok > 0) { T.ok -= dt; if (T.ok <= 0) { T.i = T.back - 1; T.caught = false; tutNext(T); } }
       else if (TUT.boom.done(T)) T.ok = TUT_OK;
       return;
     }
-    if (T.caught && (T.k === 'bounce' || T.k === 'pull')) { T.i = TUT_ORDER.indexOf('catch'); T.k = 'catch'; T.ok = TUT_OK; } // caught before we asked: straight to the catch's tick
+    if (T.caught && (T.k === 'bounce' || T.k === 'heat' || T.k === 'pull')) { T.i = TUT_ORDER.indexOf('catch'); T.k = 'catch'; T.ok = TUT_OK; } // caught before we asked: straight to the catch's tick
     if (T.ok > 0) { T.ok -= dt; if (T.ok <= 0) tutNext(T); return; }
     const step = TUT[T.k];
     if (T.t >= (step.min || 0) && step.done(T)) T.ok = TUT_OK;
@@ -8715,7 +8717,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (G.table) { ball.tb = (ball.tb || 0) + (ball.kick ? 1 : 0.34); while (ball.tb >= 1) { ball.tb -= 1; if (ball.b < TABLE_MAX_B) ball.b++; } } // on the pinball table: bumpers, slings and the flipper heat it a step, the many plain walls a third of one; and it heats only so far
     else if (inMawBay(ball)) { if (ball.b < WARN - 1) ball.b++; } // inside the Maw the ball heats only to just under the warning, so it comes out catchable
     else if (ball.b >= MAX_CHARGE) { if (ball.lit && ball.fuse <= 0) { overload(ball); return; } } // primed: this bounce blows it
-    else if (!(G.tut && G.tut.k === 'bounce' && !G.tut.ack && ball.b >= MAX_CHARGE - 1)) ball.b++; // (while you read the tutorial's bounce tip, it holds just short of overheating)
+    else if (!(G.tut && (G.tut.k === 'bounce' || (G.tut.k === 'heat' && !G.tut.ack)) && ball.b >= MAX_CHARGE - 1)) ball.b++; // (in the tutorial it holds just short of overheating till you've read the heat tip)
     if (wall) {
       gridImpulse(ball.x, ball.y, 7 + ball.b * 0.4, 18 + ball.b * 3);
       const vert = wall === 'L' || wall === 'R';
