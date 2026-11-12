@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 11 21:38 UTC · e10fd7f";</script>
+<script>window.RICOCHET_BUILD = "Nov 12 16:14 UTC · ee1e2c8";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1681,7 +1681,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.hp <= 0) defeatBoss();
   }
   // A blast from the player's side (bomb, overload, shockwave) hurts the Core if it reaches the shell.
-  function blastBoss(x, y, rad, dmg) {
+  function blastBoss(x, y, rad, dmg, src) {
     const B = G.boss; if (!B) return;
     if (B.kind === 'serpent') { // a blast cracks every plate it reaches, and hurts if it reaches an open core
       let hurt = null;
@@ -1695,7 +1695,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return;
     }
     if (B.kind === 'geode') { blastGeode(B, x, y, rad, dmg); return; }
-    if (B.kind === 'mech') { // a blast hurts every part it reaches that can be hurt
+    if (B.kind === 'mech') { // a blast hurts every part it reaches that can be hurt, and smashes the storm's scrap it reaches
+      if (B.storm) for (let i = B.storm.pcs.length - 1; i >= 0; i--) { const q = B.storm.pcs[i]; if (Math.hypot(q.x - x, q.y - y) >= rad + q.r || (q.m === 'gather' && q.delay > 0)) continue;
+        B.storm.pcs.splice(i, 1); scrapShatter(q, MAX_CHARGE); if (src) chainCredit(src, q.x, q.y, MAX_CHARGE, false); mechHit(B, 'core', q.m === 'belt' ? 1 : SCRAP_DMG, q.x, q.y); if (G.boss !== B) return; }
       const hit = new Set();
       for (const [cx, cy, cr, key, hurts] of mechCircles(B)) if (hurts && !hit.has(key) && Math.hypot(cx - x, cy - y) < rad + cr) { hit.add(key); mechHit(B, key, dmg, cx, cy); }
       return;
@@ -4707,10 +4709,58 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const PUNCH_GATHER = 0.5, PUNCH_WIND = [0.6, 0.5, 0.45], PUNCH_V = 120, WALL_FORM = 0.9, WALL_HOLD = 0.35, WALL_V = [42, 50, 58];
   const FLING_WIND = 0.6, FLING_N = [5, 7, 9], FLING_V = 72, SCRAP_DMG = 2, SCRAP_CORE_CD = 0.2, REBUILD_T = [0.45, 0.35, 0.25];
   const scrapLvl = B => B.melt ? 2 : B.over ? 1 : 0;
+  // The belt: its big move. The magnet blasts every piece it holds, the wreckage off the floor and more besides out
+  // into one wide ring round the reactor (BELT_N strong, so wide some of it swings off the arena's edges), turning
+  // (BELT_W), and drags it after you (BELT_V). The ring hurts to touch and shields the reactor: smash your way through
+  // (every piece a kill, and a chip, just 1, off the reactor) or get inside it with him. The ring is its own health bar: smash it
+  // down to BELT_BREAK of what it started with (it shakes as the magnet strains) and the magnet loses its grip: what's
+  // left crashes down and the reactor sits stunned (BELT_STUN), wide open. It opens the storm, and comes again at
+  // each mark of the reactor's share in BELT_AT. While it's up nothing's rebuilt and there are no other attacks.
+  const BELT_N = 54, BELT_W = 0.55, BELT_V = 13, BELT_FORM = 1.4, BELT_FLY = 0.55, BELT_BREAK = 0.4, BELT_STUN = 3, BELT_AT = [1, 0.5];
+  const beltR = () => Math.min(AW, AH) * 0.46;
+  const segClear = (x0, y0, x1, y1, d) => { const p = G.player, ex = x1 - x0, ey = y1 - y0, l2 = ex * ex + ey * ey || 1, u = clamp(((p.x - x0) * ex + (p.y - y0) * ey) / l2, 0, 1); return Math.hypot(x0 + ex * u - p.x, y0 + ey * u - p.y) > d; };
+  function scrapBelt(B, S) {
+    const Bt = S.belt = { st: 'form', t: 0, a: 0, n0: 0, R: beltR(), stun: 0, wob: 0 }, angs = [];
+    S.atk = null; S.spin = 1; S.beltI = (S.beltI || 0) + 1;
+    const add = (q, x, y, a) => { q.m = 'belt'; q.delay = 0; q.ba = a ?? Math.atan2(y - S.y, x - S.x); q.br = rand(0.92, 1.08); q.ft = -1; q.va = rand(-2.5, 2.5); angs.push(q.ba); };
+    for (const q of S.pcs) if (q.m === 'orbit' || q.m === 'gather') add(q, q.x, q.y); // the whirl,
+    for (let i = G.debris.length - 1; i >= 0 && angs.length < BELT_N; i--) { const d = G.debris[i]; if (!d.down) continue; const q = scrapPiece(d.x, d.y); q.rot = d.a; S.pcs.push(q); add(q, d.x, d.y); G.debris.splice(i, 1); } // the wreckage on the floor,
+    while (angs.length < BELT_N) { // and more out of the reactor, filling the widest gaps
+      const so = [...angs].sort((a, b) => a - b); let ga = rand(0, Math.PI * 2), gw = -1;
+      for (let i = 0; i < so.length; i++) { const a0 = so[i], a1 = i + 1 < so.length ? so[i + 1] : so[0] + Math.PI * 2; if (a1 - a0 > gw) { gw = a1 - a0; ga = a0 + gw / 2; } }
+      const q = scrapPiece(S.x + Math.cos(ga) * 3, S.y + Math.sin(ga) * 3); S.pcs.push(q); add(q, q.x, q.y, ga);
+    }
+    ring(S.x, S.y, 2, Bt.R, 0.7, COL.threat, 1.4); ring(S.x, S.y, 1, Bt.R * 0.6, 0.5, COL.chalk, 1); burst(S.x, S.y, 30, heat(MAX_CHARGE * 0.75), 70, 0.7, 0.5);
+    gridImpulse(S.x, S.y, Math.max(AW, AH), 300); shake(4); G.slowT = Math.max(G.slowT, 0.35); sfx.overload(); sfx.field(); sfx.boss();
+  }
+  // Where a piece sits in the belt (shaking as the magnet strains)
+  const beltAt = (S, q) => { const Bt = S.belt, a = Bt.a + q.ba, rr = Bt.R * q.br + Math.sin(G.time * 3 + q.ba * 7) * 1.2 + (Bt.wob ? rand(-Bt.wob, Bt.wob) : 0); return [S.x + Math.cos(a) * rr, S.y + Math.sin(a) * rr]; };
+  function updateBelt(B, S, dt) {
+    const Bt = S.belt, p = G.player; Bt.t += dt;
+    if (Bt.st === 'stun') { // stunned, wide open: sparking, sagging
+      if (Math.random() < dt * 14) burst(S.x + rand(-5, 5), S.y + rand(-5, 5), 3, Math.random() < 0.5 ? COL.chalk : heat(MAX_CHARGE * 0.75), 30, 0.35, 0.25);
+      if ((Bt.stun -= dt) <= 0) { S.belt = null; S.atkT = 1.4; S.fillT = 0; S.fastT = 3; }
+      return;
+    }
+    Bt.a += BELT_W * (B.melt ? 1.2 : 1) * dt * clamp(Bt.t / BELT_FORM, 0.25, 1);
+    const alive = S.pcs.filter(q => q.m === 'belt');
+    if (Bt.st === 'form' && ((Bt.t >= BELT_FORM && alive.every(q => q.ft >= 1)) || Bt.t >= BELT_FORM + 2.5)) { Bt.st = 'spin'; Bt.n0 = alive.length; }
+    if (Bt.st !== 'spin') return;
+    // it drags the belt after you
+    const dx = p.x - S.x, dy = p.y - S.y, d = Math.hypot(dx, dy) || 1, v = Math.min(d, BELT_V * (B.melt ? 1.25 : 1) * dt); S.x = clamp(S.x + dx / d * v, 8, AW - 8); S.y = clamp(S.y + dy / d * v, 8, AH - 8);
+    const frac = alive.length / Math.max(1, Bt.n0); Bt.wob = frac < 0.65 ? (0.65 - frac) * 5 : 0;
+    if (frac <= BELT_BREAK) { // the magnet loses its grip: the rest crashes down, and it's stunned
+      for (const q of alive) { const i = S.pcs.indexOf(q); if (q.x < 0 || q.x > AW || q.y < 0 || q.y > AH) { S.pcs.splice(i, 1); continue; } scrapLand(S, q); burst(q.x, q.y, 6, COL.dim, 22, 0.5, 0.3); }
+      Bt.st = 'stun'; Bt.stun = BELT_STUN;
+      for (let i = 0; i < 3; i++) ring(S.x, S.y, 2, 14 + i * 12, 0.4 + i * 0.1, i % 2 ? COL.chalk : COL.threat, 1.2);
+      burst(S.x, S.y, 40, heat(MAX_CHARGE * 0.75), 70, 0.8, 0.5); gridImpulse(S.x, S.y, Math.max(AW, AH), 280); shake(5); G.slowT = Math.max(G.slowT, 0.4); G.score += Math.round(1000 * G.mult);
+      float(S.x, S.y - 12, 'Belt broken!', COL.chalk, 3.6); sfx.shatter(); sfx.rockBoom(3); sfx.overload();
+    }
+  }
   const scrapPiece = (x, y) => ({ x, y, r: rand(2.4, 4), sh: Array.from({ length: 6 }, () => rand(0.7, 1.1)), rot: rand(0, Math.PI * 2), va: rand(-3, 3), a: rand(0, Math.PI * 2), ra: rand(0.45, 1), sp: 0, m: 'gather', delay: 0, flash: 0 });
   const scrapOrbit = (S, q) => [S.x + Math.cos(q.a) * q.ra * S.R, S.y + Math.sin(q.a) * q.ra * S.R];
   function scrapStart(B, at, wreck = null) {
-    const [cx, cy] = at || mechAt(B, ...MECH_CORE_AT), S = B.storm = { max: B.core, wreck, x: cx, y: cy, x0: cx, y0: cy, tx: AW / 2, ty: AH * 0.3, wT: 2.5, st: 'form', t: 0, pcs: [], atk: null, atkT: 2.2, order: [], spin: 1, fallT: 0, fillT: 0, R: 28 };
+    const [cx, cy] = at || mechAt(B, ...MECH_CORE_AT), S = B.storm = { max: B.core, wreck, x: cx, y: cy, x0: cx, y0: cy, tx: AW / 2, ty: AH * 0.3, wT: 2.5, st: 'form', t: 0, pcs: [], atk: null, atkT: 2.2, order: [], spin: 1, fallT: 0, fillT: 0, R: 28, belt: null, beltI: 0 };
     const anchors = [...MECH_ARMOUR, ...Object.values(MECH_PARTS), [-50, -22], [50, -22], [-24, -12], [24, -12], [-37, 5], [37, 5], [-42, 13], [42, 13], [-9, 20], [9, 20], [0, 18]].map(([x, y]) => mechAt(B, x, y));
     for (const sd of [-1, 1]) anchors.push(mechKnee(B, sd), mechFoot(B, sd));
     for (const d of G.debris) S.pcs.push(scrapPiece(d.x, d.y)); // the wreckage on the floor lifts too
@@ -4743,7 +4793,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const dot = o.vx * nx + o.vy * ny; if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
     if (q) { // a piece of scrap: it shatters
       const i = S.pcs.indexOf(q); if (i >= 0) S.pcs.splice(i, 1);
-      scrapShatter(q, b); chainCredit(o, q.x, q.y, b); mechHit(B, 'core', SCRAP_DMG + Math.floor(b / 5), q.x, q.y);
+      scrapShatter(q, b); chainCredit(o, q.x, q.y, b); mechHit(B, 'core', q.m === 'belt' ? 1 : SCRAP_DMG + Math.floor(b / 5), q.x, q.y); // (the belt's a shield: a piece of it barely chips the reactor)
     } else if (B.hitCd <= 0) { // the reactor itself: it counts extra (but only so often)
       B.hitCd = SCRAP_CORE_CD; ring(o.x, o.y, 1, 7, 0.3, heat(b), 0.9); burst(o.x, o.y, 10, heat(MAX_CHARGE * 0.75), 35, 0.5, 0.35); sfx.brick(b); mechHit(B, 'core', Math.round((1 + b) * 1.5), o.x, o.y);
     } else sfx.clank();
@@ -4829,6 +4879,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.melt) { B.alarmT = (B.alarmT || 0) - dt; if (B.alarmT <= 0) { B.alarmT = 1.4; sfx.alarm(); } }
     S.R = 15 + 13 * frac; // it shrinks as the reactor drains
     if (S.st === 'form') { const k = ease(clamp(S.t / (STORM_FORM * 0.85), 0, 1)); S.x = S.x0 + (S.tx - S.x0) * k; S.y = S.y0 + (S.ty - S.y0) * k; if (S.t >= STORM_FORM) S.st = 'storm'; }
+    else if (S.belt) { /* the belt: still as it forms or while it's stunned, else dragging it after you (updateBelt) */ }
     else { // drifting round the upper arena
       S.wT -= dt; if (S.wT <= 0 || Math.hypot(S.tx - S.x, S.ty - S.y) < 4) { S.wT = rand(3, 5); S.tx = rand(AW * 0.25, AW * 0.75); S.ty = rand(AH * 0.2, AH * 0.42); }
       const dx = S.tx - S.x, dy = S.ty - S.y, d = Math.hypot(dx, dy) || 1, v = Math.min(d, STORM_V * (B.melt ? 1.3 : 1) * dt); S.x += dx / d * v; S.y += dy / d * v;
@@ -4837,6 +4888,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let i = S.pcs.length - 1; i >= 0; i--) {
       const q = S.pcs[i]; q.rot += q.va * dt * (q.m === 'orbit' ? S.spin : 1); q.flash -= dt;
       if (q.m === 'gather') { if ((q.delay -= dt) > 0) continue; q.a += q.sp * S.spin * dt; const [ox, oy] = scrapOrbit(S, q), k = Math.min(1, dt * 5); q.x += (ox - q.x) * k; q.y += (oy - q.y) * k; if ((q.g = (q.g || 0) + dt) > 0.9) q.m = 'orbit'; } // flying in to its place in the whirl (which moves), then whirling
+      else if (q.m === 'belt') { // out to its place in the belt (once its way there's clear of you), then round with it
+        if (!S.belt) { q.m = 'orbit'; continue; }
+        const [tx, ty] = beltAt(S, q);
+        if (q.ft < 0) { if (!segClear(q.x, q.y, tx, ty, 12)) continue; q.ft = 0; q.fx = q.x; q.fy = q.y; }
+        if (q.ft < 1) { q.ft = Math.min(1, q.ft + dt / BELT_FLY); const k = q.ft * (2 - q.ft); q.x = q.fx + (tx - q.fx) * k; q.y = q.fy + (ty - q.fy) * k; }
+        else { q.x = tx; q.y = ty; }
+      }
       else if (q.m === 'orbit') { q.a += q.sp * S.spin * dt; const [ox, oy] = scrapOrbit(S, q), k = Math.min(1, dt * 8); q.x += (ox - q.x) * k; q.y += (oy - q.y) * k; }
       else if (q.m === 'fling') {
         q.x += q.vx * dt; q.y += q.vy * dt; q.d -= FLING_V * dt;
@@ -4847,11 +4905,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         }
       }
     }
-    if (S.st === 'storm') {
+    if (S.st === 'storm' && !S.belt && !S.atk && S.beltI < BELT_AT.length && frac <= BELT_AT[S.beltI]) scrapBelt(B, S); // the belt, when it's due
+    S.fastT = (S.fastT || 0) - dt;
+    if (S.st === 'storm' && S.belt) updateBelt(B, S, dt);
+    else if (S.st === 'storm') {
       // the magnet rebuilds what you smash: wreckage on the floor first (lifting back in), else scrap torn off its wreck, never on a path through you; it holds less as the reactor drains
       const want = Math.round(STORM_MIN + (STORM_N - STORM_MIN) * frac), have = S.pcs.filter(q => q.m === 'orbit' || q.m === 'gather').length;
       if ((S.fillT -= dt) <= 0 && have < want) {
-        S.fillT = REBUILD_T[scrapLvl(B)];
+        S.fillT = REBUILD_T[scrapLvl(B)] * (S.fastT > 0 ? 0.3 : 1); // (straight after a belt, it hauls the wreckage back in fast)
         const clear = (x, y) => { const ex = S.x - x, ey = S.y - y, l2 = ex * ex + ey * ey || 1, u = clamp(((p.x - x) * ex + (p.y - y) * ey) / l2, 0, 1); return Math.hypot(x + ex * u - p.x, y + ey * u - p.y) > 18; }; // its way in mustn't cross you: scrap flying up through you out of nowhere would be a cheap hit
         const d = G.debris.find(d => d.down && d.t > 1.5 && clear(d.x, d.y)), w = S.wreck && [S.wreck[0] + rand(-30, 30) * B.s, S.wreck[1] + rand(-20, 30) * B.s], [fx, fy] = d ? [d.x, d.y] : w && clear(...w) ? w : [NaN, NaN];
         if (d) G.debris.splice(G.debris.indexOf(d), 1);
@@ -4886,7 +4947,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const fl30 = 0.3 + 0.3 * Math.sin(t * 30), winding = q => q.hot || (A && ((A.k === 'punch' && A.ph === 'wind' && q.m === 'fist') || (A.k === 'wall' && A.ph === 'hold' && q.m === 'wall')));
     for (const q of S.pcs) piece(q, q.m === 'fist' ? 1.15 : 1, winding(q) ? fl30 : 0);
     if (!blown) { // the reactor: a hot core with its machine eye, a ring turning round it
-      const fl = (B.coreFlash || 0) > 0, pul = 0.5 + 0.5 * Math.sin(t * (B.melt ? 14 : 6)), R0 = 6.5 * (1 + die * 0.4);
+      const fl = (B.coreFlash || 0) > 0, stun = S.belt && S.belt.st === 'stun', pul = stun ? Math.random() * 0.6 : 0.5 + 0.5 * Math.sin(t * (B.melt ? 14 : 6)), R0 = 6.5 * (1 + die * 0.4); // (stunned after its belt breaks: flickering)
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       const g = ctx.createRadialGradient(S.x, S.y, 0, S.x, S.y, R0 * 2.6); g.addColorStop(0, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.globalAlpha = 0.45 + 0.25 * pul + die * 0.4; ctx.beginPath(); ctx.arc(S.x, S.y, R0 * 2.6, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       ctx.beginPath(); ctx.arc(S.x, S.y, R0, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.6; ctx.stroke();
@@ -8697,7 +8758,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function overload(ball) {
     if (G.attract) { ball.b = 0; const l = Math.hypot(ball.vx, ball.vy) || 1; ball.vx = ball.vx / l * BALL_BASE; ball.vy = ball.vy / l * BALL_BASE; ring(ball.x, ball.y, 2, 18, 0.5, heat(MAX_CHARGE), 0.6); return; }
     gridImpulse(ball.x, ball.y, BLAST_R * 1.5, 170);
-    blastBoss(ball.x, ball.y, BLAST_R, 5);
+    blastBoss(ball.x, ball.y, BLAST_R, 5, ball);
     for (let i = G.enemies.length - 1; i >= 0; i--) {
       const e = G.enemies[i];
       if (Math.hypot(e.x - ball.x, e.y - ball.y) < BLAST_R + e.r) kill(i, 4, 0, ball);
