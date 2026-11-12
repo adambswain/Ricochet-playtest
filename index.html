@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 12 19:42 UTC · ac2bad3";</script>
+<script>window.RICOCHET_BUILD = "Nov 12 21:31 UTC · 79cc9f5";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4387,7 +4387,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Damage to a part (a weapon or a knee), or to the reactor; the bar is the sum of everything.
   function mechHit(B, key, dmg, x, y) {
     if (key === 'wL' || key === 'wR' || key === 'wH') { if (B.walker) armWalkHit(B, key, dmg, x, y); return; } // the arm walker
-    if (key === 'gL' || key === 'gR' || key === 'gH') { if (B.legs) legWalkHit(B, key, dmg, x, y); return; } // the leg walker
+    if (key === 'gL' || key === 'gR' || key === 'gH' || (typeof key === 'string' && key.startsWith('em'))) { if (B.legs) legWalkHit(B, key, dmg, x, y); return; } // the leg walker (its legs, its emitters)
     if (key === 'core') { if (B.st === 'core') { B.core = Math.max(0, B.core - dmg); B.coreFlash = 0.15; damageBoss(dmg, x, y); } return; }
     const P = B.parts[key]; if (!P || P.hp <= 0) return;
     const d = Math.min(dmg, P.hp); P.hp -= d; P.flash = 0.15; damageBoss(d, x, y);
@@ -5210,142 +5210,169 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // its head rides over its hands (sinking as it crouches)
     if (ride) { const [mx, my] = mid(), k = Math.min(1, dt * 9); B.x += (mx - B.x) * k; B.y += (clamp(my - 30 * ws, 10, AH) + W.crouch - B.y) * k; }
   }
-  // Goliath's last stand, form two: the leg walker. With its arms gone, its head flies back to the wreck, its legs tear
-  // free, and their feet lock flat as treads: now it drives, fast and smooth, sliding round you out at LEG_RANGE. The
-  // wreck stays behind (legless now), still spitting crawlers. Its legs are plated like the arms were (LEG_PLATES each,
-  // every one knocked off a kill); stripped bare a leg snaps at the knee and it drags itself on the other (slower);
-  // both gone and the scrap storm takes over. A hit on its head goes to the leg with the most left. Touching any of it
-  // hurts. Its eye's laser ignites as a blade (LEG_BLADE long; flickering and growing for LEG_IGNITE is the tell, and
-  // it's harmless till it's lit), and it:
-  //  - lunges: the blade levelled at you (following you, flickering), then it locks (going solid, a flash, a clank: step
-  //    aside now), its treads screaming, then a straight dash down it (LUNGE_V), skidding to a stop and sitting a beat.
-  //  - spins: it drives in on you with the blade lit behind it, then round it goes, SPIN_TURNS full turns: get out of
-  //    its reach (or slip in behind the blade as it passes).
-  //  - late (half its legs' health gone), the spin travels: it spins as it drives at you, for TSPIN_T.
-  const LEG_HP = 250, LEG_FORM = 1.2, LEG_PLATES = 18, LEG_RANGE = 52, LEG_V = 34, LEG_L1 = 16, LEG_L2 = 16;
-  const LEG_ATK = [1.4, 1.1], LEG_BLADE = 36, LEG_IGNITE = [0.65, 0.55], LUNGE_V = 120, LUNGE_T = 0.42, LUNGE_SKID = 0.25, LUNGE_REC = [0.5, 0.35];
-  const SPIN_W = Math.PI * 2 / 0.85, SPIN_TURNS = [1.5, 2], SPIN_REC = 0.45, TSPIN_T = 2.6, TSPIN_V = 24;
+  // Goliath's last stand, form two: the leg walker. With its arms gone, its head flies back to the wreck and drops onto
+  // its pelvis, and its own legs tear free under it: tall and narrow (the arm walker was wide and low), walking in
+  // heavy stomping steps. Its pelvis is a bar of EMIT_N laser emitters. It's a sentry, not a chaser: it patrols the
+  // top of the arena (LEG_BAND) and makes you weave:
+  //  - lanes: it plants; the emitters over you glow (LANE_WIND), then fire thick beams down the whole arena (LANE_ON),
+  //    LANE_N volleys, each aimed at you afresh. Get out from under them, or thread between two.
+  //  - scissors: its two outermost emitters glow, then fire from the walls and sweep inward (SCIS_T), stopping with a
+  //    gap (SCIS_GAP): stay in the closing wedge.
+  //  - eye bolts: walking, its eye flares and fires a burst of BOLT_N bolts at you every BOLT_T.
+  // Everything breaks: an emitter takes EMIT_HITS hits and goes (a kill, EMIT_DMG off the reactor), its lane gone for
+  // good; each leg carries 4 big armour pieces (thigh plate, knee cap, greave, foot), each knocked off a kill; a leg
+  // stripped bare snaps at the knee and it limps on the other. Both legs gone and the scrap storm takes over. A hit on
+  // its head or pelvis goes to the leg with the most left. Touching any of it hurts; so do its stomps. Its wreck still
+  // spits crawlers. Late: half its legs' health gone.
+  const LEG_HP = 180, LEG_FORM = 1.2, LEG_V = 20, LEG_L1 = 22, LEG_L2 = 22, LEG_STEP_T = 0.3, LEG_STRIDE = 10, LEG_BAND = [0.07, 0.22];
+  const EMIT_N = 7, EMIT_HITS = 3, EMIT_DMG = 10, EMIT_X = [-18, -12, -6, 0, 6, 12, 18], EMIT_Y = 13;
+  const LEG_ATK = [3, 2.4], LANE_WIND = 0.6, LANE_ON = 0.7, LANE_GAP = 0.25, LANE_N = [3, 4], LANE_W = 7, LANE_REACH = 26;
+  const SCIS_WIND = 0.5, SCIS_WARM = 0.25, SCIS_T = 1.3, SCIS_HOLD = 0.35, SCIS_GAP = [24, 19];
+  const BOLT_T = [2.2, 1.7], BOLT_N = 3, BOLT_V = 75, BOLT_GAP = 0.14, BOLT_CHARGE = 0.35;
   const legWalkLate = B => B.legs.legs[0].hp + B.legs.legs[1].hp <= LEG_HP / 2;
+  const legEmit = (B, k) => { const ws = B.s * WALK_S; return [B.x + EMIT_X[k] * ws, B.y + EMIT_Y * ws]; };
+  const laneEnd = k => [8 + k * (AW - 16) / (EMIT_N - 1), AH + 6]; // where emitter k's lane reaches: fanned evenly across the bottom
   function legWalkStart(B, W) {
-    const s = B.s, ws = s * WALK_S, wx = W.wx, wy = W.wy, tx = clamp(wx, 26 * ws, AW - 26 * ws), ty = clamp(wy + 14 * s, AH * 0.06, AH - 38 * ws);
-    const Lg = B.legs = { st: 'form', t: 0, wx, wy, fx: B.x, fy: B.y, tx, ty, vx: 0, vy: 0, orb: Math.random() < 0.5 ? -1 : 1, flipT: 0, bag: [], atkT: 1.6, atk: null, crawlT: W.crawlT, tread: 0,
-      legs: [0, 1].map(() => ({ hp: LEG_HP / 2, max: LEG_HP / 2, plates: Array(LEG_PLATES).fill(true), lost: false, flash: 0 })),
-      feet: [-1, 1].map(sd => { const x = wx + sd * 28 * s, y = wy + 52 * s; return { x, y, x0: x, y0: y }; }) }; // its legs, from where they knelt on the wreck
+    const s = B.s, ws = s * WALK_S, wx = W.wx, wy = W.wy, tx = clamp(wx, 26 * ws, AW - 26 * ws), ty = clamp(wy - 4 * s, AH * LEG_BAND[0], AH * LEG_BAND[1]);
+    const Lg = B.legs = { st: 'form', t: 0, wx, wy, fx: B.x, fy: B.y, tx, ty, vx: 0, vy: 0, gx: tx, gy: ty, goT: 0, atkT: 2.2, atk: null, crawlT: W.crawlT, boltT: 1.8, burst: 0, burstT: 0, eye: 0,
+      emit: Array.from({ length: EMIT_N }, () => ({ hits: EMIT_HITS, flash: 0 })), next: 0, step: null,
+      legs: [0, 1].map(() => ({ hp: LEG_HP / 2, max: LEG_HP / 2, pcs: [true, true, true, true], lost: false, flash: 0 })),
+      feet: [-1, 1].map(sd => { const x = wx + sd * 28 * s, y = wy + 52 * s; return { x, y, x0: x, y0: y, lift: 0 }; }) }; // its legs, from where they knelt on the wreck
     for (const sd of [-1, 1]) { const x = wx + sd * 9 * s, y = wy + 20 * s; burst(x, y, 24, heat(MAX_CHARGE * 0.75), 50, 0.6, 0.45); ring(x, y, 1, 10, 0.3, COL.threat, 1); }
     G.screenFlash = Math.max(G.screenFlash || 0, 0.3); G.slowT = Math.max(G.slowT, 0.4); shake(4); gridImpulse(wx, wy, Math.max(AW, AH), 240); sfx.shatter(); sfx.boss();
   }
-  // A leg in the world: hip, knee (bent out to the side), foot (a tread). A lost leg: only its stump.
+  // A leg in the world: hip, knee (a little out to the side), foot. A lost leg: its thigh, and the knee down on the floor.
   function legWalkLeg(B, i) {
-    const Lg = B.legs, ws = B.s * WALK_S, sd = i ? 1 : -1, hx = B.x + sd * 9 * ws, hy = B.y + 7 * ws, F = Lg.feet[i];
-    let fx = F.x, fy = F.y; const L1 = LEG_L1 * ws, L2 = (Lg.legs[i].lost ? 2 : LEG_L2) * ws; let dx = fx - hx, dy = fy - hy, d = Math.hypot(dx, dy) || 1e-6;
+    const Lg = B.legs, ws = B.s * WALK_S, sd = i ? 1 : -1, hx = B.x + sd * 10 * ws, hy = B.y + 15 * ws, F = Lg.feet[i];
+    let fx = F.x, fy = F.y - (F.lift || 0) * 7 * ws; const L1 = LEG_L1 * ws, L2 = (Lg.legs[i].lost ? 2 : LEG_L2) * ws; let dx = fx - hx, dy = fy - hy, d = Math.hypot(dx, dy) || 1e-6;
     if (d > L1 + L2 - 0.01) { const k = (L1 + L2 - 0.01) / d; fx = hx + dx * k; fy = hy + dy * k; dx = fx - hx; dy = fy - hy; d = L1 + L2 - 0.01; }
     const a = Math.atan2(dy, dx), b = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));
     const e1 = [hx + Math.cos(a - b) * L1, hy + Math.sin(a - b) * L1], e2 = [hx + Math.cos(a + b) * L1, hy + Math.sin(a + b) * L1], [kx, ky] = (e1[0] - B.x) * sd > (e2[0] - B.x) * sd ? e1 : e2;
     return [hx, hy, kx, ky, fx, fy];
   }
-  // Its head and its legs: all of it hurts to touch (not while it's forming) and all of it can be hit
+  const legStance = (B, i) => { const Lg = B.legs, ws = B.s * WALK_S, sd = i ? 1 : -1; return Lg.legs[i].lost ? [B.x + sd * 16 * ws, B.y + 32 * ws] : [B.x + sd * 13 * ws, B.y + 56 * ws]; };
+  // Its head, its pelvis, its emitters, its legs: all of it hurts to touch (not while it's forming) and all of it can be hit
   function legWalkCircles(B) {
     const Lg = B.legs, ws = B.s * WALK_S, safe = Lg.st === 'form', out = [[B.x, B.y, 8 * ws, 'gH', true, null, safe]];
+    if (Lg.st === 'form') return out;
+    Lg.emit.forEach((E, k) => { if (E.hits > 0) { const [x, y] = legEmit(B, k); out.push([x, y, 2.8 * ws, 'em' + k, true, null, false]); } });
+    for (const sd of [-1, 1]) out.push([B.x + sd * 13 * ws, B.y + 10 * ws, 5.5 * ws, 'gH', true, null, false]); // the pelvis bar
     for (const i of [0, 1]) { const key = i ? 'gR' : 'gL', [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i);
-      out.push([(hx + kx) / 2, (hy + ky) / 2, 4 * ws, key, true, null, safe], [kx, ky, 3.8 * ws, key, true, null, safe]);
-      if (!Lg.legs[i].lost) out.push([(kx + fx) / 2, (ky + fy) / 2, 3.6 * ws, key, true, null, safe], [fx, fy, 4.6 * ws, key, true, null, safe]); }
+      out.push([(hx + kx) / 2, (hy + ky) / 2, 4.6 * ws, key, true, null, false], [kx, ky, 4.4 * ws, key, true, null, false]);
+      if (!Lg.legs[i].lost) out.push([(kx + fx) / 2, (ky + fy) / 2, 4 * ws, key, true, null, false], [fx, fy, 5 * ws, key, true, null, false]); }
     return out;
   }
-  function legWalkPlate(B, i, k) { const [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i), [x0, y0, x1, y1] = k < 9 ? [hx, hy, kx, ky] : [kx, ky, fx, fy], t = PLATE_T[k % 9]; return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t]; }
-  // A hit on it: like the arms, plates off past each mark (each a kill), and stripped bare the leg snaps at the knee
+  // Where a leg's armour pieces sit: 0 thigh plate, 1 knee cap, 2 greave, 3 foot
+  function legWalkPiece(B, i, k) { const [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i); return k === 0 ? [(hx + kx) / 2, (hy + ky) / 2] : k === 1 ? [kx, ky] : k === 2 ? [(kx + fx) / 2, (ky + fy) / 2] : [fx, fy]; }
+  // A hit on a leg (or its head or pelvis: the leg with the most left): a big piece of armour off past each quarter
   function legWalkHit(B, key, dmg, x, y) {
-    const Lg = B.legs, ws = B.s * WALK_S, live = [0, 1].filter(i => !Lg.legs[i].lost); if (!live.length) return;
+    const Lg = B.legs, ws = B.s * WALK_S;
+    if (key.startsWith('em')) { // an emitter: EMIT_HITS hits, however hard, and it's gone
+      const k = +key.slice(2), E = Lg.emit[k]; if (!E || E.hits <= 0) return; E.hits--; E.flash = 0.15; const [ex, ey] = legEmit(B, k);
+      if (E.hits > 0) { burst(ex, ey, 6, COL.chalk, 25, 0.4, 0.25); sfx.clank(); return; }
+      burst(ex, ey, 20, heat(MAX_CHARGE * 0.75), 50, 0.6, 0.4); ring(ex, ey, 0.5, 8, 0.25, COL.chalk, 0.9); shake(1.2); sfx.shatter(); G.score += Math.round(200 * G.mult);
+      const d = Math.min(EMIT_DMG, B.core - 1); B.core -= d; B.coreFlash = 0.15; damageBoss(d, ex, ey); if (B.hitBall) chainCredit(B.hitBall, ex, ey, B.hitBall.b);
+      if (Lg.atk && Lg.atk.fire) Lg.atk.fire = Lg.atk.fire.filter(j => j !== k); // its lane's out
+      return;
+    }
+    const live = [0, 1].filter(i => !Lg.legs[i].lost); if (!live.length) return;
     let i = key === 'gL' ? 0 : key === 'gR' ? 1 : -1;
     if (i < 0 || Lg.legs[i].lost) i = live.reduce((a, j) => Lg.legs[j].hp > Lg.legs[a].hp ? j : a, live[0]);
     const A = Lg.legs[i], d = Math.min(dmg, A.hp); A.hp -= d; A.flash = 0.12;
     B.core = Math.max(0, B.core - d); B.coreFlash = 0.15; damageBoss(d, x, y);
     burst(x, y, 6, heat(MAX_CHARGE * 0.75), 30, 0.4, 0.25);
-    const keep = Math.max(0, Math.ceil(A.hp / A.max * (LEG_PLATES + 1)) - 1);
-    while (A.plates.filter(Boolean).length > keep) {
-      let k = -1, bd = 1e9; A.plates.forEach((on, j) => { if (!on) return; const [px, py] = legWalkPlate(B, i, j), dd = Math.hypot(px - x, py - y); if (dd < bd) { bd = dd; k = j; } });
-      A.plates[k] = false; const [px, py] = legWalkPlate(B, i, k);
-      G.debris.push({ x: px, y: py, vx: rand(-25, 25), vy: -30, floor: clamp(py + rand(10, 20), 6, AH - 4), r: 2.6 * ws, a: rand(0, 6), va: rand(-8, 8), t: 0, life: MECH_DEBRIS * 0.6, down: false });
-      burst(px, py, 14, heat(MAX_CHARGE * 0.75), 40, 0.5, 0.35); ring(px, py, 0.5, 5, 0.2, COL.chalk, 0.6); shake(0.7); sfx.brick(8); G.score += Math.round(60 * G.mult);
+    const keep = Math.max(0, Math.ceil(A.hp / A.max * 5) - 1);
+    while (A.pcs.filter(Boolean).length > keep) { // a big piece of its armour comes off: the one nearest the hit
+      let k = -1, bd = 1e9; A.pcs.forEach((on, j) => { if (!on) return; const [px, py] = legWalkPiece(B, i, j), dd = Math.hypot(px - x, py - y); if (dd < bd) { bd = dd; k = j; } });
+      A.pcs[k] = false; const [px, py] = legWalkPiece(B, i, k);
+      G.debris.push({ x: px, y: py, vx: rand(-25, 25), vy: -35, floor: clamp(py + rand(10, 20), 6, AH - 4), r: 4 * ws, a: rand(0, 6), va: rand(-8, 8), t: 0, life: MECH_DEBRIS * 0.6, down: false });
+      burst(px, py, 22, heat(MAX_CHARGE * 0.75), 50, 0.6, 0.4); ring(px, py, 0.5, 8, 0.25, COL.chalk, 0.8); shake(1.4); sfx.brick(10); sfx.clank(); G.score += Math.round(150 * G.mult);
       if (B.hitBall) chainCredit(B.hitBall, px, py, B.hitBall.b);
     }
-    if (A.hp <= 0 && !A.lost) { // stripped bare: it snaps at the knee, shin and tread crashing down
-      const [, , kx, ky, fx, fy] = legWalkLeg(B, i); A.lost = true;
-      G.debris.push({ x: (kx + fx) / 2, y: (ky + fy) / 2, vx: rand(-20, 20), vy: -40, floor: clamp((ky + fy) / 2 + rand(10, 20), 6, AH - 4), r: 5.5 * ws, a: rand(0, 6), va: rand(-6, 6), t: 0, life: MECH_DEBRIS, down: false });
+    if (A.hp <= 0 && !A.lost) { // stripped bare: it snaps at the knee, its shin crashing down
+      const [, , kx, ky, fx, fy] = legWalkLeg(B, i); A.lost = true; Lg.step = null;
+      G.debris.push({ x: (kx + fx) / 2, y: (ky + fy) / 2, vx: rand(-20, 20), vy: -40, floor: clamp((ky + fy) / 2 + rand(10, 20), 6, AH - 4), r: 6 * ws, a: rand(0, 6), va: rand(-6, 6), t: 0, life: MECH_DEBRIS, down: false });
       burst(kx, ky, 34, heat(MAX_CHARGE * 0.75), 70, 0.8, 0.55); ring(kx, ky, 1, 14, 0.35, COL.threat, 1.2); gridImpulse(kx, ky, 50, 220); shake(3); sfx.shatter(); sfx.overload(); G.score += Math.round(500 * G.mult);
       float(kx, ky - 8, 'Leg off!', COL.chalk, 3.6); if (B.hitBall) chainCredit(B.hitBall, kx, ky, B.hitBall.b);
     }
   }
-  // Its blade: lunge or spin (or, late on, the travelling spin). Returns the velocity it wants, and whether that's hard (not eased into).
-  function legWalkAtk(B, Lg, dt, L, limp) {
-    const A = Lg.atk, p = G.player, ws = B.s * WALK_S, Lb = LEG_BLADE * ws, toP = Math.atan2(p.y - B.y, p.x - B.x), dP = Math.hypot(p.x - B.x, p.y - B.y), fire = heat(MAX_CHARGE * 0.75); A.t += dt;
-    const turnTo = (a, b, m) => a + clamp(Math.atan2(Math.sin(b - a), Math.cos(b - a)), -m, m);
-    let v = [0, 0], hard = false; A.prev = A.a;
-    if (A.ph === 'ignite') { // the blade flickering on, growing
-      const T = LEG_IGNITE[L]; A.on = clamp(A.t / T, 0, 1);
-      if (A.k === 'lunge') { if (A.t < T * 0.6) A.a = turnTo(A.a, toP, 6 * dt); else if (!A.locked) { A.locked = true; ring(B.x + Math.cos(A.a) * 6 * ws, B.y + Math.sin(A.a) * 6 * ws, 1, 7, 0.2, COL.chalk, 1); sfx.clank(); } Lg.tread += 90 * dt; if (Math.random() < 0.7) for (const F of Lg.feet) burst(F.x, F.y + 2 * ws, 1, fire, 25, 0.3, 0.2); } // levelled at you, its treads screaming
-      else { A.a = toP + Math.PI; if (dP > 16) v = [Math.cos(toP) * LEG_V * limp, Math.sin(toP) * LEG_V * limp]; } // driving in on you, the blade lit behind it
-      if (A.t >= T) { A.on = 1; A.t = 0; A.prev = A.a; A.go = 0;
-        if (A.k === 'lunge') { A.ph = 'dash'; A.dx = Math.cos(A.a); A.dy = Math.sin(A.a); sfx.launch(B.x); shake(1.2); for (const F of Lg.feet) burst(F.x, F.y, 12, COL.dim, 35, 0.5, 0.35); }
-        else { A.ph = 'spin'; sfx.blaster(); } }
-    } else if (A.ph === 'dash') { // straight down the blade
-      v = [A.dx * LUNGE_V * limp, A.dy * LUNGE_V * limp]; hard = true;
-      if (A.t >= LUNGE_T || A.wall) { A.ph = 'skid'; A.t = 0; }
-    } else if (A.ph === 'skid') { // skidding to a stop, sparks off its treads
-      if (Math.random() < 0.8) for (const F of Lg.feet) burst(F.x, F.y + 2 * ws, 2, fire, 30, 0.3, 0.2);
-      if (A.t >= LUNGE_SKID) { A.ph = 'rec'; A.t = 0; }
-    } else if (A.ph === 'spin') { // round it goes
-      const w = SPIN_W * A.dir; A.a += w * dt; const g0 = A.go; A.go += Math.abs(w) * dt;
-      if (Math.floor(A.go / Math.PI) !== Math.floor(g0 / Math.PI)) sfx.blaster();
-      if (A.k === 'tspin' && dP > 6) v = [Math.cos(toP) * TSPIN_V * limp, Math.sin(toP) * TSPIN_V * limp]; // and late on, after you
-      if (A.k === 'tspin' ? A.t >= TSPIN_T : A.go >= SPIN_TURNS[L] * Math.PI * 2) { A.ph = 'rec'; A.t = 0; }
-    } else { // the blade goes out, and it sits a beat
-      A.on = Math.max(0, 1 - A.t / 0.2);
-      if (A.t >= (A.k === 'lunge' ? LUNGE_REC[L] : SPIN_REC)) { Lg.atk = null; Lg.atkT = LEG_ATK[L]; }
-    }
-    // the blade cuts (once it's lit; once an attack)
-    if (A.on >= 1 && !A.hit && (A.ph === 'dash' || A.ph === 'skid' || A.ph === 'spin') && p.inv <= 0) {
-      const pr = 1.4 + PLAYER_R * 0.8, x0 = B.x + Math.cos(A.a) * 6 * ws, y0 = B.y + Math.sin(A.a) * 6 * ws;
-      let cut = !segClear(x0, y0, B.x + Math.cos(A.a) * Lb, B.y + Math.sin(A.a) * Lb, pr);
-      if (!cut && A.ph === 'spin' && dP > 6 * ws - pr && dP < Lb + pr) { // swept: did it pass over you since last frame?
-        const tau = Math.PI * 2, rel = A.dir > 0 ? (((toP - A.prev) % tau) + tau) % tau : (((A.prev - toP) % tau) + tau) % tau; cut = rel <= Math.abs(A.a - A.prev);
+  const legStomp = (x, y, ws, big) => { const p = G.player; ring(x, y, 1, big ? 9 : 6, 0.25, COL.threat, big ? 1.2 : 0.8); burst(x, y, big ? 18 : 10, COL.dim, 35, 0.6, 0.4); gridImpulse(x, y, big ? 40 : 22, big ? 180 : 110); shake(big ? 2 : 1); sfx.clank(); if (big) sfx.rockBoom(1); if (p.inv <= 0 && Math.hypot(p.x - x, p.y - y) < 5 * ws + PLAYER_R * 0.8) damagePlayer(); };
+  // Its lasers. A beam is [x0, y0, x1, y1] plus whether it's lit yet (warming, it's harmless).
+  function legBeams(B) {
+    const A = B.legs && B.legs.atk, out = []; if (!A) return out;
+    if (A.k === 'lanes' && A.ph === 'on') for (const k of A.fire) { const [x0, y0] = legEmit(B, k), [x1, y1] = laneEnd(k); out.push([x0, y0, x1, y1, true]); }
+    if (A.k === 'scissors' && (A.ph === 'sweep' || A.ph === 'hold')) { const k = A.ph === 'hold' ? 1 : clamp((A.t - SCIS_WARM) / SCIS_T, 0, 1), e = k * k * (3 - 2 * k), lit = A.ph === 'hold' || A.t >= SCIS_WARM;
+      if (B.legs.emit[A.l].hits > 0) { const [x0, y0] = legEmit(B, A.l); out.push([x0, y0, -24 + (A.xg - A.gap / 2 + 24) * e, AH + 6, lit]); }
+      if (B.legs.emit[A.r].hits > 0) { const [x0, y0] = legEmit(B, A.r); out.push([x0, y0, AW + 24 + (A.xg + A.gap / 2 - AW - 24) * e, AH + 6, lit]); } }
+    return out;
+  }
+  function legWalkAtk(B, Lg, dt, L) {
+    const A = Lg.atk, p = G.player; A.t += dt;
+    const alive = Lg.emit.map((E, k) => E.hits > 0 ? k : -1).filter(k => k >= 0);
+    if (A.k === 'lanes') {
+      if (A.ph === 'wind' && !A.fire) { // the emitters over you (if any's left)
+        A.fire = alive.filter(k => { const [x0, y0] = legEmit(B, k), [x1, y1] = laneEnd(k), u = clamp((p.y - y0) / (y1 - y0), 0, 1); return Math.abs(x0 + (x1 - x0) * u - p.x) < LANE_REACH; });
+        if (A.fire.length) sfx.blasterCharge();
       }
-      if (cut) { A.hit = true; damagePlayer(); }
+      if (A.ph === 'wind' && A.t >= LANE_WIND) { A.ph = 'on'; A.t = 0; if (A.fire.length) { sfx.blaster(); shake(1.2); for (const k of A.fire) { const [x1] = laneEnd(k); burst(clamp(x1, 2, AW - 2), AH - 2, 10, heat(MAX_CHARGE * 0.75), 40, 0.4, 0.3); } } }
+      else if (A.ph === 'on' && A.t >= LANE_ON) { A.ph = 'gap'; A.t = 0; }
+      else if (A.ph === 'gap' && A.t >= LANE_GAP) { if (++A.v < LANE_N[L]) { A.ph = 'wind'; A.t = 0; A.fire = null; } else return true; }
+    } else { // scissors
+      if (A.ph === 'wind' && A.t >= SCIS_WIND) { A.ph = 'sweep'; A.t = 0; sfx.blaster(); }
+      else if (A.ph === 'sweep' && A.t >= SCIS_WARM + SCIS_T) { A.ph = 'hold'; A.t = 0; shake(1.5); }
+      else if (A.ph === 'hold' && A.t >= SCIS_HOLD) return true;
     }
-    return [v, hard];
+    // the beams burn
+    if (p.inv <= 0) for (const [x0, y0, x1, y1, lit] of legBeams(B)) if (lit && !segClear(x0, y0, x1, y1, LANE_W / 2 + PLAYER_R * 0.8)) { damagePlayer(); break; }
+    return false;
   }
   function updateLegWalk(B, dt) {
     const Lg = B.legs, p = G.player, ws = B.s * WALK_S, ease = k => k * k * (3 - 2 * k), L = legWalkLate(B) ? 1 : 0; Lg.t += dt;
-    for (const A of Lg.legs) A.flash -= dt;
-    if (Lg.legs.every(A => A.lost)) { const wreck = [Lg.wx, Lg.wy]; B.legs = null; scrapStart(B, [B.x, B.y], wreck); return; } // both legs gone: the scrap storm
-    const stance = (i, x, y) => [x + (i ? 1 : -1) * 13 * ws, y + 33 * ws];
+    for (const A of Lg.legs) A.flash -= dt; for (const E of Lg.emit) E.flash -= dt;
+    if (Lg.legs.every(A => A.lost)) { // both legs gone: what's left of its emitters burns out, and the scrap storm takes over
+      Lg.emit.forEach((E, k) => { if (E.hits <= 0) return; const [ex, ey] = legEmit(B, k), d = Math.min(EMIT_DMG, B.core - 1); burst(ex, ey, 14, heat(MAX_CHARGE * 0.75), 40, 0.5, 0.35); B.core -= d; damageBoss(d, ex, ey); });
+      const wreck = [Lg.wx, Lg.wy]; B.legs = null; scrapStart(B, [B.x, B.y], wreck); return; }
     if (Lg.st === 'form') { // its head flies to the legs as they tear free of the wreck and swing under it
       const k = ease(clamp(Lg.t / LEG_FORM, 0, 1));
       B.x = Lg.fx + (Lg.tx - Lg.fx) * k; B.y = Lg.fy + (Lg.ty - Lg.fy) * k - Math.sin(Math.PI * k) * 16 * ws;
-      Lg.feet.forEach((F, i) => { const [sx, sy] = stance(i, Lg.tx, Lg.ty); F.x = F.x0 + (sx - F.x0) * k; F.y = F.y0 + (sy - F.y0) * k - Math.sin(Math.PI * k) * 6 * ws; });
-      if (Lg.t >= LEG_FORM) { Lg.st = 'drive'; for (const F of Lg.feet) { ring(F.x, F.y, 1, 8, 0.25, COL.threat, 1); burst(F.x, F.y, 16, COL.dim, 40, 0.6, 0.4); } shake(3); gridImpulse(B.x, B.y + 30 * ws, 60, 200); sfx.rockBoom(2); sfx.clank(); }
+      Lg.feet.forEach((F, i) => { const sd = i ? 1 : -1, sx = Lg.tx + sd * 13 * ws, sy = Lg.ty + 56 * ws; F.x = F.x0 + (sx - F.x0) * k; F.y = F.y0 + (sy - F.y0) * k; F.lift = Math.sin(Math.PI * k) * 0.8; });
+      if (Lg.t >= LEG_FORM) { Lg.st = 'walk'; for (const F of Lg.feet) { F.lift = 0; legStomp(F.x, F.y, ws, true); } }
       return;
     }
-    armWalkCrawl(B, Lg, dt, L); Lg.flipT -= dt;
-    const limp = Lg.legs.some(A => A.lost) ? 0.65 : 1, xm = 24 * ws, yMin = AH * 0.06, yMax = AH - 38 * ws;
-    let v = [0, 0], hard = false;
-    if (Lg.atk) [v, hard] = legWalkAtk(B, Lg, dt, L, limp);
-    else {
-      if ((Lg.atkT -= dt) <= 0) { // the blade: a lunge or a spin (late on, the travelling spin)
-        if (!Lg.bag.length) Lg.bag = ['lunge', 'spin', 'lunge', 'spin'].sort(() => Math.random() - 0.5);
-        let k = Lg.bag.shift(); if (k === 'spin' && L) k = 'tspin'; const toP = Math.atan2(p.y - B.y, p.x - B.x);
-        Lg.atk = { k, ph: 'ignite', t: 0, on: 0, a: k === 'lunge' ? toP : toP + Math.PI, prev: 0, dir: Math.random() < 0.5 ? -1 : 1, go: 0 }; sfx.blasterCharge();
-      }
-      // driving: out at LEG_RANGE, working its way round you
-      const a = Math.atan2(B.y - p.y, B.x - p.x) + Lg.orb * 0.7, gx = p.x + Math.cos(a) * LEG_RANGE, gy = p.y + Math.sin(a) * LEG_RANGE, cx = clamp(gx, xm, AW - xm), cy = clamp(gy, yMin, yMax);
-      if (Math.hypot(cx - gx, cy - gy) > 12 && Lg.flipT <= 0) { Lg.orb = -Lg.orb; Lg.flipT = 1.5; }
-      const dx = cx - B.x, dy = cy - B.y, d = Math.hypot(dx, dy) || 1, sp = LEG_V * limp * Math.min(1, d / 10); v = [dx / d * sp, dy / d * sp];
+    armWalkCrawl(B, Lg, dt, L);
+    const limp = Lg.legs.some(A => A.lost) ? 0.55 : 1, xm = 22 * ws, yMin = AH * LEG_BAND[0], yMax = Math.min(AH * LEG_BAND[1], AH - 60 * ws);
+    let still = false;
+    if (Lg.atk) { still = true; if (legWalkAtk(B, Lg, dt, L)) { Lg.atk = null; Lg.atkT = LEG_ATK[L]; } }
+    else if ((Lg.atkT -= dt) <= 0 && !Lg.step) { // it plants and fires: lanes, or (with two emitters left to make them) scissors
+      const alive = Lg.emit.map((E, k) => E.hits > 0 ? k : -1).filter(k => k >= 0);
+      if (!alive.length) Lg.atkT = 99; // nothing left to fire with: just its eye
+      else if (alive.length >= 2 && Math.random() < 0.4) { const gap = SCIS_GAP[L]; Lg.atk = { k: 'scissors', ph: 'wind', t: 0, l: alive[0], r: alive[alive.length - 1], gap, xg: rand(gap / 2 + 10, AW - gap / 2 - 10) }; sfx.blasterCharge(); }
+      else Lg.atk = { k: 'lanes', ph: 'wind', t: 0, v: 0, fire: null };
+      if (Lg.atk) { still = true; shake(1); for (const F of Lg.feet) burst(F.x, F.y, 6, COL.dim, 20, 0.4, 0.3); } // bracing
     }
-    if (hard) { Lg.vx = v[0]; Lg.vy = v[1]; } else { const k = Math.min(1, dt * 4); Lg.vx += (v[0] - Lg.vx) * k; Lg.vy += (v[1] - Lg.vy) * k; }
-    const nx = B.x + Lg.vx * dt, ny = B.y + Lg.vy * dt; B.x = clamp(nx, xm, AW - xm); B.y = clamp(ny, yMin, yMax);
-    if ((B.x !== nx || B.y !== ny) && Lg.atk && Lg.atk.ph === 'dash' && !Lg.atk.wall) { Lg.atk.wall = true; shake(2); burst(B.x, B.y, 20, heat(MAX_CHARGE * 0.75), 45, 0.5, 0.35); sfx.clank(); } // it hits the edge: a dead stop
-    Lg.tread += Math.hypot(Lg.vx, Lg.vy) * dt;
-    if (limp < 1 && Math.hypot(Lg.vx, Lg.vy) > 5 && Math.random() < 0.4) { const i = Lg.legs[0].lost ? 0 : 1, [, , kx, ky] = legWalkLeg(B, i); burst(kx, ky + 2 * ws, 2, heat(MAX_CHARGE * 0.75), 25, 0.3, 0.2); } // its stump scraping
-    Lg.feet.forEach((F, i) => { const [sx, sy] = stance(i, B.x, B.y), tx = sx - Lg.vx * 0.04, ty = sy - Lg.vy * 0.04, k = Math.min(1, dt * 14); F.x = clamp(F.x + (tx - F.x) * k, 3, AW - 3); F.y = clamp(F.y + (ty - F.y) * k, 3, AH - 3); });
+    // its eye: a burst of bolts at you now and then, while it walks
+    Lg.eye = Math.max(0, Lg.eye - dt * 3);
+    if (!Lg.atk) {
+      if (Lg.burst > 0) { if ((Lg.burstT -= dt) <= 0) { Lg.burst--; Lg.burstT = BOLT_GAP; const a = Math.atan2(p.y - B.y, p.x - B.x); G.bullets.push({ x: B.x + Math.cos(a) * 6 * ws, y: B.y + Math.sin(a) * 6 * ws, vx: Math.cos(a) * BOLT_V, vy: Math.sin(a) * BOLT_V, r: 1, bolt: true, eye: true, mg: true }); Lg.eye = 1; sfx.shoot(B.x); } }
+      else if ((Lg.boltT -= dt) <= BOLT_CHARGE) { Lg.eye = Math.max(Lg.eye, 1 - Math.max(0, Lg.boltT) / BOLT_CHARGE); if (Lg.boltT <= 0) { Lg.burst = BOLT_N; Lg.burstT = 0; Lg.boltT = BOLT_T[L]; } } // (its eye flaring first)
+    }
+    // walking: patrolling the top of the arena, drifting over toward you
+    if (!still) {
+      if ((Lg.goT -= dt) <= 0 || Math.hypot(Lg.gx - B.x, Lg.gy - B.y) < 3) { Lg.goT = rand(2.5, 4); Lg.gx = clamp(p.x + rand(-35, 35), xm, AW - xm); Lg.gy = rand(yMin, yMax); }
+      const dx = Lg.gx - B.x, dy = Lg.gy - B.y, d = Math.hypot(dx, dy) || 1, sp = LEG_V * limp * Math.min(1, d / 8), k = Math.min(1, dt * 3); Lg.vx += (dx / d * sp - Lg.vx) * k; Lg.vy += (dy / d * sp - Lg.vy) * k;
+    } else { const k = Math.min(1, dt * 8); Lg.vx -= Lg.vx * k; Lg.vy -= Lg.vy * k; }
+    B.x = clamp(B.x + Lg.vx * dt, xm, AW - xm); B.y = clamp(B.y + Lg.vy * dt, yMin, yMax);
+    // its feet: a step at a time, a foot lifting when it's fallen behind; each one comes down in a stomp
+    if (Lg.step) {
+      const St = Lg.step, F = Lg.feet[St.i]; St.t += dt; const k = clamp(St.t / LEG_STEP_T, 0, 1), [sx, sy] = legStance(B, St.i), tx = sx + Lg.vx * 0.25, ty = sy + Lg.vy * 0.25;
+      F.x = St.from[0] + (tx - St.from[0]) * ease(k); F.y = St.from[1] + (ty - St.from[1]) * ease(k); F.lift = Math.sin(Math.PI * k);
+      if (k >= 1) { F.lift = 0; F.x = clamp(F.x, 4, AW - 4); F.y = clamp(F.y, 4, AH - 3); legStomp(F.x, F.y, ws, false); Lg.step = null; }
+    } else if (!still) {
+      let worst = -1, wd = LEG_STRIDE * ws * 0.5; Lg.feet.forEach((F, i) => { if (Lg.legs[i].lost) return; const [sx, sy] = legStance(B, i), dd = Math.hypot(F.x - sx, F.y - sy); if (dd > wd) { wd = dd; worst = i; } });
+      if (worst >= 0) Lg.step = { i: worst, t: 0, from: [Lg.feet[worst].x, Lg.feet[worst].y] };
+    }
+    Lg.feet.forEach((F, i) => { if (Lg.legs[i].lost && !(Lg.step && Lg.step.i === i)) { const [sx, sy] = legStance(B, i), k = Math.min(1, dt * 10); F.x += (sx - F.x) * k; F.y += (sy - F.y) * k; } }); // a lost leg's knee drags along
+    if (limp < 1 && Math.hypot(Lg.vx, Lg.vy) > 4 && Math.random() < 0.4) { const i = Lg.legs[0].lost ? 0 : 1, [, , kx, ky] = legWalkLeg(B, i); burst(kx, ky + 2 * ws, 2, heat(MAX_CHARGE * 0.75), 25, 0.3, 0.2); } // its stump scraping
   }
   // A chunk of its scrap, hurled: straight on past where you were, then it crashes down as wreckage
   function updateJunk(e, dt) {
@@ -5837,40 +5864,52 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (const [cx, cy, sx, sy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) { ctx.moveTo(cx + sx * L, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + sy * L); }
       ctx.stroke(); ctx.globalAlpha = 1;
     }
-    if (B.legs && !B.wreck) { // the leg walker: the wreck behind (dim, legless), its shadow, legs and treads, its head, its blade
-      const Lg = B.legs, ws = s * WALK_S, A = Lg.atk, shkL = die * 0.8 + (A && A.ph === 'ignite' ? A.on * 0.6 : 0);
+    if (B.legs && !B.wreck) { // the leg walker: the wreck behind (dim, legless), its legs, its pelvis bar of emitters, its head; its lasers over it all
+      const Lg = B.legs, ws = s * WALK_S, A = Lg.atk, shkL = die * 0.8;
       faded(0.42, () => drawMech({ ...B, legs: null, walker: null, wreck: true, noLegs: true, st: 'wreck', x: Lg.wx, y: Lg.wy, kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
       ctx.save(); ctx.translate(B.x + rand(-shkL, shkL), B.y + rand(-shkL, shkL)); ctx.scale(ws, ws); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
       const limb = (x0, y0, x1, y1, w0, w1, o = {}) => { const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d; plate([[x0 + nx * w0, y0 + ny * w0], [x1 + nx * w1, y1 + ny * w1], [x1 - nx * w1, y1 - ny * w1], [x0 - nx * w0, y0 - ny * w0]], o); };
-      if (Lg.st !== 'form') { ctx.fillStyle = `rgba(${I3.join(',')},0.45)`; ctx.beginPath(); ctx.ellipse(0, 35, 22, 5, 0, 0, Math.PI * 2); ctx.fill(); } // its shadow
-      if (A && A.ph === 'spin' && A.on > 0) { // the blade's sweep: a fading fan behind it
-        const a0 = A.a - A.dir * 1.1; glow(() => { const g = ctx.createRadialGradient(0, 0, 6, 0, 0, LEG_BLADE); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, COL.threat); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, LEG_BLADE, a0, A.a, A.dir < 0); ctx.closePath(); ctx.fill(); }, COL.threat, 0.22);
-      }
+      if (Lg.st !== 'form') { ctx.fillStyle = `rgba(${I3.join(',')},0.45)`; ctx.beginPath(); ctx.ellipse(0, 60, 22, 5, 0, 0, Math.PI * 2); ctx.fill(); } // its shadow
       for (const i of [0, 1]) {
         const [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i).map((v, j) => (v - (j % 2 ? B.y : B.x)) / ws), Q = Lg.legs[i], fl = Q.flash > 0;
-        piston(hx, hy, kx, ky, 3); limb(hx, hy, kx, ky, 1.6, 1.9, { lit: 0.1 }); // the bare frame
+        piston(hx, hy, kx, ky, 3.2); if (!Q.lost) piston(kx, ky, fx, fy, 2.6); // the bare frame
+        if (Q.pcs[0]) limb(hx, hy, kx, ky, 5, 3.6, { flash: fl, lit: 0.32, bolts: [[(hx + kx) / 2, (hy + ky) / 2]] }); else limb(hx, hy, kx, ky, 1.6, 1.4, { lit: 0.1 }); // thigh plate
         if (!Q.lost) {
-          piston(kx, ky, fx, fy, 2.4); limb(kx, ky, fx, fy, 1.8, 1.6, { lit: 0.1 });
-          // its foot, locked flat as a tread: a block, its track's cleats running past
-          const tw = 4.6, th = 6.4; ctx.beginPath(); ctx.roundRect(fx - tw, fy - th, tw * 2, th * 2, 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.25)`; ctx.fill(); stroke(W1, 1, fl ? COL.chalk : col);
-          ctx.save(); ctx.beginPath(); ctx.roundRect(fx - tw, fy - th, tw * 2, th * 2, 2); ctx.clip(); ctx.beginPath(); const off = (Lg.tread / ws) % 2.4;
-          for (let y = -th - 2.4 + off; y < th + 2.4; y += 2.4) { ctx.moveTo(fx - tw, fy + y); ctx.lineTo(fx + tw, fy + y); } stroke(W2, 0.75); ctx.restore();
-          joint(fx, fy - th + 1.5, 2.2);
-        } else torn(kx, ky, 5); // its shin gone: a torn knee
-        for (let k = 0; k < LEG_PLATES; k++) { // the armour still on it
-          if (!Q.plates[k]) continue; const [x0, y0, x1, y1] = k < 9 ? [hx, hy, kx, ky] : [kx, ky, fx, fy], tt = PLATE_T[k % 9], dx = x1 - x0, dy = y1 - y0, Ln = Math.hypot(dx, dy) || 1, cx = x0 + dx * tt, cy = y0 + dy * tt, hl = Ln * 0.048;
-          limb(cx - dx / Ln * hl, cy - dy / Ln * hl, cx + dx / Ln * hl, cy + dy / Ln * hl, k < 9 ? 4.2 : 3.8, k < 9 ? 4.5 : 4.2, { flash: fl, lit: 0.3 });
-        }
-        joint(kx, ky, 3.4); joint(hx, hy, 4);
+          if (Q.pcs[2]) limb(kx, ky, fx, fy - 3, 4.4, 3.4, { flash: fl, lit: 0.26, bolts: [[kx + (fx - kx) * 0.3, ky + (fy - ky) * 0.3]] }); else limb(kx, ky, fx, fy - 3, 1.5, 1.3, { lit: 0.1 }); // greave
+          if (Q.pcs[3]) { plate([[fx - 4, fy - 4], [fx + 4, fy - 4], [fx + 9, fy + 2], [fx + 7, fy + 4.6], [fx - 7, fy + 4.6], [fx - 9, fy + 2]], { lit: 0.3, flash: fl }); // its clawed foot
+            for (const tx of [-7, 0, 7]) { poly([[fx + tx - 1.5, fy + 4.4], [fx + tx + 1.5, fy + 4.4], [fx + tx, fy + 7]]); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W2); } }
+          else { joint(fx, fy, 3); torn(fx, fy + 1, 4); }
+        } else torn(kx, ky + 2, 5); // its shin gone: a torn knee on the floor
+        if (Q.pcs[1] && !Q.lost) plate([[kx, ky - 6], [kx + 5.2, ky - 3], [kx + 5.2, ky + 3], [kx, ky + 6], [kx - 5.2, ky + 3], [kx - 5.2, ky - 3]], { flash: fl, bolts: [[kx - 2.6, ky], [kx + 2.6, ky]] }); // knee cap
+        else joint(kx, ky, 3.6);
+        joint(hx, hy, 3.6);
       }
-      head(21); // its helmet, over its legs
-      if (A && A.on > 0 && (A.ph !== 'ignite' || A.locked || Math.random() < 0.35 + 0.65 * A.on)) { // the blade (flickering on as it ignites; solid once a lunge locks)
-        const Lb = LEG_BLADE * A.on, x0 = Math.cos(A.a) * 6, y0 = Math.sin(A.a) * 6, x1 = Math.cos(A.a) * Math.max(6, Lb), y1 = Math.sin(A.a) * Math.max(6, Lb);
-        glow(() => { ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineWidth = 4.4; ctx.stroke(); }, COL.threat, A.ph === 'ignite' ? 0.35 : 0.65);
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineWidth = 1.3; ctx.strokeStyle = COL.chalk; ctx.stroke();
-        glow(() => { ctx.beginPath(); ctx.arc(x0, y0, 3, 0, Math.PI * 2); ctx.fill(); }, COL.chalk, 0.5); // where it comes out of its eye
+      // the pelvis bar, and its emitters along the bottom edge (glowing as they're about to fire, white-hot firing)
+      plate([[-26, 6], [26, 6], [24, 15], [-24, 15]], { bolts: [[-22, 9], [22, 9]], lit: 0.34 });
+      const firing = new Set(A ? (A.k === 'lanes' && A.ph === 'on' ? A.fire : A.k === 'scissors' && A.ph !== 'wind' ? [A.l, A.r] : []) : []);
+      Lg.emit.forEach((E, k) => {
+        const x = EMIT_X[k], y = EMIT_Y;
+        if (E.hits <= 0) { torn(x, y, 2.6); return; }
+        const tell = A && A.ph === 'wind' && (A.k === 'lanes' ? (A.fire || []).includes(k) : k === A.l || k === A.r), hot = firing.has(k);
+        if (tell || hot) { const R = hot ? 7 : 6 + 4 * clamp(A.t / LANE_WIND, 0, 1); glow(() => { const g = ctx.createRadialGradient(x, y, 0, x, y, R); g.addColorStop(0, COL.chalk); g.addColorStop(0.35, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill(); }, fire, hot ? 0.9 : 0.65 + 0.35 * Math.sin(t * 40)); } // (about to fire: swelling, flickering)
+        const jx = tell ? rand(-0.4, 0.4) : 0;
+        ctx.beginPath(); ctx.arc(x + jx, y, 2.3, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W1, 1, E.flash > 0 ? COL.chalk : COL.threat);
+        ctx.beginPath(); ctx.arc(x + jx, y, 1.2, 0, Math.PI * 2); ctx.fillStyle = hot ? COL.chalk : fire; ctx.globalAlpha = hot || tell ? 1 : 0.55; ctx.fill(); ctx.globalAlpha = 1;
+        if (E.hits < EMIT_HITS) { ctx.beginPath(); ctx.moveTo(x - 1.8, y - 1.2); ctx.lineTo(x + 0.2, y + 0.3); ctx.lineTo(x + 1.6, y - 0.4); if (E.hits < EMIT_HITS - 1) { ctx.moveTo(x - 0.6, y + 1.9); ctx.lineTo(x + 0.4, y + 0.2); } stroke(W3 * 1.5, 0.9, COL.chalk); } // cracked
+      });
+      head(21); // its helmet, on the pelvis
+      if (Lg.eye > 0) glow(() => { ctx.beginPath(); ctx.arc(0, 1, 2 + 3 * Lg.eye, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.5 * Lg.eye); // its eye flaring to fire
+      ctx.restore();
+      ctx.save(); ctx.lineCap = 'round';
+      for (const [x0, y0, x1, y1, lit] of legBeams(B)) { // its lasers: thick, the full length of the arena
+        const line = w => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineWidth = w; ctx.stroke(); };
+        if (!lit) { if (Math.random() < 0.6) glow(() => line(0.8), COL.threat, 0.6); continue; } // still warming: a flicker
+        const wob = 1 + 0.08 * Math.sin(t * 50);
+        glow(() => line(LANE_W * 1.9 * wob), COL.threat, 0.22); glow(() => line(LANE_W * wob), COL.threat, 0.45);
+        ctx.strokeStyle = COL.chalk; ctx.globalAlpha = 0.95; line(LANE_W * 0.32); ctx.globalAlpha = 1;
       }
-      ctx.restore(); return;
+      ctx.restore();
+      return;
     }
     if (B.walker && !B.wreck) { // the arm walker: the wreck behind (dim), its arms' sweep trail, then its arms and head
       const W = B.walker, ws = s * WALK_S, shkW = die * 0.8 + (W.tense || 0) * 0.7;
@@ -5958,7 +5997,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // the waist (pistons, segmented) and the pelvis plate
     for (const sd of [-1, 1]) piston(sd * 6, 4 + up, sd * 5, 17 + up, 2);
     for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.roundRect(-7 + k * 0.5, 7 + k * 3.4 + up, 14 - k, 2.6, 0.6); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W2, 0.8); }
-    plate([[-13, 16 + up], [13, 16 + up], [11, 21 + up], [4, 25 + up], [-4, 25 + up], [-11, 21 + up]], { bolts: [[-9, 18 + up], [9, 18 + up]] });
+    if (!B.noLegs) plate([[-13, 16 + up], [13, 16 + up], [11, 21 + up], [4, 25 + up], [-4, 25 + up], [-11, 21 + up]], { bolts: [[-9, 18 + up], [9, 18 + up]] });
     // arms: a shoulder joint, an upper arm plate on a piston, an elbow, a forearm plate (the weapons come after)
     if (!B.wreck) for (const sd of [-1, 1]) {
       const ao = mechArmOff(B, sd), sx = sd * 24, sy = -12 + up, ex = sd * 37, ey = 5 + up + ao * 0.5, wx = sd * 42, wy = 13 + up + ao; // an arm reaching out as it crawls
@@ -10437,9 +10476,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.mortarUp.length) drawMortarUp();
     // turret shots
     ctx.fillStyle = COL.threat; ctx.shadowColor = COL.threat; ctx.shadowBlur = 6 * DPR;
-    for (const b of G.bullets) if (b.bolt) { // Gorp's bolt: a long streak, a glow round a white core
+    for (const b of G.bullets) if (b.bolt) { // Gorp's bolt (or Goliath's eye bolt, in its red): a long streak, a glow round a white core
       const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp; ctx.save(); ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
-      ctx.strokeStyle = GEO_ORB_COL; ctx.globalAlpha = 0.45; ctx.lineWidth = 2.8; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - ux * 12, b.y - uy * 12); ctx.stroke();
+      ctx.strokeStyle = b.eye ? COL.threat : GEO_ORB_COL; ctx.globalAlpha = 0.45; ctx.lineWidth = 2.8; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - ux * 12, b.y - uy * 12); ctx.stroke();
       ctx.strokeStyle = COL.chalk; ctx.globalAlpha = 1; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - ux * 9, b.y - uy * 9); ctx.stroke(); ctx.restore();
     }
     for (const b of G.bullets) if (!b.geo && !b.sting && !b.bolt) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); }
