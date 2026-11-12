@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 12 18:05 UTC · a10e805";</script>
+<script>window.RICOCHET_BUILD = "Nov 12 18:55 UTC · 32801fa";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4705,7 +4705,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //  - the fling: the whirl speeds up and some pieces glow, then they're flung at you in a spread, landing as wreckage.
   // Below MECH_OVER of its share it's overcharged (quicker); below MECH_MELT, meltdown: quicker still, two punches, two
   // volleys, alarms.
-  const STORM_N = 40, STORM_MIN = 12, STORM_FORM = 1.8, STORM_V = 16, STORM_GAP = [2.2, 1.7, 1.2];
+  const STORM_N = 40, STORM_MIN = 12, STORM_FORM = 1.8, STORM_V = 16, STORM_GAP = [1.9, 1.5, 1.1];
   const PUNCH_GATHER = 0.5, PUNCH_WIND = [0.6, 0.5, 0.45], PUNCH_V = 120, WALL_FORM = 0.9, WALL_HOLD = 0.35, WALL_V = [42, 50, 58];
   const FLING_WIND = 0.6, FLING_N = [5, 7, 9], FLING_V = 72, SCRAP_DMG = 2, SCRAP_CORE_CD = 0.2, REBUILD_T = [0.45, 0.35, 0.25];
   const scrapLvl = B => B.melt ? 2 : B.over ? 1 : 0;
@@ -4716,7 +4716,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // down to BELT_BREAK of what it started with (it shakes as the magnet strains) and the magnet loses its grip: what's
   // left crashes down and the reactor sits stunned (BELT_STUN), wide open. It opens the storm, and comes again at
   // each mark of the reactor's share in BELT_AT. While it's up nothing's rebuilt and there are no other attacks.
-  const BELT_N = 54, BELT_W = 0.55, BELT_V = 13, BELT_FORM = 1.4, BELT_FLY = 0.55, BELT_BREAK = 0.4, BELT_STUN = 3, BELT_AT = [1, 0.5];
+  const BELT_N = 54, BELT_W = 0.55, BELT_V = 15, BELT_FORM = 1.4, BELT_FLY = 0.55, BELT_BREAK = 0.4, BELT_STUN = 3, BELT_AT = [1, 0.5];
+  // ...and every BELT_FL (from BELT_FL_FIRST on) the pieces of it nearest you glow (BELT_FL_WIND) and are flung at you, landing as
+  // wreckage. Only what you smash counts toward breaking it (what it flings comes off what it started with).
+  const BELT_FL_FIRST = 2.5, BELT_FL = [2.4, 2, 1.7], BELT_FL_N = [3, 3, 4], BELT_FL_WIND = 0.5;
   const beltR = () => Math.min(AW, AH) * 0.46;
   const segClear = (x0, y0, x1, y1, d) => { const p = G.player, ex = x1 - x0, ey = y1 - y0, l2 = ex * ex + ey * ey || 1, u = clamp(((p.x - x0) * ex + (p.y - y0) * ey) / l2, 0, 1); return Math.hypot(x0 + ex * u - p.x, y0 + ey * u - p.y) > d; };
   function scrapBelt(B, S) {
@@ -4748,7 +4751,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (Bt.st !== 'spin') return;
     // it drags the belt after you
     const dx = p.x - S.x, dy = p.y - S.y, d = Math.hypot(dx, dy) || 1, v = Math.min(d, BELT_V * (B.melt ? 1.25 : 1) * dt); S.x = clamp(S.x + dx / d * v, 8, AW - 8); S.y = clamp(S.y + dy / d * v, 8, AH - 8);
-    const frac = alive.length / Math.max(1, Bt.n0); Bt.wob = frac < 0.65 ? (0.65 - frac) * 5 : 0;
+    // flinging the nearest of it at you: they glow, then they're off
+    if (Bt.fl) { Bt.fl.t += dt; if (Bt.fl.t >= BELT_FL_WIND) { const go = Bt.fl.pcs.filter(q => S.pcs.includes(q) && q.m === 'belt');
+        for (const q of go) { const a = Math.atan2(p.y - q.y, p.x - q.x); Object.assign(q, { m: 'fling', hot: 0, vx: Math.cos(a) * FLING_V, vy: Math.sin(a) * FLING_V, d: Math.min(160, Math.hypot(p.x - q.x, p.y - q.y) + 25) }); }
+        Bt.lost = (Bt.lost || 0) + go.length; Bt.fl = null; if (go.length) { sfx.launch(S.x); shake(0.8); } } }
+    else if ((Bt.flT = (Bt.flT ?? BELT_FL_FIRST) - dt) <= 0) { Bt.flT = BELT_FL[scrapLvl(B)];
+      const pcs = alive.filter(q => q.ft >= 1 && q.x > 2 && q.x < AW - 2 && q.y > 2 && q.y < AH - 2).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, BELT_FL_N[scrapLvl(B)]);
+      if (pcs.length) { for (const q of pcs) q.hot = 1; Bt.fl = { t: 0, pcs }; sfx.blasterCharge(); } }
+    const frac = alive.length / Math.max(1, Bt.n0 - (Bt.lost || 0)); Bt.wob = frac < 0.65 ? (0.65 - frac) * 5 : 0;
     if (frac <= BELT_BREAK) { // the magnet loses its grip: the rest crashes down, and it's stunned
       for (const q of alive) { const i = S.pcs.indexOf(q); if (q.x < 0 || q.x > AW || q.y < 0 || q.y > AH) { S.pcs.splice(i, 1); continue; } scrapLand(S, q); burst(q.x, q.y, 6, COL.dim, 22, 0.5, 0.3); }
       Bt.st = 'stun'; Bt.stun = BELT_STUN;
@@ -4975,10 +4985,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // And its wreck keeps spitting out scrap crawlers (CRAWL_*): little scuttling things, one hit each, that come at you.
   // Late: half its arms' health gone.
   const WALK_S = 0.85, ARM_HP = 300, ARM_FORM = 1.1, ARM_STEP_T = 0.24, ARM_STEP_GAP = 0.02, ARM_STRIDE = 16, ARM_RANGE = 52, ARM_PLATES = 18, PLATE_T = [0.07, 0.18, 0.29, 0.4, 0.51, 0.62, 0.73, 0.84, 0.95];
-  const ARM_ATK = [1.5, 1.1], ARM_WIND = [0.42, 0.34], ARM_SWING = 0.3, ARM_REC = 0.3, ARM_L1 = 21, ARM_L2 = 13;
+  const ARM_ATK = [1.3, 1.0], ARM_WIND = [0.42, 0.34], ARM_SWING = 0.3, ARM_REC = 0.3, ARM_L1 = 21, ARM_L2 = 13;
   const POUNCE_CROUCH = [0.6, 0.42], POUNCE_AGAIN = 0.32, POUNCE_H = 22, POUNCE_SKID = 0.22, POUNCE_REC = [0.55, 0.4];
   const THROW_REACH = 0.22, THROW_DIG = 0.32, THROW_WIND = [0.5, 0.38], THROW_V = 85, THROW_REC = 0.25;
-  const CRAWL_FIRST = 2.5, CRAWL_T = [3.4, 2.6], CRAWL_N = [2, 3], CRAWL_CAP = 7;
+  const CRAWL_FIRST = 2.5, CRAWL_T = [3, 2.3], CRAWL_N = [2, 3], CRAWL_CAP = 7;
   const armWalkLate = B => B.walker.arms[0].hp + B.walker.arms[1].hp <= ARM_HP / 2;
   function armWalkStart(B) {
     const s = B.s, ws = s * WALK_S, [hx, hy] = mechAt(B, 0, -21);
