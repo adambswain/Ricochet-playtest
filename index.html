@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 13 20:56 UTC · da55104";</script>
+<script>window.RICOCHET_BUILD = "Nov 13 22:02 UTC · 3d45dd9";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4989,7 +4989,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    wind-up, and an arm swung round in a wide low arc.
   // And its wreck keeps spitting out scrap crawlers (CRAWL_*): little scuttling things, one hit each, that come at you.
   // Late: half its arms' health gone.
-  const WALK_S = 0.85, ARM_HP = 250, ARM_FORM = 1.1, ARM_STEP_T = 0.24, ARM_STEP_GAP = 0.02, ARM_STRIDE = 16, ARM_RANGE = 52, ARM_PLATES = 18, PLATE_T = [0.07, 0.18, 0.29, 0.4, 0.51, 0.62, 0.73, 0.84, 0.95];
+  const WALK_S = 0.85, ARM_HP = 250, ARM_RIP = 0.9, ARM_FORM = 1.1, ARM_STEP_T = 0.24, ARM_STEP_GAP = 0.02, ARM_STRIDE = 16, ARM_RANGE = 52, ARM_PLATES = 18, PLATE_T = [0.07, 0.18, 0.29, 0.4, 0.51, 0.62, 0.73, 0.84, 0.95];
   const ARM_ATK = [1.3, 1.0], ARM_WIND = [0.42, 0.34], ARM_SWING = 0.3, ARM_REC = 0.3, ARM_L1 = 21, ARM_L2 = 13;
   const POUNCE_CROUCH = [0.6, 0.42], POUNCE_AGAIN = 0.32, POUNCE_H = 22, POUNCE_SKID = 0.22, POUNCE_REC = [0.55, 0.4];
   const THROW_REACH = 0.22, THROW_DIG = 0.32, THROW_WIND = [0.5, 0.38], THROW_V = 85, THROW_REC = 0.25;
@@ -4997,13 +4997,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const armWalkLate = B => B.walker.arms[0].hp + B.walker.arms[1].hp <= ARM_HP / 2;
   function armWalkStart(B) {
     const s = B.s, ws = s * WALK_S, [hx, hy] = mechAt(B, 0, -21);
-    const W = B.walker = { st: 'form', t: 0, wx: B.x, wy: B.y, hp0: B.core, hands: [], step: null, next: 0, stepGap: 0.2, atkT: 2, sw: null, pn: null, th: null, fx: hx, fy: hy,
+    const W = B.walker = { st: 'form', t: 0, wx: B.x, wy: B.y, hp0: B.core, hands: [], step: null, next: 0, stepGap: 0.2, atkT: 2, sw: null, pn: null, th: null, fx: hx, fy: hy, strain: 0, ripped: false,
+      cab: [[-8, 7, -3], [-3, 9, -1], [3, 9, 1], [8, 7, 3]].map(([dx, dy, hd]) => [hx + dx * s, hy + dy * s, hd]), // the cables from its neck, still holding its head on
       orb: Math.random() < 0.5 ? -1 : 1, flipT: 0, bag: [], crawlT: CRAWL_FIRST, crouch: 0, tense: 0, air: null,
       arms: [0, 1].map(() => ({ hp: ARM_HP / 2, max: ARM_HP / 2, plates: Array(ARM_PLATES).fill(true), lost: false, flash: 0 })) };
     for (const sd of [-1, 1]) { const [x, y] = mechAt(B, sd * 42, 13); W.hands.push({ x, y, x0: x, y0: y, tx: clamp(hx + sd * 24 * ws, 6, AW - 6), ty: clamp(hy + 30 * ws + 8, 10, AH - 4), lift: 0 }); }
     B.x = hx; B.y = hy; B.walk = null; B.beam = null; B.sweep = null; B.lance = null; B.pulses = []; B.pulseWarn = null; B.throws = []; B.crawl = null; B.plate = null; G.banner = null;
-    for (const [x, y] of [[hx, hy + 8 * s], ...W.hands.map(h => [h.x, h.y])]) { burst(x, y, 18, heat(MAX_CHARGE * 0.75), 45, 0.6, 0.45); ring(x, y, 1, 10, 0.3, COL.threat, 1); }
-    G.screenFlash = Math.max(G.screenFlash || 0, 0.35); G.slowT = Math.max(G.slowT, 0.5); shake(4); gridImpulse(hx, hy, Math.max(AW, AH), 260); sfx.shatter(); sfx.boss();
+    shake(2); sfx.boss(); // (the rest when it rips free: updateArmWalk)
   }
   const armWalkShoulder = (B, i) => { const ws = B.s * WALK_S; return [B.x + (i ? 1 : -1) * 11 * ws, B.y + 6 * ws]; };
   // An arm in the world: shoulder, elbow (bent up, like a spider's knee), hand. A lifted hand rides higher; a sweeping
@@ -5021,7 +5021,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Its head and its arms: all of it hurts to touch (but not mid-leap: it's up over you), and all of it can be hit
   function armWalkCircles(B) {
-    const W = B.walker, ws = B.s * WALK_S, up = !!W.air, out = [[B.x, B.y, 8 * ws, 'wH', true, null, up]];
+    const W = B.walker, ws = B.s * WALK_S, up = !!W.air || W.st === 'form', out = [[B.x, B.y, 8 * ws, 'wH', true, null, up]]; // (mid-leap, or still forming: harmless)
     if (W.st === 'form') return out;
     for (const i of [0, 1]) { const key = i ? 'wR' : 'wL', [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i);
       out.push([(sx + ex) / 2, (sy + ey) / 2, 4 * ws, key, true, null, up], [ex, ey, 3.6 * ws, key, true, null, up]);
@@ -5178,11 +5178,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const A of W.arms) A.flash -= dt;
     if (W.arms.every(A => A.lost)) { B.walker = null; legWalkStart(B, W); return; } // both arms gone: it takes the wreck's legs
     const mid = () => [(W.hands[0].x + W.hands[1].x) / 2, (W.hands[0].y + W.hands[1].y) / 2];
+    if (W.st === 'form' && W.t < ARM_RIP) { // straining against the cables that hold its head on: shaking, rising, its eye flaring
+      const k = W.t / ARM_RIP; W.strain = k; B.roar = 0.3 + 0.7 * k; B.x = W.fx + rand(-1, 1) * k * 0.9; B.y = W.fy - 13 * ws * k * (2 - k) + rand(-1, 1) * k * 0.9;
+      if (Math.random() < 0.5 * k) { const [ax, ay] = W.cab[Math.floor(Math.random() * 4)], u = Math.random(); burst(ax + (B.x - ax) * u, ay + (B.y + 5 * ws - ay) * u, 2, COL.chalk, 25, 0.3, 0.2); }
+      if (Math.random() < dt * 8) sfx.clank();
+      return;
+    }
+    if (W.st === 'form' && !W.ripped) { // it rips free: the cables snap, a flash, its arms wrench out of the wreck's shoulders
+      W.ripped = true; W.strain = 0; W.fx = B.x; W.fy = B.y - 6 * ws; B.y = W.fy;
+      burst(B.x, B.y + 5 * ws, 40, heat(MAX_CHARGE * 0.75), 70, 0.7, 0.5); burst(B.x, B.y + 5 * ws, 20, COL.chalk, 60, 0.4, 0.3); for (let i = 0; i < 3; i++) ring(B.x, B.y, 2, 12 + i * 10, 0.35 + i * 0.1, i % 2 ? COL.chalk : COL.threat, 1.2);
+      for (const H of W.hands) { burst(H.x0, H.y0, 22, heat(MAX_CHARGE * 0.75), 50, 0.6, 0.4); for (let q = 0; q < 6; q++) { const a = rand(0, Math.PI * 2), sp = rand(25, 55); G.shards.push({ x: H.x0, y: H.y0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: a, va: rand(-12, 12), size: rand(0.6, 1), t: 0, max: rand(0.4, 0.7), color: COL.chalk, lit: 1 }); } } // bolts popping
+      G.screenFlash = Math.max(G.screenFlash || 0, 0.4); G.slowT = Math.max(G.slowT, 0.45); shake(5); gridImpulse(B.x, B.y, Math.max(AW, AH), 280); sfx.shatter(); sfx.clank(); sfx.rockBoom(2);
+    }
     if (W.st === 'form') { // its head rises out of the wreck as its arms swing down under it
-      const k = ease(clamp(W.t / ARM_FORM, 0, 1));
+      B.roar = Math.max(0, B.roar - dt * 1.5);
+      const k = ease(clamp((W.t - ARM_RIP) / ARM_FORM, 0, 1));
       for (const H of W.hands) { H.x = H.x0 + (H.tx - H.x0) * k; H.y = H.y0 + (H.ty - H.y0) * k; H.lift = Math.sin(Math.PI * k) * 1.2; }
       const [mx, my] = mid(); B.x = W.fx + (mx - W.fx) * k; B.y = W.fy + (my - 30 * ws - W.fy) * k;
-      if (W.t >= ARM_FORM) { W.st = 'walk'; for (const H of W.hands) { H.lift = 0; armWalkSlam(H.x, H.y, ws); } }
+      if (W.t >= ARM_RIP + ARM_FORM) { W.st = 'walk'; B.roar = 0; for (const H of W.hands) { H.lift = 0; armWalkSlam(H.x, H.y, ws); } }
       return;
     }
     armWalkCrawl(B, W, dt, L);
@@ -5228,7 +5241,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // stripped bare snaps at the knee and it limps on the other. Both legs gone and the scrap storm takes over. A hit on
   // its head or pelvis goes to the leg with the most left. Touching any of it hurts; so do its stomps. Its wreck still
   // spits crawlers. Late: half its legs' health gone.
-  const LEG_HP = 180, LEG_FORM = 1.2, LEG_V = 20, LEG_L1 = 22, LEG_L2 = 22, LEG_STEP_T = 0.3, LEG_STRIDE = 10, LEG_BAND = [0.07, 0.22];
+  const LEG_BUCKLE = 0.6, LEG_CRACK = 0.9;
+  const LEG_HP = 180, LEG_SAG = 0.35, LEG_FLING = 0.7, LEG_DOCK = 1.05, LEG_STAND = 0.8, LEG_ARRAY = 0.65, LEG_FORM = 2.5, LEG_V = 20, LEG_L1 = 22, LEG_L2 = 22, LEG_STEP_T = 0.3, LEG_STRIDE = 10, LEG_BAND = [0.07, 0.22];
   const EMIT_N = 7, EMIT_HITS = 3, EMIT_DMG = 10, EMIT_X = [-18, -12, -6, 0, 6, 12, 18], EMIT_Y = 13;
   const LEG_ATK = [3, 2.4], LANE_WIND = 0.7, LANE_ON = 0.7, LANE_GAP = 0.25, LANE_N = [3, 4], LANE_W = 7, LANE_REACH = 26;
   const SCIS_WIND = 0.6, SCIS_T = 1.65, SCIS_HOLD = 0.35, SCIS_GAP = [24, 19];
@@ -5242,8 +5256,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       emit: Array.from({ length: EMIT_N }, () => ({ hits: EMIT_HITS, flash: 0 })), next: 0, step: null,
       legs: [0, 1].map(() => ({ hp: LEG_HP / 2, max: LEG_HP / 2, pcs: [true, true, true, true], lost: false, flash: 0 })),
       feet: [-1, 1].map(sd => { const x = wx + sd * 28 * s, y = wy + 52 * s; return { x, y, x0: x, y0: y, lift: 0 }; }) }; // its legs, from where they knelt on the wreck
-    for (const sd of [-1, 1]) { const x = wx + sd * 9 * s, y = wy + 20 * s; burst(x, y, 24, heat(MAX_CHARGE * 0.75), 50, 0.6, 0.45); ring(x, y, 1, 10, 0.3, COL.threat, 1); }
-    G.screenFlash = Math.max(G.screenFlash || 0, 0.3); G.slowT = Math.max(G.slowT, 0.4); shake(4); gridImpulse(wx, wy, Math.max(AW, AH), 240); sfx.shatter(); sfx.boss();
+    shake(2); sfx.overload(); // (armless, it sags; then it's flung back to the wreck: updateLegWalk)
   }
   // A leg in the world: hip, knee (a little out to the side), foot. A lost leg: its thigh, and the knee down on the floor.
   function legWalkLeg(B, i) {
@@ -5257,8 +5270,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const legStance = (B, i) => { const Lg = B.legs, ws = B.s * WALK_S, sd = i ? 1 : -1; return Lg.legs[i].lost ? [B.x + sd * 16 * ws, B.y + 32 * ws] : [B.x + sd * 13 * ws, B.y + 56 * ws]; };
   // Its head, its pelvis, its emitters, its legs: all of it hurts to touch (not while it's forming) and all of it can be hit
   function legWalkCircles(B) {
-    const Lg = B.legs, ws = B.s * WALK_S, safe = Lg.st === 'form', out = [[B.x, B.y, 8 * ws, 'gH', true, null, safe]];
-    if (Lg.st === 'form') return out;
+    const Lg = B.legs, ws = B.s * WALK_S, safe = Lg.st === 'form' || Lg.st === 'die', out = [[B.x, B.y, 8 * ws, 'gH', true, null, safe]];
+    if (safe) return out;
     Lg.emit.forEach((E, k) => { if (E.hits > 0) { const [x, y] = legEmit(B, k); out.push([x, y, 2.8 * ws, 'em' + k, true, null, false]); } });
     for (const sd of [-1, 1]) out.push([B.x + sd * 13 * ws, B.y + 10 * ws, 5.5 * ws, 'gH', true, null, false]); // the pelvis bar
     for (const i of [0, 1]) { const key = i ? 'gR' : 'gL', [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i);
@@ -5338,14 +5351,31 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateLegWalk(B, dt) {
     const Lg = B.legs, p = G.player, ws = B.s * WALK_S, ease = k => k * k * (3 - 2 * k), L = legWalkLate(B) ? 1 : 0; Lg.t += dt;
     for (const A of Lg.legs) A.flash -= dt; for (const E of Lg.emit) E.flash -= dt;
-    if (Lg.legs.every(A => A.lost)) { // both legs gone: what's left of its emitters burns out, and the scrap storm takes over
-      Lg.emit.forEach((E, k) => { if (E.hits <= 0) return; const [ex, ey] = legEmit(B, k), d = Math.min(EMIT_DMG, B.core - 1); burst(ex, ey, 14, heat(MAX_CHARGE * 0.75), 40, 0.5, 0.35); B.core -= d; damageBoss(d, ex, ey); });
-      const wreck = [Lg.wx, Lg.wy]; B.legs = null; scrapStart(B, [B.x, B.y], wreck); return; }
-    if (Lg.st === 'form') { // its head flies to the legs as they tear free of the wreck and swing under it
-      const k = ease(clamp(Lg.t / LEG_FORM, 0, 1));
-      B.x = Lg.fx + (Lg.tx - Lg.fx) * k; B.y = Lg.fy + (Lg.ty - Lg.fy) * k - Math.sin(Math.PI * k) * 16 * ws;
-      Lg.feet.forEach((F, i) => { const sd = i ? 1 : -1, sx = Lg.tx + sd * 13 * ws, sy = Lg.ty + 56 * ws; F.x = F.x0 + (sx - F.x0) * k; F.y = F.y0 + (sy - F.y0) * k; F.lift = Math.sin(Math.PI * k) * 0.8; });
-      if (Lg.t >= LEG_FORM) { Lg.st = 'walk'; for (const F of Lg.feet) { F.lift = 0; legStomp(F.x, F.y, ws, true); } }
+    if (Lg.legs.every(A => A.lost) && Lg.st !== 'die') { Lg.st = 'die'; Lg.t = 0; Lg.atk = null; Lg.step = null; Lg.y0 = B.y; Lg.burst = 0; shake(3); sfx.boss(); } // both legs gone: it goes down
+    if (Lg.st === 'die') { // it drops onto its stumps; its emitters burn out one by one; its head cracks, glowing, and bursts: the scrap storm
+      const t = Lg.t; B.y = Lg.y0 + 14 * ws * ease(clamp(t / LEG_BUCKLE, 0, 1));
+      Lg.emit.forEach((E, k) => { if (E.hits <= 0 || t < 0.1 + k * 0.08) return; E.hits = 0; const [ex, ey] = legEmit(B, k), d = Math.min(EMIT_DMG, B.core - 1); burst(ex, ey, 14, heat(MAX_CHARGE * 0.75), 40, 0.5, 0.35); B.core -= d; damageBoss(d, ex, ey); sfx.brick(5); });
+      if (t >= LEG_BUCKLE && !Lg.thud) { Lg.thud = true; shake(4); gridImpulse(B.x, B.y + 30 * ws, 70, 220); sfx.rockBoom(3); for (const F of Lg.feet) burst(F.x, F.y, 18, COL.dim, 40, 0.6, 0.4); }
+      Lg.crack = clamp((t - LEG_BUCKLE) / LEG_CRACK, 0, 1);
+      if (Lg.crack > 0 && Math.random() < 0.6 * Lg.crack) burst(B.x + rand(-5, 5) * ws, B.y + rand(-5, 3) * ws, 2, Math.random() < 0.5 ? COL.chalk : heat(MAX_CHARGE * 0.75), 30, 0.3, 0.2);
+      if (t >= LEG_BUCKLE + LEG_CRACK) { // its shell bursts: the reactor's bare
+        for (let q = 0; q < 16; q++) { const a = rand(0, Math.PI * 2), sp = rand(30, 70); G.shards.push({ x: B.x, y: B.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: a, va: rand(-12, 12), size: rand(0.8, 1.6), t: 0, max: rand(0.5, 0.9), color: COL.threat, lit: 1 }); }
+        const wreck = [Lg.wx, Lg.wy]; B.legs = null; scrapStart(B, [B.x, B.y], wreck); }
+      return;
+    }
+    if (Lg.st === 'form') { // armless, its head sags; it's flung back to the wreck, slams onto the hips, the legs tear free and stand; the emitters iris open
+      const t = Lg.t, fy0 = Lg.fy + 8 * ws;
+      if (t < LEG_SAG) { const k = ease(t / LEG_SAG); B.x = Lg.fx + rand(-0.8, 0.8); B.y = Lg.fy + 8 * ws * k + rand(-0.8, 0.8); if (Math.random() < 0.5) burst(B.x + rand(-4, 4), B.y + 4, 2, heat(MAX_CHARGE * 0.75), 25, 0.3, 0.2); return; }
+      if (t < LEG_DOCK) { const k = ease((t - LEG_SAG) / LEG_FLING); B.x = Lg.fx + (Lg.tx - Lg.fx) * k; B.y = fy0 + (Lg.ty - fy0) * k - Math.sin(Math.PI * k) * 22 * ws; if (Math.random() < 0.7) burst(B.x, B.y, 2, heat(MAX_CHARGE * 0.75), 20, 0.3, 0.25); return; } // (yanked back by its own magnet)
+      if (!Lg.docked) { Lg.docked = true; B.x = Lg.tx; B.y = Lg.ty; // it slams onto the hips; bolts pop as the legs tear free
+        for (const sd of [-1, 1]) { const x = Lg.wx + sd * 9 * B.s, y = Lg.wy + 20 * B.s; burst(x, y, 24, heat(MAX_CHARGE * 0.75), 50, 0.6, 0.45); ring(x, y, 1, 10, 0.3, COL.threat, 1); for (let q = 0; q < 5; q++) { const a = rand(0, Math.PI * 2), sp = rand(25, 55); G.shards.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: a, va: rand(-12, 12), size: rand(0.6, 1), t: 0, max: rand(0.4, 0.7), color: COL.chalk, lit: 1 }); } }
+        G.screenFlash = Math.max(G.screenFlash || 0, 0.3); G.slowT = Math.max(G.slowT, 0.35); shake(4); gridImpulse(B.x, B.y, Math.max(AW, AH), 240); sfx.shatter(); sfx.rockBoom(2); }
+      if (t < LEG_DOCK + LEG_STAND) { const k = ease((t - LEG_DOCK) / LEG_STAND); B.y = Lg.ty + 10 * ws * (1 - k);
+        Lg.feet.forEach((F, i) => { const sd = i ? 1 : -1, sx = Lg.tx + sd * 13 * ws, sy = Lg.ty + 56 * ws; F.x = F.x0 + (sx - F.x0) * k; F.y = F.y0 + (sy - F.y0) * k; F.lift = Math.sin(Math.PI * k) * 0.8; });
+        return; }
+      if (!Lg.stood) { Lg.stood = true; B.y = Lg.ty; for (const F of Lg.feet) { F.lift = 0; legStomp(F.x, F.y, ws, true); } }
+      const a0 = LEG_DOCK + LEG_STAND; Lg.emit.forEach((E, k) => { const at = a0 + Math.abs(k - 3) * 0.1; if (!E.lit && t >= at + 0.12) { E.lit = true; const [ex, ey] = legEmit(B, k); ring(ex, ey, 0.5, 5, 0.2, COL.chalk, 0.8); burst(ex, ey, 5, heat(MAX_CHARGE * 0.75), 20, 0.3, 0.2); sfx.clank(); } }); // its lenses opening, the middle first
+      if (t >= LEG_FORM) { Lg.st = 'walk'; Lg.eye = 1; ring(B.x, B.y, 2, 16, 0.35, COL.threat, 1.2); sfx.blasterCharge(); }
       return;
     }
     armWalkCrawl(B, Lg, dt, L);
@@ -5874,12 +5904,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.stroke(); ctx.globalAlpha = 1;
     }
     if (B.legs && !B.wreck) { // the leg walker: the wreck behind (dim, legless), its legs, its pelvis bar of emitters, its head; its lasers over it all
-      const Lg = B.legs, ws = s * WALK_S, A = Lg.atk, shkL = die * 0.8;
-      faded(0.42, () => drawMech({ ...B, legs: null, walker: null, wreck: true, noLegs: true, st: 'wreck', x: Lg.wx, y: Lg.wy, kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
+      const Lg = B.legs, ws = s * WALK_S, A = Lg.atk, docked = Lg.st !== 'form' || Lg.t >= LEG_DOCK, shkL = die * 0.8 + (Lg.st === 'die' ? 0.6 * (Lg.crack || 0) : Lg.st === 'form' && !docked && Lg.t < LEG_SAG ? 0.6 : 0);
+      faded(0.42, () => drawMech({ ...B, legs: null, walker: null, wreck: true, noLegs: docked, st: 'wreck', x: Lg.wx, y: Lg.wy, kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
       ctx.save(); ctx.translate(B.x + rand(-shkL, shkL), B.y + rand(-shkL, shkL)); ctx.scale(ws, ws); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
       const limb = (x0, y0, x1, y1, w0, w1, o = {}) => { const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d; plate([[x0 + nx * w0, y0 + ny * w0], [x1 + nx * w1, y1 + ny * w1], [x1 - nx * w1, y1 - ny * w1], [x0 - nx * w0, y0 - ny * w0]], o); };
       if (Lg.st !== 'form') { ctx.fillStyle = `rgba(${I3.join(',')},0.45)`; ctx.beginPath(); ctx.ellipse(0, 60, 22, 5, 0, 0, Math.PI * 2); ctx.fill(); } // its shadow
-      for (const i of [0, 1]) {
+      if (docked) for (const i of [0, 1]) {
         const [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i).map((v, j) => (v - (j % 2 ? B.y : B.x)) / ws), Q = Lg.legs[i], fl = Q.flash > 0;
         piston(hx, hy, kx, ky, 3.2); if (!Q.lost) piston(kx, ky, fx, fy, 2.6); // the bare frame
         if (Q.pcs[0]) limb(hx, hy, kx, ky, 5, 3.6, { flash: fl, lit: 0.32, bolts: [[(hx + kx) / 2, (hy + ky) / 2]] }); else limb(hx, hy, kx, ky, 1.6, 1.4, { lit: 0.1 }); // thigh plate
@@ -5893,12 +5923,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         else joint(kx, ky, 3.6);
         joint(hx, hy, 3.6);
       }
-      // the pelvis bar, and its emitters along the bottom edge (glowing as they're about to fire, white-hot firing)
-      plate([[-26, 6], [26, 6], [24, 15], [-24, 15]], { bolts: [[-22, 9], [22, 9]], lit: 0.34 });
+      // the pelvis bar, and its emitters along the bottom edge (glowing as they're about to fire, white-hot firing; as it forms, irising open, the middle first)
+      if (docked) plate([[-26, 6], [26, 6], [24, 15], [-24, 15]], { bolts: [[-22, 9], [22, 9]], lit: 0.34 });
       const firing = new Set(A ? (A.k === 'lanes' && A.ph === 'on' ? A.fire : A.k === 'scissors' && A.ph !== 'wind' ? [A.l, A.r] : []) : []);
-      Lg.emit.forEach((E, k) => {
-        const x = EMIT_X[k], y = EMIT_Y;
+      if (docked) Lg.emit.forEach((E, k) => {
+        const x = EMIT_X[k], y = EMIT_Y, op = Lg.st === 'form' ? clamp((Lg.t - (LEG_DOCK + LEG_STAND + Math.abs(k - 3) * 0.1)) / 0.12, 0, 1) : 1;
         if (E.hits <= 0) { torn(x, y, 2.6); return; }
+        if (op < 1) { ctx.beginPath(); ctx.arc(x, y, 2.3, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W1, 1, COL.threat); // shut: an iris of six blades, opening
+          if (op > 0) { glow(() => { ctx.beginPath(); ctx.arc(x, y, 1.2 * op, 0, Math.PI * 2); ctx.fill(); }, fire, 0.9); }
+          ctx.beginPath(); for (let q = 0; q < 6; q++) { const a = q * Math.PI / 3 + op * 1.2; ctx.moveTo(x + Math.cos(a) * 2.2, y + Math.sin(a) * 2.2); ctx.lineTo(x + Math.cos(a + 2) * 2.2 * op, y + Math.sin(a + 2) * 2.2 * op); } stroke(W3 * 1.6, 0.9, COL.chalk); return; }
         const tell = A && A.ph === 'wind' && (A.k === 'lanes' ? (A.fire || []).includes(k) : k === A.l || k === A.r), hot = firing.has(k);
         if (tell || hot) { const R = hot ? 7 : 6 + 4 * clamp(A.t / LANE_WIND, 0, 1); glow(() => { const g = ctx.createRadialGradient(x, y, 0, x, y, R); g.addColorStop(0, COL.chalk); g.addColorStop(0.35, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill(); }, fire, hot ? 0.9 : 0.65 + 0.35 * Math.sin(t * 40)); } // (about to fire: swelling, flickering)
         const jx = tell ? rand(-0.4, 0.4) : 0;
@@ -5907,6 +5940,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (E.hits < EMIT_HITS) { ctx.beginPath(); ctx.moveTo(x - 1.8, y - 1.2); ctx.lineTo(x + 0.2, y + 0.3); ctx.lineTo(x + 1.6, y - 0.4); if (E.hits < EMIT_HITS - 1) { ctx.moveTo(x - 0.6, y + 1.9); ctx.lineTo(x + 0.4, y + 0.2); } stroke(W3 * 1.5, 0.9, COL.chalk); } // cracked
       });
       head(21); // its helmet, on the pelvis
+      if (Lg.st === 'die' && Lg.crack > 0) { // going down: cracks spreading across its head, light pouring out
+        const c = Lg.crack, fl = 0.7 + 0.3 * Math.random();
+        glow(() => { const g = ctx.createRadialGradient(0, -2, 0, 0, -2, 10 + 10 * c); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, -2, 10 + 10 * c, 0, Math.PI * 2); ctx.fill(); }, fire, 0.25 + 0.45 * c * fl);
+        ctx.beginPath(); for (let q = 0; q < 7; q++) { let a = q / 7 * Math.PI * 2 + 0.4, x = 0, y = -2; ctx.moveTo(x, y); const L = (3 + 9 * c) * (0.7 + 0.3 * Math.sin(q * 5.1)); for (let st = 1; st <= 3; st++) { a += Math.sin(q * 3.3 + st * 1.9) * 0.45; x = Math.cos(a) * L * st / 3; y = -2 + Math.sin(a) * L * st / 3; ctx.lineTo(x, y); } }
+        glow(() => { ctx.lineWidth = 1.6; ctx.stroke(); }, fire, 0.8 * fl); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.45; ctx.globalAlpha = c; ctx.stroke(); ctx.globalAlpha = 1;
+      }
       if (Lg.eye > 0) glow(() => { ctx.beginPath(); ctx.arc(0, 1, 2 + 3 * Lg.eye, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.5 * Lg.eye); // its eye flaring to fire
       ctx.restore();
       ctx.save(); ctx.lineCap = 'round';
@@ -5922,8 +5961,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (B.walker && !B.wreck) { // the arm walker: the wreck behind (dim), its arms' sweep trail, then its arms and head
       const W = B.walker, ws = s * WALK_S, shkW = die * 0.8 + (W.tense || 0) * 0.7;
-      faded(0.42, () => drawMech({ ...B, walker: null, wreck: true, st: 'wreck', x: W.wx, y: W.wy, kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
+      faded(W.st === 'form' ? 0.42 + 0.58 * (1 - clamp(W.t / (ARM_RIP + 0.5), 0, 1)) : 0.42, () => drawMech({ ...B, walker: null, wreck: true, st: 'wreck', x: W.wx, y: W.wy, kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
       if (W.air) { const k = 1 - 0.3 * W.air.h; ctx.save(); ctx.translate(W.air.x, W.air.y + 9 * ws); ctx.scale(32 * ws * k, 17 * ws * k); const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1); g.addColorStop(0, 'rgba(0,0,0,0.75)'); g.addColorStop(0.7, 'rgba(0,0,0,0.6)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.globalAlpha = 1 - 0.35 * W.air.h; ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); } // mid-leap: its shadow on the deck, as big as what lands
+      if (W.st === 'form' && W.cab && W.t < ARM_RIP + 0.45) { // the cables holding its head on: taut, sparking, then snapping and whipping back
+        const rip = W.t >= ARM_RIP, k = rip ? clamp((W.t - ARM_RIP) / 0.45, 0, 1) : 0; ctx.save(); ctx.lineCap = 'round';
+        W.cab.forEach(([ax, ay, hd], i) => {
+          const hx = B.x + hd * ws, hy = B.y + 5 * ws;
+          if (!rip) { const mx = (ax + hx) / 2 + Math.sin(G.time * 35 + i * 2) * W.strain * 0.7, my = (ay + hy) / 2 + (1 - W.strain) * 4;
+            ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(mx, my, hx, hy); ctx.strokeStyle = COL.ink; ctx.lineWidth = 2.2; ctx.stroke();
+            if (W.strain > 0.45) glow(() => { ctx.lineWidth = 2.4; ctx.stroke(); }, heat(MAX_CHARGE * 0.75), (W.strain - 0.45) * 1.4 * (0.7 + 0.3 * Math.random())); // red-hot, about to go
+            ctx.strokeStyle = W.strain > 0.6 && Math.random() < 0.4 ? COL.chalk : COL.hull; ctx.lineWidth = 0.8; ctx.stroke(); }
+          else for (const [x0, y0, x1, y1] of [[ax, ay, hx, hy], [hx, hy, ax, ay]]) { // two snapped ends, whipping back
+            const L = 0.5 * (1 - k), ex = x0 + (x1 - x0) * L + Math.sin(G.time * 40 + i) * 2 * (1 - k), ey = y0 + (y1 - y0) * L + 3 * k;
+            ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(ex, ey); ctx.strokeStyle = COL.dim; ctx.lineWidth = 0.6; ctx.globalAlpha = 1 - 0.6 * k; ctx.stroke(); ctx.globalAlpha = 1;
+            glow(() => { ctx.beginPath(); ctx.arc(ex, ey, 1.2, 0, Math.PI * 2); ctx.fill(); }, heat(MAX_CHARGE * 0.75), 0.8 * (1 - k)); }
+        });
+        ctx.restore();
+      }
       if (W.sw && W.sw.trail && W.sw.ph !== 'wind') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = fire;
         W.sw.trail.forEach((q, j) => { if (!j) return; const o = W.sw.trail[j - 1]; ctx.globalAlpha = (W.sw.ph === 'swing' ? 0.6 : 0.6 * (1 - W.sw.t / ARM_REC)) * j / W.sw.trail.length; ctx.lineWidth = 5 * ws * j / W.sw.trail.length; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); }); ctx.restore(); }
       const zW = 1 + (W.air ? W.air.h * 0.2 : 0); ctx.save(); ctx.translate(B.x + rand(-shkW, shkW), B.y + rand(-shkW, shkW)); ctx.scale(ws * zW, ws * zW); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
