@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 12 22:07 UTC · e16279e";</script>
+<script>window.RICOCHET_BUILD = "Nov 13 00:16 UTC · e16279e";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11350,7 +11350,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   startSel.addEventListener('change', () => { $('startNote').hidden = startSel.value === '1'; startSel.blur(); });
   function startChosen() {
     const v = startSel.value;
-    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'bomb') { forceBomb = true; startGame(11); } // (from 11: with the wingman Clanktank gives you) else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v !== '1') startGame(+v); else startGame();
+    // (Bombardment from 11: with the wingman Clanktank gives you)
+    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'bomb') { forceBomb = true; startGame(11); } else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v !== '1') startGame(+v); else startGame();
   }
   $('play').addEventListener('click', startChosen);
   $('again').addEventListener('click', startChosen);
