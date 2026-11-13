@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 13 22:14 UTC · a4a86be";</script>
+<script>window.RICOCHET_BUILD = "Nov 13 22:20 UTC · dc6d5fd";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -876,6 +876,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     },
     pop() { if (gate('pop', 25)) voice({ type: 'triangle', f: 1500, f2: 700, dur: 0.06, vol: 0.07 }); },
     field() { voice({ type: 'sawtooth', f: 110, f2: 220, filter: 'lowpass', ff: 700, dur: 0.5, vol: 0.05, wet: 0.2 }); },
+    // 0B-L1-V10N's own: its lasers charging (a rising electric hum, a whine over it) and firing (a crack, then a thick buzzing
+    // beam with a sizzle, as long as it burns), its stomps (a deep thud, a clang), its pounce landing (a low boom, a grinding
+    // crunch), its neck cables snapping (twangs), and its belt's magnet (a whine rising as it forms, falling away as it breaks)
+    laserCharge(dur) { if (!AC) return; voice({ type: 'sawtooth', f: 80, f2: 320, dur, vol: 0.05, filter: 'lowpass', ff: 400, ff2: 2000, wet: 0.2 }); voice({ type: 'sine', f: 600, f2: 1500, dur, vol: 0.025, detune: 8 }); },
+    laserFire(dur) { if (!AC) return; voice({ type: 'square', f: 1600, f2: 400, dur: 0.08, vol: 0.06 }); voice({ type: 'sawtooth', f: 110, dur, vol: 0.07, filter: 'lowpass', ff: 1800, atk: 0.02 }); voice({ type: 'sawtooth', f: 113, dur, vol: 0.05, filter: 'lowpass', ff: 1400, atk: 0.02 });
+      voice({ noise: true, filter: 'bandpass', ff: 2600, q: 2, dur: dur * 0.9, vol: 0.05, atk: 0.02 }); voice({ f: 55, f2: 40, dur: Math.min(0.4, dur), vol: 0.14 }); },
+    stomp(big) { if (!gate('stomp', 60)) return; voice({ f: big ? 75 : 85, f2: 32, dur: big ? 0.35 : 0.22, vol: big ? 0.32 : 0.22 }); voice({ noise: true, filter: 'lowpass', ff: 320, dur: 0.16, vol: big ? 0.16 : 0.1 }); voice({ type: 'triangle', f: big ? 240 : 300, f2: 180, dur: 0.12, vol: 0.04, wet: 0.3 }); },
+    pounceLand() { voice({ f: 95, f2: 28, dur: 0.55, vol: 0.36 }); voice({ noise: true, filter: 'lowpass', ff: 700, ff2: 90, dur: 0.45, vol: 0.2 }); voice({ type: 'square', f: 210, f2: 55, dur: 0.22, vol: 0.05, filter: 'lowpass', ff: 900 }); },
+    cableSnap() { if (!AC) return; const T = AC.currentTime; for (let i = 0; i < 4; i++) voice({ type: 'triangle', f: 950 - i * 120, f2: 260, dur: 0.2, vol: 0.07, at: T + i * 0.045, wet: 0.3 }); },
+    magnet() { if (!AC) return; voice({ type: 'sine', f: 180, f2: 900, dur: 0.9, vol: 0.05, wet: 0.3 }); voice({ type: 'sine', f: 186, f2: 930, dur: 0.9, vol: 0.035 }); voice({ type: 'sawtooth', f: 55, dur: 0.9, vol: 0.04, filter: 'lowpass', ff: 300 }); },
+    magnetDrop() { if (!AC) return; voice({ type: 'sine', f: 900, f2: 110, dur: 0.8, vol: 0.06, wet: 0.3 }); voice({ type: 'sine', f: 930, f2: 116, dur: 0.8, vol: 0.04 }); },
     collect() {
       [15, 16, 17, 19, 20].forEach((n, i) => voice({ type: 'square', f: note(n), dur: 0.09, vol: 0.045, filter: 'lowpass', ff: 4200, wet: 0.3, at: AC && AC.currentTime + i * 0.035 }));
     },
@@ -4739,7 +4750,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const q = scrapPiece(S.x + Math.cos(ga) * 3, S.y + Math.sin(ga) * 3); S.pcs.push(q); add(q, q.x, q.y, ga);
     }
     ring(S.x, S.y, 2, Bt.R, 0.7, COL.threat, 1.4); ring(S.x, S.y, 1, Bt.R * 0.6, 0.5, COL.chalk, 1); burst(S.x, S.y, 30, heat(MAX_CHARGE * 0.75), 70, 0.7, 0.5);
-    gridImpulse(S.x, S.y, Math.max(AW, AH), 300); shake(4); G.slowT = Math.max(G.slowT, 0.35); sfx.overload(); sfx.field(); sfx.boss();
+    gridImpulse(S.x, S.y, Math.max(AW, AH), 300); shake(4); G.slowT = Math.max(G.slowT, 0.35); sfx.overload(); sfx.magnet(); sfx.boss();
   }
   // Where a piece sits in the belt (shaking as the magnet strains)
   const beltAt = (S, q) => { const Bt = S.belt, a = Bt.a + q.ba, rr = Bt.R * q.br + Math.sin(G.time * 3 + q.ba * 7) * 1.2 + (Bt.wob ? rand(-Bt.wob, Bt.wob) : 0); return [S.x + Math.cos(a) * rr, S.y + Math.sin(a) * rr]; };
@@ -4769,7 +4780,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       Bt.st = 'stun'; Bt.stun = BELT_STUN;
       for (let i = 0; i < 3; i++) ring(S.x, S.y, 2, 14 + i * 12, 0.4 + i * 0.1, i % 2 ? COL.chalk : COL.threat, 1.2);
       burst(S.x, S.y, 40, heat(MAX_CHARGE * 0.75), 70, 0.8, 0.5); gridImpulse(S.x, S.y, Math.max(AW, AH), 280); shake(5); G.slowT = Math.max(G.slowT, 0.4); G.score += Math.round(1000 * G.mult);
-      float(S.x, S.y - 12, 'Belt broken!', COL.chalk, 3.6); sfx.shatter(); sfx.rockBoom(3); sfx.overload();
+      float(S.x, S.y - 12, 'Belt broken!', COL.chalk, 3.6); sfx.shatter(); sfx.rockBoom(3); sfx.magnetDrop();
     }
   }
   const scrapPiece = (x, y) => ({ x, y, r: rand(2.4, 4), sh: Array.from({ length: 6 }, () => rand(0.7, 1.1)), rot: rand(0, Math.PI * 2), va: rand(-3, 3), a: rand(0, Math.PI * 2), ra: rand(0.45, 1), sp: 0, m: 'gather', delay: 0, flash: 0 });
@@ -5109,7 +5120,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         W.air = null; B.x = P.to[0]; B.y = P.to[1];
         W.hands.forEach((H, i) => { H.x = clamp(B.x + (i ? 1 : -1) * 16 * ws, 6, AW - 6); H.y = clamp(B.y + 21 * ws, AH * 0.08, AH - 4); if (!W.arms[i].lost) armWalkSlam(H.x, H.y, ws); });
         ring(B.x, B.y + 6 * ws, 2, 18 * ws, 0.35, COL.threat, 1.4); ring(B.x, B.y + 6 * ws, 1, 10 * ws, 0.25, COL.chalk, 1);
-        burst(B.x, B.y + 6 * ws, 30, COL.dim, 55, 0.7, 0.5); burst(B.x, B.y, 16, fire, 45, 0.5, 0.35); gridImpulse(B.x, B.y, 80, 280); shake(4); sfx.rockBoom(3); sfx.clank();
+        burst(B.x, B.y + 6 * ws, 30, COL.dim, 55, 0.7, 0.5); burst(B.x, B.y, 16, fire, 45, 0.5, 0.35); gridImpulse(B.x, B.y, 80, 280); shake(4); sfx.pounceLand();
         for (const sd of [-1, 1]) G.debris.push({ x: B.x + sd * 5 * ws, y: B.y + 8 * ws, vx: sd * rand(16, 28), vy: -rand(30, 45), floor: clamp(B.y + rand(10, 18) * ws, 6, AH - 4), r: rand(2.4, 3.2) * ws, a: rand(0, 6), va: rand(-8, 8), t: 0, life: MECH_DEBRIS * 0.6, down: false });
         if (armWalkNear(B)) { W.pn = null; armWalkSweepStart(B, W, ARM_WIND[L], 1); return true; } // landed beside you: straight into a sweep
         const dx = P.to[0] - P.from[0], dy = P.to[1] - P.from[1], dd = Math.hypot(dx, dy) || 1; Object.assign(P, { ph: 'skid', t: 0, dir: [dx / dd, dy / dd], done: 0 });
@@ -5189,7 +5200,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       W.ripped = true; W.strain = 0; W.fx = B.x; W.fy = B.y - 6 * ws; B.y = W.fy;
       burst(B.x, B.y + 5 * ws, 40, heat(MAX_CHARGE * 0.75), 70, 0.7, 0.5); burst(B.x, B.y + 5 * ws, 20, COL.chalk, 60, 0.4, 0.3); for (let i = 0; i < 3; i++) ring(B.x, B.y, 2, 12 + i * 10, 0.35 + i * 0.1, i % 2 ? COL.chalk : COL.threat, 1.2);
       for (const H of W.hands) { burst(H.x0, H.y0, 22, heat(MAX_CHARGE * 0.75), 50, 0.6, 0.4); for (let q = 0; q < 6; q++) { const a = rand(0, Math.PI * 2), sp = rand(25, 55); G.shards.push({ x: H.x0, y: H.y0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: a, va: rand(-12, 12), size: rand(0.6, 1), t: 0, max: rand(0.4, 0.7), color: COL.chalk, lit: 1 }); } } // bolts popping
-      G.screenFlash = Math.max(G.screenFlash || 0, 0.4); G.slowT = Math.max(G.slowT, 0.45); shake(5); gridImpulse(B.x, B.y, Math.max(AW, AH), 280); sfx.shatter(); sfx.clank(); sfx.rockBoom(2);
+      G.screenFlash = Math.max(G.screenFlash || 0, 0.4); G.slowT = Math.max(G.slowT, 0.45); shake(5); gridImpulse(B.x, B.y, Math.max(AW, AH), 280); sfx.cableSnap(); sfx.shatter(); sfx.rockBoom(2);
     }
     if (W.st === 'form') { // its head rises out of the wreck as its arms swing down under it
       B.roar = Math.max(0, B.roar - dt * 1.5);
@@ -5314,7 +5325,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       float(kx, ky - 8, 'Leg off!', COL.chalk, 3.6); if (B.hitBall) chainCredit(B.hitBall, kx, ky, B.hitBall.b);
     }
   }
-  const legStomp = (x, y, ws, big) => { const p = G.player; ring(x, y, 1, big ? 9 : 6, 0.25, COL.threat, big ? 1.2 : 0.8); burst(x, y, big ? 18 : 10, COL.dim, 35, 0.6, 0.4); gridImpulse(x, y, big ? 40 : 22, big ? 180 : 110); shake(big ? 2 : 1); sfx.clank(); if (big) sfx.rockBoom(1); if (p.inv <= 0 && Math.hypot(p.x - x, p.y - y) < 5 * ws + PLAYER_R * 0.8) damagePlayer(); };
+  const legStomp = (x, y, ws, big) => { const p = G.player; ring(x, y, 1, big ? 9 : 6, 0.25, COL.threat, big ? 1.2 : 0.8); burst(x, y, big ? 18 : 10, COL.dim, 35, 0.6, 0.4); gridImpulse(x, y, big ? 40 : 22, big ? 180 : 110); shake(big ? 2 : 1); sfx.stomp(big); if (p.inv <= 0 && Math.hypot(p.x - x, p.y - y) < 5 * ws + PLAYER_R * 0.8) damagePlayer(); };
   // Its lasers. A beam is [x0, y0, x1, y1] plus whether it's lit yet (warming, it's harmless).
   // Each beam: [x0, y0, x1, y1, lit, sight]. Winding up, a laser shows first as a hairline along its path (sight: how far
   // through its wind-up; harmless), then fires along exactly that line. The scissors close as mirror images on the gap
@@ -5335,13 +5346,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (A.k === 'lanes') {
       if (A.ph === 'wind' && !A.fire) { // the emitters over you (if any's left)
         A.fire = alive.filter(k => { const [x0, y0] = legEmit(B, k), [x1, y1] = laneEnd(k), u = clamp((p.y - y0) / (y1 - y0), 0, 1); return Math.abs(x0 + (x1 - x0) * u - p.x) < LANE_REACH; });
-        if (A.fire.length) sfx.blasterCharge();
+        if (A.fire.length) sfx.laserCharge(LANE_WIND);
       }
-      if (A.ph === 'wind' && A.t >= LANE_WIND) { A.ph = 'on'; A.t = 0; if (A.fire.length) { sfx.blaster(); shake(1.2); for (const k of A.fire) { const [x1] = laneEnd(k); burst(clamp(x1, 2, AW - 2), AH - 2, 10, heat(MAX_CHARGE * 0.75), 40, 0.4, 0.3); } } }
+      if (A.ph === 'wind' && A.t >= LANE_WIND) { A.ph = 'on'; A.t = 0; if (A.fire.length) { sfx.laserFire(LANE_ON); shake(1.2); for (const k of A.fire) { const [x1] = laneEnd(k); burst(clamp(x1, 2, AW - 2), AH - 2, 10, heat(MAX_CHARGE * 0.75), 40, 0.4, 0.3); } } }
       else if (A.ph === 'on' && A.t >= LANE_ON) { A.ph = 'gap'; A.t = 0; }
       else if (A.ph === 'gap' && A.t >= LANE_GAP) { if (++A.v < LANE_N[L]) { A.ph = 'wind'; A.t = 0; A.fire = null; } else return true; }
     } else { // scissors
-      if (A.ph === 'wind' && A.t >= SCIS_WIND) { A.ph = 'sweep'; A.t = 0; sfx.blaster(); }
+      if (A.ph === 'wind' && A.t >= SCIS_WIND) { A.ph = 'sweep'; A.t = 0; sfx.laserFire(SCIS_T + SCIS_HOLD); }
       else if (A.ph === 'sweep' && A.t >= SCIS_T) { A.ph = 'hold'; A.t = 0; shake(1.5); }
       else if (A.ph === 'hold' && A.t >= SCIS_HOLD) return true;
     }
@@ -5397,7 +5408,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if ((Lg.atkT -= dt) <= 0 && !Lg.step) { // it plants and fires: lanes, or (with two emitters left to make them) scissors
       const alive = Lg.emit.map((E, k) => E.hits > 0 ? k : -1).filter(k => k >= 0);
       if (!alive.length) Lg.atkT = 99; // nothing left to fire with: just its eye
-      else if (alive.length >= 2 && Math.random() < 0.4) { const gap = SCIS_GAP[L], xg = clamp(B.x, gap / 2 + 8, AW - gap / 2 - 8); Lg.atk = { k: 'scissors', ph: 'wind', t: 0, l: alive[0], r: alive[alive.length - 1], gap, xg, D: Math.max(xg + 24, AW + 24 - xg) }; sfx.blasterCharge(); } // (the gap: straight below it)
+      else if (alive.length >= 2 && Math.random() < 0.4) { const gap = SCIS_GAP[L], xg = clamp(B.x, gap / 2 + 8, AW - gap / 2 - 8); Lg.atk = { k: 'scissors', ph: 'wind', t: 0, l: alive[0], r: alive[alive.length - 1], gap, xg, D: Math.max(xg + 24, AW + 24 - xg) }; sfx.laserCharge(SCIS_WIND); } // (the gap: straight below it)
       else Lg.atk = { k: 'lanes', ph: 'wind', t: 0, v: 0, fire: null };
       if (Lg.atk) { still = true; shake(1); for (const F of Lg.feet) burst(F.x, F.y, 6, COL.dim, 20, 0.4, 0.3); } // bracing
     }
