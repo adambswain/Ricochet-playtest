@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 13 22:11 UTC · 63fbbf5";</script>
+<script>window.RICOCHET_BUILD = "Nov 13 22:14 UTC · a4a86be";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5940,6 +5940,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         } else torn(kx, ky + 2, 5); // its shin gone: a torn knee on the floor
         if (Q.pcs[1] && !Q.lost) plate([[kx, ky - 6], [kx + 5.2, ky - 3], [kx + 5.2, ky + 3], [kx, ky + 6], [kx - 5.2, ky + 3], [kx - 5.2, ky - 3]], { flash: fl, bolts: [[kx - 2.6, ky], [kx + 2.6, ky]] }); // knee cap
         else joint(kx, ky, 3.6);
+        { const dmg = 1 - Q.hp / Q.max, at = [[(hx + kx) / 2, (hy + ky) / 2], [kx, ky], [(kx + fx) / 2, (ky + fy) / 2], [fx, fy]]; // hurt: exposed insides where its armour's gone, loose cables, sparking joints, smoke
+          Q.pcs.forEach((on, k) => { if (on || (Q.lost && k >= 2)) return; const [cx, cy] = at[k];
+            glow(() => { ctx.beginPath(); ctx.arc(cx, cy, 2.6, 0, Math.PI * 2); ctx.fill(); }, fire, 0.22 + 0.18 * Math.sin(t * 9 + k * 1.7));
+            if (k < 2) { ctx.beginPath(); ctx.moveTo(cx - 1.5, cy); ctx.quadraticCurveTo(cx - 1.5 + Math.sin(t * 2 + k) * 1.5, cy + 2.4, cx - 1 + Math.sin(t * 2.3 + k) * 2, cy + 5.2); ctx.moveTo(cx + 1.5, cy); ctx.quadraticCurveTo(cx + 1.5 + Math.sin(t * 2.2 + k) * 1.5, cy + 2.2, cx + 1.8 + Math.sin(t * 2.5 + k) * 2, cy + 4.6); stroke(W3 * 1.6, 0.85, COL.dim); } });
+          if (Math.random() < dmg * 0.18) { const [jx, jy] = Math.random() < 0.5 ? [kx, ky] : [hx, hy]; burst(ox + jx * ws, oy + jy * ws, 2, Math.random() < 0.5 ? COL.chalk : fire, 30, 0.3, 0.2); }
+          if (Math.random() < dmg * 0.1) burst(ox + hx * ws + rand(-2, 2), oy + hy * ws - 2, 1, COL.dim, 6, 0.6, 0.7); }
         joint(hx, hy, 3.6);
       }
       ctx.save(); ctx.translate(0, 10); ctx.rotate(Lg.tilt || 0); ctx.translate(0, -10); // its pelvis rocking with its steps
@@ -6018,6 +6024,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           if (!A.plates[k]) continue; const [x0, y0, x1, y1] = k < 9 ? [sx, sy, ex, ey] : [ex, ey, hx, hy], tt = PLATE_T[k % 9], dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, cx = x0 + dx * tt, cy = y0 + dy * tt, hl = L * 0.048;
           limb(cx - dx / L * hl, cy - dy / L * hl, cx + dx / L * hl, cy + dy / L * hl, k < 9 ? 4.2 : 3.8, k < 9 ? 4.5 : 4.4, { flash: fl, lit: 0.3 });
         }
+        { const dmg = 1 - A.hp / A.max; // the worse it's hurt, the worse it looks: exposed insides glowing where plates are gone, loose cables, sparking joints, smoke
+          for (let k = 0; k < ARM_PLATES; k++) { if (A.plates[k] || (k >= 9 && A.lost)) continue; const [x0, y0, x1, y1] = k < 9 ? [sx, sy, ex, ey] : [ex, ey, hx, hy], tt = PLATE_T[k % 9], cx = x0 + (x1 - x0) * tt, cy = y0 + (y1 - y0) * tt;
+            glow(() => { ctx.beginPath(); ctx.arc(cx, cy, 1.8, 0, Math.PI * 2); ctx.fill(); }, fire, 0.22 + 0.18 * Math.sin(t * 9 + k * 1.7));
+            if (k % 3 === 1) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.quadraticCurveTo(cx + Math.sin(t * 2 + k) * 1.5, cy + 2, cx + Math.sin(t * 2.3 + k) * 1.8, cy + 4.4); stroke(W3 * 1.6, 0.85, COL.dim); } }
+          if (Math.random() < dmg * 0.18) { const [jx, jy] = Math.random() < 0.5 ? [ex, ey] : [sx, sy]; burst(B.x + jx * ws, B.y + jy * ws, 2, Math.random() < 0.5 ? COL.chalk : fire, 30, 0.3, 0.2); }
+          if (Math.random() < dmg * 0.1) burst(B.x + sx * ws + rand(-2, 2), B.y + sy * ws - 2, 1, COL.dim, 6, 0.6, 0.7); }
         joint(sx, sy, 4.4);
         if (!A.lost && H.lift > 0.05 && !(W.sw && W.sw.i === i) && !(W.th && W.th.i === i)) glow(() => { ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.4 * H.lift); // a lifted hand, about to come down
       }
