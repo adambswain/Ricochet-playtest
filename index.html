@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 13 19:28 UTC · 54109cb";</script>
+<script>window.RICOCHET_BUILD = "Nov 13 20:56 UTC · da55104";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5231,7 +5231,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const LEG_HP = 180, LEG_FORM = 1.2, LEG_V = 20, LEG_L1 = 22, LEG_L2 = 22, LEG_STEP_T = 0.3, LEG_STRIDE = 10, LEG_BAND = [0.07, 0.22];
   const EMIT_N = 7, EMIT_HITS = 3, EMIT_DMG = 10, EMIT_X = [-18, -12, -6, 0, 6, 12, 18], EMIT_Y = 13;
   const LEG_ATK = [3, 2.4], LANE_WIND = 0.7, LANE_ON = 0.7, LANE_GAP = 0.25, LANE_N = [3, 4], LANE_W = 7, LANE_REACH = 26;
-  const SCIS_WIND = 0.6, SCIS_T = 1.3, SCIS_HOLD = 0.35, SCIS_GAP = [24, 19];
+  const SCIS_WIND = 0.6, SCIS_T = 1.65, SCIS_HOLD = 0.35, SCIS_GAP = [24, 19];
   const BOLT_T = [2.2, 1.7], BOLT_N = 3, BOLT_V = 75, BOLT_GAP = 0.14, BOLT_CHARGE = 0.35;
   const legWalkLate = B => B.legs.legs[0].hp + B.legs.legs[1].hp <= LEG_HP / 2;
   const legEmit = (B, k) => { const ws = B.s * WALK_S; return [B.x + EMIT_X[k] * ws, B.y + EMIT_Y * ws]; };
