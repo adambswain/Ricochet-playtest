@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 13 22:07 UTC · 0b4ef7b";</script>
+<script>window.RICOCHET_BUILD = "Nov 13 22:11 UTC · 63fbbf5";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5345,8 +5345,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       else if (A.ph === 'sweep' && A.t >= SCIS_T) { A.ph = 'hold'; A.t = 0; shake(1.5); }
       else if (A.ph === 'hold' && A.t >= SCIS_HOLD) return true;
     }
-    // the beams burn
-    if (p.inv <= 0) for (const [x0, y0, x1, y1, lit] of legBeams(B)) if (lit && !segClear(x0, y0, x1, y1, LANE_W / 2 + PLAYER_R * 0.8)) { damagePlayer(); break; }
+    // the beams burn: you, if they touch you; the deck (scorch lines, fading); sparks where they leave the arena; a flash at each emitter as it lights
+    const beams = legBeams(B), fire = heat(MAX_CHARGE * 0.75); Lg.scorch = Lg.scorch || [];
+    beams.forEach(([x0, y0, x1, y1, lit], bi) => {
+      if (!lit) return;
+      if (!A.lit) A.lit = new Set();
+      if (!A.lit.has(bi)) { A.lit.add(bi); ring(x0, y0, 0.5, 9, 0.2, COL.chalk, 1); burst(x0, y0, 10, COL.chalk, 40, 0.3, 0.2); } // lit: a flash at its emitter
+      let u = 1; if (y1 > AH) u = Math.min(u, (AH - y0) / (y1 - y0)); if (x1 < 0) u = Math.min(u, (0 - x0) / (x1 - x0)); if (x1 > AW) u = Math.min(u, (AW - x0) / (x1 - x0)); // where it hits the arena's edge:
+      const hx = x0 + (x1 - x0) * u, hy = y0 + (y1 - y0) * u;
+      if (Math.random() < 0.8) burst(hx, hy, 2, Math.random() < 0.4 ? COL.chalk : fire, 45, 0.3, 0.25); // sparks
+      if (A.k === 'lanes' ? A.t < dt * 1.5 : (A.scT = (A.scT || 0) - dt) <= 0) { if (A.k !== 'lanes') A.scT = 0.05; Lg.scorch.push({ x: clamp(hx, 1, AW - 1), y: clamp(hy, 1, AH - 1), t: 0 }); } // and a burn mark (the scissors leave a trail of them)
+    });
+    if (p.inv <= 0) for (const [x0, y0, x1, y1, lit] of beams) if (lit && !segClear(x0, y0, x1, y1, LANE_W / 2 + PLAYER_R * 0.8)) { damagePlayer(); break; }
     return false;
   }
   function updateLegWalk(B, dt) {
@@ -5379,6 +5389,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (t >= LEG_FORM) { Lg.st = 'walk'; Lg.eye = 1; ring(B.x, B.y, 2, 16, 0.35, COL.threat, 1.2); sfx.blasterCharge(); }
       return;
     }
+    if (Lg.scorch) { for (const q of Lg.scorch) q.t += dt; Lg.scorch = Lg.scorch.filter(q => q.t < 2.6); } // its scorch lines fading
     armWalkCrawl(B, Lg, dt, L);
     const limp = Lg.legs.some(A => A.lost) ? 0.55 : 1, xm = 22 * ws, yMin = AH * LEG_BAND[0], yMax = Math.min(AH * LEG_BAND[1], AH - 60 * ws);
     let still = false;
@@ -5908,6 +5919,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.stroke(); ctx.globalAlpha = 1;
     }
     if (B.legs && !B.wreck) { // the leg walker: the wreck behind (dim, legless), its legs, its pelvis bar of emitters, its head; its lasers over it all
+      if (B.legs.scorch) { for (const q of B.legs.scorch) { const k = 1 - q.t / 2.6; // burn marks where its beams hit the arena's edge: dark, an ember glowing in each, fading
+        ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.55 * k; ctx.beginPath(); ctx.arc(q.x, q.y, LANE_W * 0.6, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+        glow(() => { const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, LANE_W * 0.5); g.addColorStop(0, heat(MAX_CHARGE * 0.75)); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q.x, q.y, LANE_W * 0.5, 0, Math.PI * 2); ctx.fill(); }, heat(MAX_CHARGE * 0.75), 0.7 * k * k * (0.75 + 0.25 * Math.sin(t * 20 + q.x))); } }
       const Lg = B.legs, ws = s * WALK_S, A = Lg.atk, docked = Lg.st !== 'form' || Lg.t >= LEG_DOCK, shkL = die * 0.8 + (Lg.st === 'die' ? 0.6 * (Lg.crack || 0) : Lg.st === 'form' && !docked && Lg.t < LEG_SAG ? 0.6 : 0);
       faded(0.42, () => drawMech({ ...B, legs: null, walker: null, wreck: true, noLegs: docked, st: 'wreck', x: Lg.wx, y: Lg.wy, kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
       const ox = B.x + (Lg.sx || 0), oy = B.y + (Lg.sy || 0); ctx.save(); ctx.translate(ox + rand(-shkL, shkL), oy + rand(-shkL, shkL)); ctx.scale(ws, ws); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -5963,6 +5977,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const line = w => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineWidth = w; ctx.stroke(); };
         if (!lit) { const a = (0.18 + 0.5 * sight) * (0.8 + 0.2 * Math.random()); glow(() => line(0.9 + 1.2 * sight), COL.threat, a * 0.5); ctx.strokeStyle = COL.threat; ctx.globalAlpha = a; line(0.3); ctx.globalAlpha = 1; continue; } // winding up: a hairline along its path, brightening
         const wob = 1 + 0.08 * Math.sin(t * 50);
+        glow(() => { const g = ctx.createRadialGradient(x0, y0, 0, x0, y0, 6); g.addColorStop(0, COL.chalk); g.addColorStop(0.35, COL.threat); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x0, y0, 6, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.moveTo(x0 - 9 * wob, y0); ctx.lineTo(x0 + 9 * wob, y0); ctx.lineWidth = 0.8; ctx.strokeStyle = COL.chalk; ctx.stroke(); }, COL.threat, 0.75); // a flare at its emitter
         glow(() => line(LANE_W * 1.9 * wob), COL.threat, 0.22); glow(() => line(LANE_W * wob), COL.threat, 0.45);
         ctx.strokeStyle = COL.chalk; ctx.globalAlpha = 0.95; line(LANE_W * 0.32); ctx.globalAlpha = 1;
       }
