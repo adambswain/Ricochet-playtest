@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 13 22:02 UTC · 3d45dd9";</script>
+<script>window.RICOCHET_BUILD = "Nov 13 22:04 UTC · 117df51";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4950,7 +4950,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); for (let i = 0; i < n; i++) { const a = q.rot + i / n * Math.PI * 2, rr = r * q.sh[i], x = q.x + Math.cos(a) * rr, y = q.y + Math.sin(a) * rr; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.closePath();
       ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill();
       if (q.flash > 0 || glow > 0) { ctx.fillStyle = COL.chalk; ctx.globalAlpha = q.flash > 0 ? 0.7 : glow; ctx.fill(); ctx.globalAlpha = 1; }
-      ctx.strokeStyle = q.flash > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.35; ctx.stroke();
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.35; ctx.lineWidth = 1.4; ctx.stroke(); ctx.restore(); // a hot rim: it hurts
+      ctx.strokeStyle = q.flash > 0 ? COL.chalk : ECOL.warden; ctx.lineWidth = 0.4; ctx.stroke();
       ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.55; ctx.beginPath(); ctx.arc(q.x + Math.cos(q.rot) * r * 0.35, q.y + Math.sin(q.rot) * r * 0.35, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // a bolt
     };
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -5813,7 +5814,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // great red machine eye, the reactor bare and blazing.
   function drawMech(B) {
     if (B.storm) { drawScrap(B); return; }
-    const s = B.s, t = G.time, H3 = hex(COL.hull), I3 = hex(COL.ink), fire = heat(MAX_CHARGE * 0.75), die = B.die || 0, last = B.st === 'core' && !die, col = B.flash > 0 ? COL.chalk : last ? COL.threat : ECOL.warden; // its last stand: all of it outlined hot (all of it's the target)
+    const s = B.s, t = G.time, H3 = hex(COL.hull), I3 = hex(COL.ink), fire = heat(MAX_CHARGE * 0.75), die = B.die || 0, last = B.st === 'core' && !die, col = B.flash > 0 ? COL.chalk : last && !B.walker && !B.legs ? COL.threat : ECOL.warden; // its last stand: all of it outlined hot (all of it's the target)
     const W1 = 0.8, W2 = 0.4, W3 = 0.2, kn = B.kneel * MECH_KNEEL, bob = Math.sin(t * 2) * 0.35 * (1 - B.kneel), up = kn + bob; // the upper body drops as it kneels, and breathes
     const wear = Math.max(die, 1 - B.hp / B.maxHp, B.melt ? 1 : 0), hash = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); }; // how battered it is
     const stroke = (w, a = 1, c = col) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.globalAlpha = a; ctx.stroke(); ctx.globalAlpha = 1; };
@@ -5911,6 +5912,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (Lg.st !== 'form') { ctx.fillStyle = `rgba(${I3.join(',')},0.45)`; ctx.beginPath(); ctx.ellipse(0, 60, 22, 5, 0, 0, Math.PI * 2); ctx.fill(); } // its shadow
       if (docked) for (const i of [0, 1]) {
         const [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i).map((v, j) => (v - (j % 2 ? B.y : B.x)) / ws), Q = Lg.legs[i], fl = Q.flash > 0;
+        glow(() => { ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(kx, ky); if (!Q.lost) ctx.lineTo(fx, fy); ctx.lineWidth = 12; ctx.stroke(); }, COL.threat, 0.12 + 0.05 * Math.sin(t * 3 + i * 2)); // its hot edge: all of it's a target
         piston(hx, hy, kx, ky, 3.2); if (!Q.lost) piston(kx, ky, fx, fy, 2.6); // the bare frame
         if (Q.pcs[0]) limb(hx, hy, kx, ky, 5, 3.6, { flash: fl, lit: 0.32, bolts: [[(hx + kx) / 2, (hy + ky) / 2]] }); else limb(hx, hy, kx, ky, 1.6, 1.4, { lit: 0.1 }); // thigh plate
         if (!Q.lost) {
@@ -5924,6 +5926,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         joint(hx, hy, 3.6);
       }
       // the pelvis bar, and its emitters along the bottom edge (glowing as they're about to fire, white-hot firing; as it forms, irising open, the middle first)
+      if (docked) glow(() => { ctx.beginPath(); ctx.roundRect(-29, 3, 58, 15, 5); ctx.fill(); }, COL.threat, 0.1 + 0.04 * Math.sin(t * 3));
       if (docked) plate([[-26, 6], [26, 6], [24, 15], [-24, 15]], { bolts: [[-22, 9], [22, 9]], lit: 0.34 });
       const firing = new Set(A ? (A.k === 'lanes' && A.ph === 'on' ? A.fire : A.k === 'scissors' && A.ph !== 'wind' ? [A.l, A.r] : []) : []);
       if (docked) Lg.emit.forEach((E, k) => {
@@ -5939,6 +5942,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.beginPath(); ctx.arc(x + jx, y, 1.2, 0, Math.PI * 2); ctx.fillStyle = hot ? COL.chalk : fire; ctx.globalAlpha = hot || tell ? 1 : 0.55; ctx.fill(); ctx.globalAlpha = 1;
         if (E.hits < EMIT_HITS) { ctx.beginPath(); ctx.moveTo(x - 1.8, y - 1.2); ctx.lineTo(x + 0.2, y + 0.3); ctx.lineTo(x + 1.6, y - 0.4); if (E.hits < EMIT_HITS - 1) { ctx.moveTo(x - 0.6, y + 1.9); ctx.lineTo(x + 0.4, y + 0.2); } stroke(W3 * 1.5, 0.9, COL.chalk); } // cracked
       });
+      glow(() => { ctx.beginPath(); ctx.arc(0, -1, 11, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.1 + 0.04 * Math.sin(t * 3));
       head(21); // its helmet, on the pelvis
       if (Lg.st === 'die' && Lg.crack > 0) { // going down: cracks spreading across its head, light pouring out
         const c = Lg.crack, fl = 0.7 + 0.3 * Math.random();
@@ -5986,6 +5990,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i).map((v, j) => (v - (j % 2 ? B.y : B.x)) / ws), H = W.hands[i], A = W.arms[i];
         const hot = (W.sw && W.sw.i === i && W.sw.ph !== 'rec') || (W.th && W.th.i === i && W.th.ph === 'wind'), fl = A.flash > 0;
         if (hot) glow(() => { ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.lineWidth = 9; ctx.stroke(); }, COL.threat, 0.25 + 0.2 * Math.sin(t * 30));
+        glow(() => { ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); if (!A.lost) ctx.lineTo(hx, hy); ctx.lineWidth = 12; ctx.stroke(); }, COL.threat, 0.12 + 0.05 * Math.sin(t * 3 + i * 2)); // its hot edge: all of it's a target
         piston(sx, sy, ex, ey, 3); limb(sx, sy, ex, ey, 1.5, 1.9, { lit: 0.1 }); joint(ex, ey, 3.2); // the bare frame
         if (!A.lost) { piston(ex, ey, hx, hy, 2.4); limb(ex, ey, hx, hy, 1.6, 2, { lit: 0.1 }); torn(hx, hy, 6); } else torn(ex, ey, 5); // its forearm gone: a torn elbow
         for (let k = 0; k < ARM_PLATES; k++) { // the armour still on it
@@ -5996,6 +6001,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (!A.lost && H.lift > 0.05 && !(W.sw && W.sw.i === i) && !(W.th && W.th.i === i)) glow(() => { ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.4 * H.lift); // a lifted hand, about to come down
       }
       if (W.tense > 0) glow(() => { ctx.beginPath(); ctx.arc(0, 2, 12, 0, Math.PI * 2); ctx.fill(); }, COL.threat, (0.1 + 0.3 * W.tense) * (0.75 + 0.25 * Math.sin(t * 40))); // crouched to pounce: flaring
+      glow(() => { ctx.beginPath(); ctx.arc(0, -1, 11, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.1 + 0.04 * Math.sin(t * 3));
       head(21); // its helmet, over its arms
       if (W.th && W.th.held) { // the scrap in its hand (glowing as it swings it back)
         const q = W.th.held, [, , , , hx, hy] = armWalkArm(B, W.th.i), hotQ = W.th.ph === 'wind';
