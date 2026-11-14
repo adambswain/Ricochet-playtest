@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 14 03:21 UTC · f9d6b91";</script>
+<script>window.RICOCHET_BUILD = "Nov 14 22:58 UTC · c2ed291";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4324,7 +4324,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   /* ---------- Goliath ---------- */
   // Wave 60, the finale: a war machine, front on. It strides in and roars; then every part of it is a target at once.
   //  - Its legs carry it: on both it roams the arena in big quick strides, down on you till it looms over you, then
-  //    back up and across (each foot's landing spot shows first and lands with a shockwave, MECH_STOMP_R). Break a
+  //    back up and across (each foot's shadow shows where it'll land, and it lands with a shockwave, MECH_STOMP_R). Break a
   //    knee and it can only limp after you, a short dragging step at a time near the top; break both and it crashes
   //    to its knees, pinned where it stands.
   //  - Its four weapons are its threats, each with its own health and attack, each flagged first: the gatling (left
@@ -6282,10 +6282,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       return;
     }
-    if (B.walk && B.walk.land && !die) { const [lx, ly] = B.walk.land, k = clamp(1 - B.walk.t / (B.walk.warn || MECH_STEP_WARN), 0, 1);
-      ctx.globalAlpha = 0.14 + 0.2 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(lx, ly, 11 * s, 3.6 * s, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.1 + 0.14 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(lx, ly, MECH_STOMP_R * k, 0, Math.PI * 2); ctx.fill(); // a red disk filling in to its reach
-      ctx.globalAlpha = 0.45 + 0.45 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.setLineDash([1.6, 1.2]); ctx.beginPath(); ctx.arc(lx, ly, MECH_STOMP_R, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
+    if (B.walk && B.walk.land && !die) { // a foot coming down: its shadow on the deck, growing and darkening as it drops, as wide as the stomp's reach (no ring)
+      const [lx, ly] = B.walk.land, k = clamp(1 - B.walk.t / (B.walk.warn || MECH_STEP_WARN), 0, 1), R = MECH_STOMP_R * (0.6 + 0.4 * k);
+      ctx.save(); ctx.translate(lx, ly); ctx.scale(R * 1.1, R * 0.95); const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1); g.addColorStop(0, 'rgba(0,0,0,0.8)'); g.addColorStop(0.75, 'rgba(0,0,0,0.65)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.globalAlpha = 0.45 + 0.55 * k; ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); ctx.globalAlpha = 1; }
     const shakeK = die * 0.8;
     const roarK = B.roar || 0, shk = shakeK + roarK * 0.8;
     ctx.save(); ctx.translate(B.x + rand(-shk, shk), B.y + rand(-shk, shk)); ctx.scale(s, s); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
