@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 13 22:20 UTC · dc6d5fd";</script>
+<script>window.RICOCHET_BUILD = "Nov 14 02:13 UTC · d635dce";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8661,14 +8661,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // your BOMB_BASES bases along the ground, in fanning groups from one launch point (hit them high, before they spread,
   // and one blast takes the lot), each trailing its smoke all the way back to where it launched. Hit one with
   // your ball and it blows up in a blast (BOMB_BLAST, plus BOMB_BLAST_B for every charge on the ball) that takes any
-  // missile it touches with it, and theirs blow too, a little smaller each time: chains. Every missile is a kill. Three
+  // missile it touches with it, and theirs blow too, a little smaller each time: chains. A blast hangs in the air
+  // (BOMB_BLAST_T) and takes whatever flies into it while it lasts: lay them where a group's about to fall. Every
+  // missile is a kill. Three
   // salvos (BOMB_N missiles over BOMB_SPAN s, falling at BOMB_V), each thicker and faster; from the second, splitters
   // (BOMB_SPLIT of them) break into three partway down, and a bomber crosses the top dropping more (it takes a hit or
-  // two: big points). A missile that reaches the ground hits the base it lands on: the first knocks its dome out, the
-  // second (BOMB_BASE_HP) flattens it. Missiles hurt to touch; your
+  // two: big points). A missile that reaches the ground flattens the base it lands on (BOMB_BASE_HP hits: at 2, the
+  // first only knocks its dome out). Missiles hurt to touch; your
   // blasts don't hurt you. At the end, a bonus for every base still standing; lose them all and it's over, no bonus.
-  const BOMB_BASES = 5, BOMB_GROUND = 9, BOMB_SALVOS = 3, BOMB_N = [10, 13, 16], BOMB_V = [16, 19, 22], BOMB_SPLIT = [0, 2, 4], BOMB_SPAN = [10, 11, 12], BOMB_GROUP = [2, 2.4, 2.8], BOMB_BASE_HP = 2;
-  const BOMB_BLAST = 9, BOMB_BLAST_B = 0.75, BOMB_BLAST_T = 0.55, BOMB_BASE_PTS = 1000, BOMB_BREATH = 2.5, BOMBER_HP = 3, BOMBER_V = 20, BOMBER_DROP = 1.6;
+  const BOMB_BASES = 5, BOMB_GROUND = 9, BOMB_SALVOS = 3, BOMB_N = [10, 13, 16], BOMB_V = [16, 19, 22], BOMB_SPLIT = [0, 2, 4], BOMB_SPAN = [10, 11, 12], BOMB_GROUP = [2, 2.4, 2.8], BOMB_BASE_HP = 1;
+  const BOMB_BLAST = 7, BOMB_BLAST_B = 0.55, BOMB_BLAST_T = 1.7, BOMB_BASE_PTS = 1000, BOMB_BREATH = 2.5, BOMBER_HP = 3, BOMBER_V = 20, BOMBER_DROP = 1.6;
   let forceBomb = false; // the start menu's test option
   const BOMB_MIN_BALLS = 2; // it only comes once you've a second ball (Clanktank's, at 10): one ball can't cover five bases
   const bombGround = () => AH - BOMB_GROUND;
@@ -8777,7 +8779,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     for (const X of B.blasts) { if (X.r <= 0.2) continue; const g = ctx.createRadialGradient(X.x, X.y, 0, X.x, X.y, X.r), c = heat(Math.max(X.b, 4)); g.addColorStop(0, COL.chalk); g.addColorStop(0.45, c); g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(X.x, X.y, X.r, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 0.9; ctx.strokeStyle = c; ctx.lineWidth = 0.5; ctx.stroke(); }
+      const lit = X.t < 0.2 ? 0.85 : 0.42 + 0.08 * Math.sin(G.time * 18 + X.x); // a flash, then a calmer glow while it hangs there
+      ctx.fillStyle = g; ctx.globalAlpha = lit; ctx.beginPath(); ctx.arc(X.x, X.y, X.r, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 0.9; ctx.strokeStyle = c; ctx.lineWidth = 0.5; ctx.stroke(); }
     ctx.restore(); ctx.globalAlpha = 1;
   }
   function drawMissile(e) { // its smoke trail back to where it set out, fading; a hot head
