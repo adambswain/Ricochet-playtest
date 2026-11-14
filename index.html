@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 14 02:25 UTC · 29badb1";</script>
+<script>window.RICOCHET_BUILD = "Nov 14 02:42 UTC · 9cc5bd9";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4698,7 +4698,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const fade = clamp((d.life - d.t) / 1.2, 0, 1);
       ctx.save(); ctx.globalAlpha = fade; ctx.translate(d.x, d.y); ctx.rotate(d.a);
       ctx.beginPath(); ctx.moveTo(d.r, 0); ctx.lineTo(d.r * 0.4, -d.r * 0.9); ctx.lineTo(-d.r * 0.7, -d.r * 0.6); ctx.lineTo(-d.r, d.r * 0.2); ctx.lineTo(-d.r * 0.2, d.r * 0.9); ctx.lineTo(d.r * 0.7, d.r * 0.6); ctx.closePath();
-      ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.5; ctx.stroke();
+      ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.18)`; ctx.fill(); ctx.strokeStyle = COL.dim; ctx.globalAlpha = fade * 0.7; ctx.lineWidth = 0.4; ctx.stroke(); // dim: it's junk on the floor, it can't hurt you
       ctx.restore();
       if (d.down && Math.random() < 0.3) burst(d.x + rand(-1, 1), d.y - 1, 1, COL.dim, 6, 0.5, 0.5); // smoke
       ctx.globalAlpha = 1;
@@ -4755,9 +4755,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // wreckage. Only what you smash counts toward breaking it (what it flings comes off what it started with).
   const BELT_FL_FIRST = 2.5, BELT_FL = [2.4, 2, 1.7], BELT_FL_N = [3, 3, 4], BELT_FL_WIND = 0.5;
   const beltR = () => Math.min(AW, AH) * 0.46;
+  // The trap (its second belt): it blasts the belt out off the screen (TRAP_OUT out there), then pulls it in round you
+  // (TRAP_CLOSE), a cage TRAP_R across with you and it inside, and hunts you in it (TRAP_V) for TRAP_T: dodge it, or
+  // smash your way out (breaking it stuns it, like the belt). Held out the full time, its magnet gives out and the cage falls.
+  const TRAP_OUT = 0.9, TRAP_CLOSE = 1.4, TRAP_T = 8, TRAP_V = 26;
+  const trapR = () => Math.min(AW, AH) * 0.36;
   const segClear = (x0, y0, x1, y1, d) => { const p = G.player, ex = x1 - x0, ey = y1 - y0, l2 = ex * ex + ey * ey || 1, u = clamp(((p.x - x0) * ex + (p.y - y0) * ey) / l2, 0, 1); return Math.hypot(x0 + ex * u - p.x, y0 + ey * u - p.y) > d; };
   function scrapBelt(B, S) {
-    const Bt = S.belt = { st: 'form', t: 0, a: 0, n0: 0, R: beltR(), stun: 0, wob: 0 }, angs = [];
+    const trap = (S.beltI || 0) >= 1, Bt = S.belt = { st: 'form', t: 0, a: 0, n0: 0, R: trap ? Math.hypot(AW, AH) * 0.62 : beltR(), stun: 0, wob: 0, trap }, angs = []; // (its second belt's the trap: thrown out off the screen first)
     S.atk = null; S.spin = 1; S.beltI = (S.beltI || 0) + 1;
     const add = (q, x, y, a) => { q.m = 'belt'; q.delay = 0; q.ba = a ?? Math.atan2(y - S.y, x - S.x); q.br = rand(0.92, 1.08); q.ft = -1; q.va = rand(-2.5, 2.5); angs.push(q.ba); };
     for (const q of S.pcs) if (q.m === 'orbit' || q.m === 'gather') add(q, q.x, q.y); // the whirl,
@@ -4771,7 +4776,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     gridImpulse(S.x, S.y, Math.max(AW, AH), 300); shake(4); G.slowT = Math.max(G.slowT, 0.35); sfx.overload(); sfx.magnet(); sfx.boss();
   }
   // Where a piece sits in the belt (shaking as the magnet strains)
-  const beltAt = (S, q) => { const Bt = S.belt, a = Bt.a + q.ba, rr = Bt.R * q.br + Math.sin(G.time * 3 + q.ba * 7) * 1.2 + (Bt.wob ? rand(-Bt.wob, Bt.wob) : 0); return [S.x + Math.cos(a) * rr, S.y + Math.sin(a) * rr]; };
+  const beltAt = (S, q) => { const Bt = S.belt, a = Bt.a + q.ba, rr = Bt.R * q.br + Math.sin(G.time * 3 + q.ba * 7) * 1.2 + (Bt.wob ? rand(-Bt.wob, Bt.wob) : 0); return [(Bt.cx ?? S.x) + Math.cos(a) * rr, (Bt.cy ?? S.y) + Math.sin(a) * rr]; }; // (round it, or round the trap's centre)
   function updateBelt(B, S, dt) {
     const Bt = S.belt, p = G.player; Bt.t += dt;
     if (Bt.st === 'stun') { // stunned, wide open: sparking, sagging
@@ -4782,7 +4787,27 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     Bt.a += BELT_W * (B.melt ? 1.2 : 1) * dt * clamp(Bt.t / BELT_FORM, 0.25, 1);
     const alive = S.pcs.filter(q => q.m === 'belt');
     if (Bt.st === 'form' && ((Bt.t >= BELT_FORM && alive.every(q => q.ft >= 1)) || Bt.t >= BELT_FORM + 2.5)) { Bt.st = 'spin'; Bt.n0 = alive.length; }
-    if (Bt.st !== 'spin') return;
+    if (Bt.trap && Bt.st === 'spin') { Bt.st = 'out'; Bt.t2 = 0; } // the trap: out off the screen a moment,
+    if (Bt.st === 'out') { if ((Bt.t2 += dt) >= TRAP_OUT) { Bt.st = 'close'; Bt.t2 = 0; Bt.R0 = Bt.R; Bt.cx0 = S.x; Bt.cy0 = S.y; Bt.tx = p.x; Bt.ty = p.y; Bt.sx = S.x; Bt.sy = S.y; sfx.magnet(); shake(2); } return; }
+    if (Bt.st === 'close') { // then pulled in round you (following you, kept on the screen), with it inside: it darts in to your side of the cage
+      const k = clamp((Bt.t2 += dt) / TRAP_CLOSE, 0, 1), e = k * k * (3 - 2 * k), R1 = trapR(), f = Math.min(1, dt * 5);
+      const m0 = R1 * 1.1 + 2; Bt.tx += (clamp(p.x, m0, AW - m0) - Bt.tx) * f; Bt.ty += (clamp(p.y, m0, AH - m0) - Bt.ty) * f;
+      const dx = Bt.sx - Bt.tx, dy = Bt.sy - Bt.ty, d = Math.hypot(dx, dy) || 1, ix = Bt.tx + dx / d * R1 * 0.55, iy = Bt.ty + dy / d * R1 * 0.55;
+      Bt.R = Bt.R0 + (R1 - Bt.R0) * e; Bt.cx = Bt.cx0 + (Bt.tx - Bt.cx0) * e; Bt.cy = Bt.cy0 + (Bt.ty - Bt.cy0) * e; S.x = Bt.sx + (ix - Bt.sx) * e; S.y = Bt.sy + (iy - Bt.sy) * e;
+      { const lim = Bt.R - 8, ox = p.x - Bt.cx, oy = p.y - Bt.cy, od = Math.hypot(ox, oy); // its magnet drags you in with it if you're out by the edge
+        if (od > lim) { const m = k >= 1 ? od - lim : Math.min(od - lim, 75 * dt); p.x -= ox / od * m; p.y -= oy / od * m; } }
+      if (k >= 1) { Bt.st = 'hunt'; Bt.t2 = 0; Bt.n0 = alive.length; Bt.lost = 0; ring(Bt.cx, Bt.cy, R1 * 0.9, R1 * 1.1, 0.35, COL.threat, 1.2); shake(3); sfx.rockBoom(2); }
+      return;
+    }
+    if (Bt.st === 'hunt') { // the cage: it hunts you inside it
+      const R1 = trapR(), dx = p.x - S.x, dy = p.y - S.y, d = Math.hypot(dx, dy) || 1, v = Math.min(d, TRAP_V * (B.melt ? 1.25 : 1) * dt);
+      S.x += dx / d * v; S.y += dy / d * v; const ox = S.x - Bt.cx, oy = S.y - Bt.cy, od = Math.hypot(ox, oy) || 1; if (od > R1 - 9) { S.x = Bt.cx + ox / od * (R1 - 9); S.y = Bt.cy + oy / od * (R1 - 9); }
+      if ((Bt.t2 += dt) >= TRAP_T) { // held out: its magnet gives out and the cage falls (no stun: you didn't break it)
+        for (const q of alive) { const i = S.pcs.indexOf(q); if (q.x < 0 || q.x > AW || q.y < 0 || q.y > AH) { S.pcs.splice(i, 1); continue; } scrapLand(S, q); burst(q.x, q.y, 6, COL.dim, 22, 0.5, 0.3); }
+        S.belt = null; S.atkT = 1.4; S.fillT = 0; S.fastT = 3; shake(3); sfx.magnetDrop(); sfx.rockBoom(2); return;
+      }
+    }
+    if (Bt.st === 'spin') {
     // it drags the belt after you
     const dx = p.x - S.x, dy = p.y - S.y, d = Math.hypot(dx, dy) || 1, v = Math.min(d, BELT_V * (B.melt ? 1.25 : 1) * dt); S.x = clamp(S.x + dx / d * v, 8, AW - 8); S.y = clamp(S.y + dy / d * v, 8, AH - 8);
     // flinging the nearest of it at you: they glow, then they're off
@@ -4792,6 +4817,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if ((Bt.flT = (Bt.flT ?? BELT_FL_FIRST) - dt) <= 0) { Bt.flT = BELT_FL[scrapLvl(B)];
       const pcs = alive.filter(q => q.ft >= 1 && q.x > 2 && q.x < AW - 2 && q.y > 2 && q.y < AH - 2).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, BELT_FL_N[scrapLvl(B)]);
       if (pcs.length) { for (const q of pcs) q.hot = 1; Bt.fl = { t: 0, pcs }; sfx.blasterCharge(); } }
+    }
     const frac = alive.length / Math.max(1, Bt.n0 - (Bt.lost || 0)); Bt.wob = frac < 0.65 ? (0.65 - frac) * 5 : 0;
     if (frac <= BELT_BREAK) { // the magnet loses its grip: the rest crashes down, and it's stunned
       for (const q of alive) { const i = S.pcs.indexOf(q); if (q.x < 0 || q.x > AW || q.y < 0 || q.y > AH) { S.pcs.splice(i, 1); continue; } scrapLand(S, q); burst(q.x, q.y, 6, COL.dim, 22, 0.5, 0.3); }
@@ -4979,8 +5005,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); for (let i = 0; i < n; i++) { const a = q.rot + i / n * Math.PI * 2, rr = r * q.sh[i], x = q.x + Math.cos(a) * rr, y = q.y + Math.sin(a) * rr; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.closePath();
       ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill();
       if (q.flash > 0 || glow > 0) { ctx.fillStyle = COL.chalk; ctx.globalAlpha = q.flash > 0 ? 0.7 : glow; ctx.fill(); ctx.globalAlpha = 1; }
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.35; ctx.lineWidth = 1.4; ctx.stroke(); ctx.restore(); // a hot rim: it hurts
-      ctx.strokeStyle = q.flash > 0 ? COL.chalk : ECOL.warden; ctx.lineWidth = 0.4; ctx.stroke();
+      ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.6; ctx.stroke(); ctx.restore(); // hot: it hurts (the wreckage on the floor's dim: it doesn't)
+      ctx.strokeStyle = q.flash > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.45; ctx.stroke();
       ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.55; ctx.beginPath(); ctx.arc(q.x + Math.cos(q.rot) * r * 0.35, q.y + Math.sin(q.rot) * r * 0.35, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // a bolt
     };
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
