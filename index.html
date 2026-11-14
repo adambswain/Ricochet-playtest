@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 14 02:42 UTC · 9cc5bd9";</script>
+<script>window.RICOCHET_BUILD = "Nov 14 03:21 UTC · f9d6b91";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4369,6 +4369,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_CRAWL_T = 1.6, MECH_CRAWL_REACH = 0.6, MECH_CRAWL_DRAG = 0.5, MECH_CRAWL_STEP = 9, MECH_HAND = 14, MECH_SLAM_R = 12; // on its knees: an arm reaches out and slams down, then it drags itself after it
   const MECH_THROW_T = 6, MECH_THROW_FLY = 1.15, MECH_THROW_R = 7; // on its knees: wreckage hurled at you, lying where it lands
   const MECH_PULSE_T = [5, 3.4], MECH_PULSE_WARN = 1, MECH_PULSE_V = 28, MECH_PULSE_GAP = 1.1, MECH_PULSE_W = 2.2, MECH_OVER = 0.66, MECH_MELT = 0.33; // its last stand: reactor pulses; overcharged, then meltdown
+  // Its gatling (left arm): its barrel on you; winding up (MECH_GUN_WIND) it swings out to its own side of you and spins up,
+  // then hoses a stream of tracers across you (MECH_GUN_ARC wide over MECH_GUN_FIRE): always from its side, across.
+  const MECH_GUN_WIND = 1.1, MECH_GUN_FIRE = 1, MECH_GUN_ARC = 1;
+  const mechGunAt = B => { const [x, y] = mechAt(B, MECH_PARTS.gun[0], MECH_PARTS.gun[1]); return [x, y + mechArmOff(B, -1) * B.s]; };
+  const mechMuzzle = B => { const [x, y] = mechGunAt(B), a = B.gunA ?? Math.PI / 2; return [x + Math.cos(a) * 22 * B.s, y + Math.sin(a) * 22 * B.s]; };
   const MECH_LANCE_AIM = 1.1, MECH_LANCE_LOCK = 0.45, MECH_LANCE_FIRE = 0.3, MECH_LANCE_W = 3.2; // on its knees, its reactor's lance: tracking you, locked (sidestep now), fired down the line
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
   const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.1, MECH_FLY_UP = 0.75, MECH_FLY_DOWN = 1.5, MECH_FLY_DROP = 0.4;
@@ -4417,8 +4422,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Damage to a part (a weapon or a knee), or to the reactor; the bar is the sum of everything.
   function mechHit(B, key, dmg, x, y) {
-    if (key === 'wL' || key === 'wR' || key === 'wH') { if (B.walker) armWalkHit(B, key, dmg, x, y); return; } // the arm walker
-    if (key === 'gL' || key === 'gR' || key === 'gH' || (typeof key === 'string' && key.startsWith('em'))) { if (B.legs) legWalkHit(B, key, dmg, x, y); return; } // the leg walker (its legs, its emitters)
+    if (key === 'wL' || key === 'wR' || key === 'wH' || (typeof key === 'string' && key.startsWith('fl'))) { if (B.walker) armWalkHit(B, key, dmg, x, y); return; } // the arm walker (and the chunk it swings)
+    if (key === 'gL' || key === 'gR' || key === 'gH' || (typeof key === 'string' && (key.startsWith('em') || key.startsWith('gt')))) { if (B.legs) legWalkHit(B, key, dmg, x, y); return; } // the leg walker (its legs, its emitters)
     if (key === 'core') { if (B.st === 'core') { B.core = Math.max(0, B.core - dmg); B.coreFlash = 0.15; damageBoss(dmg, x, y); } return; }
     const P = B.parts[key]; if (!P || P.hp <= 0) return;
     const d = Math.min(dmg, P.hp); P.hp -= d; P.flash = 0.15; damageBoss(d, x, y);
@@ -5044,12 +5049,19 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    it crashes down as wreckage, for the next throw. Late on, two.
   //  - the sweep: only when you're in its reach (straight after a pounce lands beside you, or if you hug it): a quick
   //    wind-up, and an arm swung round in a wide low arc.
+  //  - the swing: its magnet yanks a chunk of scrap off its heap (arcs leaping, FLAIL_CALL) into one hand, and it swings
+  //    it round over its head on a cable (FLAIL_SPIN, wider and faster as it goes, out to FLAIL_R): the chunk hurts, the
+  //    cable doesn't. Its last turn the chunk glows white-hot (FLAIL_HOT), and as it comes round to face you it lets go
+  //    (FLAIL_V). The chunk's FLAIL_N pieces each smash off with the ball (a kill each); smash them all and it's left
+  //    empty-handed, staggering (FLAIL_STAG).
   // And its wreck keeps spitting out scrap crawlers (CRAWL_*): little scuttling things, one hit each, that come at you.
   // Late: half its arms' health gone.
-  const WALK_S = 0.85, ARM_HP = 250, ARM_T = { over: 1.1, rip: 2.1, blow: 2.25, arms: 2.55, plant: 3.85, end: 4.45 }, ARM_FORM = 1.1, ARM_STEP_T = 0.24, ARM_STEP_GAP = 0.02, ARM_STRIDE = 16, ARM_RANGE = 52, ARM_PLATES = 18, PLATE_T = [0.07, 0.18, 0.29, 0.4, 0.51, 0.62, 0.73, 0.84, 0.95];
+  const WALK_S = 0.85, ARM_HP = 190, ARM_T = { over: 1.1, rip: 2.1, blow: 2.25, arms: 2.55, plant: 3.85, end: 4.45 }, ARM_FORM = 1.1, ARM_STEP_T = 0.24, ARM_STEP_GAP = 0.02, ARM_STRIDE = 16, ARM_RANGE = 52, ARM_PLATES = 18, PLATE_T = [0.07, 0.18, 0.29, 0.4, 0.51, 0.62, 0.73, 0.84, 0.95];
   const ARM_ATK = [1.3, 1.0], ARM_WIND = [0.42, 0.34], ARM_SWING = 0.3, ARM_REC = 0.3, ARM_L1 = 21, ARM_L2 = 13;
   const POUNCE_CROUCH = [0.6, 0.42], POUNCE_AGAIN = 0.32, POUNCE_H = 22, POUNCE_SKID = 0.22, POUNCE_REC = [0.55, 0.4];
   const THROW_REACH = 0.22, THROW_DIG = 0.32, THROW_WIND = [0.5, 0.38], THROW_V = 85, THROW_REC = 0.25;
+  const FLAIL_CALL = 0.75, FLAIL_SPIN = 2.2, FLAIL_HOT = 0.55, FLAIL_R = 34, FLAIL_W = [2.4, 5.5], FLAIL_N = 6, FLAIL_V = 62, FLAIL_STAG = 1.1;
+  const flailPiece = (F, q) => { const c = Math.cos(F.rot), s = Math.sin(F.rot); return [F.x + q.dx * c - q.dy * s, F.y + q.dx * s + q.dy * c]; };
   const CRAWL_FIRST = 2.5, CRAWL_T = [3, 2.3], CRAWL_N = [2, 3], CRAWL_CAP = 7;
   const armWalkLate = B => B.walker.arms[0].hp + B.walker.arms[1].hp <= ARM_HP / 2;
   function armWalkStart(B) {
@@ -5070,6 +5082,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     let hx = H.x, hy = H.y - (H.lift || 0) * 10 * ws;
     if (W.sw && W.sw.i === i && W.sw.pos) [hx, hy] = W.sw.pos;
     else if (W.th && W.th.i === i && W.th.pos) [hx, hy] = W.th.pos;
+    else if (W.fl && W.fl.i === i && W.fl.hand) [hx, hy] = W.fl.hand;
     const L1 = ARM_L1 * ws, L2 = (W.arms && W.arms[i].lost ? 2 : ARM_L2) * ws; let dx = hx - sx, dy = hy - sy, d = Math.hypot(dx, dy) || 1e-6; // (a lost arm: only its stump)
     if (d > L1 + L2 - 0.01) { const k = (L1 + L2 - 0.01) / d; hx = sx + dx * k; hy = sy + dy * k; dx = hx - sx; dy = hy - sy; d = L1 + L2 - 0.01; }
     const a = Math.atan2(dy, dx), b = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));
@@ -5083,13 +5096,21 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const i of [0, 1]) { const key = i ? 'wR' : 'wL', [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i);
       out.push([(sx + ex) / 2, (sy + ey) / 2, 4 * ws, key, true, null, up], [ex, ey, 3.6 * ws, key, true, null, up]);
       if (!W.arms[i].lost) out.push([(ex + hx) / 2, (ey + hy) / 2, 3.4 * ws, key, true, null, up], [hx, hy, 3.8 * ws, key, true, null, up]); }
+    if (W.fl) W.fl.pcs.forEach((q, k) => { if (q.on) { const [x, y] = flailPiece(W.fl, q); out.push([x, y, q.r, 'fl' + k, true, null, false]); } }); // the chunk it's swinging
     return out;
   }
   // Where an arm's plate sits: [x, y] (k < 9: the upper arm, else the forearm)
   function armWalkPlate(B, i, k) { const [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i), [x0, y0, x1, y1] = k < 9 ? [sx, sy, ex, ey] : [ex, ey, hx, hy], t = PLATE_T[k % 9]; return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t]; }
   // A hit on the walker: chips sparks off; past each mark a plate comes off (the nearest the hit); stripped, the arm snaps
   function armWalkHit(B, key, dmg, x, y) {
-    const W = B.walker, ws = B.s * WALK_S, live = [0, 1].filter(i => !W.arms[i].lost); if (!live.length) return;
+    const W = B.walker, ws = B.s * WALK_S, live = [0, 1].filter(i => !W.arms[i].lost);
+    if (key.startsWith('fl')) { // a piece of the chunk it's swinging: it shatters; all of them and it's empty-handed
+      const F = W.fl, q = F && F.pcs[+key.slice(2)]; if (!q || !q.on) return; q.on = false; const [qx, qy] = flailPiece(F, q);
+      scrapShatter({ x: qx, y: qy, r: q.r }, B.hitBall ? B.hitBall.b : 6); if (B.hitBall) chainCredit(B.hitBall, qx, qy, B.hitBall.b);
+      if (!F.pcs.some(q => q.on)) { W.fl = null; W.atkT = ARM_ATK[armWalkLate(B) ? 1 : 0] + FLAIL_STAG; W.stepGap = FLAIL_STAG * 0.6; W.stag = FLAIL_STAG; burst(qx, qy, 20, heat(MAX_CHARGE * 0.75), 50, 0.6, 0.4); shake(2.5); sfx.shatter(); G.score += Math.round(400 * G.mult); float(B.x, B.y - 14, 'Smashed!', COL.chalk, 3.4); }
+      return;
+    }
+    if (!live.length) return;
     let i = key === 'wL' ? 0 : key === 'wR' ? 1 : -1;
     if (i < 0 || W.arms[i].lost) i = live.reduce((a, j) => W.arms[j].hp > W.arms[a].hp ? j : a, live[0]); // its head: the arm with the most left takes it
     const A = W.arms[i], d = Math.min(dmg, A.hp); A.hp -= d; A.flash = 0.12;
@@ -5105,6 +5126,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (A.hp <= 0 && !A.lost) { // stripped bare: it snaps at the elbow, and the forearm crashes down (with anything it held)
       const [, , ex, ey, hx, hy] = armWalkArm(B, i); A.lost = true;
+      if (W.fl && W.fl.i === i) { for (const q of W.fl.pcs) if (q.on) { const [qx, qy] = flailPiece(W.fl, q); G.debris.push({ x: qx, y: qy, vx: rand(-25, 25), vy: -30, floor: clamp(qy + rand(10, 20), 6, AH - 4), r: q.r, a: rand(0, 6), va: rand(-8, 8), t: 0, life: MECH_DEBRIS * 0.6, down: false }); } W.fl = null; W.atkT = ARM_ATK[1]; } // the chunk it was swinging, dropped
       G.debris.push({ x: (ex + hx) / 2, y: (ey + hy) / 2, vx: rand(-20, 20), vy: -40, floor: clamp((ey + hy) / 2 + rand(14, 26), 6, AH - 4), r: 5.5 * ws, a: rand(0, 6), va: rand(-6, 6), t: 0, life: MECH_DEBRIS, down: false });
       burst(ex, ey, 34, heat(MAX_CHARGE * 0.75), 70, 0.8, 0.55); ring(ex, ey, 1, 14, 0.35, COL.threat, 1.2); gridImpulse(ex, ey, 50, 220); shake(3); sfx.shatter(); sfx.overload(); G.score += Math.round(500 * G.mult);
       float(ex, ey - 8, 'Arm off!', COL.chalk, 3.6); if (B.hitBall) chainCredit(B.hitBall, ex, ey, B.hitBall.b);
@@ -5219,6 +5241,39 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (T.n > 1) armWalkThrowStart(B, W, L, T.n - 1); else { W.atkT = ARM_ATK[L]; W.stepGap = 0.1; } }
     }
   }
+  function armWalkFlailStart(B, W, L) {
+    const live = [0, 1].filter(i => !W.arms[i].lost); if (!live.length) return;
+    const i = live.length > 1 ? (G.player.x < B.x ? 1 : 0) : live[0], px = W.wx, py = W.wy - 4 * B.s, dir = i ? 1 : -1; // (the hand away from you)
+    W.fl = { i, ph: 'call', t: 0, x: px, y: py, px, py, a: 0, w: 0, R: 0, rot: 0, dir, hand: null,
+      pcs: Array.from({ length: FLAIL_N }, (_, k) => { const a = k * 2.4, rr = k ? 3.6 : 0; return { dx: Math.cos(a) * rr, dy: Math.sin(a) * rr, r: rand(2.7, 3.4), sh: Array.from({ length: 6 }, () => rand(0.7, 1.1)), rot: rand(0, 6), on: true }; }) };
+    burst(px, py, 16, COL.dim, 40, 0.5, 0.35); burst(px, py, 8, COL.chalk, 30, 0.4, 0.3); shake(1.2); sfx.magnet(); sfx.clank();
+  }
+  function armWalkFlail(B, W, dt, L) {
+    const F = W.fl, p = G.player, ws = B.s * WALK_S, ease = k => k * k * (3 - 2 * k), [sx, sy] = armWalkShoulder(B, F.i), cx = B.x, cy = B.y - 4 * ws; F.t += dt;
+    if (F.ph === 'call') { // the chunk torn off its heap, flying to its hand as the hand comes up over its head
+      const k = clamp(F.t / FLAIL_CALL, 0, 1), e = ease(k), tx = cx + F.dir * 4 * ws, ty = cy - 12 * ws; F.rot += dt * 4;
+      F.hand = [sx + (tx - sx) * e, sy + (ty - sy) * e];
+      F.x = F.px + (F.hand[0] - F.px) * e; F.y = F.py + (F.hand[1] - F.py) * e - Math.sin(Math.PI * k) * 24;
+      if (k >= 1) { F.ph = 'spin'; F.t = 0; F.a = Math.atan2(F.y - cy, F.x - cx); shake(1.5); sfx.clank(); burst(F.x, F.y, 12, COL.chalk, 35, 0.4, 0.3); }
+      return;
+    }
+    // round over its head, wider and faster; its hand circling, leading the cable
+    const k = clamp(F.t / FLAIL_SPIN, 0, 1); F.w = FLAIL_W[0] + (FLAIL_W[1] - FLAIL_W[0]) * Math.min(1, k); F.a += F.w * dt * F.dir; F.rot += F.w * dt * F.dir;
+    F.R = 6 * ws + (FLAIL_R - 6 * ws) * ease(clamp(F.t / 0.7, 0, 1)); F.x = cx + Math.cos(F.a) * F.R; F.y = cy + Math.sin(F.a) * F.R;
+    F.hand = [cx + Math.cos(F.a - 0.6 * F.dir) * 6 * ws, cy - 8 * ws + Math.sin(F.a - 0.6 * F.dir) * 3 * ws];
+    F.hot = clamp((F.t - (FLAIL_SPIN - FLAIL_HOT)) / FLAIL_HOT, 0, 1); if (F.hot > 0 && !F.warned) { F.warned = true; sfx.blasterCharge(); }
+    if (Math.random() < dt * 25) burst(F.x, F.y, 1, F.hot > 0 ? COL.chalk : heat(MAX_CHARGE * 0.75), 20, 0.3, 0.2);
+    if (F.t >= FLAIL_SPIN) { // it lets go, as it comes round to face you (a hot chunk, flying straight at where you are)
+      const toP = Math.atan2(p.y - cy, p.x - cx), off = Math.atan2(Math.sin(F.a - toP), Math.cos(F.a - toP));
+      if (Math.abs(off) < F.w * dt * 1.6 || F.t >= FLAIL_SPIN + 1.3) {
+        const a = Math.atan2(p.y - F.y, p.x - F.x), d = Math.hypot(p.x - F.x, p.y - F.y) + 30;
+        for (const q of F.pcs) if (q.on) { const [qx, qy] = flailPiece(F, q), e = makeEnemy('junk', qx, qy);
+          Object.assign(e, { r: q.r, hp: 1, maxHp: 1, spawnT: 0, rot: q.rot + F.rot, vx: Math.cos(a) * FLAIL_V, vy: Math.sin(a) * FLAIL_V, junk: { d, sh: q.sh, va: rand(-10, 10) } }); G.enemies.push(e); }
+        burst(F.x, F.y, 16, heat(MAX_CHARGE * 0.75), 45, 0.5, 0.35); ring(F.x, F.y, 1, 9, 0.25, COL.chalk, 1); shake(2); sfx.launch(F.x); sfx.clank();
+        W.fl = null; W.atkT = ARM_ATK[L]; W.stepGap = 0.15;
+      }
+    }
+  }
   // Scrap crawlers: its wreck keeps tearing loose little scuttling things that come at you
   function armWalkCrawl(B, W, dt, L) {
     if ((W.crawlT -= dt) > 0) return; W.crawlT = CRAWL_T[L];
@@ -5288,12 +5343,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (W.pn) ride = armWalkPounce(B, W, dt, L);
     else if (W.th) armWalkThrow(B, W, dt, L);
     else if (W.sw) armWalkSweep(B, W, dt, L);
+    else if (W.fl) armWalkFlail(B, W, dt, L);
     else if ((W.atkT -= dt) <= 0 && !W.step) { // time to go for you (once the step under way lands): in its reach, a sweep; else a pounce or a throw
       if (armWalkNear(B)) armWalkSweepStart(B, W, ARM_WIND[L], L ? 2 : 1);
-      else { if (!W.bag.length) W.bag = ['pounce', 'throw', 'pounce', 'throw'].sort(() => Math.random() - 0.5); (W.bag.shift() === 'pounce' ? armWalkPounceStart : armWalkThrowStart)(B, W, L); }
+      else { if (!W.bag.length) W.bag = ['pounce', 'throw', 'pounce', 'throw', 'swing'].sort(() => Math.random() - 0.5); const k = W.bag.shift(); (k === 'pounce' ? armWalkPounceStart : k === 'swing' ? armWalkFlailStart : armWalkThrowStart)(B, W, L); }
     }
+    if (W.stag > 0) { W.stag -= dt; W.crouch = 3 * ws * Math.sin(Math.PI * clamp(W.stag / FLAIL_STAG, 0, 1)); if (Math.random() < dt * 12) burst(B.x + rand(-4, 4), B.y, 2, COL.chalk, 25, 0.3, 0.2); } // empty-handed: it reels
     // scuttling: a hand at a time, quick short strides, working its way round you out at ARM_RANGE
-    if (!W.pn && !W.sw && !W.th) {
+    if (!W.pn && !W.sw && !W.th && !W.fl) {
       if (W.step) {
         const St = W.step, H = W.hands[St.i]; St.t += dt; const k = clamp(St.t / ARM_STEP_T, 0, 1);
         H.x = St.from[0] + (St.to[0] - St.from[0]) * ease(k); H.y = St.from[1] + (St.to[1] - St.from[1]) * ease(k); H.lift = Math.sin(Math.PI * k) * 0.7;
@@ -5319,6 +5376,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //  - scissors: its two outermost emitters glow, then fire from the walls and sweep inward as mirror images (SCIS_T),
   //    stopping with a gap (SCIS_GAP) straight below it: get under it.
   //  Every laser shows its path first, a hairline brightening through its wind-up, then fires along exactly that line.
+  //  - gates: it plants and fires pylons in pairs (GATE_N, GATE_EVERY apart) that clamp onto the side walls just under
+  //    it; each pair's lenses glow, a hairline across the arena with a gap in it (GATE_GAP; the gaps zig-zag side to
+  //    side), then light (GATE_WIND) and the whole gate slides down the arena (GATE_V): an obstacle course, thread each
+  //    gap as it passes. A pylon takes GATE_HITS; smash either one and that gate's out. Nothing else while gates are up.
   //  - eye bolts: walking, its eye flares and fires a burst of BOLT_N bolts at you every BOLT_T.
   // Everything breaks: an emitter takes EMIT_HITS hits and goes (a kill, EMIT_DMG off the reactor), its lane gone for
   // good; each leg carries 4 big armour pieces (thigh plate, knee cap, greave, foot), each knocked off a kill; a leg
@@ -5330,6 +5391,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const EMIT_N = 7, EMIT_HITS = 3, EMIT_DMG = 10, EMIT_X = [-18, -12, -6, 0, 6, 12, 18], EMIT_Y = 13;
   const LEG_ATK = [3, 2.4], LANE_WIND = 0.7, LANE_ON = 0.7, LANE_GAP = 0.25, LANE_N = [3, 4], LANE_W = 7, LANE_REACH = 26;
   const SCIS_WIND = 0.6, SCIS_T = 1.65, SCIS_HOLD = 0.35, SCIS_GAP = [24, 19];
+  const GATE_N = [3, 4], GATE_EVERY = [1.5, 1.35], GATE_FLY = 0.3, GATE_WIND = 0.6, GATE_V = [32, 36], GATE_GAP = 22, GATE_W = 4, GATE_HITS = 2, GATE_X = 2.4;
+  const gateLive = g => g.st !== 'done' && g.st !== 'dead';
+  const gatePylon = (g, sd) => { const wx = sd ? AW - GATE_X : GATE_X; if (g.st !== 'fly') return [wx, g.y]; const k = clamp(g.t / GATE_FLY, 0, 1); return [g.ox + (wx - g.ox) * k, g.oy + (g.y - g.oy) * k - Math.sin(Math.PI * k) * 12]; }; // (flying out to the wall in an arc)
   const BOLT_T = [2.2, 1.7], BOLT_N = 3, BOLT_V = 75, BOLT_GAP = 0.14, BOLT_CHARGE = 0.35;
   const legWalkLate = B => B.legs.legs[0].hp + B.legs.legs[1].hp <= LEG_HP / 2;
   const legEmit = (B, k) => { const ws = B.s * WALK_S, Lg = B.legs; return [B.x + ((Lg && Lg.sx) || 0) + EMIT_X[k] * ws, B.y + ((Lg && Lg.sy) || 0) + EMIT_Y * ws]; }; // (its pelvis sways with its steps)
@@ -5357,6 +5421,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const Lg = B.legs, ws = B.s * WALK_S, safe = Lg.st === 'form' || Lg.st === 'die', out = [[B.x, B.y, 8 * ws, 'gH', true, null, safe]];
     if (safe) return out;
     Lg.emit.forEach((E, k) => { if (E.hits > 0) { const [x, y] = legEmit(B, k); out.push([x, y, 2.8 * ws, 'em' + k, true, null, false]); } });
+    (Lg.gates || []).forEach((g, i) => { if (gateLive(g) && g.st !== 'fly') for (const sd of [0, 1]) { const [x, y] = gatePylon(g, sd); out.push([x, y, 3, 'gt' + i + (sd ? 'R' : 'L'), true, null, false]); } }); // its gate pylons on the walls
     for (const sd of [-1, 1]) out.push([B.x + sd * 13 * ws, B.y + 10 * ws, 5.5 * ws, 'gH', true, null, false]); // the pelvis bar
     for (const i of [0, 1]) { const key = i ? 'gR' : 'gL', [hx, hy, kx, ky, fx, fy] = legWalkLeg(B, i);
       out.push([(hx + kx) / 2, (hy + ky) / 2, 4.6 * ws, key, true, null, false], [kx, ky, 4.4 * ws, key, true, null, false]);
@@ -5368,6 +5433,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // A hit on a leg (or its head or pelvis: the leg with the most left): a big piece of armour off past each quarter
   function legWalkHit(B, key, dmg, x, y) {
     const Lg = B.legs, ws = B.s * WALK_S;
+    if (key.startsWith('gt')) { // a gate pylon: GATE_HITS and it's smashed off the wall, and its gate goes out
+      const g = (Lg.gates || [])[+key.slice(2, -1)], sd = key.endsWith('R') ? 1 : 0; if (!g || !gateLive(g)) return; const P = g.pl[sd]; P.hits--; P.flash = 0.15; const [px, py] = gatePylon(g, sd);
+      if (P.hits > 0) { burst(px, py, 8, COL.chalk, 30, 0.4, 0.25); sfx.clank(); return; }
+      gateDown(g, sd); G.score += Math.round(150 * G.mult); if (B.hitBall) chainCredit(B.hitBall, px, py, B.hitBall.b);
+      return;
+    }
     if (key.startsWith('em')) { // an emitter: EMIT_HITS hits, however hard, and it's gone
       const k = +key.slice(2), E = Lg.emit[k]; if (!E || E.hits <= 0) return; E.hits--; E.flash = 0.15; const [ex, ey] = legEmit(B, k);
       if (E.hits > 0) { burst(ex, ey, 6, COL.chalk, 25, 0.4, 0.25); sfx.clank(); return; }
@@ -5412,9 +5483,40 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     return out;
   }
+  function gateDown(g, smashed) { // a gate going out: its pylons drop off the walls as wreckage (the one that was hit shattering)
+    g.st = 'dead';
+    for (const sd of [0, 1]) { const [px, py] = gatePylon(g, sd);
+      if (sd === smashed) { burst(px, py, 20, heat(MAX_CHARGE * 0.75), 50, 0.6, 0.4); ring(px, py, 0.5, 8, 0.25, COL.chalk, 0.9); for (let q = 0; q < 5; q++) { const a = rand(0, Math.PI * 2), sp = rand(25, 50); G.shards.push({ x: px, y: py, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: a, va: rand(-12, 12), size: rand(0.6, 1.1), t: 0, max: rand(0.35, 0.6), color: COL.threat, lit: 1 }); } }
+      else G.debris.push({ x: px, y: py, vx: (sd ? -1 : 1) * rand(10, 25), vy: -15, floor: clamp(py + rand(12, 24), 6, AH - 4), r: 3, a: rand(0, 6), va: rand(-6, 6), t: 0, life: MECH_DEBRIS * 0.5, down: false }); }
+    if (smashed !== undefined) { shake(1.4); sfx.shatter(); sfx.brick(8); }
+  }
+  // Its gates, once they're up: lenses glowing, then lit and sliding down the arena; the beams burn you outside the gap
+  function updateGates(B, Lg, dt, L) {
+    const p = G.player, fire = heat(MAX_CHARGE * 0.75); if (!Lg.gates) return;
+    for (const g of Lg.gates) { if (!gateLive(g)) continue; g.t += dt; for (const P of g.pl) P.flash -= dt;
+      if (g.st === 'fly' && g.t >= GATE_FLY) { g.st = 'wind'; g.t = 0; for (const sd of [0, 1]) { const [x, y] = gatePylon(g, sd); burst(x, y, 10, COL.chalk, 35, 0.4, 0.3); ring(x, y, 0.5, 6, 0.2, COL.chalk, 0.8); } shake(1.2); sfx.clank(); sfx.laserCharge(GATE_WIND); } // clamped on: a clank, sparks
+      else if (g.st === 'wind' && g.t >= GATE_WIND) { g.st = 'on'; g.t = 0; sfx.laserFire(0.35); shake(1); for (const sd of [0, 1]) { const [x, y] = gatePylon(g, sd); ring(x, y, 0.5, 9, 0.2, COL.chalk, 1); } }
+      else if (g.st === 'on') { g.y += GATE_V[L] * dt; if (g.y > AH + 5) { g.st = 'done'; continue; }
+        if (Math.random() < dt * 30) { const sd = Math.random() < 0.5 ? 0 : 1; burst(sd ? AW - 0.5 : 0.5, g.y + rand(-3, 3), 1, Math.random() < 0.5 ? COL.chalk : fire, 30, 0.3, 0.2); } // grinding down the walls: sparks
+        if (Math.random() < dt * 20) for (const sd of [-1, 1]) burst(g.gx + sd * GATE_GAP / 2, g.y, 1, Math.random() < 0.5 ? COL.chalk : fire, 18, 0.25, 0.2); } // its ends, either side of the gap, fizzing
+    }
+    if (p.inv <= 0) for (const g of Lg.gates) if (g.st === 'on' && Math.abs(p.y - g.y) < GATE_W / 2 + PLAYER_R * 0.8 && Math.abs(p.x - g.gx) > GATE_GAP / 2 - PLAYER_R * 0.8) { damagePlayer(); break; }
+    if (Lg.gates.every(g => !gateLive(g))) { Lg.gates = null; Lg.atkT = Math.max(Lg.atkT, 1.4); } // (a breather before its next attack)
+  }
   function legWalkAtk(B, Lg, dt, L) {
     const A = Lg.atk, p = G.player; A.t += dt;
     const alive = Lg.emit.map((E, k) => E.hits > 0 ? k : -1).filter(k => k >= 0);
+    if (A.k === 'gates') { // firing its pylons out to the walls, a pair at a time; done once the last pair's lit
+      const gs = Lg.gates || (Lg.gates = []), ws = B.s * WALK_S;
+      if (A.n > 0 && (A.spawnT -= dt) <= 0) { A.spawnT = GATE_EVERY[L]; A.n--;
+        const prev = A.last, g2 = GATE_GAP / 2, lo = g2 + 6, hi = AW - g2 - 6; let gx;
+        if (!prev) { gx = rand(lo, hi); if (Math.abs(gx - p.x) < 30) gx = clamp(p.x + (p.x < AW / 2 ? 1 : -1) * rand(32, 50), lo, hi); } // the first gap: never right where you are
+        else gx = clamp(prev.gx + (prev.gx < AW / 2 ? 1 : -1) * rand(40, 72), lo, hi); // then zig-zagging
+        const y = clamp(Math.max(Lg.feet[0].y, Lg.feet[1].y) + 10, 20, AH * 0.45), [ox, oy] = [B.x + ((Lg && Lg.sx) || 0), B.y + 10 * ws];
+        const g = { gx, y, st: 'fly', t: 0, ox, oy, pl: [{ hits: GATE_HITS, flash: 0 }, { hits: GATE_HITS, flash: 0 }] }; gs.push(g); A.last = g;
+        burst(ox, oy, 12, heat(MAX_CHARGE * 0.75), 40, 0.4, 0.3); shake(0.8); sfx.launch(ox); }
+      return A.n <= 0 && (!A.last || A.last.st !== 'fly' && A.last.st !== 'wind');
+    }
     if (A.k === 'lanes') {
       if (A.ph === 'wind' && !A.fire) { // the emitters over you (if any's left)
         A.fire = alive.filter(k => { const [x0, y0] = legEmit(B, k), [x1, y1] = laneEnd(k), u = clamp((p.y - y0) / (y1 - y0), 0, 1); return Math.abs(x0 + (x1 - x0) * u - p.x) < LANE_REACH; });
@@ -5445,7 +5547,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateLegWalk(B, dt) {
     const Lg = B.legs, p = G.player, ws = B.s * WALK_S, ease = k => k * k * (3 - 2 * k), L = legWalkLate(B) ? 1 : 0; Lg.t += dt;
     for (const A of Lg.legs) A.flash -= dt; for (const E of Lg.emit) E.flash -= dt;
-    if (Lg.legs.every(A => A.lost) && Lg.st !== 'die') { Lg.st = 'die'; Lg.t = 0; Lg.atk = null; Lg.step = null; Lg.y0 = B.y; Lg.burst = 0; shake(3); sfx.boss(); } // both legs gone: it goes down
+    if (Lg.legs.every(A => A.lost) && Lg.st !== 'die') { for (const g of Lg.gates || []) if (gateLive(g)) gateDown(g); Lg.gates = null; Lg.st = 'die'; Lg.t = 0; Lg.atk = null; Lg.step = null; Lg.y0 = B.y; Lg.burst = 0; shake(3); sfx.boss(); } // both legs gone: it goes down
     if (Lg.st === 'die') { // it drops onto its stumps; its emitters burn out one by one; its head cracks, glowing, and bursts: the scrap storm
       const t = Lg.t; B.y = Lg.y0 + 14 * ws * ease(clamp(t / LEG_BUCKLE, 0, 1));
       Lg.emit.forEach((E, k) => { if (E.hits <= 0 || t < 0.1 + k * 0.08) return; E.hits = 0; const [ex, ey] = legEmit(B, k), d = Math.min(EMIT_DMG, B.core - 1); burst(ex, ey, 14, heat(MAX_CHARGE * 0.75), 40, 0.5, 0.35); B.core -= d; damageBoss(d, ex, ey); sfx.brick(5); });
@@ -5479,20 +5581,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return;
     }
     if (Lg.scorch) { for (const q of Lg.scorch) q.t += dt; Lg.scorch = Lg.scorch.filter(q => q.t < 2.6); } // its scorch lines fading
+    updateGates(B, Lg, dt, L);
     armWalkCrawl(B, Lg, dt, L);
     const limp = Lg.legs.some(A => A.lost) ? 0.55 : 1, xm = 22 * ws, yMin = AH * LEG_BAND[0], yMax = Math.min(AH * LEG_BAND[1], AH - 60 * ws);
     let still = false;
     if (Lg.atk) { still = true; if (legWalkAtk(B, Lg, dt, L)) { Lg.atk = null; Lg.atkT = LEG_ATK[L]; } }
     else if ((Lg.atkT -= dt) <= 0 && !Lg.step) { // it plants and fires: lanes, or (with two emitters left to make them) scissors
       const alive = Lg.emit.map((E, k) => E.hits > 0 ? k : -1).filter(k => k >= 0);
-      if (!alive.length) Lg.atkT = 99; // nothing left to fire with: just its eye
+      if (Lg.gates) Lg.atkT = 0.3; // (its gates are still coming down: nothing else till they're past)
+      else if (!alive.length || !Lg.lastK || (Lg.lastK !== 'gates' && Math.random() < 0.38)) { Lg.atk = { k: 'gates', t: 0, n: GATE_N[L], spawnT: 0, last: null }; Lg.lastK = 'gates'; } // (its first attack's always its gates; no emitters left: its gates, and its eye)
+      else if (!alive.length) Lg.atkT = 1;
       else if (alive.length >= 2 && Math.random() < 0.4) { const gap = SCIS_GAP[L], xg = clamp(B.x, gap / 2 + 8, AW - gap / 2 - 8); Lg.atk = { k: 'scissors', ph: 'wind', t: 0, l: alive[0], r: alive[alive.length - 1], gap, xg, D: Math.max(xg + 24, AW + 24 - xg) }; sfx.laserCharge(SCIS_WIND); } // (the gap: straight below it)
       else Lg.atk = { k: 'lanes', ph: 'wind', t: 0, v: 0, fire: null };
-      if (Lg.atk) { still = true; shake(1); for (const F of Lg.feet) burst(F.x, F.y, 6, COL.dim, 20, 0.4, 0.3); } // bracing
+      if (Lg.atk) { still = true; shake(1); for (const F of Lg.feet) burst(F.x, F.y, 6, COL.dim, 20, 0.4, 0.3); if (Lg.atk.k !== 'gates') Lg.lastK = Lg.atk.k; } // bracing
     }
     // its eye: a burst of bolts at you now and then, while it walks
     Lg.eye = Math.max(0, Lg.eye - dt * 3);
-    if (!Lg.atk) {
+    if (!Lg.atk && !Lg.gates) {
       if (Lg.burst > 0) { if ((Lg.burstT -= dt) <= 0) { Lg.burst--; Lg.burstT = BOLT_GAP; const a = Math.atan2(p.y - B.y, p.x - B.x); G.bullets.push({ x: B.x + Math.cos(a) * 6 * ws, y: B.y + Math.sin(a) * 6 * ws, vx: Math.cos(a) * BOLT_V, vy: Math.sin(a) * BOLT_V, r: 1, bolt: true, eye: true, mg: true }); Lg.eye = 1; sfx.shoot(B.x); } }
       else if ((Lg.boltT -= dt) <= BOLT_CHARGE) { Lg.eye = Math.max(Lg.eye, 1 - Math.max(0, Lg.boltT) / BOLT_CHARGE); if (Lg.boltT <= 0) { Lg.burst = BOLT_N; Lg.burstT = 0; Lg.boltT = BOLT_T[L]; } } // (its eye flaring first)
     }
@@ -5575,11 +5680,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // its weapons: each one left keeps up its attack (all of them hold while its beam is up: that's all you have to watch)
     if (B.down) B.beamDue = false;
     const go = (key, base) => !B.beam && !B.beamDue && !mechBroken(B, key) && (T[key] -= dt) <= 0 && ((T[key] = base), true);
-    if (go('gun', 4.2)) { const [gx, gy] = mechAt(B, ...MECH_PARTS.gun), c = Math.atan2(p.y - gy, p.x - gx), dir = Math.random() < 0.5 ? -1 : 1; B.sweep = { t: 0, a0: c - dir * 0.5, a1: c + dir * 0.5, a: c - dir * 0.5, shotT: 0 }; sfx.blasterCharge(); }
+    if (!mechBroken(B, 'gun')) { // its barrel: on you; winding up, swinging out to where its stream starts; firing, sweeping with it
+      const [gx, gy] = mechGunAt(B), S = B.sweep, want = S ? S.a : Math.atan2(p.y - gy, p.x - gx), fire = S && S.t >= MECH_GUN_WIND;
+      B.gunA = B.gunA === undefined ? want : B.gunA + Math.atan2(Math.sin(want - B.gunA), Math.cos(want - B.gunA)) * Math.min(1, dt * (fire ? 30 : S ? 7 : 4));
+      B.gunSpin = (B.gunSpin || 0) + (fire ? 28 : S ? 1.5 + 26 * (S.t / MECH_GUN_WIND) ** 2 : 1.5) * dt; B.gunFlash = Math.max(0, (B.gunFlash || 0) - dt);
+    }
+    if (go('gun', 4.2)) { const [gx, gy] = mechGunAt(B), c = Math.atan2(p.y - gy, p.x - gx), sd = gx < B.x ? 1 : -1; B.sweep = { t: 0, a0: c + sd * MECH_GUN_ARC / 2, a1: c - sd * MECH_GUN_ARC / 2, a: c + sd * MECH_GUN_ARC / 2, shotT: 0 }; sfx.blasterCharge(); } // (from its own side, across you)
     if (B.sweep) {
-      const S = B.sweep; S.t += dt; S.a = S.a0 + (S.a1 - S.a0) * clamp(S.t < TANK_SIGHT ? S.t / TANK_SIGHT : (S.t - TANK_SIGHT) / TANK_SPRAY, 0, 1);
-      if (S.t >= TANK_SIGHT) { S.shotT -= dt; if (S.shotT <= 0) { S.shotT = 0.13; const [gx, gy] = mechAt(B, MECH_PARTS.gun[0], MECH_PARTS.gun[1] + 10); G.bullets.push({ x: gx, y: gy, vx: Math.cos(S.a) * 48, vy: Math.sin(S.a) * 48, r: 1.1, mg: true }); if (Math.random() < 0.5) sfx.shoot(gx); } }
-      if (S.t >= TANK_SIGHT + TANK_SPRAY || mechBroken(B, 'gun')) B.sweep = null;
+      const S = B.sweep; S.t += dt; S.a = S.a0 + (S.a1 - S.a0) * clamp((S.t - MECH_GUN_WIND) / MECH_GUN_FIRE, 0, 1);
+      if (S.t >= MECH_GUN_WIND) { S.shotT -= dt; if (S.shotT <= 0) { S.shotT = 0.13; const [mx, my] = mechMuzzle(B); G.bullets.push({ x: mx, y: my, vx: Math.cos(S.a) * 48, vy: Math.sin(S.a) * 48, r: 1.1, mg: true, tr: true }); B.gunFlash = 0.07; if (Math.random() < 0.5) sfx.shoot(mx); } }
+      if (S.t >= MECH_GUN_WIND + MECH_GUN_FIRE || mechBroken(B, 'gun')) B.sweep = null;
     }
     if (!mechBroken(B, 'claw')) { if (B.lockT > 0) { B.lockT -= dt; if (B.lockT <= 0) { const [cx, cy] = mechAt(B, MECH_PARTS.claw[0], MECH_PARTS.claw[1] + 8); for (let i = 0; i < 3; i++) mechRocket(cx, cy, (i - 1) * 0.35); } }
       else if (go('claw', 5)) { B.lockT = 0.8; sfx.blasterCharge(); } }
@@ -5662,7 +5772,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.lance) { // the lance: tracking you, then locked, then fired down the line
       const Ln = B.lance, [cx, cy] = mechAt(B, ...MECH_CORE_AT); Ln.t += dt;
       if (Ln.t < MECH_LANCE_AIM) Ln.a = Math.atan2(p.y - cy, p.x - cx);
-      else if (!Ln.locked) { Ln.locked = true; sfx.clank(); }
+      else if (!Ln.locked) { Ln.locked = true; sfx.clank(); ring(cx, cy, 1, 10 * B.s, 0.2, COL.chalk, 1); burst(cx, cy, 8, COL.chalk, 30, 0.3, 0.2); } // locked: a white flash at the reactor
       if (Ln.t >= MECH_LANCE_AIM + MECH_LANCE_LOCK) {
         const ux = Math.cos(Ln.a), uy = Math.sin(Ln.a);
         if (!Ln.fired) { Ln.fired = true; sfx.overload(); shake(3.5); burst(cx, cy, 24, COL.threat, 60, 0.7, 0.4); ring(cx, cy, 2, 16 * B.s, 0.3, COL.chalk, 1.2); gridImpulse(cx + ux * 40, cy + uy * 40, 70, 200); }
@@ -5981,13 +6091,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.beginPath(); ctx.moveTo(-1.5, -28 + up); ctx.lineTo(0, -32 + up); ctx.lineTo(1.5, -28 + up); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W2); // a crest
       }
     };
-    // telegraphs first, under it: the bombing runs, the gatling's sight, the beam, a foot's landing shadow
+    // telegraphs first, under it: the bombing runs, the beam, a foot's landing shadow
     if ((B.fly || B.bombs.length) && !die) drawMechFly(B);
-    if (B.sweep && !die) { const [gx, gy] = mechAt(B, MECH_PARTS.gun[0], MECH_PARTS.gun[1] + 10), S = B.sweep, firing = S.t >= TANK_SIGHT, L = Math.hypot(AW, AH);
-      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
-      ctx.beginPath(); ctx.moveTo(gx, gy); ctx.arc(gx, gy, L, firing ? S.a : S.a0, S.a1, S.a1 < S.a0); ctx.closePath(); ctx.fillStyle = COL.threat; ctx.globalAlpha = firing ? 0.07 : (0.05 + 0.07 * clamp(S.t / TANK_SIGHT, 0, 1)) * (0.8 + 0.2 * Math.sin(G.time * 14)); ctx.fill(); // the whole arc it'll spray, marked red (while firing, what's still to come)
-      ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + Math.cos(S.a1) * L, gy + Math.sin(S.a1) * L); ctx.setLineDash([1.6, 1.4]); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.5; ctx.stroke(); ctx.setLineDash([]); // where it stops
-      ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + Math.cos(S.a) * L, gy + Math.sin(S.a) * L); ctx.strokeStyle = firing ? COL.chalk : COL.threat; ctx.lineWidth = firing ? 0.25 : 0.4; ctx.globalAlpha = firing ? 0.35 : 0.85; ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1; }
     if (B.beam && !die) { const [cx, cy] = mechAt(B, ...MECH_CORE_AT), Bm = B.beam, on = Bm.t >= MECH_BEAM_CHARGE, a = on ? Bm.a : Bm.a0, L = Math.hypot(AW, AH) * 1.2, k = clamp(Bm.t / MECH_BEAM_CHARGE, 0, 1);
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
       const gap = Math.PI * 2 - MECH_BEAM_ARC, R = Math.max(AW, AH), ray = (ang, r0 = 14) => { ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0); ctx.lineTo(cx + Math.cos(ang) * L, cy + Math.sin(ang) * L); };
@@ -6081,6 +6186,23 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         glow(() => line(LANE_W * 1.9 * wob), COL.threat, 0.22); glow(() => line(LANE_W * wob), COL.threat, 0.45);
         ctx.strokeStyle = COL.chalk; ctx.globalAlpha = 0.95; line(LANE_W * 0.32); ctx.globalAlpha = 1;
       }
+      for (const g of Lg.gates || []) { if (!gateLive(g)) continue; // its gates: a pair of pylons clamped to the walls, a beam from each with the gap between
+        const [lx, ly] = gatePylon(g, 0), [rx, ry] = gatePylon(g, 1), e0 = g.gx - GATE_GAP / 2, e1 = g.gx + GATE_GAP / 2, y = g.y, on = g.st === 'on';
+        const seg = (x0, x1, w) => { ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.lineWidth = w; ctx.stroke(); };
+        if (g.st === 'wind') { const k = clamp(g.t / GATE_WIND, 0, 1), a = (0.18 + 0.5 * k) * (0.8 + 0.2 * Math.random()); // a hairline across, the gap left dark, brightening
+          for (const [x0, x1] of [[GATE_X + 2, e0], [e1, AW - GATE_X - 2]]) { glow(() => seg(x0, x1, 0.9 + 1.2 * k), COL.threat, a * 0.5); ctx.strokeStyle = COL.threat; ctx.globalAlpha = a; seg(x0, x1, 0.3); ctx.globalAlpha = 1; } }
+        if (on) { const wob = 1 + 0.08 * Math.sin(t * 50 + g.gx);
+          for (const [x0, x1] of [[GATE_X + 2, e0], [e1, AW - GATE_X - 2]]) { glow(() => seg(x0, x1, GATE_W * 1.9 * wob), COL.threat, 0.22); glow(() => seg(x0, x1, GATE_W * wob), COL.threat, 0.45); ctx.strokeStyle = COL.chalk; ctx.globalAlpha = 0.95; seg(x0, x1, GATE_W * 0.32); ctx.globalAlpha = 1; }
+          for (const x of [e0, e1]) glow(() => { ctx.beginPath(); ctx.arc(x, y, 1.6 + 0.4 * Math.random(), 0, Math.PI * 2); ctx.fill(); }, COL.chalk, 0.8); } // its ends: white-hot, either side of the gap
+        g.pl.forEach((P, sd) => { const [x, py] = sd ? [rx, ry] : [lx, ly], dir = sd ? -1 : 1, pc = P.flash > 0 ? COL.chalk : col, hot = on ? 1 : g.st === 'wind' ? clamp(g.t / GATE_WIND, 0, 1) : 0; // a pylon: a clamp gripping the wall, its lens facing in
+          ctx.save(); ctx.translate(x, py); if (g.st === 'fly') ctx.rotate(g.t * 14 * dir);
+          ctx.beginPath(); ctx.moveTo(-dir * 2.4, -4.6); ctx.lineTo(dir * 1.8, -3.4); ctx.lineTo(dir * 2.4, 0); ctx.lineTo(dir * 1.8, 3.4); ctx.lineTo(-dir * 2.4, 4.6); ctx.closePath(); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = pc; ctx.lineWidth = 0.45; ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(-dir * 2.4, -4.6); ctx.lineTo(-dir * 3.4, -5.6); ctx.moveTo(-dir * 2.4, 4.6); ctx.lineTo(-dir * 3.4, 5.6); ctx.stroke(); // its claws, on the wall
+          if (P.hits < GATE_HITS) { ctx.beginPath(); ctx.moveTo(-dir * 1.6, -3.6); ctx.lineTo(0, -1); ctx.lineTo(-dir * 1, 1.4); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.3; ctx.stroke(); } // cracked
+          ctx.beginPath(); ctx.arc(dir * 1, 0, 1.25, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = hot > 0 ? COL.threat : pc; ctx.lineWidth = 0.4; ctx.stroke();
+          if (hot > 0) glow(() => { ctx.beginPath(); ctx.arc(dir * 1, 0, 1 + 1.6 * hot, 0, Math.PI * 2); ctx.fill(); }, COL.threat, (0.3 + 0.5 * hot) * (P.hits < GATE_HITS && Math.random() < 0.2 ? 0.3 : 1));
+          ctx.restore(); });
+      }
       ctx.restore();
       return;
     }
@@ -6140,7 +6262,25 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         glow(() => ctx.fill(), fire, hotQ ? 0.45 + 0.3 * Math.sin(t * 30) : 0.3);
         ctx.strokeStyle = hotQ && Math.sin(t * 30) > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.6 / ws; ctx.stroke(); ctx.restore();
       }
-      ctx.restore(); return;
+      ctx.restore();
+      if (W.fl) { // the swing: its magnet's arcs off the heap; then the cable from its fist, the chunk whipping round (a blur behind it), white-hot before it lets go
+        const F = W.fl, [, , , , hx, hy] = armWalkArm(B, F.i), cx = B.x, cy = B.y - 4 * ws;
+        ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        if (F.ph === 'call') for (let n = 0; n < 2; n++) {
+          ctx.beginPath(); ctx.moveTo(F.px, F.py); for (let j = 1; j < 7; j++) { const u = j / 7; ctx.lineTo(F.px + (F.x - F.px) * u + rand(-2.5, 2.5), F.py + (F.y - F.py) * u + rand(-2.5, 2.5)); } ctx.lineTo(F.x, F.y);
+          glow(() => { ctx.lineWidth = 1.3; ctx.stroke(); }, COL.threat, 0.5); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.9; ctx.stroke(); ctx.globalAlpha = 1; }
+        else {
+          const tail = clamp(F.w * 0.13, 0.25, 0.75); ctx.beginPath(); ctx.arc(cx, cy, F.R, F.a - F.dir * tail, F.a, F.dir < 0);
+          glow(() => { ctx.lineWidth = 7; ctx.stroke(); }, F.hot > 0 ? COL.chalk : fire, 0.12 + 0.12 * F.w / FLAIL_W[1]); // its blur
+          ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(F.x, F.y); ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.1; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.85; ctx.stroke(); ctx.globalAlpha = 1; // the cable, taut
+        }
+        if (F.hot > 0) glow(() => { const g = ctx.createRadialGradient(F.x, F.y, 0, F.x, F.y, 9); g.addColorStop(0, COL.chalk); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(F.x, F.y, 9, 0, Math.PI * 2); ctx.fill(); }, COL.chalk, 0.45 * F.hot);
+        for (const q of F.pcs) if (q.on) { const [qx, qy] = flailPiece(F, q); ctx.save(); ctx.translate(qx, qy); ctx.rotate(q.rot + F.rot); scrapShape(q.r, q.sh);
+          ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill(); glow(() => ctx.fill(), F.hot > 0 ? COL.chalk : fire, F.hot > 0 ? 0.3 + 0.5 * F.hot : 0.3);
+          ctx.strokeStyle = F.hot > 0 && Math.sin(t * 30) > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.45; ctx.stroke(); ctx.restore(); }
+        ctx.restore();
+      }
+      return;
     }
     if (B.walk && B.walk.land && !die) { const [lx, ly] = B.walk.land, k = clamp(1 - B.walk.t / (B.walk.warn || MECH_STEP_WARN), 0, 1);
       ctx.globalAlpha = 0.14 + 0.2 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(lx, ly, 11 * s, 3.6 * s, 0, 0, Math.PI * 2); ctx.fill();
@@ -6248,11 +6388,19 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const P = B.parts.gun, [x, y, r] = at('gun'), pc = P.flash > 0 ? COL.chalk : col;
       if (P.hp <= 0) torn(x, y - 3, r * 0.8);
       else {
-        const firing = B.sweep && B.sweep.t >= TANK_SIGHT, spin = t * (firing ? 28 : 1.5);
+        const firing = B.sweep && B.sweep.t >= MECH_GUN_WIND, wind = B.sweep && !firing ? B.sweep.t / MECH_GUN_WIND : 0, spin = B.gunSpin || 0, ga = B.gunA ?? Math.PI / 2, ux = Math.cos(ga), uy = Math.sin(ga), nx = -uy, ny = ux;
+        { // its barrel, out of the drum toward where it's aiming: a shroud with cooling bands; its muzzle glowing hotter as it spins up, flashing as it fires
+          const B0 = 6, B1 = 22, w0 = 3.2, w1 = 2.5, q = (l, w) => [x + ux * l + nx * w, y + uy * l + ny * w];
+          plate([q(B0, w0), q(B1, w1), q(B1, -w1), q(B0, -w0)], { col: pc, flash: P.flash > 0, lit: 0.3 });
+          for (const l of [11, 14.5, 18]) { const [ax, ay] = q(l, 2.8), [bx, by] = q(l, -2.8); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); stroke(W3 * 1.5, 0.8, pc); }
+          const [mx, my] = q(B1, 0); ctx.beginPath(); ctx.arc(mx, my, 1.7, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W3 * 1.5, 1, wind > 0 || firing ? fire : pc);
+          if (wind > 0) glow(() => { ctx.beginPath(); ctx.arc(mx, my, 1.5 + 2.5 * wind, 0, Math.PI * 2); ctx.fill(); }, fire, 0.25 + 0.5 * wind * (0.8 + 0.2 * Math.random()));
+          if (B.gunFlash > 0) glow(() => { const f = 3 + 3 * Math.random(); ctx.beginPath(); for (let k = 0; k < 5; k++) { const a = ga + (k - 2) * 0.45, L = k === 2 ? f * 1.6 : f; ctx.moveTo(mx, my); ctx.lineTo(mx + Math.cos(a) * L, my + Math.sin(a) * L); } ctx.lineWidth = 1.1; ctx.stroke(); ctx.beginPath(); ctx.arc(mx, my, 2.2, 0, Math.PI * 2); ctx.fill(); }, COL.chalk, 0.9);
+        }
         ctx.beginPath(); ctx.moveTo(x + 6, y - 7); ctx.quadraticCurveTo(x + 9, y - 2, x + 7, y + 4); ctx.lineWidth = 2.4; ctx.strokeStyle = COL.ink; ctx.stroke(); ctx.setLineDash([0.9, 0.6]); ctx.lineWidth = 1.8; ctx.strokeStyle = `rgba(${HEAT[1].join(",")},0.6)`; ctx.stroke(); ctx.setLineDash([]); // its ammo belt
         const oct = Array.from({ length: 8 }, (_, k) => [x + Math.cos(k * Math.PI / 4 + Math.PI / 8) * r, y + Math.sin(k * Math.PI / 4 + Math.PI / 8) * r]);
         plate(oct, { col: pc, flash: P.flash > 0, lit: 0.34 });
-        if (firing) glow(() => { ctx.beginPath(); ctx.arc(x, y, r * 0.75, 0, Math.PI * 2); ctx.fill(); }, fire, 0.4 + 0.3 * Math.random());
+        if (firing || wind > 0.25) glow(() => { ctx.beginPath(); ctx.arc(x, y, r * 0.75, 0, Math.PI * 2); ctx.fill(); }, fire, firing ? 0.4 + 0.3 * Math.random() : (wind - 0.25) * 0.55 * (0.85 + 0.15 * Math.random())); // heating as it spins up
         for (let k = 0; k < 6; k++) { const a = spin + k * Math.PI / 3, bx = x + Math.cos(a) * r * 0.55, by = y + Math.sin(a) * r * 0.55; ctx.beginPath(); ctx.arc(bx, by, r * 0.19, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W3 * 1.6, 1, firing ? fire : pc); }
         ctx.beginPath(); ctx.arc(x, y, r * 0.22, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W2, 1, pc);
       }
@@ -6290,27 +6438,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     ctx.restore();
-    if (B.lockT > 0 && !die && !mechBroken(B, 'claw')) { // the claw locking on: a line to you and a reticle closing in (three rockets are coming)
+    if (B.lockT > 0 && !die && !mechBroken(B, 'claw')) { // the claw locking on: a reticle closing in on you (three rockets are coming; no line: lines are lasers)
       const [cx, cy0] = mechAt(B, ...MECH_PARTS.claw), cy = cy0 + mechArmOff(B, 1) * s, P = G.player, k = clamp(1 - B.lockT / 0.8, 0, 1), rr = 7 - 3.5 * k, fl = k > 0.7 && Math.floor(G.time * 16) % 2;
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(P.x, P.y); ctx.setLineDash([1.2, 1.6]); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.4 + 0.4 * k; ctx.stroke(); ctx.setLineDash([]);
       ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.7 + 0.3 * k;
       for (let q = 0; q < 3; q++) { const a = q * Math.PI * 2 / 3 - G.time * 3; ctx.beginPath(); ctx.arc(P.x, P.y, rr, a, a + 1.4); ctx.stroke(); } // three arcs: three rockets
       ctx.restore(); ctx.globalAlpha = 1;
     }
-    if (B.lance && !die) { // the lance: its line tracking you (a reticle on you); locked, the corridor flashes; then the shot
+    if (B.lance && !die) { // the lance: a hairline tracking you; locked, it stops and flashes white; then the shot
       const [cx, cy] = mechAt(B, ...MECH_CORE_AT), Ln = B.lance, L = Math.hypot(AW, AH) * 1.2, ux = Math.cos(Ln.a), uy = Math.sin(Ln.a), nx = -uy, ny = ux, ex = cx + ux * L, ey = cy + uy * L;
       ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
-      if (Ln.t < MECH_LANCE_AIM) {
-        const k = Ln.t / MECH_LANCE_AIM, P = G.player;
-        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.setLineDash([2, 1.5]); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35 + 0.3 * k; ctx.globalAlpha = 0.35 + 0.45 * k; ctx.stroke(); ctx.setLineDash([]);
-        const rr = 7 - 4 * k; ctx.beginPath(); ctx.arc(P.x, P.y, rr, 0, Math.PI * 2); ctx.lineWidth = 0.45; ctx.globalAlpha = 0.6 + 0.3 * k; ctx.stroke();
-        ctx.beginPath(); for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + G.time * 2; ctx.moveTo(P.x + Math.cos(a) * (rr + 0.8), P.y + Math.sin(a) * (rr + 0.8)); ctx.lineTo(P.x + Math.cos(a) * (rr + 2.6), P.y + Math.sin(a) * (rr + 2.6)); } ctx.stroke();
-      } else if (Ln.t < MECH_LANCE_AIM + MECH_LANCE_LOCK) { // locked: the corridor it'll fire down
-        const fl = Math.floor(G.time * 16) % 2, w = MECH_LANCE_W;
-        ctx.beginPath(); ctx.moveTo(cx + nx * w, cy + ny * w); ctx.lineTo(ex + nx * w, ey + ny * w); ctx.lineTo(ex - nx * w, ey - ny * w); ctx.lineTo(cx - nx * w, cy - ny * w); ctx.closePath();
-        ctx.fillStyle = COL.threat; ctx.globalAlpha = fl ? 0.28 : 0.14; ctx.fill(); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.85; ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.9; ctx.stroke();
+      const line = w => { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.lineWidth = w; ctx.stroke(); };
+      if (Ln.t < MECH_LANCE_AIM) { // aiming: a hairline down its path, following you, brightening (its lasers all warn like this)
+        const k = Ln.t / MECH_LANCE_AIM, a = (0.18 + 0.5 * k) * (0.8 + 0.2 * Math.random());
+        glow(() => line(0.9 + 1.2 * k), COL.threat, a * 0.5); ctx.strokeStyle = COL.threat; ctx.globalAlpha = a; line(0.3);
+      } else if (Ln.t < MECH_LANCE_AIM + MECH_LANCE_LOCK) { // locked: it stops dead, flashes white, and burns hot along that line (move off it now)
+        const k = (Ln.t - MECH_LANCE_AIM) / MECH_LANCE_LOCK, fl = k < 0.18;
+        glow(() => line(fl ? 4 : 2.4 + 1.2 * k), fl ? COL.chalk : COL.threat, fl ? 0.7 : 0.4 + 0.2 * Math.random());
+        ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.globalAlpha = 0.95; line(fl ? 0.9 : 0.5);
       } else { // the shot
         const f = clamp(1 - (Ln.t - MECH_LANCE_AIM - MECH_LANCE_LOCK) / MECH_LANCE_FIRE, 0, 1);
         ctx.globalCompositeOperation = 'lighter'; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey);
@@ -10855,7 +11000,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.strokeStyle = b.eye ? COL.threat : GEO_ORB_COL; ctx.globalAlpha = 0.45; ctx.lineWidth = 2.8; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - ux * 12, b.y - uy * 12); ctx.stroke();
       ctx.strokeStyle = COL.chalk; ctx.globalAlpha = 1; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - ux * 9, b.y - uy * 9); ctx.stroke(); ctx.restore();
     }
-    for (const b of G.bullets) if (!b.geo && !b.sting && !b.bolt) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); }
+    for (const b of G.bullets) if (!b.geo && !b.sting && !b.bolt && !b.tr) { ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); }
+    for (const b of G.bullets) if (b.tr) { // a gatling tracer: a short hot streak, a bullet not a beam
+      const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp; ctx.save(); ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.55; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - ux * 4.5, b.y - uy * 4.5); ctx.stroke();
+      ctx.strokeStyle = COL.chalk; ctx.globalAlpha = 1; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(b.x + ux * 0.6, b.y + uy * 0.6); ctx.lineTo(b.x - ux * 3, b.y - uy * 3); ctx.stroke(); ctx.restore();
+    }
     for (const b of G.bullets) if (b.sting) { // Vexa's needle
       const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp;
       ctx.beginPath(); ctx.moveTo(b.x + ux * 4.4, b.y + uy * 4.4); ctx.lineTo(b.x - ux * 4.6 - uy * 1.1, b.y - uy * 4.6 + ux * 1.1); ctx.lineTo(b.x - ux * 4.6 + uy * 1.1, b.y - uy * 4.6 - ux * 1.1); ctx.closePath(); ctx.fill(); // a long needle
