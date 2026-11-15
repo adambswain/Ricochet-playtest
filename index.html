@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 15 20:44 UTC · 31b554a";</script>
+<script>window.RICOCHET_BUILD = "Nov 15 21:03 UTC · 8bfa3e9";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1203,9 +1203,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const line = (str, steps) => { let at = 0; const out = []; for (const tok of str.trim().split(/\s+/)) { const [n, l] = tok.split(':'); const len = +l; if (n !== 'r') out.push({ m: midi(n), at, len }); at += len; } if (at !== steps) throw new Error('bar is ' + at + ' steps, not ' + steps + ': ' + str); return out; };
     // chords: 'Am', 'E', 'F#m', 'Bb', 'D+' (augmented), 'C#7', 'Bdim'
     function chord(name) {
-      const m = /^([A-G])([#b]?)(m|\+|7|dim|m7)?$/.exec(name); if (!m) throw new Error('bad chord ' + name);
+      const m = /^([A-G])([#b]?)(m|\+|7|dim|m7|sus2|sus4|maj7)?$/.exec(name); if (!m) throw new Error('bad chord ' + name);
       const r = (NOTE[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + 12) % 12, q = m[3] || '';
-      const iv = q === 'm' ? [0, 3, 7] : q === '+' ? [0, 4, 8] : q === '7' ? [0, 4, 7, 10] : q === 'dim' ? [0, 3, 6] : q === 'm7' ? [0, 3, 7, 10] : [0, 4, 7];
+      const iv = q === 'm' ? [0, 3, 7] : q === '+' ? [0, 4, 8] : q === '7' ? [0, 4, 7, 10] : q === 'dim' ? [0, 3, 6] : q === 'm7' ? [0, 3, 7, 10] : q === 'sus2' ? [0, 2, 7] : q === 'sus4' ? [0, 5, 7] : q === 'maj7' ? [0, 4, 7, 11] : [0, 4, 7];
       return { root: 36 + r + (r > 8 ? -12 : 0) + 12 * 0, pcs: iv.map(i => (r + i) % 12), r };
     }
     const bassRoot = c => { let m = 36 + c.r; if (m < 40) m += 12; return m; }; // E2 to D#3: low, but where a phone's speaker can still carry it
@@ -1227,14 +1227,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           let prev = null;
           // the lead
           for (const n of notes) {
-            const short = n.len <= (L.shortMax || 2), e = { ch: 'p1', m: n.m, at: at(n.at), dur: n.len * s16 * (short ? (L.clip || 0.85) : 1), vol: sec.leadVol || L.vol || 0.2, duty: L.duty, vib: n.len >= (L.vibMin || 4) ? (L.vib || 18) : 0, vibRate: L.vibRate || 5.6, lvl: 1 };
-            if (L.glide && prev && n.len >= 3) e.from = prev.m;
+            const short = n.len <= (L.shortMax || 2), e = { ch: 'p1', m: n.m, at: at(n.at), dur: n.len * s16 * (short ? (L.clip || 0.85) : 1), vol: sec.leadVol || L.vol || 0.2, duty: L.duty, wave: L.wave, vib: n.len >= (L.vibMin || 4) ? (L.vib || 18) : 0, vibRate: L.vibRate || 5.6, lvl: 1 };
+            if (L.glide && prev && n.len >= (L.glideMin || 3)) { e.from = prev.m; e.gt = L.glideTime || 0.07; }
             ev.push(e); prev = n;
           }
           // the second pulse
           const P = sec.p2, pv = sec.p2Vol, push = (m, x, len, o = {}) => ev.push(Object.assign({ ch: 'p2', m, at: at(x), dur: len * s16, vol: pv || 0.07, duty: 0.125, pan: 0.25, lvl: sec.p2Lvl || lvl }, o));
           const tones = (lo, hi) => { const t = []; for (let o = lo; o <= hi; o++) for (const pc of c.pcs) t.push(12 * (o + 1) + pc); return t.sort((a, b) => a - b); };
-          if (P === 'echo') for (const n of notes) push(n.m, n.at + (spec.echo || 3), n.len * 0.85, { vol: pv || 0.075, duty: L.duty, pan: 0.3, echo: true });
+          if (P === 'echo') for (const n of notes) push(n.m, n.at + (spec.echo || 3), n.len * 0.85, { vol: pv || 0.075, duty: L.duty, wave: L.wave, pan: 0.3, echo: true });
           if (P === 'drone') push(spec.drone || 12 * 5 + c.pcs[0], 0, st, { vol: pv || 0.05, duty: 0.5, pan: -0.15 }); // a held drone (a snake charmer's)
           if (P === 'third') for (const n of notes) push(third(n.m, c, scale), n.at, n.len * (n.len <= 2 ? (L.clip || 0.85) : 1), { vol: pv || 0.1, pan: -0.25, vib: n.len >= 4 ? 18 : 0, vibRate: L.vibRate || 5.6 });
           if (P === 'arp' || P === 'shimmer') { const t = tones(4, 5), seq = [0, 1, 2, 3, 4, 5, 4, 3, 2, 1]; for (let x = 0; x < st; x++) push(t[seq[x % seq.length] % t.length], x, 0.8, { vol: P === 'shimmer' ? 0.03 + 0.05 * (i * st + x) / (sec.bars.length * st) : (pv || 0.06) }); }
@@ -1242,6 +1242,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           if (P === 'rattle') { const f = 12 * 6 + c.pcs[0]; for (let x = 0; x < st; x++) push(x % 2 ? f + 1 : f, x, 0.7, { vol: pv || 0.035, pan: 0.2 }); }
           if (P === 'gear') { const t = [12 * 5 + c.pcs[0], 12 * 5 + c.pcs[2]]; for (let x = 0; x < st; x++) push(t[x % 2] > 77 ? t[x % 2] - 12 : t[x % 2], x, 0.6, { vol: pv || 0.05 }); }
           if (P === 'stab') for (let x = 2; x < st; x += 4) { push(12 * 5 + c.pcs[0], x, 1.2, { vol: pv || 0.08, duty: 0.5, pan: -0.2 }); push(12 * 5 + c.pcs[2] - (12 * 5 + c.pcs[2] > 79 ? 12 : 0), x + 1, 0.9, { vol: (pv || 0.08) * 0.8, duty: 0.5, pan: -0.2 }); } // brass stabs, root then fifth
+          if (P === 'quartal') { const r0 = 12 * 5 + c.pcs[0], t = [0, 5, 10, 15, 19].map(i => r0 + i).map(m => m > 81 ? m - 12 : m), seq = [0, 1, 2, 3, 4, 3, 2, 1]; for (let x = 0; x < st; x++) push(t[seq[x % seq.length]], x, 0.7, { vol: pv || 0.045, pan: 0.25 }); } // orbiting stacked fourths: open, hollow, space-age
+          if (P === 'fourth') for (const n of notes) push(n.m - 5, n.at, n.len * (n.len <= 2 ? (L.clip || 0.85) : 1), { vol: pv || 0.09, wave: L.wave, duty: L.duty, pan: -0.25, vib: n.len >= 4 ? (L.vib || 18) : 0, vibRate: L.vibRate || 5.6, from: L.glide && n.len >= (L.glideMin || 3) ? undefined : undefined }); // parallel fourths under the melody
           if (P === 'chime') { const t = tones(5, 6).concat([12 * 7 + (c.pcs[0] + 2) % 12]).sort((a, b) => a - b), seq = [0, 2, 4, 6, 5, 3, 1, 3]; for (let x = 0; x < st; x++) push(t[seq[x % seq.length] % t.length], x, 0.45, { vol: pv || 0.045, pan: 0.3 }); } // crystal: high, short, sparkling (the chord and its ninth)
           if (P === 'wholetone') { let m = 12 * 5 + c.pcs[0]; for (let x = 0; x < st; x++) { push(m, x, 0.8, { vol: pv || 0.05 }); m += 2; if (m > 84) m -= 12; } }
           // the bass (triangle)
@@ -1377,6 +1379,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         { bars: to16(G_A), p2: 'third', bass: 'pump8', walk: 'C#' },
         { bars: to16(G_B), p2: 'wholetone', bass: 'gallop', drums: 'main', fill: 'roll' }] };
 
+    // ---- Gorp, alien: "The Jailer", in A (the bounces' home), 132 BPM. A theremin lead (soft, sliding into its notes,
+    // its vibrato swelling); suspended and stacked-fourth chords, nearly all on the bounces' own notes; orbiting fourths
+    // above, parallel fourths under; one uncanny chord a semitone above home (B-flat, major seventh) before each return.
+    const GX_A = [A('Asus4', 'A4:2 A4:2 E5:2 A5:4 G5:2 E5:2 D5:2'), A('Gsus2', 'E5:4 D5:2 A4:10'), A('Csus2', 'C5:2 C5:2 G5:2 C6:4 A5:2 G5:2 E5:2'), A('Dsus4', 'D5:4 E5:2 G5:2 A5:8'),
+      A('Asus4', 'A4:2 A4:2 E5:2 A5:4 G5:2 E5:2 D5:2'), A('Gsus2', 'E5:4 G5:2 A5:2 D6:8'), A('Fmaj7', 'C6:2 A5:2 G5:2 E5:2 C5:4 E5:4'), A('Bb', 'D6:4 A5:4 F5:4 E5:4')];
+    const GX_B = [A('Dsus4', 'A4:8 G4:8'), A('Csus2', 'D5:8 C5:4 G4:4'), A('Asus4', 'E5:12 D5:4'), A('Asus4', 'A4:16'), A('Fmaj7', 'C5:8 E5:8'), A('Gsus2', 'D5:8 A4:8'), A('Bb', 'D5:4 F5:4 A5:8'), A('Esus4', 'B4:4 A4:4 E5:8')];
+    SONGS.geodeX = { name: 'The Jailer', bpm: 132, steps: 16, scale: [9, 11, 0, 2, 4, 6, 7], lead: { wave: 'tri', duty: 0.5, vol: 0.27, glide: true, glideMin: 2, glideTime: 0.11, vib: 24, vibRate: 6, vibMin: 3, clip: 0.9 }, loopFrom: 1,
+      drums: { main: { K: 'x.....x.x.......', S: '....x.......x...', H: 'x.x.x.x.x.x.x.x.' }, cage: { K: 'x.......x.x.....', S: '....x.......x..g', H: 'x...x...x...x...' }, intro: { K: 'x.......x.......', S: '................', H: '................' } },
+      sections: [{ bars: [A('Asus4'), A('Bb')], p2: 'quartal', p2Vol: 0.035, bass: 'pump8', drums: 'intro', fill: 'roll', crash: false },
+        { bars: GX_A, p2: 'quartal', bass: 'pump8' },
+        { bars: GX_B, p2: 'echo', p2Vol: 0.07, bass: 'pump8', drums: 'cage' },
+        { bars: GX_A, p2: 'fourth', bass: 'pump8' },
+        { bars: GX_B, p2: 'quartal', p2Vol: 0.05, bass: 'gallop', drums: 'main', fill: 'roll' }] };
+
     // ---- Vexa (wave 50): a queen's dark waltz, B minor, 3/4 at 186; under it all, the hive: a buzzing trill.
     const V_A = [A('Bm', 'B4:2 B4:2 F#5:2 B5:4 A5:2'), A('Bm', 'F#5:2 D5:2 B4:8'), A('G', 'D5:2 D5:2 G5:2 B5:4 A5:2'), A('G', 'G5:2 E5:2 D5:8'),
       A('Em', 'E5:2 E5:2 G5:2 B5:4 A5:2'), A('F#', 'A#5:2 B5:2 C#6:8'), A('Bm', 'D6:4 C#6:2 B5:2 A5:2 F#5:2'), A('F#', 'E5:2 D5:2 C#5:4 A#4:4'),
@@ -1393,7 +1409,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return SONGS;
     })();
     const own = k => () => GEN.build(ST[k]);
-    return { menu: () => build('theme'), ob1: () => build('last'), ob2: () => buildBoss(), play: own('play'), tank: own('tank'), serpent: own('serpent'), maw: own('maw'), geode: own('geode'), hive: own('hive') };
+    return { menu: () => build('theme'), ob1: () => build('last'), ob2: () => buildBoss(), play: own('play'), tank: own('tank'), serpent: own('serpent'), maw: own('maw'), geode: own('geodeX'), hive: own('hive') };
   })();
   const SONG_GAIN = 0.3; // (about 6 dB under the sound effects on average: the music's there, the tells stay on top)
   const SONG = { id: null, s: null, t: 0, i: 0, base: 0, last: 0, built: {}, waves: {}, nb: null, bus: null, side: null, sbuf: null, duck: 1 };
@@ -1408,8 +1424,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const out = (node, pan) => { if (pan && ctx.createStereoPanner) { const pn = ctx.createStereoPanner(); pn.pan.value = pan; node.connect(pn); pn.connect(dest); } else node.connect(dest); };
     if (e.ch === 'p1' || e.ch === 'p2' || e.ch === 'tri') {
       const o = ctx.createOscillator(), g = ctx.createGain(), end = t + Math.max(0.03, e.dur - 0.012);
-      if (e.ch === 'tri') o.type = 'triangle'; else o.setPeriodicWave(songWave(e.duty));
-      if (e.from !== undefined) { o.frequency.setValueAtTime(hz(e.from), t); o.frequency.exponentialRampToValueAtTime(hz(e.m), t + 0.07); } else o.frequency.value = hz(e.m); // (a slide into it, the Serpent's)
+      if (e.ch === 'tri' || e.wave === 'tri') o.type = 'triangle'; else o.setPeriodicWave(songWave(e.duty)); // (Gorp's theremin: a soft triangle lead)
+      if (e.from !== undefined) { o.frequency.setValueAtTime(hz(e.from), t); o.frequency.exponentialRampToValueAtTime(hz(e.m), t + (e.gt || 0.07)); } else o.frequency.value = hz(e.m); // (a slide into it: the Serpent's; Gorp's theremin, slower)
       if (e.vib && e.dur > 0.2) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = e.vibRate || 5.6; lg.gain.setValueAtTime(0, t); lg.gain.setValueAtTime(0, t + 0.13); lg.gain.linearRampToValueAtTime(typeof e.vib === 'number' ? e.vib : e.ch === 'p1' && e.duty === 0.125 ? 28 : 18, t + 0.3); l.connect(lg); lg.connect(o.detune); l.start(t); l.stop(end + 0.05); } // vibrato, a moment into a long note
       const pk = e.vol, sus = e.ch === 'tri' ? pk : pk * 0.72;
       g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(pk, t + 0.004); g.gain.linearRampToValueAtTime(sus, t + 0.09); g.gain.setValueAtTime(sus, end); g.gain.linearRampToValueAtTime(0, end + 0.025);
