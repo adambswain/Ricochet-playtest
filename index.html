@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 15 21:45 UTC · 52862d8";</script>
+<script>window.RICOCHET_BUILD = "Nov 15 22:26 UTC · b858b50";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -9129,7 +9129,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       player: { x: AW / 2, y: AH * 0.6, hull: 3, inv: 0, fx: 0, fy: -1, shield: 0, mvx: 0, mvy: 0 },
       balls: [Object.assign(makeBall(), { x: AW / 2, y: AH * 0.6 })],
       enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null, storm: null, rockets: [], debris: [], microQueue: [], mechSetup: null, mechDeath: null, squads: [], squadWarn: [], squadPlan: null, shadow: null,
-      shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, lucky: null, table: null, siege: null, asteroidWave: ASTEROID_WAVES[Math.floor(Math.random() * ASTEROID_WAVES.length)], inv: null, result: null, boss: null, bombs: [],
+      shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, lucky: null, table: null, siege: null, tbPlan: {}, inv: null, result: null, boss: null, bombs: [],
       pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [], mortars: [], barrage: [], mortarUp: [],
       arenaTarget: ARENA_START, layoutPending: null, lastLayout: null,
       shake: 0, freeze: 0, dying: 0, banner: null, time: 0, pulling: false,
@@ -9602,14 +9602,25 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let k = 0; k < e.maxHp; k++) { ctx.beginPath(); ctx.arc((k - (e.maxHp - 1) / 2) * 1.7, 8.5, 0.6, 0, Math.PI * 2); ctx.fillStyle = k < e.hp ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.2; ctx.stroke(); }
   }
 
-  // Asteroid Field: an homage to the 1979 arcade game. Exactly one per run, on one of ASTEROID_WAVES picked at random when
-  // the run starts (normal waves either side of 15, which is a set piece). Big vector rocks drift in straight
+  // Asteroid Field: an homage to the 1979 arcade game, one of the throwbacks (it may or may not come round in a loop:
+  // see throwbackAt). Big vector rocks drift in straight
   // lines and wrap around the edges; a hit that kills one splits it into two smaller, faster rocks (big > medium > small),
   // scored the classic way (small ones are worth most). The balls wrap too (see fieldOpen), so rocks are what charge them. Now and then a flying saucer crosses: the big one (200) sprays
   // shots at random, the small one (1,000) aims, and comes more often once the field has thinned out.
-  const ASTEROID_WAVES = [28], ROCK_R = [0, 2.8, 4.8, 7.5], ROCK_PTS = [0, 100, 50, 20];
+  const ROCK_R = [0, 2.8, 4.8, 7.5], ROCK_PTS = [0, 100, 50, 20];
   let forceAsteroids = false; // the title-screen test button and the #asteroids link
-  const asteroidRoll = n => !setPiece(n) && !bossFor(n) && (forceAsteroids || inLoop(n) === G.asteroidWave);
+  // The throwbacks (the Asteroid Field, Bombardment, more to come) only come round by chance: each loop rolls its own
+  // plan, each throwback turning up with TB_CHANCE, on a normal wave in a stretch between two bosses (never a set
+  // piece's, a boss's or one bringing in a new enemy: TB_WAVES), no two in the same stretch. Bombardment only once
+  // you've a second ball. The start menu's tests force them.
+  const TB_WAVES = [[15, 17], [21, 22, 24, 25, 28], [31, 32, 33, 34, 36, 37], [41, 42, 43, 44, 45, 47, 48, 49], [51, 52, 53, 54, 55, 56]], TB_KINDS = ['ast', 'bomb'], TB_CHANCE = 0.7;
+  function planThrowbacks() {
+    const plan = {}, stretches = TB_WAVES.map((w, i) => i).sort(() => Math.random() - 0.5);
+    for (const k of TB_KINDS) { if (Math.random() >= TB_CHANCE || !stretches.length) continue; const w = TB_WAVES[stretches.pop()]; plan[w[Math.floor(Math.random() * w.length)]] = k; }
+    return plan;
+  }
+  const throwbackAt = n => { if (!G || G.attract) return null; const L = loopOf(n); if (!G.tbPlan) G.tbPlan = {}; if (!G.tbPlan[L]) G.tbPlan[L] = planThrowbacks(); return G.tbPlan[L][inLoop(n)] || null; };
+  const asteroidRoll = n => !setPiece(n) && !bossFor(n) && (forceAsteroids || throwbackAt(n) === 'ast');
   function makeRock(size, x, y, a, sp) {
     const e = makeEnemy('rock', x, y);
     Object.assign(e, { size, r: ROCK_R[size], pts: ROCK_PTS[size], vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, spin: rand(-1, 1), spawnT: 0,
@@ -9784,7 +9795,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const newBall = G.balls.some(o => o.fresh);
         G.asteroidNext = asteroidRoll(next);
         if (G.asteroidNext) G.layoutPending = null;
-        G.bombNext = forceBomb && !setPiece(next) && !bossFor(next) && G.balls.length >= BOMB_MIN_BALLS; if (G.bombNext) { G.asteroidNext = false; G.layoutPending = null; } // (for now only from the start menu)
+        G.bombNext = (forceBomb || throwbackAt(next) === 'bomb') && !setPiece(next) && !bossFor(next) && G.balls.length >= BOMB_MIN_BALLS; if (G.bombNext) { G.asteroidNext = false; G.layoutPending = null; } // (a throwback, when its wave comes round; or the start menu's test)
         const loopStart = next > 1 && inLoop(next) === 1;
         if (loopStart) setLoopTint(loopOf(next)); // the arena runs hot from the Loop banner on
         const sub = loopStart ? `Overdrive: everything comes ${Math.round((overdrive(next) - 1) * 100)}% faster, and every point counts ×${scoreK(next)}`
