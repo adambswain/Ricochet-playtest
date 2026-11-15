@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 15 22:26 UTC · b858b50";</script>
+<script>window.RICOCHET_BUILD = "Nov 15 22:50 UTC · 5509da6";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1724,7 +1724,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const SERP_N = 14, SERP_GAP = 10.5, SERP_HEAD = 12, SERP_SPEED = [48, 56, 66], SERP_REST = [0.7, 0.5, 0.35], SERP_CROWD = [18, 22, 26];
   const SERP_CLUTCH = [6, 5, 4], SERP_EGGS = [8, 10, 12], SEGG_HATCH = 5.5, SEGG_HATCH_BOSS = 2.9; // how often it lays a clutch, how many eggs in one, how long they take to hatch (the Serpent's own: quicker)
   const PACK_SEP = 6.5, PACK_COH = 0.6; // a hatched clutch swims as a school: how far apart its hatchlings keep, how hard they hold together
-  const SERP_AIM = 0.8, SERP_LOCK = 0.25, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 90, SERP_SPLIT = 0.5;
+  const SERP_AIM = 0.8, SERP_LOCK = 0.35, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 90, SERP_SPLIT = 0.5;
   const SERP_STRIKES = 2, SERP_STRIKE_GAP = 1.5; // strikes a pass (at most), and the least time between them
   // Both serpents: the boss itself, and once it's split, its twin (which shares its health, phase and the rest)
   const serpents = B => B.twin ? [B, B.twin] : [B];
@@ -3060,19 +3060,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function drawSerpent(B) { for (const S of serpents(B)) drawSerpentOne(S); }
   function drawSerpentOne(B) {
     if (B.st === 'rest') { drawSerpentCracks(B, 1 - B.stT / SERP_REST[B.phase - 1]); return; }
-    if (B.strike && B.strike.st === 'aim') { // the line it's about to lunge down: brightening, then locked and flashing
-      const K = B.strike, locked = K.t <= SERP_LOCK, k = 1 - K.t / SERP_AIM, L = SERP_DASH * SERP_SPEED[B.phase - 1] * SERP_LUNGE + serpHead(B), fl = locked && Math.floor(G.time * 20) % 2;
-      const w = serpHead(B) * 0.85, ux = Math.cos(B.ha), uy = Math.sin(B.ha), nx = -uy, ny = ux, ex = B.hx + ux * L, ey = B.hy + uy * L;
-      ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.beginPath(); ctx.moveTo(B.hx + nx * w, B.hy + ny * w); ctx.lineTo(ex + nx * w, ey + ny * w); ctx.lineTo(ex - nx * w, ey - ny * w); ctx.lineTo(B.hx - nx * w, B.hy - ny * w); ctx.closePath(); // the corridor it'll lunge down
-      ctx.fillStyle = COL.threat; ctx.globalAlpha = locked ? (fl ? 0.3 : 0.18) : (0.05 + 0.1 * k) * (0.8 + 0.2 * Math.sin(G.time * 14)); ctx.fill();
-      ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = locked ? 0.55 : 0.35; ctx.globalAlpha = 0.4 + 0.5 * k; if (!locked) ctx.setLineDash([2, 1.4]); ctx.stroke(); ctx.setLineDash([]);
-      ctx.globalAlpha = 0.3 + 0.6 * k; ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; // chevrons running down it
-      for (let d = (G.time * 30) % 7; d < L - 4; d += 7) { const cx = B.hx + ux * d, cy = B.hy + uy * d; ctx.beginPath(); ctx.moveTo(cx - ux * 1.5 + nx * w * 0.55, cy - uy * 1.5 + ny * w * 0.55); ctx.lineTo(cx + ux * 1.2, cy + uy * 1.2); ctx.lineTo(cx - ux * 1.5 - nx * w * 0.55, cy - uy * 1.5 - ny * w * 0.55); ctx.stroke(); }
-      ctx.globalAlpha = 0.5 + 0.5 * k; ctx.fillStyle = fl ? COL.chalk : COL.threat; // fang marks where it'll bite
-      for (const sg of [-1, 1]) { const fx = ex + nx * sg * w * 0.45, fy = ey + ny * sg * w * 0.45; ctx.beginPath(); ctx.moveTo(fx - ux * 2.4 + nx * sg * 0.9, fy - uy * 2.4 + ny * sg * 0.9); ctx.lineTo(fx + ux * 1.2, fy + uy * 1.2); ctx.lineTo(fx - ux * 2.4 - nx * sg * 0.4, fy - uy * 2.4 - ny * sg * 0.4); ctx.closePath(); ctx.fill(); }
-      ctx.restore(); ctx.globalAlpha = 1;
-    }
+    const glow = (fn, c, a) => { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a; ctx.fillStyle = c; ctx.strokeStyle = c; fn(); ctx.restore(); };
     const pts = [[B.hx, B.hy], ...B.segs.map(s2 => [s2.x, s2.y])];
     ctx.strokeStyle = COL.hull; ctx.lineWidth = 2.6; ctx.globalAlpha = 0.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; // spine
     ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); ctx.globalAlpha = 1;
@@ -3095,14 +3083,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.restore();
     }
     // the head: an armoured wedge with burning eyes
+    // about to strike (the tell is all on its head; its head points down the line it'll take): it draws back, jaws
+    // opening on a glowing maw, eyes burning brighter; locked, it freezes and its eyes flash white
+    const K = B.strike && B.strike.st === 'aim' ? B.strike : null, sk = K ? clamp(1 - K.t / SERP_AIM, 0, 1) : 0, slock = K && K.t <= SERP_LOCK, sfl = slock && Math.floor(G.time * 20) % 2;
     ctx.save(); ctx.translate(B.hx, B.hy); ctx.rotate(B.ha);
-    const R = serpHead(B), rear = B.strike && B.strike.st === 'aim' ? 1 + 0.12 * Math.sin(G.time * 40) : 1; // it rears as it aims
+    const R = serpHead(B), rear = K && !slock ? 1 + 0.06 * Math.sin(G.time * 40) : 1;
+    if (K) ctx.translate(-R * 0.55 * Math.sin(Math.PI / 2 * sk), 0); // drawn back, coiled to strike
     ctx.scale(rear, rear);
+    if (K) { const op = 0.35 * sk; glow(() => { ctx.beginPath(); ctx.moveTo(R * 0.6, 0); ctx.lineTo(R * 1.75, -R * op * 1.4); ctx.lineTo(R * 1.75, R * op * 1.4); ctx.closePath(); ctx.fill(); }, sfl ? COL.chalk : COL.threat, 0.4 + 0.5 * sk); } // its maw, glowing
     ctx.beginPath(); ctx.moveTo(R * 1.7, 0); ctx.lineTo(R * 0.5, -R * 0.75); ctx.lineTo(-R * 0.4, -R * 1.15); ctx.lineTo(-R * 0.9, -R * 0.5);
     ctx.lineTo(-R * 0.6, 0); ctx.lineTo(-R * 0.9, R * 0.5); ctx.lineTo(-R * 0.4, R * 1.15); ctx.lineTo(R * 0.5, R * 0.75); ctx.closePath();
     ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = B.flash > 0 ? COL.chalk : ECOL.warden; ctx.lineWidth = R * 0.12; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(R * 1.7, 0); ctx.lineTo(R * 0.6, 0); ctx.strokeStyle = COL.threat; ctx.lineWidth = R * 0.06; ctx.stroke(); // the jaw line
-    ctx.fillStyle = COL.threat; for (const sy of [-1, 1]) { ctx.beginPath(); ctx.ellipse(R * 0.55, sy * R * 0.38, R * 0.22, R * 0.12, sy * 0.4, 0, Math.PI * 2); ctx.fill(); }
+    { const op = K ? 0.35 * sk : 0; ctx.beginPath(); ctx.moveTo(R * 0.6, 0); ctx.lineTo(R * 1.7, -R * op); ctx.moveTo(R * 0.6, 0); ctx.lineTo(R * 1.7, R * op); ctx.strokeStyle = sfl ? COL.chalk : COL.threat; ctx.lineWidth = R * (K ? 0.09 : 0.06); ctx.stroke(); } // the jaw line (opening as it aims)
+    if (K) glow(() => { for (const sy of [-1, 1]) { ctx.beginPath(); ctx.arc(R * 0.55, sy * R * 0.38, R * (0.3 + 0.35 * sk) + (slock ? R * 0.2 : 0), 0, Math.PI * 2); ctx.fill(); } }, sfl ? COL.chalk : COL.threat, slock ? (sfl ? 1 : 0.6) : 0.3 + 0.5 * sk); // eyes burning; flashing white at the lock
+    ctx.fillStyle = sfl ? COL.chalk : COL.threat; for (const sy of [-1, 1]) { ctx.beginPath(); ctx.ellipse(R * 0.55, sy * R * 0.38, R * 0.22, R * 0.12, sy * 0.4, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore();
   }
   const hexPath = (x, y, s) => { ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; ctx.lineTo(x + Math.cos(a) * s, y + Math.sin(a) * s); } ctx.closePath(); };
@@ -3118,27 +3112,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (cross) { const c = Math.min(1.6, r * 0.4); ctx.globalAlpha = a * 0.7; ctx.beginPath(); ctx.moveTo(x - c, y); ctx.lineTo(x + c, y); ctx.moveTo(x, y - c); ctx.lineTo(x, y + c); ctx.stroke(); }
     ctx.globalAlpha = 1;
   }
-  // A lane something big is about to come down: tinted, dashed edges (solid once locked), chevrons running along it
-  function laneWarn(x0, y0, ang, L, w, k, locked) {
-    const ux = Math.cos(ang), uy = Math.sin(ang), nx = -uy, ny = ux, ex = x0 + ux * L, ey = y0 + uy * L, fl = locked && Math.floor(G.time * 20) % 2;
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath(); ctx.moveTo(x0 + nx * w, y0 + ny * w); ctx.lineTo(ex + nx * w, ey + ny * w); ctx.lineTo(ex - nx * w, ey - ny * w); ctx.lineTo(x0 - nx * w, y0 - ny * w); ctx.closePath();
-    ctx.fillStyle = COL.threat; ctx.globalAlpha = locked ? (fl ? 0.28 : 0.16) : (0.04 + 0.1 * k) * (0.8 + 0.2 * Math.sin(G.time * 14)); ctx.fill();
-    ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = locked ? 0.6 : 0.35; ctx.globalAlpha = 0.4 + 0.5 * k; if (!locked) ctx.setLineDash([2, 1.4]); ctx.stroke(); ctx.setLineDash([]);
-    ctx.lineWidth = 0.6; ctx.globalAlpha = 0.3 + 0.6 * k; const step = Math.max(7, w * 0.8);
-    for (let d = (G.time * 34) % step; d < L - 3; d += step) { const cx = x0 + ux * d, cy = y0 + uy * d; ctx.beginPath(); ctx.moveTo(cx - ux * w * 0.3 + nx * w * 0.6, cy - uy * w * 0.3 + ny * w * 0.6); ctx.lineTo(cx + ux * w * 0.15, cy + uy * w * 0.15); ctx.lineTo(cx - ux * w * 0.3 - nx * w * 0.6, cy - uy * w * 0.3 - ny * w * 0.6); ctx.stroke(); }
-    ctx.restore(); ctx.globalAlpha = 1;
-  }
-  // A shot about to come at you: its line from the muzzle (brightening; solid and flashing once it's about to fire), and a
-  // reticle closing on you
-  function shotWarn(x0, y0, ang, k, tx, ty) {
-    const L = Math.hypot(AW, AH), hot = k > 0.7, fl = hot && Math.floor(G.time * 20) % 2;
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(ang) * L, y0 + Math.sin(ang) * L);
-    if (!hot) { ctx.setLineDash([2, 1.6]); ctx.lineDashOffset = -G.time * 14; }
-    ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = hot ? 0.6 : 0.35 + 0.2 * k; ctx.globalAlpha = 0.3 + 0.6 * k; ctx.stroke(); ctx.setLineDash([]);
-    if (tx !== undefined) { const rr = 6 - 3 * k; ctx.lineWidth = 0.45; ctx.globalAlpha = 0.5 + 0.4 * k;
-      for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + G.time * 2.5 + Math.PI / 4; ctx.beginPath(); ctx.arc(tx, ty, rr, a - 0.35, a + 0.35); ctx.stroke(); } }
+  // A shot coming down on you (a shell, a missile): a reticle closing on where you are (k: 0 to 1). No line from the gun:
+  // a line means a laser.
+  function shotWarn(tx, ty, k) {
+    ctx.save(); ctx.lineCap = 'round'; const rr = 8 - 4 * k, fl = k > 0.7 && Math.floor(G.time * 16) % 2; ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.7 + 0.3 * k; // (the same weight as the claw's lock-on)
+    for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + G.time * 2.5 + Math.PI / 4; ctx.beginPath(); ctx.arc(tx, ty, rr, a - 0.5, a + 0.5); ctx.stroke(); }
     ctx.restore(); ctx.globalAlpha = 1;
   }
   function pulseLine(x0, y0, x1, y1, col, a = 0.5, w = 0.3, ups = 30) {
@@ -4269,7 +4247,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     return '';
   }
   // A gun pod's muzzle, and the way it's pointing (along its sweep, else at you).
-  const tankPodMuzzle = (B, key) => { const [px, py] = tankPartAt(B, key), a = B.sweep && B.sweep.pod === key ? B.sweep.a : Math.atan2(G.player.y - py, G.player.x - px); return [px + Math.cos(a) * 9, py + Math.sin(a) * 9, a]; };
+  const tankPodMuzzle = (B, key) => { const [px, py] = tankPartAt(B, key), a = B.parts[key].aa ?? (B.sweep && B.sweep.pod === key ? B.sweep.a : Math.atan2(G.player.y - py, G.player.x - px)); return [px + Math.cos(a) * 9, py + Math.sin(a) * 9, a]; };
   function updateTank(B, dt) {
     const p = G.player, L = B.parts.L.hp > 0, R = B.parts.R.hp > 0, both = L && R;
     B.hitCd -= dt; B.armorT = (B.armorT || 0) - dt; B.recoil = Math.max(0, B.recoil - dt * 3);
@@ -4283,10 +4261,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (B.fireT <= 0 && !B.burst) { B.burst = 2 + (B.cycle > 0 ? 1 : 0); B.burstT = 0; B.fireT = TANK_BURST[B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1); }
       if (B.burst) { B.burstT -= dt; if (B.burstT <= 0) { B.burst--; B.burstT = 0.2; tankShell(B); } }
       B.sweepT -= dt; // the gun pods take turns sweeping an arc of bullets, their sights sweeping it first
+      for (const key of ['podL', 'podR']) { const P = B.parts[key]; if (P.hp <= 0) continue; const [px, py] = tankPartAt(B, key), S = B.sweep && B.sweep.pod === key ? B.sweep : null, want = S ? S.a : Math.atan2(p.y - py, p.x - px); P.aa = P.aa === undefined ? want : P.aa + wrapA(want - P.aa) * Math.min(1, dt * (S && S.t >= TANK_SIGHT ? 30 : 7)); } // its barrels: on you; winding up, swinging out to where the burst starts
+      B.podFlash = Math.max(0, (B.podFlash || 0) - dt);
       if (!B.sweep && B.sweepT <= 0) {
         const pods = ['podL', 'podR'].filter(k => B.parts[k].hp > 0), key = pods.includes(B.nextPod) ? B.nextPod : pods[0];
         if (key) {
-          const [px, py] = tankPartAt(B, key), c = Math.atan2(p.y - py, p.x - px), dir = Math.random() < 0.5 ? -1 : 1;
+          const [px, py] = tankPartAt(B, key), c = Math.atan2(p.y - py, p.x - px), out = sd => { const a = c + sd * TANK_ARC / 2; return Math.hypot(px + Math.cos(a) * 30 - B.x, py + Math.sin(a) * 30 - B.y); }, dir = out(1) > out(-1) ? -1 : 1; // (always from its outer side, across you)
           B.sweep = { pod: key, t: 0, a0: c - dir * TANK_ARC / 2, a1: c + dir * TANK_ARC / 2, a: c - dir * TANK_ARC / 2, shotT: 0 };
           B.nextPod = key === 'podL' ? 'podR' : 'podL'; sfx.blasterCharge();
         }
@@ -4294,11 +4274,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       if (B.sweep) {
         const S = B.sweep; S.t += dt;
-        const k = S.t < TANK_SIGHT ? S.t / TANK_SIGHT : (S.t - TANK_SIGHT) / TANK_SPRAY;
-        S.a = S.a0 + (S.a1 - S.a0) * clamp(k, 0, 1);
+        S.a = S.a0 + (S.a1 - S.a0) * clamp((S.t - TANK_SIGHT) / TANK_SPRAY, 0, 1); // (held at its start while it winds up; then one sweep across)
         if (S.t >= TANK_SIGHT) {
           S.shotT -= dt;
-          if (S.shotT <= 0) { S.shotT = TANK_MG_GAP; const [mx, my, a] = tankPodMuzzle(B, S.pod); G.bullets.push({ x: mx, y: my, vx: Math.cos(a) * TANK_MG, vy: Math.sin(a) * TANK_MG, r: 1.1, mg: true }); if (Math.random() < 0.5) sfx.shoot(mx); }
+          if (S.shotT <= 0) { S.shotT = TANK_MG_GAP; const [mx, my, a] = tankPodMuzzle(B, S.pod); G.bullets.push({ x: mx, y: my, vx: Math.cos(a) * TANK_MG, vy: Math.sin(a) * TANK_MG, r: 1.1, mg: true, tr: true }); B.podFlash = 0.07; if (Math.random() < 0.5) sfx.shoot(mx); }
         }
         if (S.t >= TANK_SIGHT + TANK_SPRAY) B.sweep = null;
       }
@@ -4313,7 +4292,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const dh = wrapA(Math.atan2(p.y - B.y, p.x - B.x) - B.th); B.th += clamp(dh, -TANK_RAM_TURN * dt, TANK_RAM_TURN * dt); // swinging round on you
         B.modeT -= dt;
         if (B.modeT <= RAM_LOCK && Math.abs(dh) > 0.15 && (B.aimX = (B.aimX || 0) + dt) < 1) B.modeT = RAM_LOCK + 1e-3; // not facing you yet: keep swinging
-      } else B.modeT -= dt;
+        B.ramLock = false;
+      } else { B.modeT -= dt; if (!B.ramLock) { B.ramLock = true; sfx.clank(); } } // locked on (it's stopped turning): its headlamps flash
+      { const k = clamp(1 - B.modeT / RAM_AIM, 0, 1); if (Math.random() < dt * (6 + 22 * k)) burst(B.x - Math.cos(B.th) * 16 * TANK_S + rand(-2, 2), B.y - Math.sin(B.th) * 16 * TANK_S + rand(-2, 2), 2, COL.dim, 18, 0.6, 0.4); } // revving: exhaust out the back
       if (B.modeT <= 0) { B.mode = 'ram'; B.aimX = 0; sfx.boss(); }
     } else if (B.mode === 'ram') {
       const v = RAM_SPEED * 0.8; B.x += Math.cos(B.th) * v * dt; B.y += Math.sin(B.th) * v * dt; B.tread += v * dt;
@@ -4497,26 +4478,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     };
     const sparks = (x, y, n = 5) => { if (Math.floor(t * 8 + x) % 3) return; ctx.beginPath(); for (let k = 0; k < n; k++) { const a = k * 2.4 + Math.floor(t * 12), l = 1 + (k * 7 + Math.floor(t * 12)) % 3; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); } stroke(0.3, 0.9, COL.chalk); };
     const pips = (x, y, hp, max, n = 4) => { const f = hp / max; for (let i = 0; i < n; i++) { const on = f > i / n + 1e-6; ctx.beginPath(); ctx.arc(x + (i - (n - 1) / 2) * 1.5, y, 0.55, 0, Math.PI * 2); if (on) glow(() => ctx.fill(), COL.threat, 0.5); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.15; ctx.stroke(); } };
-    // the ram's line, before it goes
-    if (B.mode === 'aim') {
-      const k = 1 - B.modeT / RAM_AIM, locked = B.modeT <= RAM_LOCK, cx = Math.cos(B.th), cy = Math.sin(B.th);
-      const L = Math.min(cx > 0 ? (AW - B.x) / cx : cx < 0 ? -B.x / cx : 1e9, cy > 0 ? (AH - B.y) / cy : cy < 0 ? -B.y / cy : 1e9);
-      laneWarn(B.x + cx * 20, B.y + cy * 20, B.th, Math.max(0, L - 20), 13 * TANK_S, k, locked); // the lane it'll charge down, as wide as it is
-    }
     // the cannon's shot, before it fires
-    if ((B.fireT < TANK_AIM || B.burst > 0) && B.mode !== 'ram' && B.mode !== 'dig' && !(B.digT > 0) && !die && !B.noTurret) {
+    if ((B.fireT < TANK_AIM || B.burst > 0) && B.mode !== 'ram' && !(B.digT > 0) && !die && !B.noTurret) {
       const k = B.burst > 0 ? 1 : 1 - B.fireT / TANK_AIM, [mx, my] = tankMuzzle(B), L = Math.hypot(AW, AH);
-      shotWarn(mx, my, B.aim, k, p.x, p.y); // its line, and a reticle closing on you
+      shotWarn(p.x, p.y, k); // a reticle closing on you (a shell's coming down on you; no line: lines are lasers)
       glow(() => { ctx.beginPath(); ctx.arc(mx, my, 1.5 + 2.5 * k, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.3 + 0.6 * k);
-    }
-    if (B.sweep && !die) { // a gun pod's laser sight sweeping the arc it's about to fire along; then the stream
-      const S = B.sweep, [mx, my, a] = tankPodMuzzle(B, S.pod), firing = S.t >= TANK_SIGHT, L = Math.hypot(AW, AH);
-      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
-      ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + Math.cos(S.a0) * 26, my + Math.sin(S.a0) * 26); ctx.arc(mx, my, 26, S.a0, S.a1, S.a1 < S.a0); ctx.closePath();
-      ctx.fillStyle = COL.threat; ctx.globalAlpha = firing ? 0.05 : 0.08 + 0.04 * Math.sin(t * 20); ctx.fill(); // the arc it'll cover
-      ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + Math.cos(a) * L, my + Math.sin(a) * L);
-      ctx.strokeStyle = firing ? COL.chalk : COL.threat; ctx.lineWidth = firing ? 0.25 : 0.4; ctx.globalAlpha = firing ? 0.35 : 0.85; ctx.stroke();
-      ctx.restore(); ctx.globalAlpha = 1;
     }
     const shakeK = B.mode === 'aim' ? 0.5 * (1 - B.modeT / RAM_AIM) : B.mode === 'stun' ? 0.25 : die * 0.8;
     ctx.save(); ctx.translate(B.x + rand(-shakeK, shakeK), B.y + rand(-shakeK, shakeK)); ctx.rotate(B.th - Math.PI / 2); ctx.scale(TANK_S, TANK_S); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -4581,13 +4547,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.rotate(aw - (B.th - Math.PI / 2) - Math.PI / 2); // along its sweep (or at you)
       for (const o of [-0.9, 0.9]) { ctx.beginPath(); ctx.roundRect(o - 0.45, 1.5, 0.9, 3.4, 0.3); fill(0.35); stroke(W2, 1, pc); } // twin barrels
       ctx.beginPath(); ctx.roundRect(-2.6, -2.6, 5.2, 5.2, 1); fill(0.3); stroke(W1 * 0.9, 1, pc);
-      const hot = B.sweep && B.sweep.pod === key;
-      glow(() => { ctx.beginPath(); ctx.arc(0, 0.9, 1.4, 0, Math.PI * 2); ctx.fill(); }, COL.threat, hot ? 0.9 : 0.35);
-      ctx.beginPath(); ctx.arc(0, 0.9, 0.7, 0, Math.PI * 2); ctx.fillStyle = hot && Math.floor(t * 16) % 2 ? COL.chalk : COL.threat; ctx.fill();
+      const S = B.sweep && B.sweep.pod === key ? B.sweep : null, hot = S ? clamp(S.t / TANK_SIGHT, 0, 1) : 0, firing = S && S.t >= TANK_SIGHT; // winding up: heating; firing: white-hot, a flash at the muzzles each round
+      glow(() => { ctx.beginPath(); ctx.arc(0, 0.9, 1.4 + 1.2 * hot, 0, Math.PI * 2); ctx.fill(); }, firing ? fire : COL.threat, 0.35 + 0.55 * hot);
+      ctx.beginPath(); ctx.arc(0, 0.9, 0.7, 0, Math.PI * 2); ctx.fillStyle = firing ? COL.chalk : COL.threat; ctx.fill();
+      if (firing && B.podFlash > 0) glow(() => { for (const o of [-0.9, 0.9]) { ctx.beginPath(); ctx.arc(o, 5.6, 1.1 + Math.random() * 0.6, 0, Math.PI * 2); ctx.fill(); } }, COL.chalk, 0.9);
       ctx.restore();
       if (P.hp < P.max * 0.5) sparks(px + 1.5, py - 1.5);
       pips(px, py - 6.6, P.hp, P.max, 3);
     }
+    if (B.mode === 'aim' && !die) { const k = clamp(1 - B.modeT / RAM_AIM, 0, 1), locked = !!B.ramLock, fl = locked && Math.floor(t * 20) % 2; // its headlamps: it's coming (flashing only once it's truly locked: stopped turning)
+      for (const sd of [-1, 1]) glow(() => { ctx.beginPath(); ctx.arc(sd * 7, 15.6, 1.2 + 1.8 * k + (locked ? 1 : 0), 0, Math.PI * 2); ctx.fill(); }, fl ? COL.chalk : fire, locked ? (fl ? 0.95 : 0.6) : 0.3 + 0.5 * k); }
     if (G.boss === B) drawCrewJobs(B);
     // the turret
     if (!B.noTurret) {
@@ -6510,44 +6479,39 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     Q.i += Q.dir; Q.t = MECH_CANNON_GAP;
   }
   const T_fly = B => { B.timers.fly = MECH_FLY_EVERY; B.timers.beam = Math.max(B.timers.beam, 2); B.timers.gun = Math.max(B.timers.gun, 1.2); B.timers.claw = Math.max(B.timers.claw, 1.6); B.timers.rack = Math.max(B.timers.rack, 3); B.timers.rail = Math.max(B.timers.rail, 2); };
-  // While it's up: the runs' bands (shown first), its shadow crossing, the bombs falling; its landing spot
+  // Its shadow from above on a bombing run: the hulk, the pauldrons, the two pods
+  function runShadow(x, y, R, sc, a) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(R.across ? 0 : Math.PI / 2); if (R.dir < 0) ctx.scale(-1, 1); ctx.scale(sc, sc);
+    ctx.fillStyle = '#000'; ctx.globalAlpha = a; ctx.beginPath(); ctx.ellipse(0, 0, 16, 24, 0, 0, Math.PI * 2); ctx.fill(); // (black, like every shadow: ink barely shows on the grid)
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(-2, sd * 26, 11, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(-8, sd * 40, 8, 5, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  // While it's up: each run's shadow sliding in from the edge first, then streaking across, the bombs falling; its landing spot
   function drawMechFly(B) {
     const F = B.fly, s = B.s, t = G.time;
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip();
     for (const e of G.enemies) { if (!e.gol || e.gol.chg <= 0) continue; // a cannon charging: glowing hotter, its barrels on you; locked, it stops and flashes white (no line: lines are lasers)
       const g = e.gol, k = clamp(1 - g.chg / MECH_CANNON_CHARGE, 0, 1), locked = g.chg <= MECH_CANNON_LOCK, fl = locked && Math.floor(t * 20) % 2;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = locked ? (fl ? 0.85 : 0.5) : 0.25 + 0.5 * k; ctx.fillStyle = fl ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (1.1 + 0.6 * k), 0, Math.PI * 2); ctx.fill(); ctx.restore(); ctx.globalAlpha = 1; }
-    for (const q of B.bombs) { const k = clamp(q.t / q.at, 0, 1); // a bomb falling: its mark closing in, its shadow growing
-      ctx.beginPath(); ctx.arc(q.x, q.y, MECH_BOMB_R * (1 - k * 0.7), 0, Math.PI * 2); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.5 + 0.5 * k; ctx.stroke();
-      ctx.beginPath(); ctx.arc(q.x, q.y, 0.6 + k * 1.6, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.8; ctx.fill(); ctx.globalAlpha = 1; }
+    for (const q of B.bombs) groundShadow(q.x, q.y, MECH_BOMB_R, clamp(q.t / q.at, 0, 1)); // a bomb falling: its shadow, as wide as its blast, darkening as it drops
     if (F) {
       for (const R of F.runs) {
-        const tt = F.t - R.t0, warn = clamp(tt / MECH_RUN_WARN, 0, 1), h = MECH_RUN_HALF + 1, done = R.pos !== undefined && R.pos > R.len + R.M;
-        const box = (u0, u1) => R.across ? ctx.rect(u0, R.c - h, u1 - u0, h * 2) : ctx.rect(R.c - h, u0, h * 2, u1 - u0);
-        if (!done) { // the band: where it'll come over
-          ctx.beginPath(); box(0, R.len); ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.05 + 0.07 * warn + (tt < MECH_RUN_WARN ? 0.05 * Math.sin(t * 16) : 0); ctx.fill();
-          ctx.beginPath(); if (R.across) { ctx.moveTo(0, R.c - h); ctx.lineTo(AW, R.c - h); ctx.moveTo(0, R.c + h); ctx.lineTo(AW, R.c + h); } else { ctx.moveTo(R.c - h, 0); ctx.lineTo(R.c - h, AH); ctx.moveTo(R.c + h, 0); ctx.lineTo(R.c + h, AH); }
-          ctx.setLineDash([2, 1.5]); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.35 + 0.5 * warn; ctx.stroke(); ctx.setLineDash([]);
-          for (let u = 6, j = 0; u < R.len; u += 12, j++) { // chevrons: the way it's coming
-            const m = ((u + t * 30 * R.dir) % R.len + R.len) % R.len, a = (R.dir > 0 ? 0 : Math.PI) + (R.across ? 0 : Math.PI / 2), [cx, cy] = R.across ? [m, R.c] : [R.c, m];
-            ctx.beginPath(); ctx.moveTo(cx - Math.cos(a) * 2 + Math.cos(a + Math.PI / 2) * 3, cy - Math.sin(a) * 2 + Math.sin(a + Math.PI / 2) * 3); ctx.lineTo(cx + Math.cos(a) * 1.5, cy + Math.sin(a) * 1.5); ctx.lineTo(cx - Math.cos(a) * 2 - Math.cos(a + Math.PI / 2) * 3, cy - Math.sin(a) * 2 - Math.sin(a + Math.PI / 2) * 3);
-            ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.25 + 0.45 * warn; ctx.stroke(); }
-          ctx.globalAlpha = 1;
+        const tt = F.t - R.t0, warn = clamp(tt / MECH_RUN_WARN, 0, 1), done = R.pos !== undefined && R.pos > R.len + R.M;
+        if (R.pos === undefined && tt < MECH_RUN_WARN) { // before it comes over: its shadow sliding in from the edge it'll come in at, big and soft (it's high up), darkening as it nears
+          const u = R.dir > 0 ? -28 + 38 * warn : R.len + 28 - 38 * warn, [x, y] = R.across ? [u, R.c] : [R.c, u];
+          for (const [sc, a] of [[1.5 - 0.4 * warn, 0.2 + 0.2 * warn], [1.15 - 0.15 * warn, 0.18 + 0.37 * warn]]) runShadow(x, y, R, s * sc, a);
         }
         if (R.pos !== undefined && !done) { // its shadow, from above: the hulk, the pauldrons, the two pods, streaking over
           const u = R.dir > 0 ? R.pos : R.len - R.pos, [x, y] = R.across ? [u, R.c] : [R.c, u];
+          runShadow(x, y, R, s, 0.55);
           ctx.save(); ctx.translate(x, y); ctx.rotate(R.across ? 0 : Math.PI / 2); if (R.dir < 0) ctx.scale(-1, 1); ctx.scale(s, s);
-          ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.55;
-          ctx.beginPath(); ctx.ellipse(0, 0, 16, 24, 0, 0, Math.PI * 2); ctx.fill();
-          for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(-2, sd * 26, 11, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(-8, sd * 40, 8, 5, 0, 0, Math.PI * 2); ctx.fill(); }
           ctx.globalAlpha = 0.3; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.6; for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(-14 - k * 9, sd * (34 + k * 4)); ctx.lineTo(-30 - k * 14, sd * (34 + k * 4)); ctx.stroke(); } // its thrust streaming behind
           ctx.restore(); ctx.globalAlpha = 1;
         }
       }
       if (F.ph === 'down') { // where it'll land: its shadow growing round its feet
         const k = clamp(F.t / (MECH_FLY_DOWN - MECH_FLY_DROP), 0, 1), lx = B.x, ly = F.hy + 48 * s;
-        ctx.globalAlpha = 0.15 + 0.3 * k; ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(lx, ly, 40 * s * (0.4 + 0.6 * k), 8 * s * (0.4 + 0.6 * k), 0, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 0.3 + 0.5 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.arc(lx, ly, MECH_LAND_R * s * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+        groundShadow(lx, ly, MECH_LAND_R * s, k); // (as wide as its landing's shockwave)
       }
       if (F.ph === 'up') { const k = clamp(F.t / MECH_FLY_UP, 0, 1); ctx.globalAlpha = 0.5 * (1 - k); ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.ellipse(F.hx, F.hy + 53 * s, 40 * s * (1 - k * 0.5), 7 * s, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; } // its shadow left behind
     }
