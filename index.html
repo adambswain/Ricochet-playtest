@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 15 21:03 UTC · 8bfa3e9";</script>
+<script>window.RICOCHET_BUILD = "Nov 15 21:45 UTC · 52862d8";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1238,7 +1238,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           if (P === 'drone') push(spec.drone || 12 * 5 + c.pcs[0], 0, st, { vol: pv || 0.05, duty: 0.5, pan: -0.15 }); // a held drone (a snake charmer's)
           if (P === 'third') for (const n of notes) push(third(n.m, c, scale), n.at, n.len * (n.len <= 2 ? (L.clip || 0.85) : 1), { vol: pv || 0.1, pan: -0.25, vib: n.len >= 4 ? 18 : 0, vibRate: L.vibRate || 5.6 });
           if (P === 'arp' || P === 'shimmer') { const t = tones(4, 5), seq = [0, 1, 2, 3, 4, 5, 4, 3, 2, 1]; for (let x = 0; x < st; x++) push(t[seq[x % seq.length] % t.length], x, 0.8, { vol: P === 'shimmer' ? 0.03 + 0.05 * (i * st + x) / (sec.bars.length * st) : (pv || 0.06) }); }
-          if (P === 'buzz') { const f = 12 * 6 + c.pcs[spec.buzzOn || 0]; for (let x = 0; x < st; x++) push(x % 2 ? f + 1 : f, x, 0.9, { vol: pv || 0.04, pan: 0.2 }); } // a swarm's trill
+          if (P === 'buzz' || P === 'flutter') { const f = 12 * 6 + c.pcs[spec.buzzOn || 0], d = P === 'flutter' ? -2 : 1; for (let x = 0; x < st; x++) push(x % 2 ? f + d : f, x, 0.9, { vol: pv || 0.04, pan: 0.2, duty: spec.buzzDuty || 0.125 }); } // a swarm's trill (a semitone: the buzz; a whole step down: a softer flutter)
           if (P === 'rattle') { const f = 12 * 6 + c.pcs[0]; for (let x = 0; x < st; x++) push(x % 2 ? f + 1 : f, x, 0.7, { vol: pv || 0.035, pan: 0.2 }); }
           if (P === 'gear') { const t = [12 * 5 + c.pcs[0], 12 * 5 + c.pcs[2]]; for (let x = 0; x < st; x++) push(t[x % 2] > 77 ? t[x % 2] - 12 : t[x % 2], x, 0.6, { vol: pv || 0.05 }); }
           if (P === 'stab') for (let x = 2; x < st; x += 4) { push(12 * 5 + c.pcs[0], x, 1.2, { vol: pv || 0.08, duty: 0.5, pan: -0.2 }); push(12 * 5 + c.pcs[2] - (12 * 5 + c.pcs[2] > 79 ? 12 : 0), x + 1, 0.9, { vol: (pv || 0.08) * 0.8, duty: 0.5, pan: -0.2 }); } // brass stabs, root then fifth
@@ -1406,10 +1406,26 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         { bars: V_A, p2: 'buzz', bass: 'waltz', walk: 'F#' },
         { bars: [...V_B, ...V_B], p2: 'buzz', p2Vol: 0.045, bass: 'pump8', drums: 'swarm', walk: 'F#', fill: 'roll' },
         { bars: V_A, p2: 'third', bass: 'waltz', walk: 'F#' }] };
+
+    // ---- Vexa, moved to A minor (the bounce pings' home): the same waltz a whole step down; under her melody the swarm
+    // flutters (a whole step, on the pings' notes); in the swarm section it buzzes (a semitone: the frenzy's the point).
+    const NN = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }, NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const mid = n => { const m = /^([A-G])([#b]?)(-?\d)$/.exec(n); return 12 * (+m[3] + 1) + NN[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0); };
+    const nm = m => NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+    const trLine = (str, d) => str.split(/\s+/).map(tok => { const [n, l] = tok.split(':'); return (n === 'r' ? 'r' : nm(mid(n) + d)) + ':' + l; }).join(' ');
+    const trChord = (c, d) => { const m = /^([A-G][#b]?)(.*)$/.exec(c); return NAMES[((mid(m[1] + '4') + d) % 12 + 12) % 12] + m[2]; };
+    const trBars = (bars, d) => bars.map(b => ({ c: trChord(b.c, d), l: b.l ? trLine(b.l, d) : undefined }));
+    const VA2 = trBars(V_A, -2), VB2 = trBars(V_B, -2);
+    SONGS.hiveA = { name: 'Queen of the Hive', bpm: 186, steps: 12, scale: [9, 11, 0, 2, 4, 5, 7, 8], lead: { duty: 0.25, vibMin: 4 }, buzzOn: 2, loopFrom: 1,
+      drums: Object.assign({}, SONGS.hive.drums, { swarm: { K: 'x.....x.....', S: '....x...x.xg', H: 'xoxoxoxoxoxo' } }), // (the swarm's sixteenth hats: every other one soft)
+      sections: [{ bars: trBars([A('Bm'), A('Bm'), A('F#'), A('F#')], -2), p2: 'flutter', p2Vol: 0.035, bass: 'waltz', drums: 'intro', fill: 'roll', crash: false },
+        { bars: VA2, p2: 'flutter', bass: 'waltz', walk: 'E' },
+        { bars: [...VB2, ...VB2], p2: 'buzz', p2Vol: 0.045, bass: 'pump8', drums: 'swarm', walk: 'E', fill: 'roll' },
+        { bars: VA2, p2: 'third', bass: 'waltz', walk: 'E' }] };
       return SONGS;
     })();
     const own = k => () => GEN.build(ST[k]);
-    return { menu: () => build('theme'), ob1: () => build('last'), ob2: () => buildBoss(), play: own('play'), tank: own('tank'), serpent: own('serpent'), maw: own('maw'), geode: own('geodeX'), hive: own('hive') };
+    return { menu: () => build('theme'), ob1: () => build('last'), ob2: () => buildBoss(), play: own('play'), tank: own('tank'), serpent: own('serpent'), maw: own('maw'), geode: own('geodeX'), hive: own('hiveA') };
   })();
   const SONG_GAIN = 0.3; // (about 6 dB under the sound effects on average: the music's there, the tells stay on top)
   const SONG = { id: null, s: null, t: 0, i: 0, base: 0, last: 0, built: {}, waves: {}, nb: null, bus: null, side: null, sbuf: null, duck: 1 };
