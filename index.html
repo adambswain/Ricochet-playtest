@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 15 06:14 UTC · 42ddd02";</script>
+<script>window.RICOCHET_BUILD = "Nov 15 17:54 UTC · 8145b10";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -681,7 +681,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
       const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
       hums = { pull: makeHum('triangle', 900), field: makeHum('sawtooth', 380), saucer: makeHum('square', 1800),
-        obBeam: makeHumPan('sawtooth', 1500, 2), obGrind: makeNoiseHum(1700, 3.5), obBelt: makeHumPan('triangle', 420) }; // 0B-L1-V10N's: its ring beam roaring (panning round with it), its gates grinding down the walls, its belt's magnet
+        obBeam: makeHumPan('triangle', 420), obBeamN: makeNoiseHumPan(900, 0.7), obGrind: makeNoiseHum(1700, 3.5), obBelt: makeHumPan('triangle', 420) }; // 0B-L1-V10N's: its ring beam roaring (panning round with it), its gates grinding down the walls, its belt's magnet
     } catch (e) { AC = null; }
   }
   // A held tone whose level and pitch the game steers every frame (pull tether, magnet fields).
@@ -735,6 +735,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     o.type = type; o2.type = type; o2.detune.value = 11; f.type = 'lowpass'; f.frequency.value = cutoff; f.Q.value = q; g.gain.value = 0;
     o.connect(f); o2.connect(f); f.connect(g); g.connect(pn); pn.connect(sfxBus); o.start(); o2.start();
     return { o, o2, g, pn };
+  }
+  function makeNoiseHumPan(ff, q, type = 'lowpass') {
+    const src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(), pn = AC.createStereoPanner ? AC.createStereoPanner() : AC.createGain();
+    src.buffer = noiseBuf; src.loop = true; f.type = type; f.frequency.value = ff; f.Q.value = q; g.gain.value = 0;
+    src.connect(f); f.connect(g); g.connect(pn); pn.connect(sfxBus); src.start();
+    return { src, f, g, pn };
   }
   function makeNoiseHum(ff, q) {
     const src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
@@ -984,10 +990,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       voice({ noise: true, filter: 'bandpass', ff: 3200, ff2: 600, q: 6, dur: 0.4, vol: 0.16, pan }); voice({ type: 'sawtooth', f: 190, f2: 80, dur: 0.55, vol: 0.05, filter: 'lowpass', ff: 900, pan, wet: 0.3 });
       sfx.obImpact(3, x);
     },
-    // The ring beam: a deep drone climbing under a quickening heartbeat; then it ignites (the sweep itself is a held roar: audioUpdate)
+    // The ring beam: a deep drone climbing under a quickening heartbeat; then it ignites (the sweep itself is a held roar, deep and smooth: audioUpdate)
     obBeamCharge(dur, x) { if (!AC) return; const pan = panOf(x), t = AC.currentTime;
-      voice({ type: 'sawtooth', f: 38, f2: 76, dur, vol: 0.09, filter: 'lowpass', ff: 160, ff2: 700, q: 2, atk: dur * 0.5, pan, wet: 0.2 }); voice({ type: 'sine', f: 220, f2: 880, dur, vol: 0.025, atk: dur * 0.6, pan });
-      for (let at = 0, gap = 0.42; at < dur - 0.05; at += gap, gap = Math.max(0.13, gap * 0.78)) for (const [o, v] of [[0, 0.26], [0.1, 0.16]]) voice({ f: 72, f2: 40, dur: 0.12, vol: v, at: t + at + o, pan });
+      voice({ type: 'sawtooth', f: 38, f2: 76, dur, vol: 0.07, filter: 'lowpass', ff: 150, ff2: 480, q: 1.2, atk: dur * 0.5, pan, wet: 0.2 });
+      for (let at = 0, gap = 0.42; at < dur - 0.05; at += gap, gap = Math.max(0.13, gap * 0.78)) for (const [o, v] of [[0, 0.22], [0.1, 0.13]]) voice({ f: 72, f2: 40, dur: 0.12, vol: v, at: t + at + o, pan });
     },
     obBeamIgnite(x) { const pan = panOf(x); voice({ type: 'square', f: 1800, f2: 300, dur: 0.12, vol: 0.08, pan }); voice({ noise: true, filter: 'highpass', ff: 2500, dur: 0.2, vol: 0.12, pan }); voice({ f: 70, f2: 30, dur: 0.5, vol: 0.3, pan }); },
     // The gatling: its motor winding up, the barrels whirring; then each round a crack (a rattle)
@@ -1049,8 +1055,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // 0B-L1-V10N's held sounds (its ring beam roaring round, panning with it; its gates grinding down the walls; its belt's
     // magnet, throbbing while it's caged you), and the mix round him: the music drops out for his set pieces, ducks under his lasers
     { const B = active && G.boss && G.boss.kind === 'mech' ? G.boss : null, Bm = B && B.beam && B.beam.t >= MECH_BEAM_CHARGE ? B.beam : null, Lg = B && B.legs, S = B && B.storm, Bt = S && S.belt;
-      hums.obBeam.g.gain.setTargetAtTime(Bm ? 0.07 : 0, now, 0.05);
-      if (Bm) { if (hums.obBeam.pn.pan) hums.obBeam.pn.pan.setTargetAtTime(Math.cos(Bm.a) * 0.75, now, 0.05); const f = 80 + 5 * Math.sin(now * 13); hums.obBeam.o.frequency.setTargetAtTime(f, now, 0.02); hums.obBeam.o2.frequency.setTargetAtTime(f * 1.013, now, 0.02); }
+      hums.obBeam.g.gain.setTargetAtTime(Bm ? 0.03 : 0, now, 0.12); hums.obBeamN.g.gain.setTargetAtTime(Bm ? 0.026 : 0, now, 0.12);
+      if (Bm) { const pn = Math.cos(Bm.a) * 0.7; for (const h of [hums.obBeam, hums.obBeamN]) if (h.pn.pan) h.pn.pan.setTargetAtTime(pn, now, 0.08);
+        hums.obBeam.o.frequency.setTargetAtTime(110, now, 0.1); hums.obBeam.o2.frequency.setTargetAtTime(110.7, now, 0.1); hums.obBeamN.f.frequency.setTargetAtTime(850 + 220 * Math.sin(now * 2.2), now, 0.1); } // (pitched up enough for a phone's speaker; smooth, no buzz)
       const grind = !!(Lg && Lg.gates && Lg.gates.some(g => g.st === 'on'));
       hums.obGrind.g.gain.setTargetAtTime(grind ? 0.045 : 0, now, 0.08); if (grind) hums.obGrind.f.frequency.setTargetAtTime(1500 + 400 * Math.sin(now * 7), now, 0.05);
       const belt = !!(Bt && Bt.st !== 'stun' && Bt.st !== 'form');
@@ -1058,7 +1065,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (belt) { const f = Bt.trap && Bt.st === 'hunt' ? 62 + 4 * Math.sin(now * 9) : 55; hums.obBelt.o.frequency.setTargetAtTime(f, now, 0.05); hums.obBelt.o2.frequency.setTargetAtTime(f * 1.01, now, 0.05); if (hums.obBelt.pn.pan) hums.obBelt.pn.pan.setTargetAtTime(panOf(Bt.cx ?? S.x), now, 0.1); }
       const setPiece = !!(active && (G.mechDeath || (B && ((B.walker && B.walker.st === 'form') || (Lg && (Lg.st === 'form' || Lg.st === 'die')) || (S && S.st === 'form')))));
       const lasers = !!(B && (Bm || (B.lance && B.lance.t >= MECH_LANCE_AIM) || (Lg && (Lg.gates || (Lg.atk && Lg.atk.k !== 'gates'))) || (Bt && Bt.trap)));
-      musicBus.gain.setTargetAtTime((musicOn ? 0.3 : 0) * (setPiece ? 0 : lasers ? 0.45 : 1), now, setPiece ? 0.3 : 0.15); }
+      musicBus.gain.setTargetAtTime((musicOn ? 0.3 : 0) * (setPiece ? 0 : lasers ? 0.6 : 1), now, setPiece ? 0.3 : 0.15); }
     heartbeatTick();
     if (inField() || inInvasion()) { MUSIC.nextT = 0; return; } // the heartbeat (or the march) is the music here
     musicTick();
