@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 15 19:53 UTC · 6e1000e";</script>
+<script>window.RICOCHET_BUILD = "Nov 15 20:30 UTC · 277ccd9";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1063,9 +1063,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const belt = !!(Bt && Bt.st !== 'stun' && Bt.st !== 'form');
       hums.obBelt.g.gain.setTargetAtTime(belt ? (Bt.trap ? 0.07 : 0.045) : 0, now, 0.15);
       if (belt) { const f = Bt.trap && Bt.st === 'hunt' ? 62 + 4 * Math.sin(now * 9) : 55; hums.obBelt.o.frequency.setTargetAtTime(f, now, 0.05); hums.obBelt.o2.frequency.setTargetAtTime(f * 1.01, now, 0.05); if (hums.obBelt.pn.pan) hums.obBelt.pn.pan.setTargetAtTime(panOf(Bt.cx ?? S.x), now, 0.1); }
-      const setPiece = !!(active && (G.mechDeath || (B && ((B.walker && B.walker.st === 'form') || (Lg && (Lg.st === 'form' || Lg.st === 'die')) || (S && S.st === 'form')))));
+      const setPiece = !!(active && (G.mechDeath || (B && B.walker && B.walker.st === 'form'))), dip = !!(B && ((Lg && (Lg.st === 'form' || Lg.st === 'die')) || (S && S.st === 'form'))); // (silent for the hand-off into his last stand and for his death; his other set pieces just dip it)
       const lasers = !!(B && (Bm || (B.lance && B.lance.t >= MECH_LANCE_AIM) || (Lg && (Lg.gates || (Lg.atk && Lg.atk.k !== 'gates'))) || (Bt && Bt.trap)));
-      musicBus.gain.setTargetAtTime((musicOn ? 0.3 : 0) * (setPiece ? 0 : lasers ? 0.6 : 1), now, setPiece ? 0.3 : 0.15); }
+      musicBus.gain.setTargetAtTime((musicOn ? 0.3 : 0) * (setPiece ? 0 : dip ? 0.5 : lasers ? 0.8 : 1), now, setPiece ? 0.3 : 0.15); }
     { const want = songWanted(); songTick(want, mode === 'title' || mode === 'play'); if (want) { MUSIC.nextT = 0; return; } } // a song playing (the title's, or his): the groove waits
     heartbeatTick();
     if (inField() || inInvasion()) { MUSIC.nextT = 0; return; } // the heartbeat (or the march) is the music here
@@ -1196,8 +1196,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     return { menu: () => build('theme'), ob1: () => build('last'), ob2: () => buildBoss() };
   })();
-  const SONG_GAIN = 0.5; // (under his sounds: the music's there, the tells stay on top)
-  const SONG = { id: null, s: null, t: 0, i: 0, base: 0, last: 0, built: {}, waves: {}, nb: null, bus: null };
+  const SONG_GAIN = 0.3; // (about 6 dB under the sound effects on average: the music's there, the tells stay on top)
+  const SONG = { id: null, s: null, t: 0, i: 0, base: 0, last: 0, built: {}, waves: {}, nb: null, bus: null, side: null, sbuf: null, duck: 1 };
   const sortSong = s => { s.ev.sort((a, b) => a.at - b.at); s.loopI = s.ev.findIndex(e => e.at >= s.loopFrom - 1e-6); return s; };
   function songWave(duty) { // a pulse wave of the given duty (its Fourier series)
     if (SONG.waves[duty]) return SONG.waves[duty];
@@ -1237,10 +1237,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function songTick(want, live) {
     const now = AC.currentTime;
-    if (!SONG.bus) { SONG.bus = AC.createGain(); SONG.bus.gain.value = SONG_GAIN; SONG.bus.connect(musicBus); const nb = AC.createBuffer(1, AC.sampleRate, AC.sampleRate), nd = nb.getChannelData(0); for (let i = 0, v = 0; i < nd.length; i++) { if (i % 2 === 0) v = Math.random() * 2 - 1; nd[i] = v; } SONG.nb = nb; }
+    if (!SONG.bus) { // its bus: a dip round 2 kHz and a soft roll-off above 3.5 kHz (the effects' tells live up there), and an ear on the effects
+      SONG.bus = AC.createGain(); SONG.bus.gain.value = SONG_GAIN; const pk = AC.createBiquadFilter(), lp = AC.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 2000; pk.Q.value = 0.9; pk.gain.value = -4; lp.type = 'lowpass'; lp.frequency.value = 3500; lp.Q.value = 0.5;
+      SONG.bus.connect(pk); pk.connect(lp); lp.connect(musicBus); SONG.side = AC.createAnalyser(); SONG.side.fftSize = 512; sfxBus.connect(SONG.side); SONG.sbuf = new Float32Array(512); const nb = AC.createBuffer(1, AC.sampleRate, AC.sampleRate), nd = nb.getChannelData(0); for (let i = 0, v = 0; i < nd.length; i++) { if (i % 2 === 0) v = Math.random() * 2 - 1; nd[i] = v; } SONG.nb = nb; }
     if (want !== SONG.id) { SONG.id = want; SONG.t = 0; SONG.i = 0; SONG.base = 0; SONG.last = now; SONG.s = want ? (SONG.built[want] || (SONG.built[want] = sortSong(SCORES[want]()))) : null; }
     if (!want || !live || !musicOn) { SONG.last = now; return; } // (held: its clock stops)
     SONG.t += Math.min(0.25, now - SONG.last); SONG.last = now; // (a hitch doesn't skip notes)
+    { SONG.side.getFloatTimeDomainData(SONG.sbuf); let e = 0; for (const v of SONG.sbuf) e += v * v; const db = 10 * Math.log10(e / SONG.sbuf.length + 1e-12), want = 1 - 0.35 * clamp((db + 33) / 12, 0, 1); // loud effects: it dips a little (3.7 dB at most)
+      SONG.duck += (want - SONG.duck) * (want < SONG.duck ? 0.3 : 0.04); SONG.bus.gain.setTargetAtTime(SONG_GAIN * SONG.duck, now, 0.06); } // (easing down, drifting back up: no pumping)
     const S = SONG.s, end = S.loopFrom + S.loopLen;
     for (let guard = 0; guard < 600; guard++) {
       const e = S.ev[SONG.i];
