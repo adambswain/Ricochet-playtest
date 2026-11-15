@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 15 17:54 UTC · 8145b10";</script>
+<script>window.RICOCHET_BUILD = "Nov 15 19:53 UTC · 6e1000e";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1066,9 +1066,189 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const setPiece = !!(active && (G.mechDeath || (B && ((B.walker && B.walker.st === 'form') || (Lg && (Lg.st === 'form' || Lg.st === 'die')) || (S && S.st === 'form')))));
       const lasers = !!(B && (Bm || (B.lance && B.lance.t >= MECH_LANCE_AIM) || (Lg && (Lg.gates || (Lg.atk && Lg.atk.k !== 'gates'))) || (Bt && Bt.trap)));
       musicBus.gain.setTargetAtTime((musicOn ? 0.3 : 0) * (setPiece ? 0 : lasers ? 0.6 : 1), now, setPiece ? 0.3 : 0.15); }
+    { const want = songWanted(); songTick(want, mode === 'title' || mode === 'play'); if (want) { MUSIC.nextT = 0; return; } } // a song playing (the title's, or his): the groove waits
     heartbeatTick();
     if (inField() || inInvasion()) { MUSIC.nextT = 0; return; } // the heartbeat (or the march) is the music here
     musicTick();
+  }
+
+  // ---- Songs: written scores played by a small synth in the style of the NES's sound chip (two pulse channels, a
+  // triangle bass, noise drums), through the music bus: the title theme, and 0B-L1-V10N's two: his arrival (a siren,
+  // a stomping kick) and his last stand (galloping, urgent), one hook through all three. A score is a list of note
+  // events; the player schedules them a moment ahead, plays the intro once and then loops the body, and its clock only
+  // runs while it plays (pausing holds its place).
+  const SCORES = (() => {
+      const NOTE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+      const midi = s => { const m = /^([A-G])([#b]?)(-?\d)$/.exec(s); return 12 * (+m[3] + 1) + NOTE[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0); };
+      // a bar of melody: "A4:2 A4:2 E5:2 A5:4 r:2" (lengths in 16ths)
+      const bar = str => { let at = 0; const out = []; for (const tok of str.trim().split(/\s+/)) { const [n, l] = tok.split(':'); const len = +l; if (n !== 'r') out.push({ m: midi(n), at, len }); at += len; } if (at !== 16) throw new Error('bar is ' + at + ' 16ths: ' + str); return out; };
+
+      // ---- the theme (A minor, 150 BPM) ----
+      const HOOK = { // the hook: a repeated stab, a leap up an octave landing ahead of the beat, a falling run
+        am: 'A4:2 A4:2 E5:2 A5:4 G5:2 E5:2 C5:2',
+        f: 'D5:4 C5:2 A4:6 C5:2 D5:2',
+        c: 'E5:2 E5:2 G5:2 C6:4 B5:2 G5:2 E5:2',
+        g: 'D5:4 E5:2 D5:2 B4:4 G4:4',
+        e1: 'B4:2 B4:2 E5:2 G#5:4 B5:2 G#5:2 E5:2',
+        e2: 'F5:4 E5:4 D5:2 C5:2 B4:4', // down the harmonic minor, the F biting against the E chord, home to A
+        run: 'E5:2 F5:2 G#5:2 A5:2 B5:2 C6:2 D6:4', // the climb into the bridge
+      };
+      const BRIDGE = [ // soaring, a sequence climbing a step each bar
+        'C6:6 B5:2 A5:4 F5:4', 'D6:6 C6:2 B5:4 G5:4', 'E6:6 D6:2 B5:4 G5:4', 'A5:10 r:2 C6:2 B5:2',
+        'C6:6 B5:2 A5:4 F5:4', 'D6:6 C6:2 B5:4 D6:4', 'E6:4 D6:2 C6:2 B5:4 G#5:4', 'B5:2 A5:2 G#5:2 F5:2 E5:4 r:4'];
+      const CH = { Am: [45, [9, 0, 4]], F: [41, [5, 9, 0]], C: [48, [0, 4, 7]], G: [43, [7, 11, 2]], E: [40, [4, 8, 11]], Em: [40, [4, 7, 11]], Bb: [46, [10, 2, 5]], D: [38, [2, 6, 9]] };
+      const A_CHORDS = ['Am', 'F', 'C', 'G', 'Am', 'F', 'E', 'E'], B_CHORDS = ['F', 'G', 'Em', 'Am', 'F', 'G', 'E', 'E'];
+      const A_LEAD = [HOOK.am, HOOK.f, HOOK.c, HOOK.g, HOOK.am, HOOK.f, HOOK.e1, HOOK.e2];
+
+      // ---- the last stand (A Phrygian, 165 BPM): the same hook, its B's flattened; bII where the F was ----
+      const LAST_LEAD = ['A4:2 A4:2 E5:2 A5:4 G5:2 E5:2 C5:2', 'D5:4 C5:2 Bb4:6 C5:2 D5:2', 'E5:2 E5:2 G5:2 C6:4 Bb5:2 G5:2 E5:2', 'D5:4 E5:2 D5:2 Bb4:4 G4:4',
+        'A4:2 A4:2 E5:2 A5:4 G5:2 E5:2 C5:2', 'D5:4 C5:2 Bb4:6 C5:2 D5:2', HOOK.e1, HOOK.e2];
+      const LAST_CHORDS = ['Am', 'Bb', 'Am', 'G', 'Am', 'Bb', 'E', 'E'];
+
+      // ---- the battle theme (A minor, 158 BPM): the same hook over the descending minor loop (Am G F E), the hook's
+      // shape restated on each chord; a galloping bass; a low riff for the middle (over A and B-flat), climbing back
+      const BOSS_A = ['A4:2 A4:2 E5:2 A5:4 G5:2 E5:2 C5:2', 'D5:4 B4:2 G4:6 B4:2 D5:2', 'C5:2 C5:2 A4:2 F5:4 E5:2 C5:2 A4:2', 'B4:2 B4:2 E5:2 G#5:4 B5:2 G#5:2 E5:2',
+        'A4:2 A4:2 E5:2 A5:4 G5:2 E5:2 C5:2', 'D5:4 B4:2 G4:6 B4:2 D5:2', 'C5:2 C5:2 F5:2 A5:4 G5:2 F5:2 C5:2', 'F5:4 E5:4 D5:2 C5:2 B4:4'];
+      const BOSS_A_CH = ['Am', 'G', 'F', 'E', 'Am', 'G', 'F', 'E'];
+      const RIFF_A = 'A4:1 A4:1 C5:2 A4:1 A4:1 D5:2 A4:1 A4:1 E5:2 D5:2 C5:2', RIFF_BB = 'Bb4:1 Bb4:1 D5:2 Bb4:1 Bb4:1 E5:2 Bb4:1 Bb4:1 F5:2 E5:2 D5:2';
+      const BOSS_B = [RIFF_A, RIFF_BB, RIFF_A, RIFF_BB, 'C5:2 E5:2 G5:2 C6:4 G5:2 E5:2 G5:2', 'D5:2 F#5:2 A5:2 D6:4 A5:2 F#5:2 A5:2', 'E5:2 G#5:2 B5:2 E6:6 D6:2 C6:2', 'B5:2 A5:2 G#5:2 F5:2 E5:4 r:4'];
+      const BOSS_B_CH = ['Am', 'Bb', 'Am', 'Bb', 'C', 'D', 'E', 'E'];
+      function buildBoss() {
+        const bpm = 158, s16 = 60 / bpm / 4, ev = [], secs = [['BI', 2], ['BA', 8], ['BA2', 8], ['BB', 8], ['BA3', 8]];
+        let b0 = 0;
+        for (const [k, nb] of secs) { for (let i = 0; i < nb; i++) {
+          const t0 = (b0 + i) * 16 * s16, at = st => t0 + st * s16, chord = k === 'BI' ? 'Am' : k === 'BB' ? BOSS_B_CH[i] : BOSS_A_CH[i], [root, pcs] = CH[chord];
+          const lead = k === 'BI' ? [] : bar(k === 'BB' ? BOSS_B[i] : BOSS_A[i]);
+          for (const n of lead) ev.push({ ch: 'p1', m: n.m, at: at(n.at), dur: n.len * s16 * (n.len <= 2 ? 0.8 : 1), vol: 0.2, duty: 0.25, vib: n.len >= 4 }); // punchy: the short notes clipped
+          // pulse 2: a driving ostinato under the first hook; a harmony a third under after; the riff doubled an octave down, then arpeggios
+          if (k === 'BA') { const tones = [12 * 5 + pcs[0], 12 * 5 + pcs[2], 12 * 6 + pcs[0], 12 * 5 + pcs[2]].map(m => m > 76 ? m - 12 : m); for (let st = 0; st < 16; st += 2) ev.push({ ch: 'p2', m: tones[(st / 2) % 4], at: at(st), dur: s16 * 1.4, vol: 0.06, duty: 0.125, pan: 0.25 }); }
+          if (k === 'BA2' || k === 'BA3') for (const n of lead) ev.push({ ch: 'p2', m: third(n.m, chord, false), at: at(n.at), dur: n.len * s16 * (n.len <= 2 ? 0.8 : 1), vol: 0.1, duty: 0.125, pan: -0.25, vib: n.len >= 4 });
+          if (k === 'BB' && i < 4) for (const n of lead) ev.push({ ch: 'p2', m: n.m - 12, at: at(n.at), dur: n.len * s16 * 0.8, vol: 0.08, duty: 0.5, pan: -0.2 });
+          if (k === 'BB' && i >= 4) { const tones = []; for (let o = 4; o <= 5; o++) for (const pc of pcs) tones.push(12 * (o + 1) + pc); tones.sort((a, b) => a - b); [0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0, 1, 2, 3, 2, 1].forEach((j, st) => ev.push({ ch: 'p2', m: tones[j], at: at(st), dur: s16 * 0.8, vol: 0.06, duty: 0.125, pan: 0.25 })); }
+          // triangle bass: a gallop (long-short-short) on the root; sixteenths pumping under the riff; an E7 climb into each return of the hook
+          const walk = (k === 'BA' || k === 'BA2' || k === 'BA3') && i === 7;
+          if (k === 'BB' && i < 4) for (let st = 0; st < 16; st++) ev.push({ ch: 'tri', m: st % 2 ? root + 12 : root, at: at(st), dur: s16 * 0.82, vol: 0.32 });
+          else for (let beat = 0; beat < 4; beat++) { const st = beat * 4; if (walk && beat >= 2) { [[0, 40], [2, 44], [3, 47]].forEach(([o, m], j) => ev.push({ ch: 'tri', m: beat === 3 ? [47, 50, 52][j] : m, at: at(st + o), dur: (o === 0 ? 2 : 1) * s16 * 0.82, vol: 0.32 })); continue; }
+            ev.push({ ch: 'tri', m: root, at: at(st), dur: 2 * s16 * 0.82, vol: 0.32 }); ev.push({ ch: 'tri', m: root, at: at(st + 2), dur: s16 * 0.82, vol: 0.32 }); ev.push({ ch: 'tri', m: root + 12, at: at(st + 3), dur: s16 * 0.82, vol: 0.32 }); }
+          // drums
+          const K = (st, v = 1) => ev.push({ ch: 'kick', at: at(st), vol: 0.5 * v }), S = (st, v = 1) => ev.push({ ch: 'snare', at: at(st), vol: 0.24 * v }), H = (st, v = 1, open = false) => ev.push({ ch: 'hat', at: at(st), vol: 0.07 * v, open }), X = st => ev.push({ ch: 'crash', at: at(st), vol: 0.13 });
+          if (k === 'BI') { K(0); K(3); K(8); K(11); for (let st = 0; st < 16; st++) H(st, st % 2 ? 0.4 : 0.8); if (i === 1) for (let st = 8; st < 16; st++) S(st, 0.35 + 0.65 * (st - 8) / 7); }
+          else if (k === 'BB' && i < 4) { for (const st of [0, 4, 8, 12]) K(st); S(4); S(12); for (let st = 0; st < 16; st++) H(st, st % 2 ? 0.5 : 0.85); if (i === 0) X(0); }
+          else { K(0); K(3); K(8); K(11); if (i % 2) K(14, 0.8); S(4); S(12); S(7, 0.3); S(15, 0.3); for (let st = 0; st < 16; st++) H(st, st % 2 ? 0.4 : 0.85, st === 14 && i % 2 === 1); if (i === 0) X(0);
+            if (i === 7) { if (k === 'BB') for (let st = 8; st < 16; st++) S(st, 0.4 + 0.6 * (st - 8) / 7); else { S(13, 0.6); S(14, 0.8); S(15); } } }
+        } b0 += nb; }
+        return { ev, len: b0 * 16 * s16, bpm, loopFrom: 2 * 16 * s16, loopLen: 32 * 16 * s16 };
+      }
+
+      // a third below, in the scale (G# over E; Bb in the Phrygian)
+      function third(m, chord, phryg) {
+        const scale = [9, 11, 0, 2, 4, 5, 7].map(pc => (phryg && pc === 11 ? 10 : chord === 'E' && pc === 7 ? 8 : pc)).sort((a, b) => a - b);
+        for (let d = 3; d <= 4; d++) { const pc = ((m - d) % 12 + 12) % 12; if (scale.includes(pc)) return m - d; }
+        return m - 3;
+      }
+
+      // Build the event list: { ch, m, at (s), dur (s), vol, ... }
+      function build(which) {
+        if (which === 'boss') return buildBoss();
+        const last = which === 'last', bpm = last ? 165 : 150, s16 = 60 / bpm / 4, ev = [];
+        const sections = last
+          ? [{ k: 'LA', bars: 8 }, { k: 'LA2', bars: 8 }]
+          : [{ k: 'intro', bars: 2 }, { k: 'A', bars: 8 }, { k: 'A2', bars: 8 }, { k: 'B', bars: 8 }, { k: 'A3', bars: 8 }];
+        let b0 = 0;
+        for (const sec of sections) {
+          for (let i = 0; i < sec.bars; i++) {
+            const t0 = (b0 + i) * 16 * s16, at = st => t0 + st * s16, k = sec.k;
+            const chord = k === 'intro' ? (i ? 'E' : 'Am') : k === 'B' ? B_CHORDS[i] : (k === 'LA' || k === 'LA2') ? LAST_CHORDS[i] : A_CHORDS[i];
+            let leadStr = null;
+            if (k === 'A' || k === 'A3') leadStr = A_LEAD[i];
+            if (k === 'A2') leadStr = i === 7 ? HOOK.run : A_LEAD[i];
+            if (k === 'B') leadStr = BRIDGE[i];
+            if (k === 'LA' || k === 'LA2') leadStr = LAST_LEAD[i];
+            const lead = leadStr ? bar(leadStr) : [];
+            // lead: pulse 1 (25% duty; thinner 12.5% in the last stand)
+            for (const n of lead) ev.push({ ch: 'p1', m: n.m, at: at(n.at), dur: n.len * s16, vol: 0.2, duty: last ? 0.125 : 0.25, vib: n.len >= 4 });
+            // pulse 2
+            if (k === 'LA') { // the alarm: a semitone siren
+              for (let st = 0; st < 16; st += 2) ev.push({ ch: 'p2', m: st % 4 ? 77 : 76, at: at(st), dur: 2 * s16 * 0.9, vol: 0.06, duty: 0.5 });
+            }
+            if (k === 'A') for (const n of lead) ev.push({ ch: 'p2', m: n.m, at: at(n.at + 3), dur: n.len * s16, vol: 0.075, duty: 0.25, pan: 0.3 }); // an echo, a dotted eighth behind
+            if (k === 'A2' || k === 'A3' || k === 'LA2') for (const n of lead) ev.push({ ch: 'p2', m: third(n.m, chord, last), at: at(n.at), dur: n.len * s16, vol: 0.1, duty: 0.125, pan: -0.25, vib: n.len >= 4 }); // harmony, a third under
+            if (k === 'B' || k === 'intro') { const [root, pcs] = CH[chord], tones = []; for (let o = 4; o <= 5; o++) for (const pc of pcs) tones.push(12 * (o + 1) + pc); tones.sort((a, b) => a - b);
+              const seq = [0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0, 1, 2, 3, 2, 1]; seq.forEach((j, st) => ev.push({ ch: 'p2', m: tones[j], at: at(st), dur: s16 * 0.8, vol: k === 'intro' ? 0.05 + 0.035 * (i * 16 + st) / 31 : 0.06, duty: 0.125, pan: 0.25 })); } // arpeggios, NES style (the menu's intro: one shimmering in, over Am then E)
+            // triangle bass: root and octave, eighths (sixteenths in the last stand); walking up an E7 into the hook
+            const [root] = CH[chord], walk = (k === 'A' || k === 'A2' || k === 'A3' || k === 'LA' || k === 'LA2') && i === 7;
+            const step = last ? 1 : 2;
+            for (let st = 0; st < 16; st += step) {
+              let m = (st / step) % 2 ? root + 12 : root;
+              if (walk && st >= 8) m = [40, 44, 47, 50, 52, 50, 47, 44][((st - 8) / step) % 8] + (last ? 0 : 0);
+              ev.push({ ch: 'tri', m, at: at(st), dur: step * s16 * 0.82, vol: 0.32 });
+            }
+            // noise drums
+            const K = (st, v = 1) => ev.push({ ch: 'kick', at: at(st), vol: 0.5 * v }), S = (st, v = 1) => ev.push({ ch: 'snare', at: at(st), vol: 0.24 * v }), H = (st, v = 1, open = false) => ev.push({ ch: 'hat', at: at(st), vol: 0.07 * v, open }), X = st => ev.push({ ch: 'crash', at: at(st), vol: 0.13 });
+            if (k === 'intro') { for (let st = 0; st < 16; st += 2) H(st, 0.8); if (i === 0) { K(0); K(8); } else { K(0); for (let st = 8; st < 16; st++) S(st, 0.35 + 0.65 * (st - 8) / 7); } }
+            else if (last) { for (const st of [0, 4, 8, 12]) K(st); S(4); S(12); for (let st = 0; st < 16; st++) H(st, st % 2 ? 0.55 : 0.9, st === 14); if (i === 0) X(0); if (i === 7) { S(13, 0.6); S(14, 0.8); S(15); } }
+            else if (k === 'B') { K(0); K(6); K(8); S(4); S(12); for (let st = 0; st < 16; st++) H(st, st % 2 ? 0.45 : 0.75); if (i === 0) X(0); if (i === 7) { for (let st = 8; st < 16; st++) S(st, 0.4 + 0.6 * (st - 8) / 7); } }
+            else { K(0); K(8); if (i % 2) K(10); S(4); S(12); for (let st = 0; st < 16; st += 2) H(st, 1, st === 14 && i % 2 === 1); if (i === 0 && k !== 'A') X(0); if (i === 0 && k === 'A') X(0); if (i === 7) { S(14, 0.7); S(15, 0.9); } }
+          }
+          b0 += sec.bars;
+        }
+        return { ev, len: b0 * 16 * s16, bpm, loopFrom: last ? 0 : 2 * 16 * s16, loopLen: (last ? 16 : 32) * 16 * s16 };
+      }
+    return { menu: () => build('theme'), ob1: () => build('last'), ob2: () => buildBoss() };
+  })();
+  const SONG_GAIN = 0.5; // (under his sounds: the music's there, the tells stay on top)
+  const SONG = { id: null, s: null, t: 0, i: 0, base: 0, last: 0, built: {}, waves: {}, nb: null, bus: null };
+  const sortSong = s => { s.ev.sort((a, b) => a.at - b.at); s.loopI = s.ev.findIndex(e => e.at >= s.loopFrom - 1e-6); return s; };
+  function songWave(duty) { // a pulse wave of the given duty (its Fourier series)
+    if (SONG.waves[duty]) return SONG.waves[duty];
+    const N = 48, re = new Float32Array(N), im = new Float32Array(N); for (let n = 1; n < N; n++) { re[n] = Math.sin(2 * Math.PI * n * duty) / (Math.PI * n); im[n] = (1 - Math.cos(2 * Math.PI * n * duty)) / (Math.PI * n); }
+    return (SONG.waves[duty] = AC.createPeriodicWave(re, im));
+  }
+  function songNote(e, t) { // one note (or drum hit) of a score, at AC time t
+    const ctx = AC, dest = SONG.bus, hz = m => 440 * Math.pow(2, (m - 69) / 12);
+    const out = (node, pan) => { if (pan && ctx.createStereoPanner) { const pn = ctx.createStereoPanner(); pn.pan.value = pan; node.connect(pn); pn.connect(dest); } else node.connect(dest); };
+    if (e.ch === 'p1' || e.ch === 'p2' || e.ch === 'tri') {
+      const o = ctx.createOscillator(), g = ctx.createGain(), end = t + Math.max(0.03, e.dur - 0.012);
+      if (e.ch === 'tri') o.type = 'triangle'; else o.setPeriodicWave(songWave(e.duty));
+      o.frequency.value = hz(e.m);
+      if (e.vib && e.dur > 0.2) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = 5.6; lg.gain.setValueAtTime(0, t); lg.gain.setValueAtTime(0, t + 0.13); lg.gain.linearRampToValueAtTime(e.ch === 'p1' && e.duty === 0.125 ? 28 : 18, t + 0.3); l.connect(lg); lg.connect(o.detune); l.start(t); l.stop(end + 0.05); } // vibrato, a moment into a long note
+      const pk = e.vol, sus = e.ch === 'tri' ? pk : pk * 0.72;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(pk, t + 0.004); g.gain.linearRampToValueAtTime(sus, t + 0.09); g.gain.setValueAtTime(sus, end); g.gain.linearRampToValueAtTime(0, end + 0.025);
+      o.connect(g); out(g, e.pan || 0); o.start(t); o.stop(end + 0.04);
+    } else if (e.ch === 'kick') {
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.09);
+      g.gain.setValueAtTime(e.vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.17); o.connect(g); out(g, 0); o.start(t); o.stop(t + 0.2);
+    } else { // noise: snare, hats, crash (gritty noise, held every other sample, like the chip's)
+      const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(); src.buffer = SONG.nb; src.loop = true; src.playbackRate.value = e.ch === 'snare' ? 0.7 : 1;
+      const len = e.ch === 'snare' ? 0.13 : e.ch === 'crash' ? 0.95 : e.open ? 0.16 : 0.035;
+      f.type = e.ch === 'snare' ? 'bandpass' : 'highpass'; f.frequency.value = e.ch === 'snare' ? 1900 : e.ch === 'crash' ? 3800 : 7000; f.Q.value = e.ch === 'snare' ? 0.6 : 0.7;
+      g.gain.setValueAtTime(e.vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); src.connect(f); f.connect(g); out(g, e.ch === 'hat' ? 0.15 : 0); src.start(t, Math.random() * 0.5); src.stop(t + len + 0.02);
+      if (e.ch === 'snare') { const o = ctx.createOscillator(), og = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(240, t); o.frequency.exponentialRampToValueAtTime(130, t + 0.06); og.gain.setValueAtTime(e.vol * 0.9, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.08); o.connect(og); out(og, 0); o.start(t); o.stop(t + 0.1); }
+    }
+  }
+  // Which song: the title theme on the title screen; his arrival from when 0B-L1-V10N turns up until his first
+  // transformation's done (its silence is the hand-off); his last stand from then to his end. Otherwise none: the groove.
+  function songWanted() {
+    if (mode === 'title') return 'menu';
+    if (!G || G.attract || mode === 'over' || mode === 'win') return null;
+    if (G.mechDeath) return 'ob2';
+    const B = G.boss && G.boss.kind === 'mech' ? G.boss : null; if (!B) return null;
+    return B.legs || B.storm || (B.walker && B.walker.st !== 'form') ? 'ob2' : 'ob1';
+  }
+  function songTick(want, live) {
+    const now = AC.currentTime;
+    if (!SONG.bus) { SONG.bus = AC.createGain(); SONG.bus.gain.value = SONG_GAIN; SONG.bus.connect(musicBus); const nb = AC.createBuffer(1, AC.sampleRate, AC.sampleRate), nd = nb.getChannelData(0); for (let i = 0, v = 0; i < nd.length; i++) { if (i % 2 === 0) v = Math.random() * 2 - 1; nd[i] = v; } SONG.nb = nb; }
+    if (want !== SONG.id) { SONG.id = want; SONG.t = 0; SONG.i = 0; SONG.base = 0; SONG.last = now; SONG.s = want ? (SONG.built[want] || (SONG.built[want] = sortSong(SCORES[want]()))) : null; }
+    if (!want || !live || !musicOn) { SONG.last = now; return; } // (held: its clock stops)
+    SONG.t += Math.min(0.25, now - SONG.last); SONG.last = now; // (a hitch doesn't skip notes)
+    const S = SONG.s, end = S.loopFrom + S.loopLen;
+    for (let guard = 0; guard < 600; guard++) {
+      const e = S.ev[SONG.i];
+      if (!e || e.at >= end) { SONG.i = S.loopI; SONG.base += S.loopLen; continue; } // round again, from the top of the body
+      const at = SONG.base + e.at; if (at > SONG.t + 0.2) break;
+      if (at >= SONG.t - 0.03) songNote(e, now + Math.max(0, at - SONG.t));
+      SONG.i++;
+    }
   }
 
   // Background groove, scheduled a little ahead. Layers join as the multiplier climbs:
@@ -11766,6 +11946,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   });
   addEventListener('keyup', e => { if (KEYMAP[e.code]) keys[KEYMAP[e.code]] = false; if (e.code === 'Space') spaceThrew = false; });
 
+  addEventListener('pointerdown', () => { if (mode === 'title') audioInit(); }, { capture: true }); // (on the title screen, a first touch anywhere brings its theme in)
+  addEventListener('keydown', () => { if (mode === 'title') audioInit(); }, { capture: true });
   cvs.addEventListener('pointerdown', e => {
     audioInit();
     inputType = e.pointerType === 'mouse' ? 'mouse' : 'touch';
