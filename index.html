@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 15 20:30 UTC · 277ccd9";</script>
+<script>window.RICOCHET_BUILD = "Nov 15 20:44 UTC · 31b554a";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1073,8 +1073,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   // ---- Songs: written scores played by a small synth in the style of the NES's sound chip (two pulse channels, a
-  // triangle bass, noise drums), through the music bus: the title theme, and 0B-L1-V10N's two: his arrival (a siren,
-  // a stomping kick) and his last stand (galloping, urgent), one hook through all three. A score is a list of note
+  // triangle bass, noise drums), through the music bus: the title theme; the gameplay theme (its layers joining as the
+  // multiplier climbs); a theme for each boss, and 0B-L1-V10N's two (his arrival, his last stand). One family: each
+  // opens on its own version of the same hook. A score is a list of note
   // events; the player schedules them a moment ahead, plays the intro once and then loops the body, and its clock only
   // runs while it plays (pausing holds its place).
   const SCORES = (() => {
@@ -1194,7 +1195,205 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         }
         return { ev, len: b0 * 16 * s16, bpm, loopFrom: last ? 0 : 2 * 16 * s16, loopLen: (last ? 16 : 32) * 16 * s16 };
       }
-    return { menu: () => build('theme'), ob1: () => build('last'), ob2: () => buildBoss() };
+    // the rest of the soundtrack: a small engine that builds a song from a spec (chords, melody lines, and a style for
+    // the second pulse, the bass and the drums), and the specs: the gameplay theme and the other five bosses
+    const GEN = (() => {
+    const NOTE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+    const midi = s => { const m = /^([A-G])([#b]?)(-?\d)$/.exec(s); if (!m) throw new Error('bad note ' + s); return 12 * (+m[3] + 1) + NOTE[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0); };
+    const line = (str, steps) => { let at = 0; const out = []; for (const tok of str.trim().split(/\s+/)) { const [n, l] = tok.split(':'); const len = +l; if (n !== 'r') out.push({ m: midi(n), at, len }); at += len; } if (at !== steps) throw new Error('bar is ' + at + ' steps, not ' + steps + ': ' + str); return out; };
+    // chords: 'Am', 'E', 'F#m', 'Bb', 'D+' (augmented), 'C#7', 'Bdim'
+    function chord(name) {
+      const m = /^([A-G])([#b]?)(m|\+|7|dim|m7)?$/.exec(name); if (!m) throw new Error('bad chord ' + name);
+      const r = (NOTE[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + 12) % 12, q = m[3] || '';
+      const iv = q === 'm' ? [0, 3, 7] : q === '+' ? [0, 4, 8] : q === '7' ? [0, 4, 7, 10] : q === 'dim' ? [0, 3, 6] : q === 'm7' ? [0, 3, 7, 10] : [0, 4, 7];
+      return { root: 36 + r + (r > 8 ? -12 : 0) + 12 * 0, pcs: iv.map(i => (r + i) % 12), r };
+    }
+    const bassRoot = c => { let m = 36 + c.r; if (m < 40) m += 12; return m; }; // E2 to D#3: low, but where a phone's speaker can still carry it
+    function third(m, c, scale) {
+      for (const d of [3, 4]) if (c.pcs.includes(((m - d) % 12 + 12) % 12)) return m - d;
+      for (const d of [3, 4]) if (scale.includes(((m - d) % 12 + 12) % 12)) return m - d;
+      return m - 3;
+    }
+    const pat = (str, steps) => { const a = []; for (let i = 0; i < steps; i++) { const ch = str[i] || '.'; if (ch !== '.') a.push([i, ch]); } return a; };
+
+    function build(spec) {
+      const st = spec.steps, s16 = 60 / spec.bpm / 4 * (spec.stepScale || 1), ev = [], L = spec.lead, scale = spec.scale;
+      let b0 = 0, loopFrom = 0;
+      spec.sections.forEach((sec, si) => {
+        if (si === spec.loopFrom) loopFrom = b0 * st * s16;
+        sec.bars.forEach((b, i) => {
+          const t0 = (b0 + i) * st * s16, at = x => t0 + x * s16, c = chord(b.c), lvl = sec.lvl || 1, last = i === sec.bars.length - 1;
+          const notes = b.l ? line(b.l, st) : [];
+          let prev = null;
+          // the lead
+          for (const n of notes) {
+            const short = n.len <= (L.shortMax || 2), e = { ch: 'p1', m: n.m, at: at(n.at), dur: n.len * s16 * (short ? (L.clip || 0.85) : 1), vol: sec.leadVol || L.vol || 0.2, duty: L.duty, vib: n.len >= (L.vibMin || 4) ? (L.vib || 18) : 0, vibRate: L.vibRate || 5.6, lvl: 1 };
+            if (L.glide && prev && n.len >= 3) e.from = prev.m;
+            ev.push(e); prev = n;
+          }
+          // the second pulse
+          const P = sec.p2, pv = sec.p2Vol, push = (m, x, len, o = {}) => ev.push(Object.assign({ ch: 'p2', m, at: at(x), dur: len * s16, vol: pv || 0.07, duty: 0.125, pan: 0.25, lvl: sec.p2Lvl || lvl }, o));
+          const tones = (lo, hi) => { const t = []; for (let o = lo; o <= hi; o++) for (const pc of c.pcs) t.push(12 * (o + 1) + pc); return t.sort((a, b) => a - b); };
+          if (P === 'echo') for (const n of notes) push(n.m, n.at + (spec.echo || 3), n.len * 0.85, { vol: pv || 0.075, duty: L.duty, pan: 0.3, echo: true });
+          if (P === 'drone') push(spec.drone || 12 * 5 + c.pcs[0], 0, st, { vol: pv || 0.05, duty: 0.5, pan: -0.15 }); // a held drone (a snake charmer's)
+          if (P === 'third') for (const n of notes) push(third(n.m, c, scale), n.at, n.len * (n.len <= 2 ? (L.clip || 0.85) : 1), { vol: pv || 0.1, pan: -0.25, vib: n.len >= 4 ? 18 : 0, vibRate: L.vibRate || 5.6 });
+          if (P === 'arp' || P === 'shimmer') { const t = tones(4, 5), seq = [0, 1, 2, 3, 4, 5, 4, 3, 2, 1]; for (let x = 0; x < st; x++) push(t[seq[x % seq.length] % t.length], x, 0.8, { vol: P === 'shimmer' ? 0.03 + 0.05 * (i * st + x) / (sec.bars.length * st) : (pv || 0.06) }); }
+          if (P === 'buzz') { const f = 12 * 6 + c.pcs[spec.buzzOn || 0]; for (let x = 0; x < st; x++) push(x % 2 ? f + 1 : f, x, 0.9, { vol: pv || 0.04, pan: 0.2 }); } // a swarm's trill
+          if (P === 'rattle') { const f = 12 * 6 + c.pcs[0]; for (let x = 0; x < st; x++) push(x % 2 ? f + 1 : f, x, 0.7, { vol: pv || 0.035, pan: 0.2 }); }
+          if (P === 'gear') { const t = [12 * 5 + c.pcs[0], 12 * 5 + c.pcs[2]]; for (let x = 0; x < st; x++) push(t[x % 2] > 77 ? t[x % 2] - 12 : t[x % 2], x, 0.6, { vol: pv || 0.05 }); }
+          if (P === 'stab') for (let x = 2; x < st; x += 4) { push(12 * 5 + c.pcs[0], x, 1.2, { vol: pv || 0.08, duty: 0.5, pan: -0.2 }); push(12 * 5 + c.pcs[2] - (12 * 5 + c.pcs[2] > 79 ? 12 : 0), x + 1, 0.9, { vol: (pv || 0.08) * 0.8, duty: 0.5, pan: -0.2 }); } // brass stabs, root then fifth
+          if (P === 'chime') { const t = tones(5, 6).concat([12 * 7 + (c.pcs[0] + 2) % 12]).sort((a, b) => a - b), seq = [0, 2, 4, 6, 5, 3, 1, 3]; for (let x = 0; x < st; x++) push(t[seq[x % seq.length] % t.length], x, 0.45, { vol: pv || 0.045, pan: 0.3 }); } // crystal: high, short, sparkling (the chord and its ninth)
+          if (P === 'wholetone') { let m = 12 * 5 + c.pcs[0]; for (let x = 0; x < st; x++) { push(m, x, 0.8, { vol: pv || 0.05 }); m += 2; if (m > 84) m -= 12; } }
+          // the bass (triangle)
+          const R = bassRoot(c), B = sec.bass, tri = (m, x, len, v = 0.32) => ev.push({ ch: 'tri', m, at: at(x), dur: len * s16 * 0.82, vol: v, lvl: 1 });
+          const walk = last && sec.walk; // a climb into what's next, on its dominant
+          if (B === 'pump8') for (let x = 0; x < st; x += 2) tri((x / 2) % 2 ? R + 12 : R, x, 2);
+          if (B === 'pump16') for (let x = 0; x < st; x++) tri(x % 2 ? R + 12 : R, x, 1);
+          if (B === 'gallop') for (let x = 0; x < st; x += 4) { tri(R, x, 2); tri(R, x + 2, 1); tri(R + 12, x + 3, 1); }
+          if (B === 'march') [[0, R], [4, R + 12], [8, R + 7], [12, R + 12]].forEach(([x, m]) => { if (x < st) { tri(m, x, 2); if (x + 2 < st) tri(m, x + 2, 1, 0.24); } }); // oom-pah, mechanical
+          if (B === 'shuffle') for (let x = 0; x < st; x += 3) { tri(R, x, 2); tri(R + 12, x + 2, 1, 0.26); } // swung: long-short
+          if (B === 'lurch') [[0, R, 2], [2, R, 2], [4, R + 12, 2], [6, R, 2], [8, R + 7, 3], [11, R + 12, 3]].forEach(([x, m, len]) => tri(m, x, len)); // 7/8: 2+2+3, lurching
+          if (B === 'waltz') { tri(R, 0, 4); tri(R + 12, 4, 2, 0.24); tri(R + 7, 8, 2, 0.24); }
+          if (B === 'hold') tri(R, 0, st, 0.26);
+          if (walk) { // replace the bar's second half with a climb up the dominant's arpeggio
+            for (let k = ev.length - 1; k >= 0; k--) if (ev[k].ch === 'tri' && ev[k].at >= at(st / 2) - 1e-9 && ev[k].at < at(st)) ev.splice(k, 1);
+            const d = sec.walk, w = [0, 4, 7, 10].map(iv => bassRoot(chord(d)) + iv); const n = Math.floor(st / 2 / 2); for (let k = 0; k < n; k++) tri(w[k % 4], st / 2 + k * 2, 2);
+          }
+          // drums
+          const D = spec.drums[sec.drums || 'main'] || spec.drums.main;
+          const K = (x, v = 1) => ev.push({ ch: 'kick', at: at(x), vol: 0.5 * v, lvl: 1 }), S = (x, v = 1, l = 1) => ev.push({ ch: 'snare', at: at(x), vol: 0.24 * v, lvl: l }), H = (x, v = 1, open = false, l = 2) => ev.push({ ch: 'hat', at: at(x), vol: 0.07 * v, open, lvl: l }), X = x => ev.push({ ch: 'crash', at: at(x), vol: 0.13, lvl: 2 });
+          if (D) {
+            for (const [x] of pat(D.K, st)) K(x);
+            for (const [x, ch] of pat(D.S, st)) S(x, ch === 'g' ? 0.28 : 1, ch === 'g' ? 3 : 1);
+            for (const [x, ch] of pat(D.H || '', st)) H(x, ch === 'o' ? 0.5 : 0.85, ch === 'O', ch === 'O' || ch === 'o' ? 3 : 2); // (the gameplay theme: hats from x2, the soft sixteenths and open hats from x4)
+            if (i === 0 && sec.crash !== false) X(0);
+            if (last && sec.fill !== false) { const f = sec.fill || 'short'; if (f === 'roll') for (let x = Math.floor(st / 2); x < st; x++) S(x, 0.35 + 0.65 * (x - st / 2) / (st / 2 - 1)); else for (let x = st - 3; x < st; x++) S(x, 0.6 + 0.2 * (x - st + 3)); }
+          }
+        });
+        b0 += sec.bars.length;
+      });
+      const len = b0 * st * s16;
+      // an echo note stops short of rubbing a semitone against the melody (or goes, if that leaves next to nothing)
+      const leads = ev.filter(e => e.ch === 'p1');
+      for (let k = ev.length - 1; k >= 0; k--) { const e = ev[k]; if (!e.echo) continue;
+        for (const l of leads) { const iv = ((e.m - l.m) % 12 + 12) % 12; if ((iv === 1 || iv === 11) && l.at < e.at + e.dur && e.at < l.at + l.dur) { if (l.at - e.at >= s16 * 0.9) e.dur = l.at - e.at - 0.01; else { ev.splice(k, 1); break; } } } }
+      return { ev: ev.sort((a, b) => a.at - b.at), len, bpm: spec.bpm, loopFrom, loopLen: len - loopFrom, steps: st, name: spec.name };
+    }
+      return { build, chord };
+    })();
+    const ST = (() => {
+    const A = (c, l) => ({ c, l }); // a bar: chord, melody
+    const SONGS = {};
+
+    // ---- Gameplay: "Ricochet", A minor lifting to C, 144 BPM. A melody that bounces (ricochets) between notes; a
+    // singable chorus; a bridge that quotes the hook in D minor. Layers join as the multiplier climbs (lvl 2: hats and the
+    // second pulse; lvl 3: open hats).
+    const R_A = [A('Am', 'A4:2 E5:2 A4:1 A4:1 E5:2 C5:2 E5:2 A5:4'), A('G', 'G5:2 D5:2 G4:2 D5:2 B4:2 D5:2 G5:4'), A('F', 'F5:2 C5:2 A4:2 C5:2 F5:2 A5:2 C6:4'), A('G', 'B5:4 A5:2 G5:2 D5:4 r:4'),
+      A('Am', 'A4:2 E5:2 A4:1 A4:1 E5:2 C5:2 E5:2 A5:4'), A('G', 'G5:2 D5:2 G4:2 D5:2 B4:2 D5:2 G5:4'), A('F', 'F5:2 C5:2 A4:2 C5:2 F5:2 G5:2 A5:2 B5:2'), A('G', 'C6:6 B5:2 G5:4 E5:4')];
+    const R_B = [A('C', 'E5:4 G5:4 C6:6 B5:2'), A('G', 'B5:4 A5:2 G5:2 D5:8'), A('Am', 'C5:4 E5:4 A5:6 G5:2'), A('F', 'F5:2 E5:2 F5:2 A5:2 C6:8'),
+      A('C', 'E6:4 D6:2 C6:2 G5:4 C6:4'), A('G', 'D6:4 C6:2 B5:2 G5:8'), A('F', 'A5:2 B5:2 C6:2 A5:2 F5:4 A5:4'), A('E', 'G#5:6 B5:2 E6:4 D6:4')];
+    const R_C = [A('Dm', 'D5:2 D5:2 A5:2 D6:4 C6:2 A5:2 F5:2'), A('Am', 'E5:4 D5:2 C5:6 E5:2 F5:2'), A('Bb', 'D5:2 D5:2 F5:2 Bb5:4 A5:2 F5:2 D5:2'), A('F', 'C5:4 D5:2 C5:2 A4:4 F4:4'),
+      A('Dm', 'D5:2 D5:2 A5:2 D6:4 C6:2 A5:2 F5:2'), A('Am', 'E5:4 D5:2 C5:6 E5:2 F5:2'), A('E', 'B4:2 B4:2 E5:2 G#5:4 B5:2 G#5:2 E5:2'), A('E', 'F5:4 E5:4 D5:2 C5:2 B4:4')];
+    SONGS.play = { name: 'Ricochet', bpm: 144, steps: 16, scale: [9, 11, 0, 2, 4, 5, 7], lead: { duty: 0.25 }, loopFrom: 1,
+      drums: { main: { K: 'x.....x.x.......', S: '....x......g.x..', H: 'xoxoxoxoxoxoxoxO' }, chorus: { K: 'x.....x.x.x.....', S: '....x.......x..g', H: 'xoxoxoxoxoxoxoxO' }, intro: { K: 'x.......x.......', S: '................', H: 'x.x.x.x.x.x.x.x.' } },
+      sections: [{ bars: [A('Am'), A('E')], p2: 'shimmer', p2Lvl: 1, bass: 'pump8', drums: 'intro', fill: 'roll', crash: false },
+        { bars: R_A, p2: 'echo', p2Lvl: 2, bass: 'pump8', walk: null },
+        { bars: R_B, p2: 'arp', p2Lvl: 2, bass: 'pump8', drums: 'chorus', walk: 'E' },
+        { bars: R_A, p2: 'third', p2Lvl: 2, bass: 'pump8' },
+        { bars: R_C, p2: 'echo', p2Lvl: 2, bass: 'gallop', walk: 'E', fill: 'roll' },
+        { bars: R_B, p2: 'third', p2Lvl: 2, bass: 'pump8', drums: 'chorus', walk: 'E' }] };
+
+    // ---- Clanktank (wave 10): a heavy mechanical march, E minor, 132 BPM. Fat square lead, clipped; oom-pah bass; a
+    // gear-like ostinato under the middle; metal clanks on the off-beats.
+    const C_A = [A('Em', 'E4:2 E4:2 B4:2 E5:4 D5:2 B4:2 G4:2'), A('Em', 'A4:2 G4:2 F#4:2 E4:6 r:2 B3:2'), A('C', 'G4:2 G4:2 C5:2 E5:4 D5:2 C5:2 G4:2'), A('B', 'F#4:4 A4:2 B4:2 D#5:8'),
+      A('Em', 'E4:2 E4:2 B4:2 E5:4 D5:2 B4:2 G4:2'), A('Em', 'A4:2 B4:2 C5:2 B4:6 A4:2 G4:2'), A('Am', 'C5:2 C5:2 E5:2 A5:4 G5:2 E5:2 C5:2'), A('B', 'D#5:4 E5:2 F#5:2 B4:8')];
+    const C_B = [A('C', 'E5:8 G5:8'), A('D', 'F#5:8 A5:8'), A('Bm', 'B5:12 A5:4'), A('Em', 'G5:8 E5:8'), A('C', 'E5:4 G5:4 C6:8'), A('D', 'D6:4 C6:4 A5:8'), A('B', 'B5:4 A5:4 F#5:4 D#5:4'), A('B', 'B4:2 C5:2 D#5:2 F#5:2 A5:2 B5:2 r:4')];
+    SONGS.tank = { name: 'Clanktank', bpm: 132, steps: 16, scale: [4, 6, 7, 9, 11, 0, 2], lead: { duty: 0.5, clip: 0.7, vol: 0.18 }, loopFrom: 1,
+      drums: { main: { K: 'x.......x.......', S: '....x.......x.xx', H: '..x...O...x...O.' }, tread: { K: 'x...x...x...x...', S: '....x.......x...', H: 'x.x.x.x.x.x.x.x.' }, intro: { K: 'x...x...x...x...', S: '................', H: '..x...O...x...O.' } },
+      sections: [{ bars: [A('Em'), A('B')], bass: 'march', drums: 'intro', fill: 'roll', crash: false },
+        { bars: C_A, p2: 'echo', bass: 'march', walk: 'B' },
+        { bars: C_A, p2: 'third', bass: 'march', walk: 'B' },
+        { bars: C_B, p2: 'gear', bass: 'pump8', drums: 'tread', fill: 'roll' },
+        { bars: C_A, p2: 'third', bass: 'march', walk: 'B' }] };
+
+    // ---- The Serpent (wave 20): slithering, in D with the snake-charmer's scale (Phrygian dominant: D Eb F# G A Bb C),
+    // a swung 12/8 at 112 (dotted quarter); the lead slides into its long notes; a rattle under the middle.
+    const S_A = [A('D', 'D5:2 D5:1 A5:3 G5:2 F#5:1 Eb5:1 D5:2'), A('Gm', 'Eb5:3 D5:1 Eb5:2 G5:3 F#5:1 Eb5:2'), A('D', 'F#5:2 Eb5:1 F#5:2 A5:1 D6:3 C6:1 A5:2'), A('Cm', 'G5:3 F#5:1 Eb5:2 C5:6'),
+      A('D', 'D5:2 D5:1 A5:3 G5:2 F#5:1 Eb5:1 D5:2'), A('Gm', 'Eb5:3 F#5:1 G5:2 Bb5:3 A5:1 G5:2'), A('A', 'A5:2 Bb5:1 A5:2 G5:1 F#5:2 Eb5:1 C#5:3'), A('A', 'D5:2 C#5:1 Bb4:2 A4:1 C#5:6')];
+    const S_B = [A('Bb', 'D5:6 F5:6'), A('A', 'E5:6 C#5:6'), A('Gm', 'D5:3 Bb4:3 G4:6'), A('A', 'A4:12'), A('Bb', 'F5:6 Bb5:6'), A('A', 'A5:6 G5:3 E5:3'), A('Gm', 'D5:3 G5:3 Bb5:6'), A('A', 'A5:3 G5:1 F5:1 E5:1 C#5:6')];
+    SONGS.serpent = { name: 'Coils', bpm: 112, steps: 12, stepScale: 4 / 3, scale: [2, 3, 6, 7, 9, 10, 0], lead: { duty: 0.25, glide: true, vibMin: 3, vib: 24, clip: 0.9 }, drone: 50, loopFrom: 1,
+      drums: { main: { K: 'x.....x..x..', S: '...x.....x..', H: 'xoxxoxxoxxox' }, coil: { K: 'x.....x.....', S: '...x.....x.g', H: 'xooxooxooxoo' }, intro: { K: 'x.....x.....', S: '............', H: 'xooxooxooxoo' } },
+      sections: [{ bars: [A('D'), A('A')], p2: 'rattle', bass: 'shuffle', drums: 'intro', fill: 'roll', crash: false },
+        { bars: S_A, p2: 'drone', bass: 'shuffle', walk: 'A' },
+        { bars: S_A, p2: 'third', bass: 'shuffle', walk: 'A' },
+        { bars: S_B, p2: 'rattle', bass: 'shuffle', drums: 'coil', fill: 'roll' },
+        { bars: S_A, p2: 'third', bass: 'shuffle', walk: 'A' }] };
+
+    // ---- The Carrier (wave 30): martial and aerial, G minor, 150 BPM. Snare cadences, a driving bass, brass stabs on the
+    // off-beats under a soaring "launch" section.
+    const K_A = [A('Gm', 'G4:2 G4:2 D5:2 G5:4 F5:2 D5:2 Bb4:2'), A('Eb', 'Eb5:3 D5:1 C5:2 Bb4:2 G4:8'), A('Bb', 'D5:2 D5:2 F5:2 Bb5:4 A5:2 F5:2 D5:2'), A('F', 'C5:3 D5:1 Eb5:2 F5:2 A4:8'),
+      A('Gm', 'G4:2 G4:2 D5:2 G5:4 F5:2 D5:2 Bb4:2'), A('Eb', 'Eb5:3 F5:1 G5:2 Bb5:2 G5:8'), A('D', 'F#5:2 F#5:2 A5:2 D6:4 C6:2 A5:2 F#5:2'), A('D', 'G5:4 F#5:4 E5:2 D5:2 C5:2 A4:2')];
+    const K_B = [A('Cm', 'G5:8 Eb5:4 C5:4'), A('Gm', 'D5:8 G5:8'), A('Ab', 'C6:8 Ab5:4 Eb5:4'), A('Eb', 'G5:12 Bb5:4'), A('Cm', 'C6:6 Bb5:2 G5:4 Eb5:4'), A('Gm', 'D6:6 C6:2 Bb5:4 G5:4'), A('D', 'A5:4 F#5:4 D6:8'), A('D', 'C6:2 Bb5:2 A5:2 G5:2 F#5:4 D5:4')];
+    SONGS.maw = { name: 'Flight Deck', bpm: 150, steps: 16, scale: [7, 9, 10, 0, 2, 3, 5], lead: { duty: 0.25 }, loopFrom: 1,
+      drums: { main: { K: 'x.......x.x.....', S: '....x..g....x.gx', H: 'x...x...x...x...' }, launch: { K: 'x...x...x...x...', S: '....x.......x.xx', H: 'x.x.x.x.x.x.x.x.' }, intro: { K: 'x.......x.......', S: 'x..x..x.x.xxx.xx', H: '................' } },
+      sections: [{ bars: [A('Gm'), A('D')], bass: 'pump8', drums: 'intro', fill: 'roll', crash: false },
+        { bars: K_A, p2: 'echo', bass: 'pump8', walk: 'D' },
+        { bars: K_B, p2: 'stab', bass: 'pump8', drums: 'launch', walk: 'D' },
+        { bars: K_A, p2: 'third', bass: 'gallop', walk: 'D' },
+        { bars: K_B, p2: 'arp', bass: 'pump8', drums: 'launch', walk: 'D', fill: 'roll' }] };
+
+    // ---- Gorp the Jailer (wave 40): alien, in F# with whole-tone and augmented colours, a lurching 7/8 (2+2+3) at 138.
+    // A thin lead with a slow, deep wobble; whole-tone runs under the eerie middle.
+    const G_A = [A('F#m', 'F#4:2 F#4:2 C#5:2 F#5:4 E5:2 C#5:2'), A('F#m', 'D5:4 C#5:2 A4:6 B4:2'), A('D+', 'D5:2 D5:2 F#5:2 A#5:4 G#5:2 F#5:2'), A('E', 'E5:4 D5:2 B4:4 G#4:4'),
+      A('F#m', 'F#4:2 F#4:2 C#5:2 F#5:4 E5:2 C#5:2'), A('F#m', 'D5:4 E5:2 F#5:6 A5:2'), A('D+', 'A#5:2 A#5:2 G#5:2 F#5:4 E5:2 D5:2'), A('C#', 'F5:4 C#5:6 r:4')];
+    const G_B = [A('Bm', 'D5:8 F#5:6'), A('C#7', 'F5:8 G#5:6'), A('Bm', 'B5:8 A5:6'), A('C#7', 'G#5:14'), A('D+', 'A#5:8 F#5:6'), A('E+', 'C6:8 G#5:6'), A('F#m', 'A5:4 G#5:2 F#5:8'), A('C#', 'F5:4 G#5:4 C#6:6')];
+    SONGS.geode = { name: 'The Jailer', bpm: 138, steps: 14, scale: [6, 8, 10, 0, 2, 4, 9, 1], lead: { duty: 0.125, vib: 45, vibRate: 3.4, vibMin: 4, clip: 0.85 }, loopFrom: 1,
+      drums: { main: { K: 'x...x.........', S: '........x.....', H: 'x.x.x.x.x.xO..' }, eerie: { K: 'x.............', S: '........x.....', H: 'x...x...x..O..' }, intro: { K: 'x...x.........', S: '..............', H: '........x..O..' } },
+      sections: [{ bars: [A('F#m'), A('C#')], p2: 'wholetone', bass: 'lurch', drums: 'intro', fill: 'roll', crash: false },
+        { bars: G_A, p2: 'echo', bass: 'lurch', walk: 'C#' },
+        { bars: G_B, p2: 'wholetone', bass: 'hold', drums: 'eerie' },
+        { bars: G_A, p2: 'third', bass: 'lurch', walk: 'C#' },
+        { bars: G_B, p2: 'wholetone', bass: 'lurch', drums: 'main', fill: 'roll' }] };
+
+    // ---- Gorp, alternative A: "Crystal Cage", F# minor, 4/4 at 132. The hook over a driving pump; crystal arpeggios for
+    // the geode; the alien in one uncanny augmented chord before each return home.
+    const GA_A = [A('F#m', 'F#4:2 F#4:2 C#5:2 F#5:4 E5:2 C#5:2 A4:2'), A('D', 'D5:2 E5:2 F#5:2 A5:6 F#5:2 E5:2'), A('Bm', 'D5:2 D5:2 F#5:2 B5:4 A5:2 F#5:2 D5:2'), A('C#', 'F5:4 G#5:4 C#6:8'),
+      A('F#m', 'F#4:2 F#4:2 C#5:2 F#5:4 E5:2 C#5:2 A4:2'), A('D', 'D5:2 E5:2 F#5:2 A5:2 D6:6 C#6:2'), A('Bm', 'B5:2 A5:2 F#5:2 D5:2 B4:2 D5:2 F#5:2 A5:2'), A('C#+', 'A5:4 F5:4 C#5:8')];
+    const GA_B = [A('D', 'F#5:8 A5:8'), A('E', 'G#5:8 B5:8'), A('F#m', 'C#6:12 B5:2 A5:2'), A('F#m', 'A5:8 F#5:8'), A('D', 'F#5:4 A5:4 D6:8'), A('E', 'E6:4 D6:4 B5:8'), A('C#+', 'A5:4 F5:4 C#6:8'), A('C#', 'F5:2 G#5:2 C#6:2 F5:2 G#5:2 C#6:2 r:4')];
+    SONGS.geodeA = { name: 'Crystal Cage', bpm: 132, steps: 16, scale: [6, 8, 9, 11, 1, 2, 4], lead: { duty: 0.25, vib: 16 }, loopFrom: 1,
+      drums: { main: { K: 'x.....x.x.......', S: '....x.......x...', H: 'x.x.x.x.x.x.x.xO' }, cage: { K: 'x.......x.x.....', S: '....x.......x..g', H: 'xoxoxoxoxoxoxoxo' }, intro: { K: 'x.......x.......', S: '................', H: '................' } },
+      sections: [{ bars: [A('F#m'), A('C#')], p2: 'chime', p2Vol: 0.04, bass: 'pump8', drums: 'intro', fill: 'roll', crash: false },
+        { bars: GA_A, p2: 'echo', bass: 'pump8', walk: 'C#' },
+        { bars: GA_B, p2: 'chime', bass: 'pump8', drums: 'cage', walk: 'C#' },
+        { bars: GA_A, p2: 'third', bass: 'gallop', walk: 'C#' },
+        { bars: GA_B, p2: 'chime', p2Vol: 0.055, bass: 'pump8', drums: 'cage', walk: 'C#', fill: 'roll' }] };
+    // ---- Gorp, alternative B: "The Jailer", straightened: its melody and chords, in a steady 4/4 at 138, a normal vibrato, a driving bass.
+    const to16 = bars => bars.map(b => ({ c: b.c, l: b.l + ' r:2' }));
+    SONGS.geodeB = { name: 'The Jailer (straight)', bpm: 138, steps: 16, scale: [6, 8, 10, 0, 2, 4, 9, 1], lead: { duty: 0.25, vib: 20, vibMin: 4 }, loopFrom: 1,
+      drums: { main: { K: 'x.....x.x.......', S: '....x.......x...', H: 'x.x.x.x.x.x.x.xO' }, eerie: { K: 'x.......x.......', S: '....x.......x...', H: 'x.x.x.x.x.x.x.x.' }, intro: { K: 'x.......x.......', S: '................', H: '........x.....O.' } },
+      sections: [{ bars: [A('F#m'), A('C#')], p2: 'wholetone', bass: 'pump8', drums: 'intro', fill: 'roll', crash: false },
+        { bars: to16(G_A), p2: 'echo', bass: 'pump8', walk: 'C#' },
+        { bars: to16(G_B), p2: 'wholetone', bass: 'gallop', drums: 'eerie' },
+        { bars: to16(G_A), p2: 'third', bass: 'pump8', walk: 'C#' },
+        { bars: to16(G_B), p2: 'wholetone', bass: 'gallop', drums: 'main', fill: 'roll' }] };
+
+    // ---- Vexa (wave 50): a queen's dark waltz, B minor, 3/4 at 186; under it all, the hive: a buzzing trill.
+    const V_A = [A('Bm', 'B4:2 B4:2 F#5:2 B5:4 A5:2'), A('Bm', 'F#5:2 D5:2 B4:8'), A('G', 'D5:2 D5:2 G5:2 B5:4 A5:2'), A('G', 'G5:2 E5:2 D5:8'),
+      A('Em', 'E5:2 E5:2 G5:2 B5:4 A5:2'), A('F#', 'A#5:2 B5:2 C#6:8'), A('Bm', 'D6:4 C#6:2 B5:2 A5:2 F#5:2'), A('F#', 'E5:2 D5:2 C#5:4 A#4:4'),
+      A('Bm', 'B4:2 B4:2 F#5:2 B5:4 A5:2'), A('Bm', 'F#5:2 D5:2 B4:8'), A('G', 'D5:2 D5:2 G5:2 B5:4 A5:2'), A('G', 'G5:2 E5:2 D5:8'),
+      A('Em', 'E5:2 G5:2 B5:2 E6:4 D6:2'), A('F#', 'C#6:4 A#5:4 F#5:4'), A('Bm', 'B5:2 A#5:2 B5:2 D6:2 F#6:4'), A('F#', 'E6:2 D6:2 C#6:2 A#5:2 F#5:4')];
+    const V_B = [A('G', 'G5:1 A5:1 B5:1 D6:1 B5:1 A5:1 G5:2 D5:4'), A('F#', 'F#5:1 G5:1 A#5:1 C#6:1 A#5:1 G5:1 F#5:2 C#5:4'), A('Em', 'E5:1 F#5:1 G5:1 B5:1 G5:1 F#5:1 E5:2 B4:4'), A('F#', 'A#4:2 C#5:2 E5:2 F#5:6'),
+      A('G', 'B5:4 D6:4 G6:4'), A('F#', 'F#6:4 E6:2 C#6:2 A#5:4'), A('Em', 'G5:2 F#5:2 E5:2 B5:6'), A('F#', 'A#5:2 B5:2 C#6:2 E6:2 F#6:4')];
+    SONGS.hive = { name: 'Queen of the Hive', bpm: 186, steps: 12, scale: [11, 1, 2, 4, 6, 7, 9, 10], lead: { duty: 0.25, vibMin: 4 }, buzzOn: 2, loopFrom: 1,
+      drums: { main: { K: 'x...........', S: '....x...x...', H: 'x.x.x.x.x.x.' }, swarm: { K: 'x.....x.....', S: '....x...x.xg', H: 'xxxxxxxxxxxx' }, intro: { K: 'x...........', S: '............', H: '....o...o...' } },
+      sections: [{ bars: [A('Bm'), A('Bm'), A('F#'), A('F#')], p2: 'buzz', p2Vol: 0.035, bass: 'waltz', drums: 'intro', fill: 'roll', crash: false },
+        { bars: V_A, p2: 'buzz', bass: 'waltz', walk: 'F#' },
+        { bars: [...V_B, ...V_B], p2: 'buzz', p2Vol: 0.045, bass: 'pump8', drums: 'swarm', walk: 'F#', fill: 'roll' },
+        { bars: V_A, p2: 'third', bass: 'waltz', walk: 'F#' }] };
+      return SONGS;
+    })();
+    const own = k => () => GEN.build(ST[k]);
+    return { menu: () => build('theme'), ob1: () => build('last'), ob2: () => buildBoss(), play: own('play'), tank: own('tank'), serpent: own('serpent'), maw: own('maw'), geode: own('geode'), hive: own('hive') };
   })();
   const SONG_GAIN = 0.3; // (about 6 dB under the sound effects on average: the music's there, the tells stay on top)
   const SONG = { id: null, s: null, t: 0, i: 0, base: 0, last: 0, built: {}, waves: {}, nb: null, bus: null, side: null, sbuf: null, duck: 1 };
@@ -1210,8 +1409,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (e.ch === 'p1' || e.ch === 'p2' || e.ch === 'tri') {
       const o = ctx.createOscillator(), g = ctx.createGain(), end = t + Math.max(0.03, e.dur - 0.012);
       if (e.ch === 'tri') o.type = 'triangle'; else o.setPeriodicWave(songWave(e.duty));
-      o.frequency.value = hz(e.m);
-      if (e.vib && e.dur > 0.2) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = 5.6; lg.gain.setValueAtTime(0, t); lg.gain.setValueAtTime(0, t + 0.13); lg.gain.linearRampToValueAtTime(e.ch === 'p1' && e.duty === 0.125 ? 28 : 18, t + 0.3); l.connect(lg); lg.connect(o.detune); l.start(t); l.stop(end + 0.05); } // vibrato, a moment into a long note
+      if (e.from !== undefined) { o.frequency.setValueAtTime(hz(e.from), t); o.frequency.exponentialRampToValueAtTime(hz(e.m), t + 0.07); } else o.frequency.value = hz(e.m); // (a slide into it, the Serpent's)
+      if (e.vib && e.dur > 0.2) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = e.vibRate || 5.6; lg.gain.setValueAtTime(0, t); lg.gain.setValueAtTime(0, t + 0.13); lg.gain.linearRampToValueAtTime(typeof e.vib === 'number' ? e.vib : e.ch === 'p1' && e.duty === 0.125 ? 28 : 18, t + 0.3); l.connect(lg); lg.connect(o.detune); l.start(t); l.stop(end + 0.05); } // vibrato, a moment into a long note
       const pk = e.vol, sus = e.ch === 'tri' ? pk : pk * 0.72;
       g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(pk, t + 0.004); g.gain.linearRampToValueAtTime(sus, t + 0.09); g.gain.setValueAtTime(sus, end); g.gain.linearRampToValueAtTime(0, end + 0.025);
       o.connect(g); out(g, e.pan || 0); o.start(t); o.stop(end + 0.04);
@@ -1228,12 +1427,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Which song: the title theme on the title screen; his arrival from when 0B-L1-V10N turns up until his first
   // transformation's done (its silence is the hand-off); his last stand from then to his end. Otherwise none: the groove.
+  const SONG_OF = { tank: 'tank', serpent: 'serpent', maw: 'maw', geode: 'geode', hive: 'hive' };
   function songWanted() {
     if (mode === 'title') return 'menu';
     if (!G || G.attract || mode === 'over' || mode === 'win') return null;
     if (G.mechDeath) return 'ob2';
-    const B = G.boss && G.boss.kind === 'mech' ? G.boss : null; if (!B) return null;
-    return B.legs || B.storm || (B.walker && B.walker.st !== 'form') ? 'ob2' : 'ob1';
+    const B = G.boss;
+    if (B && B.kind === 'mech') return B.legs || B.storm || (B.walker && B.walker.st !== 'form') ? 'ob2' : 'ob1';
+    if (B && SONG_OF[B.kind]) return SONG_OF[B.kind];
+    if (inField() || inInvasion()) return null; // (the heartbeat, the march: those are the music there)
+    return 'play';
   }
   function songTick(want, live) {
     const now = AC.currentTime;
@@ -1250,7 +1453,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const e = S.ev[SONG.i];
       if (!e || e.at >= end) { SONG.i = S.loopI; SONG.base += S.loopLen; continue; } // round again, from the top of the body
       const at = SONG.base + e.at; if (at > SONG.t + 0.2) break;
-      if (at >= SONG.t - 0.03) songNote(e, now + Math.max(0, at - SONG.t));
+      if (at >= SONG.t - 0.03 && (SONG.id !== 'play' || (e.lvl || 1) <= (G && G.mult >= 4 ? 3 : G && G.mult >= 2 ? 2 : 1))) songNote(e, now + Math.max(0, at - SONG.t)); // (the gameplay theme: layers join as the multiplier climbs)
       SONG.i++;
     }
   }
