@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 20:12 UTC · 767f7ed";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 20:18 UTC · 86232d7";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1070,7 +1070,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // His thrusters: spooling up, the takeoff roar, and a bombing run passing overhead (pitch dropping as it crosses)
     obJetSpool(dur, x) { const pan = panOf(x); voice({ type: 'sine', f: 180, f2: 1300, dur, vol: 0.035, atk: dur * 0.8, pan }); voice({ noise: true, filter: 'bandpass', ff: 250, ff2: 1400, q: 2, dur, vol: 0.06, atk: dur * 0.8, pan }); },
     obJetTakeoff(x) { const pan = panOf(x); voice({ noise: true, filter: 'bandpass', ff: 250, ff2: 2200, q: 0.9, dur: 1.5, vol: 0.2, atk: 0.35, pan, wet: 0.2 }); voice({ type: 'sawtooth', f: 55, f2: 190, dur: 1.4, vol: 0.08, filter: 'lowpass', ff: 300, ff2: 1500, atk: 0.3, pan }); voice({ f: 42, f2: 30, dur: 1.2, vol: 0.2, atk: 0.1, pan }); },
-    obFlyby(x0, x1) { voice({ noise: true, filter: 'bandpass', ff: 2800, ff2: 450, q: 1.3, dur: 0.95, vol: 0.15, atk: 0.3, pan: panOf(x0), pan2: panOf(x1) }); voice({ type: 'sawtooth', f: 560, f2: 150, dur: 0.95, vol: 0.04, filter: 'lowpass', ff: 1600, atk: 0.3, pan: panOf(x0), pan2: panOf(x1) }); },
+    obFlyby(x0, x1, dur = 0.95) { voice({ noise: true, filter: 'bandpass', ff: 2800, ff2: 450, q: 1.3, dur, vol: 0.15, atk: 0.3 * dur / 0.95, pan: panOf(x0), pan2: panOf(x1) }); voice({ type: 'sawtooth', f: 560, f2: 150, dur, vol: 0.04, filter: 'lowpass', ff: 1600, atk: 0.3 * dur / 0.95, pan: panOf(x0), pan2: panOf(x1) }); }, // (as long as the run takes to pass over)
     // His wall cannons: a whine charging, a click as it locks; a heavy thump when it fires
     obCannonCharge(x) { const pan = panOf(x), d = MECH_CANNON_CHARGE - MECH_CANNON_LOCK; voice({ type: 'sine', f: 380, f2: 1500, dur: d, vol: 0.03, pan }); voice({ type: 'square', f: 2200, dur: 0.03, vol: 0.04, filter: 'lowpass', ff: 5000, at: AC && AC.currentTime + d, pan }); },
     obCannonShot(x) { if (!gate('obCannon', 40)) return; const pan = panOf(x); voice({ f: 150, f2: 48, dur: 0.2, vol: 0.2, pan }); voice({ noise: true, filter: 'lowpass', ff: 2200, ff2: 300, dur: 0.16, vol: 0.13, pan }); },
@@ -5002,9 +5002,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const mechMuzzle = B => { const [x, y] = mechGunAt(B), a = B.gunA ?? Math.PI / 2; return [x + Math.cos(a) * 22 * B.s, y + Math.sin(a) * 22 * B.s]; };
   const MECH_LANCE_AIM = 1.1, MECH_LANCE_LOCK = 0.45, MECH_LANCE_FIRE = 0.3, MECH_LANCE_W = 3.2; // on its knees, its reactor's lance: tracking you, locked (sidestep now), fired down the line
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
-  const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.1, MECH_FLY_UP = 0.75, MECH_FLY_DOWN = 1.5, MECH_FLY_DROP = 0.4;
+  const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.4, MECH_FLY_UP = 1.0, MECH_FLY_DOWN = 1.9, MECH_FLY_DROP = 0.5;
   const MECH_CANNON_HP = 6, MECH_CANNON_CHARGE = 0.7, MECH_CANNON_LOCK = 0.22, MECH_CANNON_GAP = 0.38, MECH_CANNON_REST = 1.1, MECH_CANNON_V = 44; // his battery, while he's up: wall cannons firing in a ripple
-  const MECH_RUNS = 5, MECH_RUN_GAP = 0.95, MECH_RUN_WARN = 0.85, MECH_RUN_V = 150, MECH_RUN_HALF = 11, MECH_BOMB_FALL = 0.32, MECH_BOMB_R = 7, MECH_LAND_R = 24;
+  const MECH_RUNS = 6, MECH_RUN_GAP = 1.5, MECH_RUN_WARN = 1.3, MECH_RUN_V = 100, MECH_RUN_HALF = 11, MECH_BOMB_FALL = 0.5, MECH_BOMB_R = 7, MECH_BOMB_GAP = 6, MECH_LAND_R = 24; // (a carpet: three rows down its lane, MECH_BOMB_GAP apart)
   const MECH_RUN_REACH = MECH_RUN_HALF * 0.45 + MECH_BOMB_R + PLAYER_R * 0.5; // how far either side of a run's line its bombs reach you: its lane, shadowed, and its shadow, are exactly this wide
   const mechS = () => clamp(Math.min(AW / 120, AH / 200), 0.8, 1.5); // its size: it all but spans a portrait arena
   // Its parts, in its own units (x across, y down from the middle of its chest), standing.
@@ -6894,12 +6894,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const c = across ? clamp(p.y + off, half + 2, AH - half - 2) : clamp(p.x + off, half + 2, AW - half - 2), len = across ? AW : AH, M = 40 * s;
         const R = { across, c, dir, t0: F.t, len, M, dur: (len + M * 2) / MECH_RUN_V, dropped: 0 };
         F.runs.push(R); F.n++;
-        const n = Math.ceil(len / 8); R.drops = [];
-        for (let j = 0; j <= n; j++) for (const row of [-1, 1]) { const u = clamp(j * 8 + (row > 0 ? 4 : 0), 3, len - 3); R.drops.push({ u, v: c + row * half * 0.45, d: dir > 0 ? u : len - u, snd: row > 0 && j % 3 === 0 }); }
+        const n = Math.ceil(len / MECH_BOMB_GAP); R.drops = [];
+        for (let j = 0; j <= n; j++) for (const row of [-1, 0, 1]) { const u = clamp(j * MECH_BOMB_GAP + (row + 1) * MECH_BOMB_GAP / 3, 3, len - 3); R.drops.push({ u, v: c + row * half * 0.45, d: dir > 0 ? u : len - u, snd: row === 0 && j % 3 === 0 }); }
         R.drops.sort((a, b) => a.d - b.d);
       }
       for (const R of F.runs) { const tt = F.t - R.t0 - MECH_RUN_WARN; if (tt < 0) continue; // its shadow crossing: bombs falling behind it
-        R.pos = -R.M + tt * MECH_RUN_V; if (R.pos <= R.len + R.M) R.roar = R.roar || (R.across ? sfx.obFlyby(R.dir > 0 ? 0 : AW, R.dir > 0 ? AW : 0) : sfx.obFlyby(AW / 2, AW / 2), 1); // (a run passing over: across, panning with it)
+        R.pos = -R.M + tt * MECH_RUN_V; if (R.pos <= R.len + R.M) R.roar = R.roar || (R.across ? sfx.obFlyby(R.dir > 0 ? 0 : AW, R.dir > 0 ? AW : 0, Math.min(2.6, R.dur * 0.85)) : sfx.obFlyby(AW / 2, AW / 2, Math.min(2.6, R.dur * 0.85)), 1); // (a run passing over: across, panning with it)
         while (R.dropped < R.drops.length && R.drops[R.dropped].d <= R.pos) { const q = R.drops[R.dropped++]; B.bombs.push({ x: R.across ? q.u : q.v, y: R.across ? q.v : q.u, t: 0, at: MECH_BOMB_FALL, snd: q.snd }); }
       }
       F.runs = F.runs.filter(R => !(R.pos > R.len + R.M && R.dropped >= R.drops.length));
