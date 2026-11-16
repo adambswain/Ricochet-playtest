@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 16:55 UTC · b59bc4e";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 18:49 UTC · 76e7390";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11387,7 +11387,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (ball.y < BALL_R0 || ball.y > AH - BALL_R0) ball.vy *= -1;
       keepIn(ball, BALL_R0);
       for (const o of G.obstacles) {
-        if (o.dying) continue;
+        if (o.dying || (o.maze && ball.emberT > EMBER_WAIT)) continue; // (homing, it drifts through the Labyrinth's walls, like a wingman flying home: a straight line home would pin it on one)
         const h = hitObs(ball.x, ball.y, BALL_R0, o);
         if (!h) continue;
         ball.x += h.nx * h.depth; ball.y += h.ny * h.depth;
