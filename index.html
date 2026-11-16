@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 20:34 UTC · 81861b6";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 22:05 UTC · 855c954";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -580,6 +580,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // HOLD_COOL seconds. (An overload still costs it all.)
   const CATCH_COST = 5, HOLD_COOL = 1;
   const BLAST_R = 26, MULT_MAX = 10, CHAIN_STEP = 0.1; // each kill adds CHAIN_STEP × its place in this throw's chain
+  const bonusMult = () => Math.max(1, G.mult); // the bonus rounds (Pinball, Coin Rush, Lucky Blocks) pay at the multiplier you bring in: there's nothing to chain in them
   // Power-up capsules: dropped by kills, collected only by the ball; charge sets duration (and shockwave size).
   const DROP_CHANCE = 0.1, CHAIN_DROP = 5, PICKUP_MAX = 3, PICKUP_R = 3.6; // capsules stay until the ball collects them
   const powerTime = b => 3.3 + 0.5 * b;
@@ -624,7 +625,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     2: 'Brutes take several hits',
     3: 'Dashers wind up, then lunge',
     4: 'Blocks bounce the ball and add charge. Splitters break in two',
-    5: 'Pinball! Your ship is the flipper. Every bounce speeds the ball up and scores more: catch it to cool it down. Drain it and your bonus drops; play out the clock',
+    5: 'Pinball! Your ship is the flipper. Every bounce speeds the ball up and scores more: catch it to cool it down. Drain it and your bonus drops; play out the clock. It all pays at your multiplier',
     6: 'Turrets fire slow shots. Hit them, or bank your ball off the wall right beside one',
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them. Fuel drums: hit one to blow up everything near it',
@@ -635,8 +636,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, dodge the laser bars from his saucer and pop the pink orbs in his walls: pop them all and he\'s forced out. Hit a fuel drum in his walls to blow open everything round it',
     46: 'Bees! Vexa\'s scouts are out. Something big is buzzing nearby',
     39: 'Crusher II: the walls close in from all four sides now, and faster',
-    35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
-    13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout',
+    35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot. It all pays at your multiplier',
+    13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout. It all pays at your multiplier',
     20: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only its head hurts, and it strikes. Break its eggs before they hatch',
     16: 'Invasion: three formations, one after another. Break each before it lands. The top rows are tougher: charge your ball off the walls and bunkers',
     27: 'Fighter squadrons: one hit each. Put your ball through the formation',
@@ -8544,7 +8545,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const f of [0.275, 0.425, 0.575, 0.725]) segs.push([X(f), top, X(f), Y(0.145), 'post']);      // lane dividers hang from the top
     return segs;
   }
-  const tableAward = (pts, x, y) => { const T = G.table, v = Math.round(pts * (T.cycle + 1) * (T.mult || 1) * (1 + 0.05 * (T.heatB || 0)) / 10) * 10; /* the hotter the ball, the more it scores */ T.score += v; G.score += v; float(x, y, `${v}`, ECOL.target, 2.4 + Math.min(2, v / 1500)); };
+  const tableAward = (pts, x, y) => { const T = G.table, v = Math.round(pts * (T.cycle + 1) * (T.mult || 1) * (1 + 0.05 * (T.heatB || 0)) * bonusMult() * 0.5 / 10) * 10; /* (× half your multiplier: the table has its own, from its lanes) */ /* the hotter the ball, the more it scores */ T.score += v; G.score += v; float(x, y, `${v}`, ECOL.target, 2.4 + Math.min(2, v / 1500)); };
   // The table's walls and furniture, for a ball moving by the normal rules. Every bounce charges the ball (and may
   // overload it); lanes and targets score. Called from the ball's substep loop while a table is up.
   function tableCollide(ball, r) {
@@ -8828,12 +8829,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // out the bottom for GIANT_PTS × the breaking hit's damage, and a fountain of coins.
   // The coins come in a designed layout, picked at random each visit: target rings, curving lanes, a spiral or
   // clusters - shapes to sweep with a curved pull. Big coins, a wide pick-up reach, each worth 25.
-  const COIN_TIME = 30, COIN_R = 2.2, COIN_PICK = 3.6, COIN_STEP = 6, COIN_PTS = 25, COIN_JACKPOT = 10000;
+  const COIN_TIME = 30, COIN_R = 2.2, COIN_PICK = 3.6, COIN_STEP = 6, COIN_PTS = 20, COIN_JACKPOT = 3000; // (× your multiplier: a full sweep at ×10 pays about as well as the waves round it)
   const COIN_LAYOUTS = ['rings', 'lanes', 'spiral', 'clusters'];
   // The collect: coins within COIN_PULL of a ball slide toward it (a magnet); the ones it reaches fly into it, shrinking,
   // with a ping that climbs the scale as the streak goes on and a pop at the ball.
   const COIN_PULL = 13, COIN_FLY = 0.16;
-  const GIANT_R = 6.5, GIANT_HP = 24, GIANT_FALL = 11, GIANT_AT = [3, 11, 19], GIANT_PTS = 250, GIANT_HIT_PTS = 15;
+  const GIANT_R = 6.5, GIANT_HP = 24, GIANT_FALL = 11, GIANT_AT = [3, 11, 19], GIANT_PTS = 150, GIANT_HIT_PTS = 10;
   // Coin positions for a layout, kept inside the arena (clear of the round's header) and never closer than 4.5 units.
   function coinLayout(kind) {
     const top = 9, m = 5, W = AW, H = AH, cx = W / 2, cy = (top + H - m) / 2, wide = W >= H, pts = [];
@@ -8880,14 +8881,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       C.flying.push({ x: c.x, y: c.y, spin: c.spin, o, t: 0 }); // it flies into the ball (drawn by drawCoins)
     }
     if (!n) return;
-    const pts = COIN_PTS * (C.cycle + 1) * n;
+    const pts = Math.round(COIN_PTS * (C.cycle + 1) * n * bonusMult());
     if (C.streakT <= 0) C.streakN = 0;
     C.got += n; G.score += pts; C.streak += pts; C.streakT = 0.6; C.sx = o.x; C.sy = o.y; C.streakN += n; C.pop = 0.12;
     sfx.coin(C.streakN);
     ring(o.x, o.y, r, r + 2.5 + Math.min(n, 4), 0.16, ECOL.target, 0.6); // a pop at the ball (r: its radius)
     if (C.chimeT <= 0 && C.streakN % 10 < n) { sfx.chain(Math.min(14, 2 + Math.floor(C.streakN / 10))); C.chimeT = 0.05; } // every tenth coin, a chord
     if (!C.coins.length) { // every coin: jackpot, and the round ends
-      const jp = COIN_JACKPOT * (C.cycle + 1);
+      const jp = Math.round(COIN_JACKPOT * (C.cycle + 1) * bonusMult());
       G.score += jp; C.done = true; C.jackpot = true;
       for (let k = 0; k < 3; k++) ring(o.x, o.y, 2, 30 + k * 12, 0.5 + k * 0.12, k % 2 ? COL.chalk : ECOL.target, 1.2);
       burst(o.x, o.y, 60, ECOL.target, 70, 1, 0.8); gridImpulse(o.x, o.y, Math.max(AW, AH) * 0.6, 160);
@@ -8913,18 +8914,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     o.x = g.x + nx * (GIANT_R + r + 0.05); o.y = g.y + ny * (GIANT_R + r + 0.05);
     if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
     if (g.cd > 0) return dot < 0;
-    const b = o.b || 0, dmg = 1 + b, mul = C.cycle + 1;
+    const b = o.b || 0, dmg = 1 + b, mul = Math.round((C.cycle + 1) * bonusMult() * 10) / 10;
     g.cd = 0.08; g.flash = 0.12; g.hp -= dmg;
-    const pts = GIANT_HIT_PTS * dmg * mul; G.score += pts; C.streak += pts; C.streakT = 0.6; C.sx = g.x; C.sy = g.y - GIANT_R;
+    const pts = Math.round(GIANT_HIT_PTS * dmg * mul); G.score += pts; C.streak += pts; C.streakT = 0.6; C.sx = g.x; C.sy = g.y - GIANT_R;
     sprayCoins(g.x, g.y, Math.min(10, 2 + Math.floor(dmg / 2)), 30 + dmg * 2);
     ring(g.x, g.y, GIANT_R, GIANT_R + 4 + dmg * 0.4, 0.25, heat(b), 0.8); gridImpulse(g.x, g.y, 16, 50 + dmg * 4); shake(0.4 + dmg * 0.05); sfx.clank();
     if (g.hp <= 0) { // broken: paid by the breaking hit's damage
-      const v = GIANT_PTS * dmg * mul; G.score += v; C.broke++;
+      const v = Math.round(GIANT_PTS * dmg * mul); G.score += v; C.broke++;
       sprayCoins(g.x, g.y, 24, 55);
       for (let k = 0; k < 3; k++) ring(g.x, g.y, 2, GIANT_R + 10 + k * 9, 0.45 + k * 0.1, k % 2 ? COL.chalk : ECOL.target, 1.2);
       burst(g.x, g.y, 50, ECOL.target, 70, 0.9, 0.7); burst(g.x, g.y, 20, heat(b), 60, 0.7, 0.5);
       float(g.x, g.y - GIANT_R - 4, `Giant coin +${v.toLocaleString()}`, ECOL.target, 4.4);
-      float(g.x, g.y - GIANT_R + 1, `${dmg} damage × ${GIANT_PTS * mul}`, COL.chalk, 2.6);
+      float(g.x, g.y - GIANT_R + 1, `${dmg} damage × ${Math.round(GIANT_PTS * mul)}`, COL.chalk, 2.6);
       G.freeze = Math.max(G.freeze, 0.08); shake(2.5); sfx.repair(); sfx.collect();
       C.giant = null;
     }
@@ -9028,7 +9029,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // coins, opening the way to the ones behind. The ball always bounces off a block; walls and bricks charge it as
   // usual, so the play is heating the ball up and cashing it in. The rows fill most of the arena, down to LUCKY_FILL. LUCKY_POWER of the "!" blocks hide a power-up in their first hit. Empty every "!" block for
   // the jackpot. Overload is off; nothing can hurt you.
-  const LUCKY_TIME = 40, LUCKY_BS = 6.4, LUCKY_HITS = 2, LUCKY_COIN = 10, LUCKY_JACKPOT = 5000, LUCKY_POWER = 2, LUCKY_POP_MAX = 220;
+  const LUCKY_TIME = 40, LUCKY_BS = 6.4, LUCKY_HITS = 2, LUCKY_COIN = 25, LUCKY_JACKPOT = 5000, LUCKY_POWER = 2, LUCKY_POP_MAX = 220;
   const LUCKY_RUNS = ['BB!BB', '!', 'B!B!B', '!!!', 'B!!B', '!B!', 'B!B', '!!', '!B!B!'], LUCKY_FILL = 0.74, LUCKY_ROW = 2.6; // runs of blocks laid along each row
   const luckyRect = k => ({ x0: k.x - LUCKY_BS / 2, x1: k.x + LUCKY_BS / 2, y0: k.y - LUCKY_BS / 2, y1: k.y + LUCKY_BS / 2 });
   function setupLucky(cycle) {
@@ -9068,11 +9069,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const dot = o.vx * h.nx + o.vy * h.ny;
     if (dot < 0) { o.vx -= 2 * dot * h.nx; o.vy -= 2 * dot * h.ny; }
     if (k.cd > 0) return false;
-    const b = o.b || 0, mul = L.cycle + 1, kind = k.kind;
+    const b = o.b || 0, mul = (L.cycle + 1) * bonusMult(), kind = k.kind; // (× your multiplier)
     k.cd = 0.08; k.flash = 0.1; k.bump = 1;
     if (k.kind === 'brick') { // smashed: a few points and a spray of rubble
       L.blocks.splice(L.blocks.indexOf(k), 1);
-      G.score += 5 * mul;
+      G.score += Math.round(5 * mul);
       burst(k.x, k.y, 12, COL.bricks[1], 30, 0.7, 0.35); burst(k.x, k.y, 5, COL.chalk, 22, 0.5, 0.25);
       gridImpulse(k.x, k.y, 10, 30); sfx.brick(b);
     } else if (k.kind === 'lucky') {
@@ -9081,7 +9082,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         spawnPickup(k.x, k.y - LUCKY_BS, o.vx !== undefined && o.state ? o : G.balls[0]);
         float(k.x, k.y - LUCKY_BS - 3, 'Power-up!', COL.chalk, 3); sfx.collect();
       } else { // coins: one, plus one per point of charge
-        const n = 1 + Math.floor(b), pts = n * LUCKY_COIN * mul;
+        const n = 1 + Math.floor(b), pts = Math.round(n * LUCKY_COIN * mul);
         for (let i = 0; i < Math.min(n, 18) && L.pops.length < LUCKY_POP_MAX; i++)
           L.pops.push({ x: k.x + rand(-1.4, 1.4), y: k.y - LUCKY_BS / 2, vx: rand(-12, 12) * (1 + n * 0.04), vy: -rand(34, 48) - n * 1.2, t: 0, spin: rand(0, 6) });
         G.score += pts; L.coins += n;
@@ -9097,7 +9098,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         for (let i = 0; i < 8 && L.pops.length < LUCKY_POP_MAX; i++) { const a = -Math.PI / 2 + rand(-1.3, 1.3); L.pops.push({ x: k.x, y: k.y, vx: Math.cos(a) * rand(20, 40), vy: Math.sin(a) * rand(30, 50), t: 0, spin: rand(0, 6) }); }
         gridImpulse(k.x, k.y, 14, 50); shake(0.6); sfx.brick(6);
         if (L.spent >= L.lucky) { // every "!" block emptied: jackpot, and the round ends
-          const jp = LUCKY_JACKPOT * mul;
+          const jp = Math.round(LUCKY_JACKPOT * mul);
           G.score += jp; L.done = true; L.jackpot = true;
           for (let i = 0; i < 3; i++) ring(k.x, k.y, 2, 30 + i * 12, 0.5 + i * 0.12, i % 2 ? COL.chalk : ECOL.target, 1.2);
           burst(k.x, k.y, 60, ECOL.target, 70, 1, 0.8); gridImpulse(k.x, k.y, Math.max(AW, AH) * 0.6, 160);
@@ -10015,7 +10016,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (e.x < -14 || e.x > AW + 14) e.gone = true; // it's away
   }
   function bombTally() {
-    const B = G.bomb; B.done = true; const n = B.bases.filter(b => b.alive).length, each = BOMB_BASE_PTS * (1 + B.cycle);
+    const B = G.bomb; B.done = true; const n = B.bases.filter(b => b.alive).length, each = BOMB_BASE_PTS * (1 + B.cycle); tbClear('', B.cycle, n / BOMB_BASES);
     B.bases.forEach((b, i) => { if (!b.alive) return; b.flash = 0.6; const pts = Math.round(each * G.mult); G.score += pts; float(b.x, b.y - 14 - (i % 2) * 5, `+${pts * scoreK(G.wave)}`, COL.chalk, 3); });
     G.result = { text: `Bases saved ${n}/${BOMB_BASES}`, sub: n === BOMB_BASES ? 'Not a scratch!' : 'A bonus for every one still standing', t: 2.6, max: 2.6 }; sfx.repair();
   }
@@ -10088,7 +10089,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.riders = { cycle, n: RD_N + 2 * cycle, sent: 0, t: 0.8, ship: [], ghosts: [], live: [], done: false };
     const p = G.player; p.x = AW / 2; p.y = AH * 0.62;
   }
-  function tbClear(text, cycle) { G.tbBonus = TB_CLEAR * G.wave * (1 + cycle); } // a throwback done: its share of points goes into the usual "Wave clear" (it's a wave like any other)
+  function tbClear(text, cycle, part = 1) { G.tbBonus = Math.round(TB_CLEAR * G.wave * (1 + cycle) * part); } // (part: Bombardment's, by the bases you saved) // a throwback done: its share of points goes into the usual "Wave clear" (it's a wave like any other)
   function finishRiders() { if (G.riders) { for (const e of G.enemies) if (e.rider) e.gone = true; G.riders = null; } }
   // what's at (x, y): the edge, a rider's trail (not a rider's own newest two stretches), or your trail
   function riderBlocked(x, y, rad, self, ship = true) {
@@ -10732,6 +10733,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.squadPlan = null; G.squadWarn = []; G.shadow = null; G.mechSetup = null; G.rockets = []; G.debris = []; G.mortars = []; G.barrage = []; G.mortarUp = [];
         if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
         if (G.wave > 0 && !G.skipBonus) {
+          if (G.lastAsteroids === G.wave && !G.tbBonus) tbClear('', loopOf(G.wave)); // the Asteroid Field cleared: a throwback's clear bonus, like the others
           const bonus = 100 * G.wave + (G.tbBonus || 0); G.tbBonus = 0;
           G.score += bonus;
           float(AW / 2, AH / 2 + 9, `Wave clear +${bonus}`, COL.chalk, 3.4);
