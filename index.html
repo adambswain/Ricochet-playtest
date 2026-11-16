@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 15:07 UTC · 7e72792";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 15:59 UTC · c61a424";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5331,8 +5331,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const d of G.debris) {
       const fade = clamp((d.life - d.t) / 1.2, 0, 1);
       ctx.save(); ctx.globalAlpha = fade; ctx.translate(d.x, d.y); ctx.rotate(d.a);
-      ctx.beginPath(); ctx.moveTo(d.r, 0); ctx.lineTo(d.r * 0.4, -d.r * 0.9); ctx.lineTo(-d.r * 0.7, -d.r * 0.6); ctx.lineTo(-d.r, d.r * 0.2); ctx.lineTo(-d.r * 0.2, d.r * 0.9); ctx.lineTo(d.r * 0.7, d.r * 0.6); ctx.closePath();
+      const sh = d.sh || (d.sh = Array.from({ length: 6 }, () => rand(0.7, 1.1))); scrapShape(d.r, sh);
       ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.18)`; ctx.fill(); ctx.strokeStyle = COL.dim; ctx.globalAlpha = fade * 0.7; ctx.lineWidth = 0.4; ctx.stroke(); // dim: it's junk on the floor, it can't hurt you
+      scrapDetail(d.r, sh, COL.dim, 0.8);
       ctx.restore();
       if (d.down && Math.random() < 0.3) burst(d.x + rand(-1, 1), d.y - 1, 1, COL.dim, 6, 0.5, 0.5); // smoke
       ctx.globalAlpha = 1;
@@ -5591,7 +5592,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // the pieces: gathering in, whirling, flung
     for (let i = S.pcs.length - 1; i >= 0; i--) {
       const q = S.pcs[i]; q.rot += q.va * dt * (q.m === 'orbit' ? S.spin : 1); q.flash -= dt;
-      if (q.m === 'gather') { if ((q.delay -= dt) > 0) continue; q.a += q.sp * S.spin * dt; const [ox, oy] = scrapOrbit(S, q), k = Math.min(1, dt * 5); q.x += (ox - q.x) * k; q.y += (oy - q.y) * k; if ((q.g = (q.g || 0) + dt) > 0.9) q.m = 'orbit'; } // flying in to its place in the whirl (which moves), then whirling
+      if (q.m === 'gather') { if ((q.delay -= dt) > 0) continue; q.a += q.sp * S.spin * dt; const [ox, oy] = scrapOrbit(S, q), k = Math.min(1, dt * 5); q.x += (ox - q.x) * k; q.y += (oy - q.y) * k; if ((q.g = (q.g || 0) + dt) > 0.9) { q.m = 'orbit'; q.lock = 0.25; ring(q.x, q.y, 0.5, q.r + 3, 0.2, COL.chalk, 0.7); if (G.time - (S.lockSnd || 0) > 0.06) { S.lockSnd = G.time; sfx.clank(); } } } // it locks on: a clank, a ring // flying in to its place in the whirl (which moves), then whirling
       else if (q.m === 'belt') { // out to its place in the belt (once its way there's clear of you), then round with it
         if (!S.belt) { q.m = 'orbit'; continue; }
         const [tx, ty] = beltAt(S, q);
@@ -5635,19 +5636,24 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const S = B.storm, t = G.time, H3 = hex(COL.hull), fire = heat(MAX_CHARGE * 0.75), A = S.atk, die = B.die || 0;
     if (S.wreck) faded(0.42 * (blown ? 0.5 : 1), () => drawMech({ ...B, storm: null, walker: null, legs: null, wreck: true, noLegs: true, pile: 1, st: 'wreck', x: S.wreck[0], y: S.wreck[1], kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
     const piece = (q, sc = 1, glow = 0) => {
-      const n = q.sh.length, r = q.r * sc;
-      ctx.beginPath(); for (let i = 0; i < n; i++) { const a = q.rot + i / n * Math.PI * 2, rr = r * q.sh[i], x = q.x + Math.cos(a) * rr, y = q.y + Math.sin(a) * rr; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.closePath();
+      const r = q.r * sc; ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.rot); scrapShape(r, q.sh);
       ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill();
       if (q.flash > 0 || glow > 0) { ctx.fillStyle = COL.chalk; ctx.globalAlpha = q.flash > 0 ? 0.7 : glow; ctx.fill(); ctx.globalAlpha = 1; }
       ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1;
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.6; ctx.stroke(); ctx.restore(); // hot: it hurts (the wreckage on the floor's dim: it doesn't)
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.globalAlpha = 0.4; ctx.lineWidth = 1.1; ctx.stroke(); ctx.restore(); // hot: it hurts (the wreckage on the floor's dim: it doesn't)
       ctx.strokeStyle = q.flash > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.45; ctx.stroke();
-      ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.55; ctx.beginPath(); ctx.arc(q.x + Math.cos(q.rot) * r * 0.35, q.y + Math.sin(q.rot) * r * 0.35, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // a bolt
+      scrapDetail(r, q.sh, q.flash > 0 ? COL.chalk : ECOL.warden, 0.85); ctx.restore(); // its rivets and holes: it's machinery
     };
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (!blown) { // the magnet's arcs
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.25;
       S.pcs.forEach((q, i) => { if (q.m !== 'orbit' || (i + Math.floor(t * 9)) % 4) return; const mx = (S.x + q.x) / 2 + rand(-1.5, 1.5), my = (S.y + q.y) / 2 + rand(-1.5, 1.5); ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.moveTo(S.x, S.y); ctx.lineTo(mx, my); ctx.lineTo(q.x, q.y); ctx.stroke(); });
+      ctx.restore();
+    }
+    if (!blown) { // the magnet pulling each piece in: a tether, flickering, till it locks on (then a white flash)
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.35;
+      for (const q of S.pcs) { if (q.m === 'gather' && q.delay <= 0) { const mx = (S.x + q.x) / 2 + rand(-1, 1), my = (S.y + q.y) / 2 + rand(-1, 1); ctx.globalAlpha = 0.35 + 0.3 * Math.random(); ctx.beginPath(); ctx.moveTo(S.x, S.y); ctx.lineTo(mx, my); ctx.lineTo(q.x, q.y); ctx.stroke(); }
+        if (q.lock > 0) { q.lock -= 1 / 60; ctx.globalAlpha = q.lock * 3; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * 1.2, 0, Math.PI * 2); ctx.fill(); } }
       ctx.restore();
     }
     const fl30 = 0.3 + 0.3 * Math.sin(t * 30), winding = q => q.hot || (A && ((A.k === 'punch' && A.ph === 'wind' && q.m === 'fist') || (A.k === 'wall' && A.ph === 'hold' && q.m === 'wall')));
@@ -5703,7 +5709,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.x = hx; B.y = hy; B.walk = null; B.beam = null; B.sweep = null; B.lance = null; B.pulses = []; B.pulseWarn = null; B.throws = []; B.crawl = null; B.plate = null; G.banner = null;
     shake(2); sfx.obSurge(B.x); // (the rest when it rips free: updateArmWalk)
   }
-  const armWalkShoulder = (B, i) => { const ws = B.s * WALK_S; return [B.x + (i ? 1 : -1) * 11 * ws, B.y + 6 * ws]; };
+  const armWalkShoulder = (B, i) => { const ws = B.s * WALK_S, D = B.walker && B.walker.det && B.walker.det[i]; return D ? [D.x, D.y] : [B.x + (i ? 1 : -1) * 11 * ws, B.y + 6 * ws]; }; // (a loose arm: where it lies)
   // An arm in the world: shoulder, elbow (bent up, like a spider's knee), hand. A lifted hand rides higher; a sweeping
   // or throwing arm's hand goes where the attack takes it.
   function armWalkArm(B, i) {
@@ -5915,6 +5921,148 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (n > 0) { sfx.clank(); shake(0.5); }
   }
+  // Its last stand, the hookup. The blast flings its arms off, tumbling down onto the floor either side; its head drops,
+  // bounces, and hops over to one; plugs it in (a cable snaking out of its head into the socket, two clamps snapping
+  // shut round the joint, three bolts spinning home, power running down the arm to the hand, which twitches); drags
+  // itself over to the other on that one arm; plugs that in; and rises on both, with a roar. (W.det: a loose arm's
+  // shoulder, where it lies.)
+  const PLUG = { cable: 0.45, clamp: 0.8, bolts: 1.35, power: 1.85 };
+  const ARM_GAP = 9; // how far short of the socket it stops to send its cable in (it's drawn in as the clamps close)
+  const armSocketHead = (B, i, gap = 0) => { const ws = B.s * WALK_S, D = B.walker.det[i]; return [D.x - (i ? 1 : -1) * (11 + gap) * ws, D.y - 6 * ws]; }; // where its head goes for that arm's shoulder to meet its own
+  function armLinkStart(B, W) {
+    const s0 = B.s, ws = s0 * WALK_S, L = (ARM_L1 + ARM_L2) * ws * 0.9;
+    W.det = [0, 1].map(i => { const sd = i ? 1 : -1, x0 = W.wx + sd * 26 * s0, y0 = W.wy - 12 * s0, x1 = clamp(W.wx + sd * 42 * s0, 10, AW - 10), y1 = clamp(W.wy + 46 * s0, 10, AH - 10); // (well apart: it has to go and get them)
+      const H = W.hands[i]; H.fx0 = H.x; H.fy0 = H.y; H.fx1 = clamp(x1 + sd * 0.5 * L, 4, AW - 4); H.fy1 = clamp(y1 + 0.86 * L, 4, AH - 4);
+      return { x: x0, y: y0, x0, y0, x1, y1 }; });
+    W.fm = { st: 'fling', t: 0, first: Math.random() < 0.5 ? 0 : 1, sq: 0, hx: W.wx, hy: clamp((W.det[0].y1 + W.det[1].y1) / 2 - 6 * ws, 10, AH - 10) };
+  }
+  function armHop(F, B, dt, ws, land) { // a hop, or a few, to (H.x1, H.y1): a bounce at each landing
+    const H = F.hop, T = 0.3; H.t += dt;
+    const k = clamp(H.t / T, 0, 1), u = (H.k + k) / H.n;
+    B.x = H.x0 + (H.x1 - H.x0) * u; B.y = H.y0 + (H.y1 - H.y0) * u - Math.sin(Math.PI * k) * 7 * ws;
+    if (k >= 1) { H.k++; H.t = 0; F.sq = 0.7; land(B.x, B.y + 6 * ws, false); sfx.clank(); if (H.k >= H.n) { B.x = H.x1; B.y = H.y1; F.hop = null; return true; } }
+    return false;
+  }
+  const armHopTo = (F, B, [x1, y1], ws) => { F.hop = { x0: B.x, y0: B.y, x1, y1, t: 0, k: 0, n: Math.max(1, Math.ceil(Math.hypot(x1 - B.x, y1 - B.y) / (16 * ws))) }; };
+  function armPlug(B, W, F, dt) {
+    const i = F.i, D = W.det[i], t = F.t, fire = heat(MAX_CHARGE * 0.75), H = W.hands[i], ws = B.s * WALK_S;
+    { const pull = clamp((t - PLUG.cable) / (PLUG.clamp - PLUG.cable), 0, 1), e = pull * pull * (3 - 2 * pull), [dx, dy] = armSocketHead(B, i); B.x = dx - (i ? 1 : -1) * ARM_GAP * ws * (1 - e); B.y = dy; } // the cable drawing its head in
+    F.link = { i, x: D.x, y: D.y, cable: clamp(t / PLUG.cable, 0, 1), clamp: clamp((t - PLUG.cable) / (PLUG.clamp - PLUG.cable), 0, 1), bolts: clamp((t - PLUG.clamp) / (PLUG.bolts - PLUG.clamp), 0, 1), power: clamp((t - PLUG.bolts) / (PLUG.power - PLUG.bolts), 0, 1) };
+    if (!F.e1 && t >= PLUG.cable) { F.e1 = true; burst(D.x, D.y, 10, COL.chalk, 35, 0.4, 0.3); sfx.clank(); } // plugged in
+    if (!F.e2 && t >= PLUG.clamp) { F.e2 = true; burst(D.x, D.y, 14, fire, 40, 0.5, 0.35); shake(1); sfx.clank(); sfx.hiss(); } // clamped
+    for (let k = 0; k < 3; k++) { const at = PLUG.clamp + (k + 1) / 3 * (PLUG.bolts - PLUG.clamp); if (!(F.eb & (1 << k)) && t >= at) { F.eb = (F.eb || 0) | (1 << k); const a = k * 2.09 + 0.5; burst(D.x + Math.cos(a) * 3.4 * B.s, D.y + Math.sin(a) * 3.4 * B.s, 5, COL.chalk, 25, 0.3, 0.2); sfx.brick(6 + k * 2); } } // each bolt home
+    if (!F.e4 && t >= PLUG.bolts) { F.e4 = true; sfx.obServo(0.45, D.x); }
+    if (t >= PLUG.bolts) H.lift = 0.35 * Math.sin(Math.PI * F.link.power) * (0.6 + 0.4 * Math.sin(t * 40)); // its hand twitching as the power reaches it
+    if (t < PLUG.power) return false;
+    W.det[i] = null; F.link = null; F.e1 = F.e2 = F.e4 = false; F.eb = 0; H.lift = 0; // it's on
+    const [sx, sy] = armWalkShoulder(B, i); ring(sx, sy, 1, 9, 0.3, COL.chalk, 0.8); burst(H.x, H.y, 8, fire, 30, 0.4, 0.3); shake(1.5); sfx.obImpact(1, sx);
+    return true;
+  }
+  function armDrag(B, W, F, dt, ws, ease, land) { // on one arm: reach out ahead, plant the hand, drag its head up to it, and again
+    const a = W.det[0] ? 1 : 0, Hd = W.hands[a], Dg = F.drag, [gx, gy] = F.goal;
+    if (Dg.ph === 'reach' && Dg.t === 0) { // a fresh pull
+      const dx = gx - B.x, dy = gy - B.y, d = Math.hypot(dx, dy);
+      if (d < 0.5) { B.x = gx; B.y = gy; return true; }
+      Dg.ux = dx / d; Dg.uy = dy / d; Dg.step = Math.min(d, 26 * ws); Dg.hx0 = Hd.x; Dg.hy0 = Hd.y;
+      Dg.hx1 = clamp(B.x + Dg.ux * (Dg.step + 16 * ws) + (a ? 1 : -1) * 7 * ws, 4, AW - 4); Dg.hy1 = clamp(B.y + Dg.uy * (Dg.step + 16 * ws) + 12 * ws, 4, AH - 4);
+    }
+    Dg.t += dt;
+    if (Dg.ph === 'reach') {
+      const k = ease(clamp(Dg.t / 0.28, 0, 1)); Hd.x = Dg.hx0 + (Dg.hx1 - Dg.hx0) * k; Hd.y = Dg.hy0 + (Dg.hy1 - Dg.hy0) * k; Hd.lift = Math.sin(Math.PI * k) * 1.1;
+      if (Dg.t >= 0.28) { Hd.lift = 0; land(Hd.x, Hd.y, false); Dg.ph = 'pull'; Dg.t = 0; Dg.x0 = B.x; Dg.y0 = B.y; sfx.obScrape(B.x); }
+    } else {
+      const k = ease(clamp(Dg.t / 0.4, 0, 1)); B.x = Dg.x0 + Dg.ux * Dg.step * k; B.y = Dg.y0 + Dg.uy * Dg.step * k;
+      if (Math.random() < 0.6) burst(B.x + rand(-3, 3) * ws, B.y + 7 * ws, 1, Math.random() < 0.5 ? COL.chalk : heat(MAX_CHARGE * 0.75), 20, 0.3, 0.2); // scraping along the floor
+      if (Dg.t >= 0.4) { Dg.ph = 'reach'; Dg.t = 0; Dg.n++; }
+    }
+    return false;
+  }
+  function armRiseStart(B, W, ws) {
+    W.hands.forEach((H, i) => { const sd = i ? 1 : -1; H.rx0 = H.x; H.ry0 = H.y; H.tx = clamp(B.x + sd * 24 * ws, 6, AW - 6); H.ty = clamp(B.y + 10 * ws, 10, AH - 4); });
+    W.fm.y0 = B.y; W.fm.x0 = B.x;
+  }
+  function armRise(B, W, F, dt, ws, ease) { // both hands planted, and up it comes: a slam, a roar
+    const t = F.t;
+    const k = ease(clamp(t / 0.55, 0, 1)); for (const H of W.hands) { H.x = H.rx0 + (H.tx - H.rx0) * k; H.y = H.ry0 + (H.ty - H.ry0) * k; H.lift = Math.sin(Math.PI * k) * 1.2; }
+    const mx = (W.hands[0].x + W.hands[1].x) / 2, my = (W.hands[0].y + W.hands[1].y) / 2, ty = Math.max(AH * 0.1, my - 30 * ws), r = ease(clamp((t - 0.45) / 0.7, 0, 1)), bob = t >= 1.15 ? Math.sin(Math.PI * clamp((t - 1.15) / 0.6, 0, 1)) * 5 * ws : 0;
+    B.x = F.x0 + (mx - F.x0) * r; B.y = F.y0 + (ty - F.y0) * r - bob;
+    if (t >= 0.55 && !F.planted) { F.planted = true; for (const H of W.hands) { H.lift = 0; armWalkSlam(H.x, H.y, ws); } shake(3); }
+    if (t >= 1.25 && !W.roared) { W.roared = true; B.roar = 1; for (let i = 0; i < 3; i++) ring(B.x, B.y, 2, 16 + i * 14, 0.4 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3); gridImpulse(B.x, B.y, Math.max(AW, AH), 300); shake(4); sfx.obRoar(B.x); }
+    if (t >= 1.85) { W.st = 'walk'; B.roar = 0; W.fm = null; W.det = null; }
+  }
+  function armLink(B, W, dt, ws, ease) {
+    const F = W.fm; F.t += dt; F.sq = Math.max(0, F.sq - dt * 5); B.roar = Math.max(0, (B.roar || 0) - dt * 1.5);
+    const land = (x, y, big) => { burst(x, y, big ? 14 : 6, COL.dim, 30, 0.5, 0.4); shake(big ? 2.5 : 0.7); sfx.obImpact(big ? 2 : 1, x); };
+    if (F.st === 'fling') { // its arms flung out of the blast, tumbling down onto the floor either side
+      const k = clamp(F.t / 0.7, 0, 1), e = ease(k), arc = Math.sin(Math.PI * k);
+      W.det.forEach((D, i) => { const H = W.hands[i]; D.x = D.x0 + (D.x1 - D.x0) * e; D.y = D.y0 + (D.y1 - D.y0) * e - arc * 16 * ws; H.x = H.fx0 + (H.fx1 - H.fx0) * e; H.y = H.fy0 + (H.fy1 - H.fy0) * e - arc * 22 * ws; H.lift = 0; });
+      B.y = W.fy + Math.sin(W.t * 6) * 0.6; // its head still hanging there
+      if (k >= 1) { W.det.forEach(D => land(D.x, D.y, true)); F.st = 'drop'; F.t = 0; F.x0 = B.x; F.y0 = B.y; }
+      return;
+    }
+    if (F.st === 'drop') { // its head drops to the floor between them, and bounces
+      const T1 = 0.42, k = clamp(F.t / T1, 0, 1), bt = F.t - T1, b1 = 0.32, b2 = 0.2;
+      if (k < 1) { B.x = F.x0 + (F.hx - F.x0) * k; B.y = F.y0 + (F.hy - F.y0) * k * k; return; }
+      if (!F.l1) { F.l1 = true; F.sq = 1; B.x = F.hx; B.y = F.hy; land(B.x, B.y + 6 * ws, true); sfx.clank(); }
+      if (bt < b1) { B.y = F.hy - Math.sin(Math.PI * bt / b1) * 7 * ws; return; }
+      if (!F.l2) { F.l2 = true; F.sq = 0.6; land(B.x, B.y + 6 * ws, false); }
+      if (bt < b1 + b2) { B.y = F.hy - Math.sin(Math.PI * (bt - b1) / b2) * 3 * ws; return; }
+      if (!F.l3) { F.l3 = true; F.sq = 0.35; B.y = F.hy; }
+      if (bt < b1 + b2 + 0.35) return; // a beat: it looks round for an arm
+      armHopTo(F, B, armSocketHead(B, F.first, ARM_GAP), ws); F.st = 'hop'; F.t = 0; return;
+    }
+    if (F.st === 'hop') { if (armHop(F, B, dt, ws, land)) { F.st = 'plug'; F.t = 0; F.i = F.first; } return; }
+    if (F.st === 'plug') {
+      if (armPlug(B, W, F, dt)) { const j = 1 - F.i; if (W.det[j]) { F.st = 'drag'; F.t = 0; F.drag = { ph: 'reach', t: 0, n: 0 }; F.goal = armSocketHead(B, j, ARM_GAP); } else { F.st = 'rise'; F.t = 0; armRiseStart(B, W, ws); } }
+      return;
+    }
+    if (F.st === 'drag') { if (armDrag(B, W, F, dt, ws, ease, land)) { F.st = 'plug'; F.t = 0; F.i = W.det[0] ? 0 : 1; } return; }
+    if (F.st === 'rise') armRise(B, W, F, dt, ws, ease);
+  }
+  // The hookup, drawn: each loose arm's torn socket, sparking; and the plugging in: the cable, the clamps, the bolts, the power
+  function drawArmLink(B, W) {
+    const F = W.fm, ws = B.s * WALK_S, fire = heat(MAX_CHARGE * 0.75), t = G.time, ease = k => k * k * (3 - 2 * k);
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    (W.det || []).forEach(D => { if (!D) return; // a torn socket: a dark ring with bolt holes, wires sparking out of it
+      ctx.beginPath(); ctx.arc(D.x, D.y, 3.2 * ws, 0, Math.PI * 2); ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.5 * ws; ctx.stroke();
+      ctx.fillStyle = ECOL.warden; for (let k = 0; k < 3; k++) { const a = k * 2.09 + 0.5; ctx.beginPath(); ctx.arc(D.x + Math.cos(a) * 5.4 * ws, D.y + Math.sin(a) * 5.4 * ws, 0.55 * ws, 0, Math.PI * 2); ctx.fill(); } // the bolt holes
+      for (let k = 0; k < 3; k++) { const a = -1.2 + k * 0.9 + Math.sin(t * 3 + k) * 0.2; ctx.beginPath(); ctx.moveTo(D.x, D.y); ctx.quadraticCurveTo(D.x + Math.cos(a) * 2 * ws, D.y + Math.sin(a) * 2 * ws - 1, D.x + Math.cos(a) * 3.6 * ws, D.y + Math.sin(a) * 3.6 * ws); ctx.strokeStyle = COL.dim; ctx.lineWidth = 0.3; ctx.stroke(); }
+      if (Math.random() < 0.1) burst(D.x + rand(-1, 1), D.y + rand(-1, 1), 1, Math.random() < 0.5 ? COL.chalk : fire, 20, 0.3, 0.2);
+    });
+    const L = F && F.link;
+    if (L) { const sd = L.i ? 1 : -1; drawLink(L, B.x + sd * 4 * ws, B.y + 5 * ws, armWalkArm(B, L.i), ws); }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  // A limb being plugged in (arm or leg): the cable from its head's port (px, py) into the socket (L.x, L.y), the clamps,
+  // the bolts, and the power running down the limb (pts: its three joints) to its end
+  function drawLink(L, px, py, pts, ws) {
+    const fire = heat(MAX_CHARGE * 0.75), t = G.time, ease = k => k * k * (3 - 2 * k);
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    {
+      const mx = (px + L.x) / 2 + Math.sin(t * 18) * 1.2 * (1 - L.cable), my = Math.max(py, L.y) + 5 * ws, N = 14, n = Math.max(1, Math.round(N * L.cable)); // the cable, snaking out under its head into the socket
+      const at = u => [(1 - u) * (1 - u) * px + 2 * (1 - u) * u * mx + u * u * L.x, (1 - u) * (1 - u) * py + 2 * (1 - u) * u * my + u * u * L.y];
+      ctx.beginPath(); for (let k = 0; k <= n; k++) { const [x, y] = at(k / N); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.strokeStyle = COL.ink; ctx.lineWidth = 2.2 * ws; ctx.stroke(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 1.1 * ws; ctx.stroke(); ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.35 * ws; ctx.setLineDash([0.8 * ws, 0.8 * ws]); ctx.stroke(); ctx.setLineDash([]); // a ribbed cable
+      if (L.power > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = fire; ctx.globalAlpha = 0.6; ctx.lineWidth = 0.9 * ws; ctx.stroke(); ctx.restore(); } // live
+      if (L.cable < 1) { const [x, y] = at(n / N); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = fire; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.arc(x, y, 2.4 * ws, 0, Math.PI * 2); ctx.fill(); ctx.restore(); ctx.beginPath(); ctx.arc(x, y, 1.2 * ws, 0, Math.PI * 2); ctx.fillStyle = COL.chalk; ctx.fill(); } // its plug, feeling its way, lit
+      if (L.clamp > 0) for (const s2 of [-1, 1]) { // two clamps swinging shut round the joint
+        const open = (1 - ease(L.clamp)) * 1.3, base = s2 < 0 ? Math.PI : 0, R = 5.4 * ws; ctx.beginPath(); ctx.arc(L.x, L.y, R, base - 1.2 + s2 * open, base + 1.2 + s2 * open);
+        ctx.strokeStyle = COL.ink; ctx.lineWidth = 2.6 * ws; ctx.stroke(); ctx.strokeStyle = L.clamp >= 1 ? ECOL.warden : COL.chalk; ctx.lineWidth = 1.3 * ws; ctx.stroke();
+        if (L.clamp >= 1 && L.bolts < 0.34) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = COL.chalk; ctx.globalAlpha = 1 - L.bolts * 3; ctx.lineWidth = 2.4 * ws; ctx.stroke(); ctx.restore(); } // a flash as they bite
+      }
+      if (L.bolts > 0) for (let k = 0; k < 3; k++) { // three bolts spinning home
+        const kk = clamp(L.bolts * 3 - k, 0, 1); if (kk <= 0) continue; const a = k * 2.09 + 0.5, bx = L.x + Math.cos(a) * 5.4 * ws, by = L.y + Math.sin(a) * 5.4 * ws, r = 1.3 * ws * (1 + (1 - kk) * 1.1);
+        ctx.save(); ctx.translate(bx, by); ctx.rotate(kk * 10); ctx.beginPath(); for (let q = 0; q < 6; q++) { const b = q * Math.PI / 3; q ? ctx.lineTo(Math.cos(b) * r, Math.sin(b) * r) : ctx.moveTo(Math.cos(b) * r, Math.sin(b) * r); } ctx.closePath();
+        ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = kk >= 1 ? ECOL.warden : COL.chalk; ctx.lineWidth = 0.45 * ws; ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, r * 0.4, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      }
+      if (L.power > 0 && L.power < 1) { // the power, running down the arm to its hand
+        const [sx, sy, ex, ey, hx, hy] = pts, u = L.power, [x, y] = u < 0.5 ? [sx + (ex - sx) * u * 2, sy + (ey - sy) * u * 2] : [ex + (hx - ex) * (u - 0.5) * 2, ey + (hy - ey) * (u - 0.5) * 2];
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = fire; ctx.globalAlpha = 0.45; ctx.lineWidth = 7 * ws; ctx.beginPath(); ctx.moveTo(sx, sy); if (u > 0.5) { ctx.lineTo(ex, ey); ctx.lineTo(x, y); } else ctx.lineTo(x, y); ctx.stroke(); ctx.restore(); // lit up behind it
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(x, y, 0, x, y, 8 * ws); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, fire); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.globalAlpha = 0.95; ctx.beginPath(); ctx.arc(x, y, 8 * ws, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      }
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
   function updateArmWalk(B, dt) {
     const W = B.walker, p = G.player, ws = B.s * WALK_S, ease = k => k * k * (3 - 2 * k), L = armWalkLate(B) ? 1 : 0; W.t += dt;
     for (const A of W.arms) A.flash -= dt;
@@ -5953,19 +6101,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.screenFlash = Math.max(G.screenFlash || 0, 0.7); G.slowT = Math.max(G.slowT, 0.7); shake(9); gridImpulse(cx, cy, Math.max(AW, AH) * 1.5, 420); sfx.obBlast(cx); sfx.shatter();
       }
       W.pileK = W.blown ? clamp((W.t - T.blow) / 0.8, 0, 1) : 0; W.over = W.blown ? 0 : 1;
-      if (W.t < T.arms) { B.y = W.fy + Math.sin(W.t * 6) * 0.6; B.roar = Math.max(0, B.roar - dt); return; } // its head hangs there
-      if (!W.wrenched) { W.wrenched = true; // its arms wrench out of the heap: bolts popping
-        for (const H of W.hands) { burst(H.x0, H.y0, 22, fire, 50, 0.6, 0.4); for (let q = 0; q < 6; q++) { const a = rand(0, Math.PI * 2), sp = rand(25, 55); G.shards.push({ x: H.x0, y: H.y0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: a, va: rand(-12, 12), size: rand(0.6, 1), t: 0, max: rand(0.4, 0.7), color: COL.chalk, lit: 1 }); } }
-        shake(3); sfx.clank(); sfx.obImpact(1, B.x);
-      }
-      B.roar = Math.max(0, B.roar - dt * 1.5);
-      const k = ease(clamp((W.t - T.arms) / (T.plant - T.arms), 0, 1));
-      for (const H of W.hands) { H.x = H.x0 + (H.tx - H.x0) * k; H.y = H.y0 + (H.ty - H.y0) * k; H.lift = Math.sin(Math.PI * k) * 1.2; }
-      const [mx, my] = mid(), rise = W.t >= T.plant ? Math.sin(Math.PI * clamp((W.t - T.plant) / (T.end - T.plant), 0, 1)) * 5 * ws : 0;
-      B.x = W.fx + (mx - W.fx) * k; B.y = W.fy + (my - 30 * ws - W.fy) * k - rise;
-      if (W.t >= T.plant && !W.planted) { W.planted = true; for (const H of W.hands) { H.lift = 0; armWalkSlam(H.x, H.y, ws); } shake(3); }
-      if (W.t >= T.plant + 0.2 && !W.roared) { W.roared = true; B.roar = 1; for (let i = 0; i < 3; i++) ring(B.x, B.y, 2, 16 + i * 14, 0.4 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3); gridImpulse(B.x, B.y, Math.max(AW, AH), 300); shake(4); sfx.obRoar(B.x); } // it rises, and roars
-      if (W.t >= T.end) { W.st = 'walk'; B.roar = 0; }
+      if (!W.blown) { B.y = W.fy + Math.sin(W.t * 6) * 0.6; B.roar = Math.max(0, B.roar - dt); return; } // its head hangs there
+      if (!W.fm) armLinkStart(B, W); // then the hookup: its arms off, its head going to each and plugging it in
+      armLink(B, W, dt, ws, ease);
       return;
     }
     armWalkCrawl(B, W, dt, L);
@@ -6175,6 +6313,53 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (p.inv <= 0) for (const [x0, y0, x1, y1, lit] of beams) if (lit && !segClear(x0, y0, x1, y1, LANE_W / 2 + PLAYER_R * 0.8)) { damagePlayer(); break; }
     return false;
   }
+  // Its leg walker, the hookup. Armless, its head sags, drops to the floor and bounces; hops over to its wreck; and
+  // from just above the wreck's hips sends a cable down into each hip socket in turn: the clamps, the bolts, the power
+  // running down that leg to its foot (which twitches). Both live, it drops onto the hips (the slam, the legs tearing
+  // free and standing: as before).
+  const legSocket = (B, Lg, i) => [Lg.wx + (i ? 1 : -1) * 9 * B.s, Lg.wy + 20 * B.s];
+  const legWreckLeg = (B, Lg, i) => { const sd = i ? 1 : -1, [hx, hy] = legSocket(B, Lg, i), F = Lg.feet[i]; return [hx, hy, Lg.wx + sd * 22 * B.s, Lg.wy + 35 * B.s, F.x0, F.y0]; }; // a leg still on the wreck: hip, knee, foot
+  function legLink(B, Lg, dt, ws, ease) {
+    const F = Lg.fm || (Lg.fm = { st: 'sag', t: 0, sq: 0, first: Math.random() < 0.5 ? 0 : 1, done: [false, false], hy: clamp(Lg.fy + 26 * ws, 10, AH - 10) });
+    F.t += dt; F.sq = Math.max(0, F.sq - dt * 5); Lg.t = Math.min(Lg.t, LEG_SAG * 0.5); Lg.call = 0; // (its own clock; the old one held back so it's not "docked" yet)
+    const land = (x, y, big) => { burst(x, y, big ? 14 : 6, COL.dim, 30, 0.5, 0.4); shake(big ? 2.5 : 0.7); sfx.obImpact(big ? 2 : 1, x); }, fire = heat(MAX_CHARGE * 0.75);
+    if (F.st === 'sag') { const k = ease(clamp(F.t / LEG_SAG, 0, 1)); B.x = Lg.fx + rand(-0.8, 0.8); B.y = Lg.fy + 8 * ws * k + rand(-0.8, 0.8); if (Math.random() < 0.5) burst(B.x + rand(-4, 4), B.y + 4, 2, fire, 25, 0.3, 0.2);
+      if (F.t >= LEG_SAG) { F.st = 'drop'; F.t = 0; F.x0 = Lg.fx; F.y0 = B.y; } return false; }
+    if (F.st === 'drop') { // down it drops, and bounces
+      const T1 = 0.38, k = clamp(F.t / T1, 0, 1), bt = F.t - T1, b1 = 0.3, b2 = 0.18;
+      if (k < 1) { B.x = F.x0; B.y = F.y0 + (F.hy - F.y0) * k * k; return false; }
+      if (!F.l1) { F.l1 = true; F.sq = 1; B.y = F.hy; land(B.x, B.y + 6 * ws, true); sfx.clank(); }
+      if (bt < b1) { B.y = F.hy - Math.sin(Math.PI * bt / b1) * 7 * ws; return false; }
+      if (!F.l2) { F.l2 = true; F.sq = 0.6; land(B.x, B.y + 6 * ws, false); }
+      if (bt < b1 + b2) { B.y = F.hy - Math.sin(Math.PI * (bt - b1) / b2) * 3 * ws; return false; }
+      if (bt < b1 + b2 + 0.3) { B.y = F.hy; return false; } // a beat: it turns to its wreck
+      armHopTo(F, B, [Lg.tx, Lg.ty - 12 * ws], ws); F.st = 'hop'; F.t = 0; return false;
+    }
+    if (F.st === 'hop') { if (armHop(F, B, dt, ws, land)) { F.st = 'plug'; F.t = 0; F.i = F.first; } return false; }
+    if (F.st === 'plug') { // a cable down into a hip socket: clamped, bolted, live
+      const i = F.i, [x, y] = legSocket(B, Lg, i), t = F.t, Ft = Lg.feet[i];
+      F.link = { i, x, y, cable: clamp(t / PLUG.cable, 0, 1), clamp: clamp((t - PLUG.cable) / (PLUG.clamp - PLUG.cable), 0, 1), bolts: clamp((t - PLUG.clamp) / (PLUG.bolts - PLUG.clamp), 0, 1), power: clamp((t - PLUG.bolts) / (PLUG.power - PLUG.bolts), 0, 1) };
+      if (!F.e1 && t >= PLUG.cable) { F.e1 = true; burst(x, y, 10, COL.chalk, 35, 0.4, 0.3); sfx.clank(); }
+      if (!F.e2 && t >= PLUG.clamp) { F.e2 = true; burst(x, y, 14, fire, 40, 0.5, 0.35); shake(1); sfx.clank(); sfx.hiss(); }
+      for (let k = 0; k < 3; k++) { const at = PLUG.clamp + (k + 1) / 3 * (PLUG.bolts - PLUG.clamp); if (!(F.eb & (1 << k)) && t >= at) { F.eb = (F.eb || 0) | (1 << k); const a = k * 2.09 + 0.5; burst(x + Math.cos(a) * 5.4 * ws, y + Math.sin(a) * 5.4 * ws, 5, COL.chalk, 25, 0.3, 0.2); sfx.brick(6 + k * 2); } }
+      if (!F.e4 && t >= PLUG.bolts) { F.e4 = true; sfx.obServo(0.45, x); }
+      if (t >= PLUG.power - 0.15 && !F.e5) { F.e5 = true; burst(Ft.x0, Ft.y0, 10, fire, 30, 0.4, 0.3); shake(0.8); sfx.obImpact(1, Ft.x0); } // its foot jerks
+      if (t < PLUG.power) return false;
+      F.done[i] = true; F.link = null; F.e1 = F.e2 = F.e4 = F.e5 = false; F.eb = 0;
+      if (!F.done[1 - i]) { F.i = 1 - i; F.t = 0; } else { F.st = 'dock'; F.t = 0; F.y0 = B.y; }
+      return false;
+    }
+    if (F.st === 'dock') { const k = clamp(F.t / 0.22, 0, 1); B.x = Lg.tx; B.y = F.y0 + (Lg.ty - F.y0) * k * k; return k >= 1; } // and down onto the hips
+    return false;
+  }
+  function drawLegLink(B, Lg) {
+    const F = Lg.fm, ws = B.s * WALK_S;
+    for (const i of [0, 1]) { const sd = i ? 1 : -1, px = B.x + sd * 3 * ws, py = B.y + 7 * ws, [x, y] = legSocket(B, Lg, i), pts = legWreckLeg(B, Lg, i);
+      if (F.link && F.link.i === i) drawLink(F.link, px, py, pts, ws);
+      else if (F.done[i]) drawLink({ i, x, y, cable: 1, clamp: 1, bolts: 1, power: 1 }, px, py, pts, ws); // plugged in, live
+      else if (F.st === 'plug' || F.st === 'hop') { ctx.save(); ctx.beginPath(); ctx.arc(x, y, 3.2 * ws, 0, Math.PI * 2); ctx.strokeStyle = ECOL.warden; ctx.globalAlpha = 0.5 + 0.3 * Math.sin(G.time * 6); ctx.lineWidth = 0.5 * ws; ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1; } // its socket, waiting
+    }
+  }
   function updateLegWalk(B, dt) {
     const Lg = B.legs, p = G.player, ws = B.s * WALK_S, ease = k => k * k * (3 - 2 * k), L = legWalkLate(B) ? 1 : 0; Lg.t += dt;
     for (const A of Lg.legs) A.flash -= dt; for (const E of Lg.emit) E.flash -= dt;
@@ -6190,7 +6375,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const wreck = [Lg.wx, Lg.wy]; B.legs = null; scrapStart(B, [B.x, B.y], wreck); }
       return;
     }
-    if (Lg.st === 'form') { // armless, its head sags; it's flung back to the wreck, slams onto the hips, the legs tear free and stand; the emitters iris open
+    if (Lg.st === 'form') { // armless, its head sags, drops and hops to its wreck, plugs into each hip, slams onto the hips, the legs tear free and stand; the emitters iris open
+      if (!Lg.fmDone) { if (!legLink(B, Lg, dt, ws, ease)) return; Lg.fmDone = true; Lg.t = LEG_DOCK; } // (the hookup; then on from the slam)
       const t = Lg.t, fy0 = Lg.fy + 8 * ws;
       if (t < LEG_SAG) { const k = ease(t / LEG_SAG); B.x = Lg.fx + rand(-0.8, 0.8); B.y = Lg.fy + 8 * ws * k + rand(-0.8, 0.8); if (Math.random() < 0.5) burst(B.x + rand(-4, 4), B.y + 4, 2, heat(MAX_CHARGE * 0.75), 25, 0.3, 0.2); return; }
       if (t < LEG_SAG + LEG_CALL) { Lg.call = (t - LEG_SAG) / LEG_CALL; B.x = Lg.fx + rand(-0.6, 0.6); B.y = fy0 + rand(-0.6, 0.6); B.roar = 0.3 + 0.5 * Lg.call; // it calls its legs: its eye flaring at the heap, its magnet humming, arcs leaping between them
@@ -6269,8 +6455,33 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill();
     ctx.fillStyle = fl ? COL.chalk : fire; ctx.globalAlpha = fl ? 0.7 : 0.25; ctx.fill(); ctx.globalAlpha = 1;
     ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.45; ctx.stroke();
+    scrapDetail(e.r, J.sh, fl ? COL.chalk : ECOL.warden, 0.85);
   }
-  const scrapShape = (r, sh) => { ctx.beginPath(); sh.forEach((k, i) => { const a = i / sh.length * Math.PI * 2, x = Math.cos(a) * r * k, y = Math.sin(a) * r * k; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath(); };
+  // Scrap: what its wreck is made of, drawn as machine parts so it never reads as rock: a torn plate, a length of
+  // I-beam, a cog, a pipe with a flange, a hex nut, a bent bracket (picked by its sh, so a piece keeps its kind), torn
+  // ends jagged by the rest of sh. scrapShape lays the outline (the caller fills and strokes it); scrapDetail then draws
+  // its rivets, holes, flanges and hub in col.
+  const SCRAP_KINDS = 6, scrapKind = sh => Math.floor(sh[0] * 997) % SCRAP_KINDS;
+  const SCRAP_OUT = [
+    j => [[-0.95, -0.62], [0.8, -0.62], [0.95 * j[1], -0.3], [0.68, -0.05 * j[2]], [0.95 * j[3], 0.22], [0.82, 0.62], [-0.95, 0.62]], // a plate, torn down one side
+    j => [[-1.15, -0.4], [0.98, -0.4], [1.15 * j[1], -0.14], [0.92, 0.08 * j[2]], [1.1 * j[3], 0.4], [-1.15, 0.4]], // an I-beam, its end torn
+    () => { const P = []; for (let t = 0; t < 8; t++) { const a = t * Math.PI / 4; for (const [da, rr] of [[-0.2, 0.74], [-0.12, 1], [0.12, 1], [0.2, 0.74]]) P.push([Math.cos(a + da) * rr, Math.sin(a + da) * rr]); } return P; }, // a cog
+    j => [[-1.1, -0.32], [0.72, -0.32], [0.72, -0.52], [1, -0.52], [1, 0.52], [0.72, 0.52], [0.72, 0.32], [-0.95, 0.32], [-1.12 * j[1], 0.08], [-0.98, -0.06 * j[2]]], // a pipe, flanged at one end, torn at the other
+    () => Array.from({ length: 6 }, (_, k) => [Math.cos(k * Math.PI / 3) * 0.86, Math.sin(k * Math.PI / 3) * 0.86]), // a hex nut
+    () => [[-0.9, -0.95], [-0.42, -0.95], [-0.42, 0.42], [0.95, 0.42], [0.95, 0.9], [-0.9, 0.9]], // a bracket, bent at a right angle
+  ];
+  const scrapShape = (r, sh, c = ctx) => { const P = SCRAP_OUT[scrapKind(sh)](sh); c.beginPath(); P.forEach(([x, y], i) => i ? c.lineTo(x * r, y * r) : c.moveTo(x * r, y * r)); c.closePath(); };
+  function scrapDetail(r, sh, col, a = 1, c = ctx) {
+    const k = scrapKind(sh), w = Math.max(0.12, r * 0.07), hole = (x, y, rr) => { c.beginPath(); c.arc(x * r, y * r, rr * r, 0, Math.PI * 2); c.fillStyle = COL.ink; c.fill(); c.stroke(); }, dot = (x, y) => { c.beginPath(); c.arc(x * r, y * r, r * 0.09, 0, Math.PI * 2); c.fill(); }, line = (x0, y0, x1, y1) => { c.beginPath(); c.moveTo(x0 * r, y0 * r); c.lineTo(x1 * r, y1 * r); c.stroke(); };
+    c.save(); c.strokeStyle = col; c.fillStyle = col; c.lineWidth = w; c.globalAlpha *= a;
+    if (k === 0) { dot(-0.72, -0.4); dot(-0.72, 0.4); dot(0.42, -0.4); c.globalAlpha *= 0.5; line(-0.05, -0.62, 0.15, 0.62); } // rivets; a crease where it bent
+    else if (k === 1) { line(-1.15, -0.24, 0.95, -0.24); line(-1.15, 0.24, 0.95, 0.24); hole(-0.6, 0, 0.12); hole(0.15, 0, 0.12); } // its flanges, holes through the web
+    else if (k === 2) { hole(0, 0, 0.28); c.globalAlpha *= 0.6; c.beginPath(); c.arc(0, 0, r * 0.52, 0, Math.PI * 2); c.stroke(); } // the hub, a ring
+    else if (k === 3) { line(-0.45, -0.32, -0.45, 0.32); line(0.15, -0.32, 0.15, 0.32); dot(0.86, -0.36); dot(0.86, 0.36); } // bands round it, bolts in the flange
+    else if (k === 4) { hole(0, 0, 0.36); c.globalAlpha *= 0.5; c.beginPath(); c.arc(0, 0, r * 0.62, 0, Math.PI * 2); c.stroke(); } // its thread, its chamfer
+    else { hole(-0.66, -0.42, 0.13); hole(0.45, 0.66, 0.13); } // bolt holes
+    c.restore();
+  }
   // A scrap husk: three jagged chunks of its armour held together round a glowing red magnetic core, arcs crackling
   // between them; it lurches at you (no legs: its magnet drags it)
   function drawScrapper(e) {
@@ -6280,8 +6491,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const c of ch) { // each chunk, wobbling on the magnet, an arc to it
       const a = c.a + Math.sin(t * 2 + c.a * 3) * 0.25, x = Math.cos(a) * r * 0.85 * c.d, y = Math.sin(a) * r * 0.85 * c.d;
       if (Math.random() < 0.6) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(x * 0.5 + rand(-0.6, 0.6), y * 0.5 + rand(-0.6, 0.6)); ctx.lineTo(x, y); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.2; ctx.globalAlpha = 0.8; ctx.stroke(); ctx.globalAlpha = 1; }
-      ctx.save(); ctx.translate(x, y); ctx.rotate(c.rot + t * c.va); ctx.beginPath(); c.s.forEach((k, i) => { const q = i / c.s.length * Math.PI * 2, px = Math.cos(q) * r * 0.62 * k, py = Math.sin(q) * r * 0.62 * k; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.closePath();
-      ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.4)`; ctx.fill(); if (fl) { ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 1; } ctx.strokeStyle = fl ? COL.chalk : ECOL.warden; ctx.lineWidth = 0.3; ctx.stroke(); ctx.restore();
+      ctx.save(); ctx.translate(x, y); ctx.rotate(c.rot + t * c.va); scrapShape(r * 0.55, c.s); // a scrap part: a plate, a cog, a nut...
+      ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.4)`; ctx.fill(); if (fl) { ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 1; } ctx.strokeStyle = fl ? COL.chalk : ECOL.warden; ctx.lineWidth = 0.3; ctx.stroke(); scrapDetail(r * 0.55, c.s, ECOL.warden, 0.8); ctx.restore();
     }
     ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(0, 0, r * 0.18, 0, Math.PI * 2); ctx.fill();
     if (Math.random() < 0.05) burst(e.x, e.y, 1, fire, 15, 0.3, 0.2);
@@ -6337,8 +6548,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (let i = 0; i < 3; i++) {
         const a = i / 3 * Math.PI * 2 + v * 0.7 + rand(-0.4, 0.4), d = rand(0.75, 1), x = Math.cos(a) * R * 0.85 * d, y = Math.sin(a) * R * 0.85 * d;
         c.beginPath(); c.moveTo(0, 0); c.lineTo(x * 0.5 + rand(-0.6, 0.6), y * 0.5 + rand(-0.6, 0.6)); c.lineTo(x, y); c.strokeStyle = COL.threat; c.lineWidth = 0.2; c.globalAlpha = 0.8; c.stroke(); c.globalAlpha = 1;
-        c.save(); c.translate(x, y); c.rotate(rand(0, 6)); c.beginPath(); for (let q = 0; q < 5; q++) { const t = q / 5 * Math.PI * 2, k = rand(0.7, 1.1); q ? c.lineTo(Math.cos(t) * R * 0.62 * k, Math.sin(t) * R * 0.62 * k) : c.moveTo(Math.cos(t) * R * 0.62 * k, Math.sin(t) * R * 0.62 * k); } c.closePath();
-        c.fillStyle = COL.ink; c.fill(); c.fillStyle = `rgba(${H3.join(',')},0.4)`; c.fill(); c.strokeStyle = ECOL.warden; c.lineWidth = 0.3; c.stroke(); c.restore();
+        const sh = [0.7 + (((v * 3 + i) % SCRAP_KINDS) - Math.floor(0.7 * 997) % SCRAP_KINDS + SCRAP_KINDS) % SCRAP_KINDS / 997 + 0.0001, rand(0.7, 1.1), rand(0.7, 1.1), rand(0.7, 1.1)]; // (each chunk a different part: scrapKind reads sh[0])
+        c.save(); c.translate(x, y); c.rotate(rand(0, 6)); scrapShape(R * 0.55, sh, c);
+        c.fillStyle = COL.ink; c.fill(); c.fillStyle = `rgba(${H3.join(',')},0.4)`; c.fill(); c.strokeStyle = ECOL.warden; c.lineWidth = 0.3; c.stroke(); scrapDetail(R * 0.55, sh, ECOL.warden, 0.8, c); c.restore();
       }
       c.fillStyle = COL.chalk; c.beginPath(); c.arc(0, 0, R * 0.18, 0, Math.PI * 2); c.fill();
       SW_SPR.imgs.push(cv);
@@ -6819,8 +7031,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (B.legs.scorch) { for (const q of B.legs.scorch) { const k = 1 - q.t / 2.6; // burn marks where its beams hit the arena's edge: dark, an ember glowing in each, fading
         ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.55 * k; ctx.beginPath(); ctx.arc(q.x, q.y, LANE_W * 0.6, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
         glow(() => { const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, LANE_W * 0.5); g.addColorStop(0, heat(MAX_CHARGE * 0.75)); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q.x, q.y, LANE_W * 0.5, 0, Math.PI * 2); ctx.fill(); }, heat(MAX_CHARGE * 0.75), 0.7 * k * k * (0.75 + 0.25 * Math.sin(t * 20 + q.x))); } }
-      const Lg = B.legs, ws = s * WALK_S, A = Lg.atk, docked = Lg.st !== 'form' || Lg.t >= LEG_DOCK, shkL = die * 0.8 + (Lg.st === 'die' ? 0.6 * (Lg.crack || 0) : Lg.st === 'form' && !docked && Lg.t < LEG_SAG ? 0.6 : 0);
+      const Lg = B.legs, ws = s * WALK_S, A = Lg.atk, docked = Lg.st !== 'form' || Lg.t >= LEG_DOCK, shkL = die * 0.8 + (Lg.st === 'die' ? 0.6 * (Lg.crack || 0) : Lg.st === 'form' && !docked && Lg.t < LEG_SAG && !(Lg.fm && Lg.fm.st !== 'sag') ? 0.6 : 0);
       faded(0.42, () => drawMech({ ...B, legs: null, walker: null, wreck: true, noLegs: docked, pile: 1, twitch: Lg.st === 'form' && Lg.call > 0 && !docked ? Lg.call : 0, st: 'wreck', x: Lg.wx, y: Lg.wy, kneel: 1, die: 0, flash: 0, roar: 0, walk: null, fly: null, beam: null, sweep: null, lockT: 0, open: 0 }));
+      if (Lg.st === 'form' && Lg.fm && !Lg.fmDone) drawLegLink(B, Lg); // its hookup: the cables down into its hips
       if (Lg.st === 'form' && Lg.call > 0) { ctx.save(); ctx.lineJoin = 'round'; for (const sd of [-1, 1]) { const x1 = Lg.wx + sd * 9 * s, y1 = Lg.wy + 20 * s; ctx.beginPath(); ctx.moveTo(B.x, B.y); for (let q = 1; q < 6; q++) { const u = q / 6; ctx.lineTo(B.x + (x1 - B.x) * u + rand(-3, 3), B.y + (y1 - B.y) * u + rand(-3, 3)); } ctx.lineTo(x1, y1); // its magnet's arcs, leaping to its legs on the heap
           glow(() => { ctx.lineWidth = 1.6; ctx.stroke(); }, COL.threat, 0.5 * Lg.call); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.6 + 0.4 * Math.random(); ctx.stroke(); ctx.globalAlpha = 1; } ctx.restore(); }
       const ox = B.x + (Lg.sx || 0), oy = B.y + (Lg.sy || 0); ctx.save(); ctx.translate(ox + rand(-shkL, shkL), oy + rand(-shkL, shkL)); ctx.scale(ws, ws); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -6952,7 +7165,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (W.tense > 0) glow(() => { ctx.beginPath(); ctx.arc(0, 2, 12, 0, Math.PI * 2); ctx.fill(); }, COL.threat, (0.1 + 0.3 * W.tense) * (0.75 + 0.25 * Math.sin(t * 40))); // crouched to pounce: flaring
       glow(() => { ctx.beginPath(); ctx.arc(0, -1, 11, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.1 + 0.04 * Math.sin(t * 3));
       { const k = W.step ? Math.sin(Math.PI * clamp(W.step.t / ARM_STEP_T, 0, 1)) : 0, tilt = clamp((G.player.x - B.x) / 90, -1, 1) * 0.1 + (W.step ? (W.step.i ? 1 : -1) * 0.08 * k : 0);
-        ctx.save(); ctx.translate(0, 1.4 * k); ctx.rotate(tilt); head(21); ctx.restore(); } // its helmet, over its arms: dipping and tilting toward the hand it's lifting, turning to follow you
+        const sq = W.fm ? W.fm.sq : 0; ctx.save(); ctx.translate(0, 1.4 * k + sq * 2); ctx.rotate(tilt); ctx.scale(1 + sq * 0.22, 1 - sq * 0.22); head(21); ctx.restore(); } // (squashing as it lands from a bounce) // its helmet, over its arms: dipping and tilting toward the hand it's lifting, turning to follow you
       if (W.th && W.th.held) { // the scrap in its hand (glowing as it swings it back)
         const q = W.th.held, [, , , , hx, hy] = armWalkArm(B, W.th.i), hotQ = W.th.ph === 'wind';
         ctx.save(); ctx.translate((hx - B.x) / ws, (hy - B.y) / ws);
@@ -6960,7 +7173,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.rotate(q.rot); scrapShape(q.r / ws * 1.2, q.sh);
         ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill();
         glow(() => ctx.fill(), fire, hotQ ? 0.45 + 0.3 * Math.sin(t * 30) : 0.3);
-        ctx.strokeStyle = hotQ && Math.sin(t * 30) > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.6 / ws; ctx.stroke(); ctx.restore();
+        ctx.strokeStyle = hotQ && Math.sin(t * 30) > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.6 / ws; ctx.stroke(); scrapDetail(q.r / ws * 1.2, q.sh, ECOL.warden, 0.85); ctx.restore();
       }
       ctx.restore();
       if (W.fl) { // the swing: its magnet's arcs off the heap; then the cable from its fist, the chunk whipping round (a blur behind it), white-hot before it lets go
@@ -6977,9 +7190,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (F.hot > 0) glow(() => { const g = ctx.createRadialGradient(F.x, F.y, 0, F.x, F.y, 9); g.addColorStop(0, COL.chalk); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(F.x, F.y, 9, 0, Math.PI * 2); ctx.fill(); }, COL.chalk, 0.45 * F.hot);
         for (const q of F.pcs) if (q.on) { const [qx, qy] = flailPiece(F, q); ctx.save(); ctx.translate(qx, qy); ctx.rotate(q.rot + F.rot); scrapShape(q.r, q.sh);
           ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.3)`; ctx.fill(); glow(() => ctx.fill(), F.hot > 0 ? COL.chalk : fire, F.hot > 0 ? 0.3 + 0.5 * F.hot : 0.3);
-          ctx.strokeStyle = F.hot > 0 && Math.sin(t * 30) > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.45; ctx.stroke(); ctx.restore(); }
+          ctx.strokeStyle = F.hot > 0 && Math.sin(t * 30) > 0 ? COL.chalk : COL.threat; ctx.lineWidth = 0.45; ctx.stroke(); scrapDetail(q.r, q.sh, ECOL.warden, 0.85); ctx.restore(); }
         ctx.restore();
       }
+      if (W.fm || W.det) drawArmLink(B, W); // its hookup
       return;
     }
     if (B.walk && B.walk.land && !die) { const [lx, ly] = B.walk.land; groundShadow(lx, ly, MECH_STOMP_R, clamp(1 - B.walk.t / (B.walk.warn || MECH_STEP_WARN), 0, 1)); } // a foot coming down: its shadow, as wide as the stomp's reach
@@ -7015,8 +7229,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (let i = 0; i < N; i++) {
         const land = clamp((pk - i / N * 0.75) / 0.25, 0, 1); if (land <= 0) continue;
         const h = Math.pow(hash(i * 7.3 + 1), 1.3), x = (hash(i * 3.1 + 2) - 0.5) * 2 * 34 * (1 - h * 0.7), y = 26 - h * 34 + up * 0.4 - (1 - land) * 30, r = 4.5 + hash(i * 5.7 + 3) * 6, a0 = hash(i * 9.1 + 4) * 6.28, n = 4 + Math.floor(hash(i * 2.3 + 5) * 3);
-        const P = []; for (let q = 0; q < n; q++) { const a = a0 + q / n * Math.PI * 2, rr = r * (0.6 + 0.4 * hash(i * 11.7 + q)); P.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.75]); }
-        plate(P, { lit: 0.18 + 0.2 * hash(i * 4.4), bolts: hash(i * 6.6) < 0.4 ? [[x, y]] : [] });
+        const sh = [0.7 + 0.4 * hash(i * 11.7), 0.7 + 0.4 * hash(i * 12.3), 0.7 + 0.4 * hash(i * 13.9), 0.7 + 0.4 * hash(i * 14.1)], rr = r * 0.62 * (n > 5 ? 1.15 : 1); // (a part: a plate, a beam, a cog...)
+        ctx.save(); ctx.translate(x, y); ctx.rotate(a0); ctx.scale(1, 0.85); scrapShape(rr, sh); ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},${0.18 + 0.2 * hash(i * 4.4)})`; ctx.fill(); stroke(W2, 0.9); scrapDetail(rr, sh, col, 0.7); ctx.restore();
       }
       if (pk >= 1) { // twisted struts sticking out, embers glowing between the plates, smoke
         for (const [x0, y0, x1, y1] of [[-14, 14, -28, -8], [12, 10, 26, -12], [-3, 4, 5, -18]]) piston(x0, y0 + up * 0.4, x1, y1 + up * 0.4, 1.8);
