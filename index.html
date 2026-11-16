@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 16:11 UTC · dec1dca";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 16:16 UTC · aa2e99f";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -486,7 +486,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const $ = id => document.getElementById(id);
   const cvs = $('game'); let ctx = cvs.getContext('2d'); // let: a figure can be drawn to a buffer first (see faded)
   const LOOKS = ['neon', 'cabinet', 'bone', 'blueprint', 'blueprint2'];
-  let look = 'neon';
+  let look = 'blueprint2'; // (the default look, for anyone who hasn't picked one)
   try { const l = localStorage.getItem('ricochet.look'); if (LOOKS.includes(l)) look = l; } catch (e) {}
   if (look !== 'neon') document.documentElement.dataset.look = look;
   const css = getComputedStyle(document.documentElement);
