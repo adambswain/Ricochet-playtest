@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 15:59 UTC · c61a424";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 16:11 UTC · dec1dca";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5142,6 +5142,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       gridImpulse(m.x, m.y, MORTAR_R * 2.4, 140); shake(1);
       if ((G.mortarN = (G.mortarN || 0) + 1) % 2) m.ob ? sfx.obImpact(1, m.x) : sfx.rockBoom(1);
       if (p.inv <= 0 && p.hull > 0 && G.dying <= 0 && Math.hypot(p.x - m.x, p.y - m.y) < MORTAR_R + PLAYER_R * 0.6) damagePlayer();
+      if (m.hatch) swarmHatch(m); // its swarm's scrap: crawlers
     }
     for (let i = G.mortarUp.length - 1; i >= 0; i--) { const u = G.mortarUp[i]; u.t += dt; if (u.t > 0.6) G.mortarUp.splice(i, 1); }
   }
@@ -5155,7 +5156,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.globalAlpha = 0.3 + 0.4 * k; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.3; ctx.stroke();
       ctx.beginPath(); ctx.arc(m.x, m.y, MORTAR_R * (1 + 1.3 * (1 - k)), 0, Math.PI * 2);
       ctx.globalAlpha = 0.4 + 0.6 * k; ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.35 + 0.35 * k; ctx.stroke();
-      if (m.t < 0.28) { const y = m.y - 46 * m.t / 0.28; ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(m.x, y - 5); ctx.lineTo(m.x, y); ctx.stroke(); }
+      if (m.scrap) { // a chunk of its scrap, tumbling through the air from its chest down onto the circle, hot
+        const q = m.scrap, x = q.x0 + (m.x - q.x0) * k, y = q.y0 + (m.y - q.y0) * k - Math.sin(Math.PI * k) * 34, sc = 1 + 0.6 * Math.sin(Math.PI * k);
+        ctx.save(); ctx.translate(x, y); ctx.rotate(q.rot + q.va * k); ctx.scale(sc, sc); scrapShape(2.6, q.sh); ctx.globalAlpha = 1; ctx.fillStyle = COL.ink; ctx.fill();
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = heat(MAX_CHARGE * 0.75); ctx.globalAlpha = 0.45; ctx.fill(); ctx.restore();
+        ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.45; ctx.stroke(); scrapDetail(2.6, q.sh, ECOL.warden, 0.85); ctx.restore();
+      } else if (m.t < 0.28) { const y = m.y - 46 * m.t / 0.28; ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(m.x, y - 5); ctx.lineTo(m.x, y); ctx.stroke(); }
     }
     ctx.restore(); ctx.globalAlpha = 1;
   }
@@ -6502,23 +6508,38 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // its open chest spews crawlers, and they pour in from every edge too, till the arena's full of them (SWARM_CAP at
   // once, SWARM_N in all). They're one hit each and they come at you: your ball plows through them (a kill doesn't
   // bounce it), so one throw can chain dozens. Every one dead: a bonus, and its head tears free for its last stand.
-  const SWARM_N = 300, SWARM_CAP = 160, SWARM_RATE = 18, SWARM_FLOOD = 120, SWARM_FOUNT = 0.35, SWARM_BONUS = 100000, SWARM_V = 0.85; // (the first SWARM_FLOOD pour in at 2.5x the rate)
+  const SWARM_N = 300, SWARM_CAP = 160, SWARM_RATE = 18, SWARM_FLOOD = 120, SWARM_FOUNT = 0.35, SWARM_BONUS = 100000, SWARM_V = 1.0, SWARM_LOB_T = 2.6, SWARM_LOB_FALL = 1.15, SWARM_HATCH = 4, SW_LUNGE = 82, SW_CROUCH = 0.3, SW_DASH = 0.28, SW_REACH = 26; // (LOB: its scrap volleys; a crawler near you crouches, then lunges) // (LOB: its scrap volleys) // (the first SWARM_FLOOD pour in at 2.5x the rate)
   function swarmStart(B) {
     B.swarm = { n: SWARM_N + 60 * B.cycle, sent: 0, t: 1.4, killed: 0, end: 0 };
     B.beam = null; B.sweep = null; B.lockT = 0; B.fly = null; B.crawl = null; B.throws = [];
     G.banner = { text: 'The swarm', sub: 'Its wreck spews crawlers. Kill every one', t: 2.2, max: 2.2, at: 0.45 };
     shake(5); gridImpulse(B.x, B.y, Math.max(AW, AH), 260); sfx.obRoar(B.x, 1); sfx.obSurge(B.x);
   }
+  // Its scrap volleys: it heaves chunks of scrap out of its chest, one at you and the rest round you (later on, one more);
+  // each comes down on its landing circle (like its mortars: a hit if you're under it) and cracks open into crawlers
+  function swarmLob(B, S) {
+    const p = G.player, R = MORTAR_R, [cx, cy] = mechAt(B, ...MECH_CORE_AT), n = S.sent > S.n * 0.5 ? 4 : 3, pts = [[clamp(p.x, R, AW - R), clamp(p.y, R, AH - R)]];
+    for (let tries = 0; pts.length < n && tries < 40; tries++) { const a = rand(0, Math.PI * 2), d = rand(16, 30), x = clamp(pts[0][0] + Math.cos(a) * d, R, AW - R), y = clamp(pts[0][1] + Math.sin(a) * d, R, AH - R); if (pts.every(([qx, qy]) => Math.hypot(qx - x, qy - y) >= 14)) pts.push([x, y]); }
+    pts.forEach(([x, y], i) => { const hatch = Math.min(SWARM_HATCH, S.n - S.sent), T = SWARM_LOB_FALL + i * 0.15; if (hatch <= 0) return; S.sent += hatch;
+      G.mortars.push({ x, y, t: T, T, ob: true, hatch, scrap: { x0: cx, y0: cy, sh: Array.from({ length: 6 }, () => rand(0.7, 1.1)), rot: rand(0, 6), va: rand(-9, 9) } }); });
+    burst(cx, cy, 16, heat(MAX_CHARGE * 0.75), 40, 0.5, 0.35); shake(1.2); sfx.obMortarPop(cx);
+  }
+  function swarmHatch(m) { // a chunk landed: it cracks open, crawlers spilling out
+    for (let k = 0; k < m.hatch; k++) { const a = k / m.hatch * Math.PI * 2 + rand(-0.4, 0.4), e = makeEnemy('scrapper', clamp(m.x + Math.cos(a) * 2, 4, AW - 4), clamp(m.y + Math.sin(a) * 2, 4, AH - 4));
+      Object.assign(e, { sw: true, vx: Math.cos(a) * 35, vy: Math.sin(a) * 35, spawnT: 0.2, spd: e.spd * SWARM_V, rot: rand(0, 6), v: Math.floor(Math.random() * 6) }); G.enemies.push(e); }
+    burst(m.x, m.y, 10, COL.dim, 30, 0.5, 0.4); sfx.clank();
+  }
   const swarmLeft = (S) => S.n - S.sent + G.enemies.reduce((k, e) => k + (e.sw ? 1 : 0), 0);
   function updateMechSwarm(B, dt) {
     const S = B.swarm, p = G.player, alive = G.enemies.reduce((k, e) => k + (e.sw ? 1 : 0), 0);
     if (S.end > 0) { if ((S.end -= dt) <= 0) { B.swarm = null; B.swarmDone = true; mechCore(B); } return; } // a beat, then its head tears free
-    if (S.sent >= S.n && !alive) { // the last of them
+    if (S.sent >= S.n && !alive && !G.mortars.some(m => m.hatch)) { // the last of them (none still in the air)
       S.end = 1.4; const v = SWARM_BONUS * (1 + B.cycle); G.score += v;
       G.banner = { text: 'Swarm destroyed!', sub: `+${(v * scoreK(G.wave)).toLocaleString()}`, t: 1.4, max: 1.4, at: 0.45 }; sfx.repair(); shake(2);
       return;
     }
     if ((S.t -= dt) > 0) return;
+    if ((S.lobT = (S.lobT ?? 2) - dt) <= 0 && S.sent < S.n) { S.lobT = SWARM_LOB_T * Math.max(0.6, 1 - 0.15 * B.cycle); swarmLob(B, S); } // and it heaves scrap at you
     S.acc = (S.acc || 0) + SWARM_RATE * dt * (S.sent < SWARM_FLOOD ? 2.5 : 1); // (a flood to start with, then a steady pour)
     const n = Math.max(0, Math.min(Math.floor(S.acc), SWARM_CAP - alive, S.n - S.sent)); S.acc -= Math.max(0, Math.floor(S.acc));
     const [cx, cy] = mechAt(B, ...MECH_CORE_AT);
@@ -6559,7 +6580,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function drawSwarmCrawler(e) {
     const img = swarmSprites()[e.v || 0], W = ENEMY.scrapper.r * 2.8, sk = 1 + 0.08 * Math.sin(G.time * 18 + e.seed * 5); // (skittering)
-    ctx.rotate(e.rot * 0.6 + Math.sin(G.time * 9 + e.seed * 3) * 0.25); ctx.drawImage(img, -W / 2 * sk, -W / 2 / sk, W * sk, W / sk);
+    const L = e.lj, cr = L && L.t < SW_CROUCH ? L.t / SW_CROUCH : 0;
+    if (cr > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = cr > 0.6 && Math.floor(G.time * 20) % 2 ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.5 + 0.5 * cr; ctx.beginPath(); ctx.arc(0, 0, W * (0.75 - 0.3 * cr), 0, Math.PI * 2); ctx.stroke(); ctx.restore(); } // crouched to lunge: a ring closing in, flashing
+    ctx.rotate(e.rot * 0.6 + Math.sin(G.time * 9 + e.seed * 3) * 0.25); const sq = 1 - 0.25 * cr; ctx.drawImage(img, -W / 2 * sk / sq, -W / 2 / sk * sq, W * sk / sq, W / sk * sq);
   }
   // The live chain, big, under its bar while the swarm's on: the count of this throw's kills, kicking with each one
   function drawSwarmChain() {
@@ -9975,7 +9998,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // trail is a wall: your ball bounces off it (charging, like any wall), and it hurts your ship to touch. Your ship draws
   // a trail too, harmless to you and your ball: a rider that runs into it crashes ("Cut off!"), as one does into any
   // trail or the edge. They come in a few at a time; the wave's done when the last one's down.
-  const RD_GRID = 6, RD_V = 38, RD_TRAIL = 84, RD_N = 12, RD_LIVE = 4, RD_HP = 3, RD_W = 0.7, RD_SHIP = 64, RD_CUT = 500, TB_CLEAR = 4000; // (TB_CLEAR: a clear bonus, × the wave)
+  const RD_GRID = 6, RD_V = 38, RD_TRAIL = 84, RD_N = 18, RD_LIVE = 5, RD_HP = 3, RD_W = 0.7, RD_SHIP = 64, RD_CUT = 500, TB_CLEAR = 4000; // (TB_CLEAR: a clear bonus, × the wave)
   let forceRiders = false; // the start menu's test option
   const segDist = (x, y, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy, t = L2 ? clamp(((x - ax) * dx + (y - ay) * dy) / L2, 0, 1) : 0; return Math.hypot(x - ax - dx * t, y - ay - dy * t); };
   const toGrid = (v, d) => d > 0 ? (Math.floor(v / RD_GRID + 1e-6) + 1) * RD_GRID - v : v - (Math.ceil(v / RD_GRID - 1e-6) - 1) * RD_GRID; // to the next grid line ahead
@@ -9984,7 +10007,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.riders = { cycle, n: RD_N + 2 * cycle, sent: 0, t: 0.8, ship: [], ghosts: [], live: [], done: false };
     const p = G.player; p.x = AW / 2; p.y = AH * 0.62;
   }
-  function tbClear(text, cycle) { const v = TB_CLEAR * G.wave * (1 + cycle); G.score += v; G.result = { text, sub: `+${(v * scoreK(G.wave)).toLocaleString()}`, t: 2.4, max: 2.4 }; sfx.repair(); } // a throwback cleared: its bonus
+  function tbClear(text, cycle) { G.tbBonus = TB_CLEAR * G.wave * (1 + cycle); } // a throwback done: its share of points goes into the usual "Wave clear" (it's a wave like any other)
   function finishRiders() { if (G.riders) { for (const e of G.enemies) if (e.rider) e.gone = true; G.riders = null; } }
   // what's at (x, y): the edge, a rider's trail (not a rider's own newest two stretches), or your trail
   function riderBlocked(x, y, rad, self, ship = true) {
@@ -10058,7 +10081,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let i = R.live.length - 1; i >= 0; i--) { const e = R.live[i]; if (!G.enemies.includes(e)) { R.ghosts.push({ segs: riderSegs(e), t: 0 }); R.live.splice(i, 1); } } // one down: its trail fades
     for (let i = R.ghosts.length - 1; i >= 0; i--) if ((R.ghosts[i].t += dt) > 0.6) R.ghosts.splice(i, 1);
     if (p.inv <= 0 && G.dying <= 0) for (const e of G.enemies) if (e.rider && riderSegs(e).some(([a, b]) => segDist(p.x, p.y, a[0], a[1], b[0], b[1]) < PLAYER_R * 0.8 + RD_W)) { damagePlayer(); break; } // touching a trail
-    if (R.sent < R.n && R.live.length < RD_LIVE) { R.t -= dt; if (R.t <= 0) { riderLaunch(); R.t = 1.4; } }
+    if (R.sent < R.n && R.live.length < RD_LIVE) { R.t -= dt; if (R.t <= 0) { riderLaunch(); R.t = 1.0; } }
     if (R.sent >= R.n && !R.live.length && !R.done) { R.done = true; tbClear('All riders down', R.cycle); }
   }
   function riderBounce(ball, r) { // off a rider's trail, like off any wall
@@ -10101,7 +10124,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // that's shortest to you, now and then not). Its walls block your ship and your ball bounces off them, but they heat
   // it only a third as much (a maze is mostly walls). Crystal shards stud the corridors: your ball smashes them for
   // points (every one: a jackpot). Every stalker down: done.
-  const MZ_CELL = 28, MZ_WALL = 2.2, MZ_LOOPS = 0.15, MZ_HEAT = 0.34, MZ_HUNT = 8, MZ_V = 25, MZ_HP = 4, MZ_DOT = 25, MZ_JACK = 5000;
+  const MZ_CELL = 28, MZ_WALL = 2.2, MZ_LOOPS = 0.15, MZ_HEAT = 0.34, MZ_HUNT = 14, MZ_LIVE = 5, MZ_V = 25, MZ_HP = 4, MZ_DOT = 25, MZ_JACK = 5000;
   let forceMaze = false; // the start menu's test option
   function setupMaze(cycle) {
     const cols = Math.max(4, Math.round(AW / MZ_CELL)), rows = Math.max(6, Math.round(AH / MZ_CELL)), cw = AW / cols, ch = AH / rows;
@@ -10131,6 +10154,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     G.maze = { cycle, cols, rows, cw, ch, open, den, dots, dotsN: dots.length, n: MZ_HUNT + cycle, sent: 0, t: 1.2, dist: null, distT: 0, done: false, streak: 0, streakT: 0 };
     const p = G.player; p.x = (home[0] + 0.5) * cw; p.y = (home[1] + 0.5) * ch;
+  }
+  function mazeBlocked(x0, y0, x1, y1) { // a maze wall between two points (a blast doesn't go through them)
+    for (const o of G.obstacles) { if (!o.maze || o.dying) continue; const R = rectOf(o); let t0 = 0, t1 = 1; const dx = x1 - x0, dy = y1 - y0;
+      for (const [p, q] of [[-dx, x0 - R.x0], [dx, R.x1 - x0], [-dy, y0 - R.y0], [dy, R.y1 - y0]]) { if (p === 0) { if (q < 0) { t0 = 2; break; } continue; } const r = q / p; if (p < 0) { if (r > t1) { t0 = 2; break; } if (r > t0) t0 = r; } else { if (r < t0) { t0 = 2; break; } if (r < t1) t1 = r; } }
+      if (t0 <= t1) return true; }
+    return false;
   }
   function finishMaze() { if (G.maze) { for (const e of G.enemies) if (e.hunter) e.gone = true; for (const o of G.obstacles) if (o.maze) o.dying = true; G.maze = null; } }
   const mazeCell = (M, x, y) => [clamp(Math.floor(x / M.cw), 0, M.cols - 1), clamp(Math.floor(y / M.ch), 0, M.rows - 1)];
@@ -10169,7 +10198,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       burst(d.x, d.y, 6, GOLD(), 24, 0.5, 0.3); burst(d.x, d.y, 3, COL.chalk, 18, 0.4, 0.25); sfx.crystal(Math.min(MAX_CHARGE, M.streak));
       if (!M.dots.some(q => q.on)) { const jp = MZ_JACK * (1 + M.cycle); G.score += jp; float(AW / 2, AH / 2, `Every crystal! +${(jp * scoreK(G.wave)).toLocaleString()}`, GOLD(), 4); sfx.repair(); }
     }
-    if (M.sent < M.n) { M.t -= dt; if (M.t <= 0) { mazeLaunch(); M.t = 2.0; } }
+    if (M.sent < M.n && G.enemies.reduce((k, e) => k + (e.hunter ? 1 : 0), 0) < MZ_LIVE) { M.t -= dt; if (M.t <= 0) { mazeLaunch(); M.t = 1.6; } } // (a few at a time, out of the den)
     if (M.sent >= M.n && !G.enemies.some(e => e.hunter) && !M.done) { M.done = true; tbClear('Maze cleared', M.cycle); }
   }
   function drawMaze() {
@@ -10622,7 +10651,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.squadPlan = null; G.squadWarn = []; G.shadow = null; G.mechSetup = null; G.rockets = []; G.debris = []; G.mortars = []; G.barrage = []; G.mortarUp = [];
         if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
         if (G.wave > 0 && !G.skipBonus) {
-          const bonus = 100 * G.wave;
+          const bonus = 100 * G.wave + (G.tbBonus || 0); G.tbBonus = 0;
           G.score += bonus;
           float(AW / 2, AH / 2 + 9, `Wave clear +${bonus}`, COL.chalk, 3.4);
         }
@@ -10902,7 +10931,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     blastBoss(ball.x, ball.y, BLAST_R, 5, ball);
     for (let i = G.enemies.length - 1; i >= 0; i--) {
       const e = G.enemies[i];
-      if (Math.hypot(e.x - ball.x, e.y - ball.y) < BLAST_R + e.r) kill(i, 4, 0, ball);
+      if (Math.hypot(e.x - ball.x, e.y - ball.y) < BLAST_R + e.r && !(G.maze && mazeBlocked(ball.x, ball.y, e.x, e.y))) kill(i, 4, 0, ball); // (in the Labyrinth its walls stop the blast)
     }
     if (!ball.wing) loseMult(ball.x, ball.y - 9); // a wingman's overload is free: you couldn't catch it
     const c = heat(MAX_CHARGE);
@@ -10946,7 +10975,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.score += bonus;
     G.chainPop = { text: `CHAIN ×${chain}`, sub: `+${bonus.toLocaleString()}`, t: 1.3, max: 1.3, size: chain >= 50 ? 1.8 : chain >= 15 ? 1.5 : chain >= 10 ? 1.25 : 1 };
     G.slowT = chain >= 10 ? 0.5 : 0.35; G.screenFlash = chain >= 10 ? 0.35 : 0.2;
-    if (chain >= 10) { // a ×10 chain (and every milestone after) puts the one-hit shield up
+    if (chain >= 10 && chain <= 30) { // a ×10 chain (and every milestone after, to ×30) puts the one-hit shield up (the swarm's huge chains just celebrate: it'd never come down)
       const p = G.player, c = `rgb(${HEAT[0].join(',')})`;
       p.shield = Math.max(p.shield, CHAIN_SHIELD); float(p.x, p.y - 7, 'Shield', c, 3.4); ring(p.x, p.y, PLAYER_R, PLAYER_R + 10, 0.45, c, 0.8);
       G.chainPop.sub += ' · Shield';
@@ -10981,6 +11010,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const e = G.enemies[i], b = chargeOverride ?? src.b;
     G.enemies.splice(i, 1);
     if (G.train) trKilled(e, src);
+    if (e.hunter) { ring(e.x, e.y, 1, e.r + 8, 0.35, COL.threat, 1); burst(e.x, e.y, 18, COL.threat, 45, 0.7, 0.45); sfx.shatter(); } // a stalker down: you see it go
     if (e.micro) microBlast(e.x, e.y, src); // a micro-missile goes up, and takes its neighbours
     if (e.type === 'segg') { burst(e.x, e.y, 10, COL.chalk, 30, 0.6, 0.4); burst(e.x, e.y, 8, COL.threat, 22, 0.7, 0.5); } // an egg broken: shell and goo
     if (e.segs) e.segs.forEach(([sx, sy, sr], k) => { burst(sx, sy, 5, k % 2 ? COL.threat : COL.chalk, 26, 0.45, 0.3); ring(sx, sy, sr * 0.5, sr + 2, 0.2, COL.threat, 0.4); }); // a snake: its tail breaks up
@@ -11604,11 +11634,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           const a = Math.atan2(hy, hx) + Math.sin(G.time * (e.type === 'viper' ? 4 : 6) + e.seed) * sw; tx = Math.cos(a) * sp; ty = Math.sin(a) * sp;
         } else if (e.type === 'scrapper') { // a scrap crawler: at you in skittering bursts
           const k = 0.45 + 0.9 * Math.max(0, Math.sin(G.time * 9 + e.seed * 3)); tx = ux * e.spd * k; ty = uy * e.spd * k;
+          if (e.sw) { e.lc = (e.lc || rand(0, 0.8)) - dt; // a swarm crawler near you: it crouches (a flash, SW_CROUCH), then lunges (SW_DASH)
+            if (e.lj) { e.lj.t += dt; if (e.lj.t < SW_CROUCH) { tx = 0; ty = 0; } else if (e.lj.t >= SW_CROUCH + SW_DASH) { e.lj = null; e.lc = rand(1.4, 2.2); } }
+            else if (d < SW_REACH && e.lc <= 0 && e.spawnT <= 0) e.lj = { t: 0, ux, uy }; }
         } else if (e.type === 'swarm') { // swirl around a point near the player
           const a = e.seed + G.time * 1.6, ox = p.x + Math.cos(a) * 6 - e.x, oy = p.y + Math.sin(a) * 6 - e.y, od = Math.hypot(ox, oy) || 1;
           tx = ox / od * e.spd; ty = oy / od * e.spd;
         }
         const quick = e.type === 'swarm' || e.type === 'scrapper'; e.vx += (tx - e.vx) * (quick ? Math.min(1, dt * 5) : steer); e.vy += (ty - e.vy) * (quick ? Math.min(1, dt * 5) : steer);
+        if (e.lj && e.lj.t >= SW_CROUCH) { e.vx = e.lj.ux * SW_LUNGE; e.vy = e.lj.uy * SW_LUNGE; } // mid-lunge: straight at where you were
         if (e.type === 'dasher') {
           e.stT -= dt;
           if (e.stT <= 0) { e.st = 'wind'; e.stT = 0.55; e.dx = ux; e.dy = uy; }
