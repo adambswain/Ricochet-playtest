@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 00:03 UTC · b351c0b";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 14:31 UTC · c4b429d";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -397,12 +397,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <ul class="rules">
       <li><b>+1</b><span>Each bounce off a wall or obstacle adds 1 damage to your ball. Enemy health is written at its center. Enemies with no number have 1 health.</span></li>
       <li><b>↶</b><span>Hold pull to bend the ball toward you.</span></li>
-      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.</span></li>
+      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.<br>Getting hit resets your multiplier.</span></li>
       <li><b>◇</b><span>Pull the ball until it reaches your ship to catch it. A catch takes 5 off its charge and it keeps the rest; while you hold it, it cools a charge a second.</span></li>
-      <li><b>⁂</b><span>Bosses grant rewards: a wingman or extra Hull.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.</span></li>
+      <li><b>⁂</b><span>Bosses grant rewards: a points jackpot, and a wingman or extra Hull.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.</span></li>
       <li><b>◆</b><span>Enemies may drop Capsules. Capsules are marked with different icons, each granting a unique power-up. Hit a Capsule with your ball to collect it. The more charge the ball has, the longer and/or stronger the power-up. <button class="linkbtn powersBtn" type="button">See the power-ups</button></span></li>
       <li><b>♥</b><span>Score milestones repair one Hull point, up to your Hull's cap (3 to start). The next milestone is displayed under your Hull.</span></li>
-      <li><b>15</b><span>At 15 bounces, your ball enters overload. After 2 seconds, the next bounce causes it to explode, killing enemies around the blast and resetting your multiplier. Each kill resets the 2-second timer. After overloading, the ball is out of play until you pick it up.</span></li>
+      <li><b>15</b><span>At 15 charge, your ball enters overload. After 2 seconds, the next bounce causes it to explode, killing enemies around the blast and resetting your multiplier. Each kill resets the 2-second timer. After overloading, the ball is out of play until it drifts back to you (hold pull to hurry it).</span></li>
     </ul>
     <div class="ctrl">
       <div><span>Keyboard</span> · WASD or arrows to fly. Mouse click or Space: press to throw, hold to pull</div>
@@ -570,7 +570,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const PULL_R_TIGHT = 66 * SPEED_K * BALL_START_K / (PULL_TURN * 1.15);
   // The Medium pull (a setting): halfway between the two (the geometric mean of their turn rates): a hot ball swings
   // round wider than Tight, tighter than Classic.
-  let pullMode = 0; // 0 Classic, 1 Tight, 2 Medium
+  let pullMode = 2; // 0 Classic, 1 Tight, 2 Medium (the default; anyone who's played before keeps what they had)
   const pullRate = (o, d) => {
     if (!pullMode) return PULL_TURN;
     const tight = Math.max(PULL_TURN, Math.hypot(o.vx, o.vy) / Math.max(1, Math.min(PULL_R_TIGHT, d * 0.42)));
@@ -696,6 +696,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     scrapper: { r: 3.1, hp: 1, spd: 15,  pts: 25 },   // a scrap crawler, torn loose from Goliath's wreck
     missile:  { r: 1.9, hp: 1, spd: 0,   pts: 25 },   // Bombardment: falling on your bases (flown by updateMissile)
     bomber:   { r: 6,   hp: 3, spd: 0,   pts: 500 },  // Bombardment: crossing the top, dropping missiles
+    rider:    { r: 2.6, hp: 3, spd: 0,   pts: 150 },   // Trail Riders: on rails, dragging a wall of light (updateRider)
+    hunter:   { r: 3.0, hp: 4, spd: 0,   pts: 150 },   // Labyrinth: stalks you down the maze's corridors (updateHunter)
   };
 
   let DPR = 1, U = 1, AX = 0, AY = 0, AW = 100, AH = 100, BW = 100, BH = 100, arenaShort = ARENA_START;
@@ -712,7 +714,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // no strobing alert lights)
   let shakeK = 1, flashK = 1;
   try { const sk = localStorage.getItem('ricochet.shake'), fk = localStorage.getItem('ricochet.flash'); if (sk !== null) shakeK = +sk; if (fk !== null) flashK = +fk; } catch (e) {}
-  try { best = +localStorage.getItem('ricochet.best') || 0; muted = localStorage.getItem('ricochet.muted') === '1'; swapSides = localStorage.getItem('ricochet.swap') === '1'; pullMode = [0, 1, 2].includes(+localStorage.getItem('ricochet.pull')) ? +localStorage.getItem('ricochet.pull') : 0; touchHint = localStorage.getItem('ricochet.touchHint') !== 'done'; musicOn = localStorage.getItem('ricochet.music') !== '0'; } catch (e) {}
+  try { best = +localStorage.getItem('ricochet.best') || 0; muted = localStorage.getItem('ricochet.muted') === '1'; swapSides = localStorage.getItem('ricochet.swap') === '1'; pullMode = ((v) => v !== null && [0, 1, 2].includes(+v) ? +v : 2)(localStorage.getItem('ricochet.pull')); /* a new player starts on Medium: Classic lets about 1 catch in 5 circle a still ship */ touchHint = localStorage.getItem('ricochet.touchHint') !== 'done'; musicOn = localStorage.getItem('ricochet.music') !== '0'; } catch (e) {}
 
   /* ---------- audio ---------- */
   // Everything is synthesised: voices run through a compressor, with a shared reverb send and stereo pan by
@@ -1123,6 +1125,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const setPiece = !!(active && (G.mechDeath || (B && B.walker && B.walker.st === 'form'))), dip = !!(B && ((Lg && (Lg.st === 'form' || Lg.st === 'die')) || (S && S.st === 'form'))); // (silent for the hand-off into his last stand and for his death; his other set pieces just dip it)
       const lasers = !!(B && (Bm || (B.lance && B.lance.t >= MECH_LANCE_AIM) || (Lg && (Lg.gates || (Lg.atk && Lg.atk.k !== 'gates'))) || (Bt && Bt.trap)));
       musicBus.gain.setTargetAtTime((musicOn ? 0.3 : 0) * (setPiece ? 0 : dip ? 0.5 : lasers ? 0.8 : 1), now, setPiece ? 0.3 : 0.15); }
+    if (G && G.stingDue && !G.attract && !(G.boss || G.tankDeath || G.mawDeath || G.geoDeath || G.vexaDeath || G.mechDeath)) { playSting(G.stingDue); G.stingDue = null; }
     { const want = songWanted(); songTick(want, mode === 'title' || mode === 'play'); if (want) { MUSIC.nextT = 0; return; } } // a song playing (the title's, or his): the groove waits
     heartbeatTick();
     if (inField() || inInvasion()) { MUSIC.nextT = 0; return; } // the heartbeat (or the march) is the music here
@@ -1486,6 +1489,40 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   })();
   const SONG_GAIN = 0.3; // (about 6 dB under the sound effects on average: the music's there, the tells stay on top)
   const SONG = { id: null, s: null, t: 0, i: 0, base: 0, last: 0, built: {}, waves: {}, nb: null, bus: null, side: null, sbuf: null, duck: 1 };
+  // Stingers: short cues in the soundtrack's own voices (the two pulses, the triangle, the chip drums), played over the
+  // song's bus while the song waits. A boss arriving: three stabs and a tritone held over a low pedal. A boss down: a
+  // fanfare in C (the gameplay theme's major side). The finale: that fanfare, then up through A flat and B flat to a
+  // held C. The run over: a slow fall in A minor to a low A.
+  const STINGS = (() => {
+    const L = (at, m, dur, o = {}) => ({ ch: 'p1', at, m, dur, vol: 0.2, duty: 0.25, ...o }), H = (at, m, dur, o = {}) => ({ ch: 'p2', at, m, dur, vol: 0.085, duty: 0.5, pan: 0.15, ...o }),
+      T = (at, m, dur, v = 0.3) => ({ ch: 'tri', at, m, dur, vol: v }), K = (at, v = 1) => ({ ch: 'kick', at, vol: 0.5 * v }), Sn = (at, v = 1) => ({ ch: 'snare', at, vol: 0.24 * v }), X = (at, v = 1) => ({ ch: 'crash', at, vol: 0.16 * v });
+    const roll = (a, b, n) => Array.from({ length: n }, (_, i) => Sn(a + (b - a) * i / n, 0.35 + 0.65 * i / n));
+    const fanfare = (end) => [ // G C E, G (held), F E D, E, G, then the ending
+      L(0, 67, 0.09), L(0.1, 72, 0.09), L(0.2, 76, 0.09), L(0.3, 79, 0.45, { vib: 14 }), L(0.8, 77, 0.09), L(0.9, 76, 0.09), L(1.0, 74, 0.09), L(1.1, 76, 0.25), L(1.4, 79, 0.16),
+      H(0, 64, 0.09), H(0.1, 67, 0.09), H(0.2, 72, 0.09), H(0.3, 76, 0.45), H(0.8, 74, 0.09), H(0.9, 72, 0.09), H(1.0, 71, 0.09), H(1.1, 72, 0.25), H(1.4, 74, 0.16),
+      T(0, 48, 0.25), T(0.3, 36, 0.45), T(0.8, 43, 0.25), T(1.1, 48, 0.25), T(1.4, 43, 0.16),
+      K(0), K(0.3), X(0.3), Sn(0.8, 0.6), K(1.1), Sn(1.4), ...end];
+    return {
+      boss: { len: 2.25, ev: () => [
+        ...[0, 0.15, 0.3].flatMap((at, i) => [L(at, i === 2 ? 72 : 69, 0.11), H(at, i === 2 ? 67 : 64, 0.11), T(at, i === 2 ? 48 : 45, 0.11), K(at), Sn(at, 0.7)]),
+        L(0.6, 70, 1.35, { from: 69, gt: 0.12, vib: 22 }), H(0.6, 64, 1.35, { vib: 10 }), T(0.6, 33, 1.5, 0.34), K(0.6), X(0.6, 1.2), ...roll(1.35, 1.95, 8), K(1.95) ] },
+      win: { len: 2.6, ev: () => fanfare([L(1.6, 84, 0.85, { vib: 18 }), H(1.6, 76, 0.85), T(1.6, 36, 0.85), K(1.6), X(1.6, 1.2)]) },
+      finale: { len: 4.6, ev: () => fanfare([
+        L(1.6, 84, 0.5), H(1.6, 75, 0.5), T(1.6, 44, 0.5), K(1.6), X(1.6), // A flat
+        L(2.2, 86, 0.5), H(2.2, 77, 0.5), T(2.2, 46, 0.5), K(2.2), Sn(2.2), // B flat
+        L(2.8, 88, 1.6, { vib: 20 }), H(2.8, 79, 1.6, { vib: 10 }), T(2.8, 48, 0.3), T(3.1, 36, 1.3), K(2.8), X(2.8, 1.4), ...roll(3.6, 4.2, 10), K(4.2), X(4.2) ]) }, // C, held
+      over: { len: 3.3, ev: () => [
+        L(0, 76, 0.4), L(0.45, 74, 0.4), L(0.9, 72, 0.4), L(1.35, 71, 0.4), L(1.8, 69, 1.3, { vib: 16 }),
+        H(0, 72, 0.4), H(0.45, 69, 0.4), H(0.9, 69, 0.4), H(1.35, 68, 0.4), H(1.8, 64, 1.3),
+        T(0, 45, 0.4), T(0.45, 41, 0.4), T(0.9, 38, 0.4), T(1.35, 40, 0.4), T(1.8, 33, 1.4, 0.34), K(1.8, 0.7) ] },
+    };
+  })();
+  function playSting(k) { // its notes all scheduled now; the song's clock held till it's done
+    if (!AC || !SONG.bus || !STINGS[k]) return;
+    const t0 = AC.currentTime + 0.06, S = STINGS[k];
+    for (const e of S.ev()) songNote(e, t0 + e.at);
+    SONG.hold = t0 + S.len;
+  }
   const sortSong = s => { s.ev.sort((a, b) => a.at - b.at); s.loopI = s.ev.findIndex(e => e.at >= s.loopFrom - 1e-6); return s; };
   function songWave(duty) { // a pulse wave of the given duty (its Fourier series)
     if (SONG.waves[duty]) return SONG.waves[duty];
@@ -1522,6 +1559,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!G || G.attract || mode === 'over' || mode === 'win') return null;
     if (G.train) return 'menu'; // training: the title's theme, calm
     if (G.mechDeath) return 'ob2';
+    if (G.tankDeath || G.mawDeath || G.geoDeath || G.vexaDeath) return null; // a boss going up: quiet (the fanfare comes after the bang)
     const B = G.boss;
     if (B && B.kind === 'mech') return B.legs || B.storm || (B.walker && B.walker.st !== 'form') ? 'ob2' : 'ob1';
     if (B && SONG_OF[B.kind]) return SONG_OF[B.kind];
@@ -1534,7 +1572,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       SONG.bus = AC.createGain(); SONG.bus.gain.value = SONG_GAIN; const pk = AC.createBiquadFilter(), lp = AC.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 2000; pk.Q.value = 0.9; pk.gain.value = -4; lp.type = 'lowpass'; lp.frequency.value = 3500; lp.Q.value = 0.5;
       SONG.bus.connect(pk); pk.connect(lp); lp.connect(musicBus); SONG.side = AC.createAnalyser(); SONG.side.fftSize = 512; sfxBus.connect(SONG.side); SONG.sbuf = new Float32Array(512); const nb = AC.createBuffer(1, AC.sampleRate, AC.sampleRate), nd = nb.getChannelData(0); for (let i = 0, v = 0; i < nd.length; i++) { if (i % 2 === 0) v = Math.random() * 2 - 1; nd[i] = v; } SONG.nb = nb; }
     if (want !== SONG.id) { SONG.id = want; SONG.t = 0; SONG.i = 0; SONG.base = 0; SONG.last = now; SONG.s = want ? (SONG.built[want] || (SONG.built[want] = sortSong(SCORES[want]()))) : null; }
-    if (!want || !live || !musicOn) { SONG.last = now; return; } // (held: its clock stops)
+    if (!want || !live || !musicOn || now < (SONG.hold || 0)) { SONG.last = now; return; } // (held: its clock stops; a stinger's playing)
     SONG.t += Math.min(0.25, now - SONG.last); SONG.last = now; // (a hitch doesn't skip notes)
     { SONG.side.getFloatTimeDomainData(SONG.sbuf); let e = 0; for (const v of SONG.sbuf) e += v * v; const db = 10 * Math.log10(e / SONG.sbuf.length + 1e-12), want = 1 - 0.35 * clamp((db + 33) / 12, 0, 1); // loud effects: it dips a little (3.7 dB at most)
       SONG.duck += (want - SONG.duck) * (want < SONG.duck ? 0.3 : 0.04); SONG.bus.gain.setTargetAtTime(SONG_GAIN * SONG.duck, now, 0.06); } // (easing down, drifting back up: no pumping)
@@ -1829,7 +1867,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // hurts; each cell breaks in one hit and counts toward the chain, and breaking the core cell shatters the rest.
   // During the dig, worker bees fly to holes in the comb and rebuild them (kill them first).
   const COMB_SPEED = 50, COMB_BOUNCES = 3, COMB_LIFE = 7, COMB_MAX = 2, COMB_WARN = 0.7, COMB_EVERY = [6, 5, 4], WAX_S = 3;
-  const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2, HIVE_FINALE = 25000;
+  const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2;
+  // What a boss pays (audited with bots that throw, pull and catch): each point of damage pays BOSS_DMG_PTS (× your
+  // multiplier), set per boss so a fight pays about as well as the waves round it (Clanktank's and Gorp's fights have
+  // little to chain, so their damage pays more); and the kill pays a jackpot that grows through the loop, the finale's
+  // a million plus a share by your multiplier (so a hit just before he falls doesn't wipe it out). × the loop.
+  const BOSS_DMG_PTS = { core: 50, tank: 200, serpent: 50, maw: 50, geode: 200, hive: 50, mech: 100 };
+  const BOSS_BONUS = { core: 25000, tank: 50000, serpent: 100000, maw: 150000, geode: 200000, hive: 250000, mech: 1000000 }, FINALE_MULT_PTS = 50000;
   const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [4.5, 3.8, 3], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
   const HIVE_LULL = 0.6, COMB_LULL = 1; // during the dig, once you've cleared every bee (or every chunk of honeycomb), the next comes this soon
   const VEXA_SC = 1.5, VEXA_CAGE_AT = 0.5, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [5, 4.3, 3.7, 3.2], VEXA_STING = [2.6, 2.2, 1.9, 1.5];
@@ -2320,7 +2364,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (B.hp - dmg < floor) { dmg = Math.max(0, B.hp - floor); if (B.st === 'shell') { B.taken = 0; geoCrack(B, false); } else if (B.st === 'crack') B.stT = Math.min(B.stT, 0.4); }
     }
     B.hp = Math.max(0, B.hp - dmg); B.flash = 0.15;
-    const pts = Math.round(50 * dmg * G.mult); G.score += pts;
+    const pts = Math.round((BOSS_DMG_PTS[B.kind] || 50) * dmg * G.mult); G.score += pts;
     float(x, y - 4, `−${dmg}`, ECOL.warden, 3.4);
     if (B.hp <= 0) defeatBoss();
   }
@@ -2452,8 +2496,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
   }
   function defeatBoss() {
-    const B = G.boss, bonus = B.kind === 'hive' || B.kind === 'mech' ? Math.round(HIVE_FINALE * G.mult) * (B.cycle + 1) * (B.kind === 'mech' ? 2 : 1) : 5000 * (B.cycle + 1); // the finale pays by your multiplier
-    G.score += bonus; G.lastBonus = bonus;
+    const B = G.boss, bonus = Math.round((BOSS_BONUS[B.kind] || 50000) + (B.kind === 'mech' ? FINALE_MULT_PTS * G.mult : 0)) * (B.cycle + 1); // the finale pays by your multiplier
+    G.score += bonus; G.lastBonus = bonus; G.stingDue = B.kind === 'mech' ? 'finale' : 'win'; // (its fanfare: once it's done dying)
     const own = B.kind === 'geode' || B.kind === 'hive' || B.kind === 'maw' || B.kind === 'tank' || B.kind === 'mech'; // Gorp, Vexa and the Carrier have their own deaths: the bang (and the reward) comes later
     if (!own) {
       for (let i = 0; i < 4; i++) ring(B.x, B.y, 2, B.r + 10 + i * 9, 0.5 + i * 0.15, i % 2 ? ECOL.warden : COL.threat, 1.2);
@@ -4223,7 +4267,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const P = B.parts[key], d = Math.min(dmg, P.hp); P.hp -= d; P.flash = 0.14;
     if (key === 'L' || key === 'R') damageBoss(d, x, y);
     else if (B.open) damageBoss(dmg, x, y); // dug in, a hit on a gun hurts the tank too (every hit counts)
-    else { G.score += Math.round(50 * d * G.mult); float(x, y - 4, `−${d}`, ECOL.warden, 3.4); }
+    else { G.score += Math.round(BOSS_DMG_PTS.tank * d * G.mult); float(x, y - 4, `−${d}`, ECOL.warden, 3.4); }
     if (P.hp <= 0 && G.boss === B) tankBreak(B, key);
   }
   function tankBreak(B, key) {
@@ -9207,6 +9251,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function nextLoop() { G.winShown = G.wave; $('ov-win').hidden = true; mode = 'play'; }
   function gameOver(done) {
+    if (!done) playSting('over');
     mode = 'over'; $('ov-win').hidden = true;
     $('ov-over').querySelector('.big').textContent = done ? 'Run complete' : 'Hull breached';
     $('continue').hidden = !!done; // nothing to continue from a finished run
@@ -9261,6 +9306,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const sp = setPiece(n), cycle = loopOf(n); // how many times the set pieces have come round
     if (bossFor(n)) {
       setupBoss(bossFor(n), bossCycle(n));
+      if (bossFor(n) !== 'mech' && !G.attract) playSting('boss'); // (0B-L1-V10N's arrival is its own set piece)
     } else if (sp === 'bonus') {
       setupTable(cycle);
     } else if (sp === 'coins') {
@@ -9278,6 +9324,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       G.storm = { t: STORM_TIME, gustT: 2, n: 0, cycle }; // then the gusts
     } else if (G.bombNext) {
       G.bombNext = false; forceBomb = false; setupBomb(cycle);
+    } else if (G.ridersNext) {
+      G.ridersNext = false; forceRiders = false; setupRiders(cycle);
+    } else if (G.mazeNext) {
+      G.mazeNext = false; forceMaze = false; setupMaze(cycle);
     } else if (G.asteroidNext) {
       G.lastAsteroids = n; G.asteroidNext = false; forceAsteroids = false; G.saucerT = 9; G.fieldMax = 0;
       add('rock', Math.min(9, 4 + Math.floor((n - 7) / 5))); // (wave 28: eight)
@@ -9628,13 +9678,236 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // lines and wrap around the edges; a hit that kills one splits it into two smaller, faster rocks (big > medium > small),
   // scored the classic way (small ones are worth most). The balls wrap too (see fieldOpen), so rocks are what charge them. Now and then a flying saucer crosses: the big one (200) sprays
   // shots at random, the small one (1,000) aims, and comes more often once the field has thinned out.
+  /* ---------- Trail Riders (a throwback: the light-cycle arena) ---------- */
+  // Riders race round the arena on a grid, turning at right angles, each dragging a wall of light behind it. A rider's
+  // trail is a wall: your ball bounces off it (charging, like any wall), and it hurts your ship to touch. Your ship draws
+  // a trail too, harmless to you and your ball: a rider that runs into it crashes ("Cut off!"), as one does into any
+  // trail or the edge. They come in a few at a time; the wave's done when the last one's down.
+  const RD_GRID = 6, RD_V = 38, RD_TRAIL = 84, RD_N = 12, RD_LIVE = 4, RD_HP = 3, RD_W = 0.7, RD_SHIP = 64, RD_CUT = 500, TB_CLEAR = 4000; // (TB_CLEAR: a clear bonus, × the wave)
+  let forceRiders = false; // the start menu's test option
+  const segDist = (x, y, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy, t = L2 ? clamp(((x - ax) * dx + (y - ay) * dy) / L2, 0, 1) : 0; return Math.hypot(x - ax - dx * t, y - ay - dy * t); };
+  const toGrid = (v, d) => d > 0 ? (Math.floor(v / RD_GRID + 1e-6) + 1) * RD_GRID - v : v - (Math.ceil(v / RD_GRID - 1e-6) - 1) * RD_GRID; // to the next grid line ahead
+  const riderSegs = e => { const T = e.rider.tr, out = []; for (let i = 0; i < T.length; i++) out.push([T[i], i + 1 < T.length ? T[i + 1] : [e.x, e.y]]); return out; }; // tail to head
+  function setupRiders(cycle) {
+    G.riders = { cycle, n: RD_N + 2 * cycle, sent: 0, t: 0.8, ship: [], ghosts: [], live: [], done: false };
+    const p = G.player; p.x = AW / 2; p.y = AH * 0.62;
+  }
+  function tbClear(text, cycle) { const v = TB_CLEAR * G.wave * (1 + cycle); G.score += v; G.result = { text, sub: `+${(v * scoreK(G.wave)).toLocaleString()}`, t: 2.4, max: 2.4 }; sfx.repair(); } // a throwback cleared: its bonus
+  function finishRiders() { if (G.riders) { for (const e of G.enemies) if (e.rider) e.gone = true; G.riders = null; } }
+  // what's at (x, y): the edge, a rider's trail (not a rider's own newest two stretches), or your trail
+  function riderBlocked(x, y, rad, self, ship = true) {
+    if (x < 1 || x > AW - 1 || y < 1 || y > AH - 1) return 'edge';
+    for (const e of G.enemies) if (e.rider) { const S = riderSegs(e); for (let i = 0; i < S.length - (e === self ? 2 : 0); i++) { const [a, b] = S[i]; if (segDist(x, y, a[0], a[1], b[0], b[1]) < rad) return 'trail'; } }
+    if (ship) { const P = G.riders.ship; for (let i = 0; i + 1 < P.length; i++) if (segDist(x, y, P[i][0], P[i][1], P[i + 1][0], P[i + 1][1]) < rad) return 'ship'; }
+    return null;
+  }
+  function riderLaunch() { // in from an edge, square to it, on a grid line, as far from you as it can
+    const R = G.riders, p = G.player, cols = Math.floor(AW / RD_GRID), rows = Math.floor(AH / RD_GRID);
+    let best = null;
+    for (let k = 0; k < 14; k++) {
+      const side = Math.floor(Math.random() * 4), gx = RD_GRID * (1 + Math.floor(Math.random() * (cols - 1))), gy = RD_GRID * (1 + Math.floor(Math.random() * (rows - 1)));
+      const c = [[gx, 2, 0, 1], [AW - 2, gy, -1, 0], [gx, AH - 2, 0, -1], [2, gy, 1, 0]][side];
+      if (riderBlocked(c[0] + c[2] * 10, c[1] + c[3] * 10, 3, null)) continue;
+      const d = Math.hypot(c[0] - p.x, c[1] - p.y);
+      if (!best || d > best.d) best = { c, d };
+      if (d > 60) break;
+    }
+    if (!best) return;
+    const [x, y, dx, dy] = best.c, e = makeEnemy('rider', x, y);
+    e.hp = e.maxHp = RD_HP + R.cycle;
+    Object.assign(e, { rider: { dx, dy, tr: [[x, y]] }, spawnT: 0.3 });
+    G.enemies.push(e); R.sent++; R.live.push(e);
+    burst(x, y, 12, COL.threat, 30, 0.6, 0.35); ring(x, y, 1, 7, 0.3, COL.threat, 0.8); sfx.blink();
+  }
+  // At a grid crossing: straight on, unless something's coming (then the side with more room), now and then a turn
+  // anyway, and now and then one across your path (they hunt you)
+  function riderTurn(e) {
+    const D = e.rider, p = G.player, ahead = (dx, dy) => { let k = 0; while (k < 8 && !riderBlocked(e.x + dx * RD_GRID * (k + 1), e.y + dy * RD_GRID * (k + 1), 1.5, e)) k++; return k; };
+    const opts = [[D.dx, D.dy], [-D.dy, D.dx], [D.dy, -D.dx]], room = opts.map(([dx, dy]) => ahead(dx, dy));
+    let pick = 0;
+    if (room[0] < 2) pick = room[1] >= room[2] ? 1 : 2;
+    else if (Math.random() < 0.1) pick = Math.random() < 0.5 ? 1 : 2;
+    else if (Math.random() < 0.22) { const [sx, sy] = opts[1]; pick = (p.x - e.x) * sx + (p.y - e.y) * sy > 0 ? 1 : 2; }
+    if (pick && !room[pick]) pick = room[0] ? 0 : room[3 - pick] ? 3 - pick : pick; // (never into a wall it can see, if there's a way)
+    if (pick) { D.tr.push([e.x, e.y]); D.dx = opts[pick][0]; D.dy = opts[pick][1]; }
+  }
+  function updateRider(e, dt) {
+    const D = e.rider; e.vx = e.vy = 0; // (on rails: a hit doesn't knock it about)
+    let left = RD_V * (1 + 0.12 * G.riders.cycle) * dt;
+    for (let g = 0; g < 8 && left > 0; g++) {
+      const dist = D.dx ? toGrid(e.x, D.dx) : toGrid(e.y, D.dy);
+      if (dist > left) { e.x += D.dx * left; e.y += D.dy * left; break; }
+      e.x += D.dx * dist; e.y += D.dy * dist; left -= dist;
+      if (D.dx) e.x = Math.round(e.x / RD_GRID) * RD_GRID; else e.y = Math.round(e.y / RD_GRID) * RD_GRID;
+      if (Math.abs(e.x / RD_GRID - Math.round(e.x / RD_GRID)) < 1e-6 && Math.abs(e.y / RD_GRID - Math.round(e.y / RD_GRID)) < 1e-6) riderTurn(e); // (only where two grid lines cross)
+    }
+    const T = D.tr; let len = Math.hypot(e.x - T[T.length - 1][0], e.y - T[T.length - 1][1]); // its trail: as long as RD_TRAIL, the tail drawn in behind it
+    for (let i = T.length - 1; i > 0; i--) len += Math.hypot(T[i][0] - T[i - 1][0], T[i][1] - T[i - 1][1]);
+    let over = len - RD_TRAIL;
+    while (over > 0) {
+      const a = T[0], b = T.length > 1 ? T[1] : [e.x, e.y], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (T.length > 1 && L <= over) { T.shift(); over -= L; continue; }
+      const k = Math.min(1, over / (L || 1)); a[0] += (b[0] - a[0]) * k; a[1] += (b[1] - a[1]) * k; break;
+    }
+    const hit = riderBlocked(e.x + D.dx * 1.4, e.y + D.dy * 1.4, 0.9, e);
+    if (hit) riderCrash(e, hit);
+  }
+  function riderCrash(e, why) {
+    const i = G.enemies.indexOf(e); if (i < 0) return;
+    G.enemies.splice(i, 1);
+    const cut = why === 'ship', pts = Math.round((cut ? RD_CUT : e.pts) * G.mult); G.score += pts;
+    float(e.x, e.y - 4, cut ? `Cut off! +${(pts * scoreK(G.wave)).toLocaleString()}` : `${pts * scoreK(G.wave)}`, cut ? heat(0) : COL.chalk, cut ? 3.2 : 2.4);
+    burst(e.x, e.y, 26, COL.threat, 55, 0.8, 0.5); burst(e.x, e.y, 10, COL.chalk, 40, 0.5, 0.3); ring(e.x, e.y, 1, 10, 0.3, COL.threat, 0.9); gridImpulse(e.x, e.y, 18, 80); shake(1); sfx.rockBoom(1);
+  }
+  function updateRiders(dt) {
+    const R = G.riders, p = G.player, S = R.ship, last = S[S.length - 1];
+    if (!last || Math.hypot(p.x - last[0], p.y - last[1]) > 1.5) S.push([p.x, p.y]); // your trail: where you've been, as long as RD_SHIP
+    let len = 0; for (let i = S.length - 1; i > 0; i--) { len += Math.hypot(S[i][0] - S[i - 1][0], S[i][1] - S[i - 1][1]); if (len > RD_SHIP) { S.splice(0, i - 1); break; } }
+    for (let i = R.live.length - 1; i >= 0; i--) { const e = R.live[i]; if (!G.enemies.includes(e)) { R.ghosts.push({ segs: riderSegs(e), t: 0 }); R.live.splice(i, 1); } } // one down: its trail fades
+    for (let i = R.ghosts.length - 1; i >= 0; i--) if ((R.ghosts[i].t += dt) > 0.6) R.ghosts.splice(i, 1);
+    if (p.inv <= 0 && G.dying <= 0) for (const e of G.enemies) if (e.rider && riderSegs(e).some(([a, b]) => segDist(p.x, p.y, a[0], a[1], b[0], b[1]) < PLAYER_R * 0.8 + RD_W)) { damagePlayer(); break; } // touching a trail
+    if (R.sent < R.n && R.live.length < RD_LIVE) { R.t -= dt; if (R.t <= 0) { riderLaunch(); R.t = 1.4; } }
+    if (R.sent >= R.n && !R.live.length && !R.done) { R.done = true; tbClear('All riders down', R.cycle); }
+  }
+  function riderBounce(ball, r) { // off a rider's trail, like off any wall
+    for (const e of G.enemies) if (e.rider) for (const [a, b] of riderSegs(e)) {
+      const h = hitRect(ball.x, ball.y, r, { x0: Math.min(a[0], b[0]) - RD_W, x1: Math.max(a[0], b[0]) + RD_W, y0: Math.min(a[1], b[1]) - RD_W, y1: Math.max(a[1], b[1]) + RD_W });
+      if (!h) continue;
+      ball.x += h.nx * h.depth; ball.y += h.ny * h.depth;
+      const dot = ball.vx * h.nx + ball.vy * h.ny;
+      if (dot < 0) { ball.vx -= 2 * dot * h.nx; ball.vy -= 2 * dot * h.ny; e.trailFlash = 0.2; chargeBounce(ball); }
+      return;
+    }
+  }
+  function drawRiders() {
+    const R = G.riders; if (!R) return;
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const line = (segs, col, w, a) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.globalAlpha = a; ctx.beginPath(); for (const [p0, p1] of segs) { ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); } ctx.stroke(); };
+    if (R.ship.length > 1) { const P = R.ship, segs = []; for (let i = 0; i + 1 < P.length; i++) segs.push([P[i], P[i + 1]]); line(segs, heat(0), 0.7, 0.55); } // yours: thin, cool
+    for (const g of R.ghosts) line(g.segs, COL.threat, RD_W * 2, 0.8 * (1 - g.t / 0.6));
+    for (const e of G.enemies) if (e.rider) {
+      const S = riderSegs(e), fl = (e.trailFlash = Math.max(0, (e.trailFlash || 0) - 1 / 60)) > 0;
+      ctx.globalCompositeOperation = 'lighter'; line(S, COL.threat, RD_W * 5, 0.14); ctx.globalCompositeOperation = 'source-over'; // its glow, then the wall
+      line(S, fl ? COL.chalk : COL.threat, RD_W * 2, 0.95); line(S, COL.chalk, RD_W * 0.5, 0.75);
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  function drawRider(e) { // a long, low bike seen from above: its hull, front and back wheels, a headlamp; health as pips
+    const D = e.rider, a = Math.atan2(D.dy, D.dx), col = e.flash > 0 ? COL.chalk : COL.threat;
+    ctx.save(); ctx.rotate(a); ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(3.6, 0); ctx.lineTo(2, -1.4); ctx.lineTo(-2.8, -1.4); ctx.lineTo(-3.6, 0); ctx.lineTo(-2.8, 1.4); ctx.lineTo(2, 1.4); ctx.closePath();
+    ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 0.45; ctx.stroke();
+    ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(1.6, -0.9); ctx.lineTo(3, -0.9); ctx.moveTo(1.6, 0.9); ctx.lineTo(3, 0.9); ctx.moveTo(-3, -0.9); ctx.lineTo(-1.6, -0.9); ctx.moveTo(-3, 0.9); ctx.lineTo(-1.6, 0.9); ctx.stroke(); // its wheels
+    ctx.lineWidth = 0.3; ctx.beginPath(); ctx.moveTo(1.2, 0); ctx.lineTo(-2.4, 0); ctx.stroke(); // the spine
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.arc(3.5, 0, 0.6, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.arc(4.4, 0, 1.6, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.restore();
+    for (let k = 0; k < e.maxHp; k++) { const on = k < e.hp, px = (k - (e.maxHp - 1) / 2) * 1.5; ctx.beginPath(); ctx.arc(px, 3.6, 0.5, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.15; ctx.stroke(); }
+  }
+
+  /* ---------- Labyrinth (a throwback: the maze chase) ---------- */
+  // The arena becomes a maze. Stalkers crawl out of its middle and hunt you down the corridors (each takes the way
+  // that's shortest to you, now and then not). Its walls block your ship and your ball bounces off them, but they heat
+  // it only a third as much (a maze is mostly walls). Crystal shards stud the corridors: your ball smashes them for
+  // points (every one: a jackpot). Every stalker down: done.
+  const MZ_CELL = 28, MZ_WALL = 2.2, MZ_LOOPS = 0.15, MZ_HEAT = 0.34, MZ_HUNT = 8, MZ_V = 25, MZ_HP = 4, MZ_DOT = 25, MZ_JACK = 5000;
+  let forceMaze = false; // the start menu's test option
+  function setupMaze(cycle) {
+    const cols = Math.max(4, Math.round(AW / MZ_CELL)), rows = Math.max(6, Math.round(AH / MZ_CELL)), cw = AW / cols, ch = AH / rows;
+    const open = Array.from({ length: cols * rows }, () => [false, false, false, false]), id = (c, r) => r * cols + c, D = [[1, 0], [0, 1], [-1, 0], [0, -1]]; // each cell's sides: east, south, west, north
+    const link = (c, r, k) => { const x = c + D[k][0], y = r + D[k][1]; if (x < 0 || y < 0 || x >= cols || y >= rows) return; open[id(c, r)][k] = true; open[id(x, y)][(k + 2) % 4] = true; };
+    const seen = new Set([0]), stack = [[0, 0]]; // a maze by a random walk that backs up at dead ends...
+    while (stack.length) {
+      const [c, r] = stack[stack.length - 1], nb = [0, 1, 2, 3].filter(k => { const x = c + D[k][0], y = r + D[k][1]; return x >= 0 && y >= 0 && x < cols && y < rows && !seen.has(id(x, y)); });
+      if (!nb.length) { stack.pop(); continue; }
+      const k = nb[Math.floor(Math.random() * nb.length)], x = c + D[k][0], y = r + D[k][1];
+      link(c, r, k); seen.add(id(x, y)); stack.push([x, y]);
+    }
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) for (const k of [0, 1]) if (Math.random() < MZ_LOOPS) link(c, r, k); // ...then a few walls knocked through, so it loops
+    const den = [Math.floor(cols / 2), Math.floor(rows / 2) - 1], home = [Math.floor(cols / 2), rows - 1];
+    for (const [c, r] of [den, home]) for (const k of [0, 1, 2, 3]) link(c, r, k); // the hunters' den and your corner: open all round
+    const walls = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      if (c < cols - 1 && !open[id(c, r)][0]) walls.push({ fx: (c + 1) * cw / AW, fy: (r + 0.5) * ch / AH, w: MZ_WALL, h: ch + MZ_WALL });
+      if (r < rows - 1 && !open[id(c, r)][1]) walls.push({ fx: (c + 0.5) * cw / AW, fy: (r + 1) * ch / AH, w: cw + MZ_WALL, h: MZ_WALL });
+    }
+    G.obstacles.forEach(o => { o.dying = true; });
+    G.obstacles.push(...walls.map(w => ({ ...w, round: false, a: 0, dying: false, flash: 0, maze: true })));
+    const dots = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      if ((c === den[0] && r === den[1]) || (c === home[0] && r === home[1])) continue;
+      dots.push({ x: (c + 0.5) * cw, y: (r + 0.5) * ch, on: true, a: Math.random() * Math.PI });
+    }
+    G.maze = { cycle, cols, rows, cw, ch, open, den, dots, dotsN: dots.length, n: MZ_HUNT + cycle, sent: 0, t: 1.2, dist: null, distT: 0, done: false, streak: 0, streakT: 0 };
+    const p = G.player; p.x = (home[0] + 0.5) * cw; p.y = (home[1] + 0.5) * ch;
+  }
+  function finishMaze() { if (G.maze) { for (const e of G.enemies) if (e.hunter) e.gone = true; for (const o of G.obstacles) if (o.maze) o.dying = true; G.maze = null; } }
+  const mazeCell = (M, x, y) => [clamp(Math.floor(x / M.cw), 0, M.cols - 1), clamp(Math.floor(y / M.ch), 0, M.rows - 1)];
+  function mazeDist(M) { // how many steps every cell is from yours
+    const p = G.player, [pc, pr] = mazeCell(M, p.x, p.y), dist = new Array(M.cols * M.rows).fill(1e9), q = [[pc, pr]], D = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+    dist[pr * M.cols + pc] = 0;
+    while (q.length) { const [c, r] = q.shift(), d = dist[r * M.cols + c]; for (let k = 0; k < 4; k++) if (M.open[r * M.cols + c][k]) { const x = c + D[k][0], y = r + D[k][1], j = y * M.cols + x; if (dist[j] > d + 1) { dist[j] = d + 1; q.push([x, y]); } } }
+    return dist;
+  }
+  function mazeLaunch() {
+    const M = G.maze, [c, r] = M.den, e = makeEnemy('hunter', (c + 0.5) * M.cw, (r + 0.5) * M.ch);
+    e.hp = e.maxHp = MZ_HP + M.cycle;
+    Object.assign(e, { hunter: { c, r, tc: c, tr: r, k: Math.floor(Math.random() * 4), hue: M.sent % 4 }, spawnT: 0.4 });
+    G.enemies.push(e); M.sent++;
+    ring(e.x, e.y, 1, 9, 0.35, COL.threat, 0.9); burst(e.x, e.y, 10, COL.threat, 25, 0.6, 0.35); sfx.advance();
+  }
+  function updateHunter(e, dt) {
+    const M = G.maze, H = e.hunter, D = [[1, 0], [0, 1], [-1, 0], [0, -1]]; e.vx = e.vy = 0;
+    const tx = (H.tc + 0.5) * M.cw, ty = (H.tr + 0.5) * M.ch, dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy), v = MZ_V * (1 + 0.12 * M.cycle) * dt;
+    if (d > v) { e.x += dx / d * v; e.y += dy / d * v; return; }
+    e.x = tx; e.y = ty; H.c = H.tc; H.r = H.tr; // at a cell's middle: which way next
+    const cell = H.r * M.cols + H.c, ways = [0, 1, 2, 3].filter(k => M.open[cell][k] && k !== (H.k + 2) % 4), all = ways.length ? ways : [(H.k + 2) % 4]; // (not back the way it came, unless it must)
+    const score = k => { const j = (H.r + D[k][1]) * M.cols + H.c + D[k][0]; return M.dist ? M.dist[j] : 0; };
+    let k = all[Math.floor(Math.random() * all.length)];
+    if (Math.random() > 0.2) k = all.reduce((a, b) => score(b) < score(a) ? b : a); // toward you
+    H.k = k; H.tc = H.c + D[k][0]; H.tr = H.r + D[k][1];
+  }
+  function updateMaze(dt) {
+    const M = G.maze;
+    if ((M.distT -= dt) <= 0) { M.dist = mazeDist(M); M.distT = 0.25; }
+    if (M.streakT > 0 && (M.streakT -= dt) <= 0) M.streak = 0;
+    for (const o of [...G.balls.filter(b => b.state === 'live'), ...G.extras]) for (const d of M.dots) { // the ball smashes the shards
+      if (!d.on || Math.hypot(o.x - d.x, o.y - d.y) > ballR(o.b || 0) + 1.5) continue;
+      d.on = false; M.streak++; M.streakT = 0.5;
+      const pts = Math.round(MZ_DOT * (1 + (o.b || 0)) * G.mult); G.score += pts;
+      burst(d.x, d.y, 6, GOLD(), 24, 0.5, 0.3); burst(d.x, d.y, 3, COL.chalk, 18, 0.4, 0.25); sfx.crystal(Math.min(MAX_CHARGE, M.streak));
+      if (!M.dots.some(q => q.on)) { const jp = MZ_JACK * (1 + M.cycle); G.score += jp; float(AW / 2, AH / 2, `Every crystal! +${(jp * scoreK(G.wave)).toLocaleString()}`, GOLD(), 4); sfx.repair(); }
+    }
+    if (M.sent < M.n) { M.t -= dt; if (M.t <= 0) { mazeLaunch(); M.t = 2.0; } }
+    if (M.sent >= M.n && !G.enemies.some(e => e.hunter) && !M.done) { M.done = true; tbClear('Maze cleared', M.cycle); }
+  }
+  function drawMaze() {
+    const M = G.maze; if (!M) return;
+    const g = GOLD(), pulse = 0.5 + 0.5 * Math.sin(G.time * 6);
+    ctx.save(); ctx.fillStyle = g;
+    for (const d of M.dots) { if (!d.on) continue; const s2 = 1.1 + 0.15 * Math.sin(G.time * 3 + d.a * 5); ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.a + G.time * 0.6); ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.moveTo(0, -s2 * 1.4); ctx.lineTo(s2 * 0.8, 0); ctx.lineTo(0, s2 * 1.4); ctx.lineTo(-s2 * 0.8, 0); ctx.closePath(); ctx.fill(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.18; ctx.globalAlpha = 0.6 + 0.4 * pulse; ctx.stroke(); ctx.restore(); } // a crystal shard, turning
+    const [c, r] = M.den; ctx.globalAlpha = 0.25; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.4; ctx.strokeRect(c * M.cw + 3, r * M.ch + 3, M.cw - 6, M.ch - 6); // the den
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  function drawHunter(e) { // a stalker: a six-sided armoured crawler, its legs ticking, one eye that looks the way it's going
+    const H = e.hunter, R = e.r, col = e.flash > 0 ? COL.chalk : COL.threat, t = G.time * 10 + e.seed, D = [[1, 0], [0, 1], [-1, 0], [0, -1]][H.k];
+    ctx.strokeStyle = col; ctx.lineWidth = 0.4; ctx.lineCap = 'round';
+    ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 + Math.PI / 6, sw = Math.sin(t + k * 2) * 0.35; ctx.moveTo(Math.cos(a) * R * 0.8, Math.sin(a) * R * 0.8); ctx.lineTo(Math.cos(a + sw * 0.3) * R * 1.35, Math.sin(a + sw * 0.3) * R * 1.35); } ctx.stroke(); // its legs
+    ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; k ? ctx.lineTo(Math.cos(a) * R, Math.sin(a) * R) : ctx.moveTo(Math.cos(a) * R, Math.sin(a) * R); } ctx.closePath();
+    ctx.fillStyle = COL.ink; ctx.fill(); ctx.lineWidth = 0.5; ctx.stroke();
+    ctx.lineWidth = 0.25; ctx.beginPath(); ctx.arc(0, 0, R * 0.62, 0, Math.PI * 2); ctx.stroke();
+    const ex = D[0] * R * 0.3, ey = D[1] * R * 0.3; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = col; ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(ex, ey, R * 0.55, 0, Math.PI * 2); ctx.fill(); ctx.restore(); // the eye's glow
+    ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(ex, ey, R * 0.24, 0, Math.PI * 2); ctx.fill();
+    for (let k = 0; k < e.maxHp; k++) { const on = k < e.hp, px = (k - (e.maxHp - 1) / 2) * 1.5; ctx.beginPath(); ctx.arc(px, R + 2.4, 0.5, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.15; ctx.stroke(); }
+  }
+
+
   const ROCK_R = [0, 2.8, 4.8, 7.5], ROCK_PTS = [0, 100, 50, 20];
   let forceAsteroids = false; // the title-screen test button and the #asteroids link
   // The throwbacks (the Asteroid Field, Bombardment, more to come) only come round by chance: each loop rolls its own
   // plan, each throwback turning up with TB_CHANCE, on a normal wave in a stretch between two bosses (never a set
   // piece's, a boss's or one bringing in a new enemy: TB_WAVES), no two in the same stretch. Bombardment only once
   // you've a second ball. The start menu's tests force them.
-  const TB_WAVES = [[15, 17], [21, 22, 24, 25, 28], [31, 32, 33, 34, 36, 37], [41, 42, 43, 44, 45, 47, 48, 49], [51, 52, 53, 54, 55, 56]], TB_KINDS = ['ast', 'bomb'], TB_CHANCE = 0.7;
+  const TB_WAVES = [[15, 17], [21, 22, 24, 25, 28], [31, 32, 33, 34, 36, 37], [41, 42, 43, 44, 45, 47, 48, 49], [51, 52, 53, 54, 55, 56]], TB_KINDS = ['ast', 'bomb', 'trail', 'maze'], TB_CHANCE = 0.7;
   function planThrowbacks() {
     const plan = {}, stretches = TB_WAVES.map((w, i) => i).sort(() => Math.random() - 0.5);
     for (const k of TB_KINDS) { if (Math.random() >= TB_CHANCE || !stretches.length) continue; const w = TB_WAVES[stretches.pop()]; plan[w[Math.floor(Math.random() * w.length)]] = k; }
@@ -9716,9 +9989,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.balls = [Object.assign(makeBall(), { x: p.x, y: p.y, b })];
     Object.assign(T, { cap: TR_CAP, noCool: false, rings: null, ringN: 0, collected: false, queue: null, px: undefined });
   }
-  function trChainField() { // three rows of five across the top half
+  function trChainField() { // four rows of six across the top half, close enough that one throw can thread several
     G.enemies = G.enemies.filter(e => !e.dummy);
-    for (const fy of [0.18, 0.3, 0.42]) for (const fx of [0.14, 0.32, 0.5, 0.68, 0.86]) trDummy('drifter', fx, fy);
+    for (const fy of [0.17, 0.27, 0.37, 0.47]) for (let k = 0; k < 6; k++) trDummy('drifter', 0.12 + k * 0.152 + (fy * 10 % 2 > 1 ? 0.04 : -0.04), fy);
   }
 
   // The lessons. A page's text can mark words *like this* to pick them out. A step: setup (the arena, before its text),
@@ -10043,7 +10316,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.between === null) {
-      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !(G.clutchWave && G.clutchWave.n > 0) && !G.chest && !(G.inv && !G.inv.landed && (G.inv.round || 1) < INV_ROUNDS) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm && !G.mechDeath && !(G.bomb && !G.bomb.done)) {
+      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !(G.clutchWave && G.clutchWave.n > 0) && !G.chest && !(G.inv && !G.inv.landed && (G.inv.round || 1) < INV_ROUNDS) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm && !G.mechDeath && !(G.bomb && !G.bomb.done) && !(G.riders && !G.riders.done) && !(G.maze && !G.maze.done)) {
         if (inLoop(G.wave) === LOOP_LEN && G.winShown !== G.wave && !G.attract) { // the loop's finale is down
           if (!G.result) showWin(); // once its banner has had its moment
           return;
@@ -10052,7 +10325,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         const next = G.wave + 1;
         G.between = G.wave === 0 ? 0.9 : 1.8; // waves with something to read wait long enough to read it (set with the banner below)
         G.arenaTarget = arenaFor(next);
-        crumbleBricks(); crumbleSiege(); finishInvaders(); finishBomb();
+        crumbleBricks(); crumbleSiege(); finishInvaders(); finishBomb(); finishRiders(); finishMaze();
         G.drumWave = null; G.clutchWave = null; for (const d of G.drums) d.gone = true; // the fuel drums fade away
         G.squadPlan = null; G.squadWarn = []; G.shadow = null; G.mechSetup = null; G.rockets = []; G.debris = []; G.mortars = []; G.barrage = []; G.mortarUp = [];
         if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
@@ -10066,12 +10339,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.asteroidNext = asteroidRoll(next);
         if (G.asteroidNext) G.layoutPending = null;
         G.bombNext = (forceBomb || throwbackAt(next) === 'bomb') && !setPiece(next) && !bossFor(next) && G.balls.length >= BOMB_MIN_BALLS; if (G.bombNext) { G.asteroidNext = false; G.layoutPending = null; } // (a throwback, when its wave comes round; or the start menu's test)
+        G.ridersNext = !G.bombNext && (forceRiders || throwbackAt(next) === 'trail') && !setPiece(next) && !bossFor(next);
+        G.mazeNext = !G.bombNext && !G.ridersNext && (forceMaze || throwbackAt(next) === 'maze') && !setPiece(next) && !bossFor(next);
+        if (G.ridersNext || G.mazeNext) { G.asteroidNext = false; G.layoutPending = null; }
         const loopStart = next > 1 && inLoop(next) === 1;
         if (loopStart) setLoopTint(loopOf(next)); // the arena runs hot from the Loop banner on
         const sub = loopStart ? `Overdrive: everything comes ${Math.round((overdrive(next) - 1) * 100)}% faster, and every point counts ×${scoreK(next)}`
-          : newBall ? 'A wingman! Grab the new ball: from now on it flies out with every throw' : G.bombNext ? 'Missiles are falling on your bases. Hit one and it blows up, taking the missiles around it with it. The hotter your ball, the bigger the blast' : G.asteroidNext ? 'No walls: your ball flies through the edges, and every rock it hits charges it' : introFor(next);
+          : newBall ? 'A wingman! Grab the new ball: from now on it flies out with every throw' : G.ridersNext ? 'Riders drag walls of light. Your ball bounces off them; your ship mustn\'t touch them. Your ship leaves a trail too: cut a rider off and it crashes' : G.mazeNext ? 'Stalkers hunt you through the maze. Its walls heat your ball only a little. Smash the crystals in the corridors for points: all of them, for a jackpot' : G.bombNext ? 'Missiles are falling on your bases. Hit one and it blows up, taking the missiles around it with it. The hotter your ball, the bigger the blast' : G.asteroidNext ? 'No walls: your ball flies through the edges, and every rock it hits charges it' : introFor(next);
         if (sub && G.wave > 0) G.between = clamp(1.8 + sub.length / 26, 3, 5.5); // time to read it, by its length
-        G.banner = { text: loopStart ? `Loop ${loopOf(next) + 1}` : G.bombNext ? 'Bombardment' : G.asteroidNext ? 'Asteroid Field' : `Wave ${next}`, sub, t: G.between, max: G.between };
+        G.banner = { text: loopStart ? `Loop ${loopOf(next) + 1}` : G.ridersNext ? 'Trail Riders' : G.mazeNext ? 'Labyrinth' : G.bombNext ? 'Bombardment' : G.asteroidNext ? 'Asteroid Field' : `Wave ${next}`, sub, t: G.between, max: G.between };
         if (sub) G.lastIntro = { wave: next, text: sub }; // the pause screen shows it again
         sfx.wave();
       }
@@ -10280,13 +10556,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (e.hp <= dmg) kill(i, undefined, 0, ball); else { e.hp -= dmg; e.flash = 0.12; e.recoil = 1; sfx.clank(); }
     }
   }
-  function chargeBounce(ball, wall) {
+  function chargeBounce(ball, wall, soft) { // (soft: a Labyrinth wall, a third of a charge)
     if (wall && ball.state === 'live') turretBank(ball, wall);
     if (G.powers.over > 0) ball.b = Math.min(MAX_CHARGE, ball.b + 2);
     else if (G.table) { ball.tb = (ball.tb || 0) + (ball.kick ? 1 : 0.34); while (ball.tb >= 1) { ball.tb -= 1; if (ball.b < TABLE_MAX_B) ball.b++; } } // on the pinball table: bumpers, slings and the flipper heat it a step, the many plain walls a third of one; and it heats only so far
     else if (inMawBay(ball)) { if (ball.b < WARN - 1) ball.b++; } // inside the Maw the ball heats only to just under the warning, so it comes out catchable
     else if (ball.b >= MAX_CHARGE) { if (ball.lit && ball.fuse <= 0) { overload(ball); return; } } // primed: this bounce blows it
-    else if (!(G.train && G.train.cap !== undefined && ball.b >= G.train.cap)) ball.b++; // (in training's early lessons it holds short of the warning)
+    else if (soft && (ball.mz = (ball.mz || 0) + MZ_HEAT) < 1) { /* a maze wall: a third of a charge */ }
+    else if (!(G.train && G.train.cap !== undefined && ball.b >= G.train.cap)) { ball.b++; ball.mz = 0; } // (in training's early lessons it holds short of the warning)
     if (wall) {
       gridImpulse(ball.x, ball.y, 7 + ball.b * 0.4, 18 + ball.b * 3);
       const vert = wall === 'L' || wall === 'R';
@@ -10796,12 +11073,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (dot < 0) {
           ball.vx -= 2 * dot * h.nx; ball.vy -= 2 * dot * h.ny; o.flash = 0.2;
           if (o.round) { ring(o.fx * AW, o.fy * AH, o.w / 2, o.w / 2 + 4, 0.25, ECOL.target, 0.7); gridImpulse(o.fx * AW, o.fy * AH, 12, 40); }
-          chargeBounce(ball);
+          chargeBounce(ball, undefined, o.maze);
           o.flashColor = heat(ball.b);
           if (ball.state !== 'live') break;
         }
       }
       if (ball.state !== 'live') break;
+      if (G.riders) { riderBounce(ball, r); if (ball.state !== 'live') break; } // Trail Riders: their trails are walls
 
       if (G.table) { tableCollide(ball, r); if (ball.state !== 'live') break; if (!pulling && !ball.wing) tableFlip(ball, r); if (ball.state !== 'live') break; }
       if (G.crush && brickHit(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
@@ -10930,6 +11208,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (e.junk) { updateJunk(e, dt); continue; } // hurled by Goliath's arm walker
       if (e.mis) { updateMissile(e, dt); continue; } // Bombardment
       if (e.bomber) { updateBomber(e, dt); continue; }
+      if (e.rider) { updateRider(e, dt); continue; } // Trail Riders
+      if (e.hunter) { updateHunter(e, dt); continue; } // Labyrinth
       if (e.type === 'walker' && updateWalker(e, dt)) continue; // planted, firing
       if (e.type === 'titan' && titanStomp(e, dt)) { const k = Math.exp(-6 * dt); e.vx *= k; e.vy *= k; e.x += e.vx * dt; e.y += e.vy * dt; keepIn(e, e.r); continue; } // planted for a stomp
       if (e.formWait > 0) { // a formation's bee, buzzing where it starts before it goes
@@ -11184,6 +11464,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     updateBonus(dt); updateCoins(dt); updateLucky(dt); updateTable(dt);
     if (G.inv) updateInvaders(dt * ws);
     if (G.bomb) updateBomb(dt * ws);
+    if (G.riders) updateRiders(dt * ws);
+    if (G.maze) updateMaze(dt * ws);
     updateEnemies(dt * ws);
     updateBoss(dt * ws);
     updateGeoDeath(dt); updateVexaDeath(dt); updateMawDeath(dt); updateTankDeath(dt); updateDrums(dt); updateClutches(dt); updateChest(dt); updateSquads(dt); updateStorm(dt); updateRockets(dt); updateDebris(dt); updateMicroQueue(dt); updateMechDeath(dt); updateMechSetup(dt);
@@ -11575,7 +11857,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     drawGeodeBg();
     drawBricks();
     drawSiege();
-    drawInvasion(); drawBomb();
+    drawInvasion(); drawBomb(); drawRiders(); drawMaze();
     drawBumpers();
     drawCoins();
     drawLucky();
@@ -11784,6 +12066,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (e.junk) { drawJunk(e); ctx.restore(); continue; }
       if (e.mis) { drawMissile(e); ctx.restore(); continue; }
       if (e.bomber) { drawBomber(e); ctx.restore(); continue; }
+      if (e.rider) { drawRider(e); ctx.restore(); continue; }
+      if (e.hunter) { drawHunter(e); ctx.restore(); continue; }
       if (e.type === 'scrapper') { drawScrapper(e); ctx.restore(); continue; }
       if (e.type === 'walker') { drawWalker(e, stroke); for (let k = 0; k < e.maxHp; k++) { const on = k < e.hp, px = (k - (e.maxHp - 1) / 2) * 1.7; ctx.beginPath(); ctx.arc(px, e.r + 2.2, 0.6, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.2; ctx.stroke(); } ctx.restore(); continue; }
       if (e.tankette) { // a tank, its armour plates as pips under it
@@ -12555,6 +12839,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   startSel.add(new Option('Wave 1', '1'));
   startSel.add(new Option('Asteroid Field', 'ast'));
   startSel.add(new Option('Bombardment (test)', 'bomb'));
+  startSel.add(new Option('Trail Riders (test)', 'trail'));
+  startSel.add(new Option('Labyrinth (test)', 'maze'));
   startSel.add(new Option('0B-L1-V10N: last stand (test)', 'last')); // wave 60 with every part already broken: straight to its last stand
   startSel.add(new Option('0B-L1-V10N: leg walker (test)', 'legs')); // ...and past its arm walker: straight to its leg walker
   for (let n = 2; n <= LOOP_LEN; n++) {
@@ -12567,7 +12853,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const v = startSel.value;
     if (!trainAsked && v === '1' && !location.hash) { $('ov-first').hidden = false; $('firstTrain').focus({ preventScroll: true }); return; } // the first Launch asks about training, once
     // (Bombardment from 11: with the wingman Clanktank gives you)
-    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'bomb') { forceBomb = true; startGame(11); } else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v === 'legs') { startGame(60); G.lastStandTest = true; G.legTest = true; } else if (v !== '1') startGame(+v); else startGame();
+    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'bomb') { forceBomb = true; startGame(11); } else if (v === 'trail') { forceRiders = true; startGame(11); } else if (v === 'maze') { forceMaze = true; startGame(11); } else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v === 'legs') { startGame(60); G.lastStandTest = true; G.legTest = true; } else if (v !== '1') startGame(+v); else startGame();
   }
   $('play').addEventListener('click', startChosen);
   $('again').addEventListener('click', startChosen);
@@ -12647,6 +12933,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.boss && G.boss.kind === 'serpent' && G.boss.twin) Object.setPrototypeOf(G.boss.twin, G.boss); // its twin shares the boss's health and the rest
     G.storm = G.storm || null; G.rockets = G.rockets || []; G.debris = G.debris || []; G.microQueue = []; G.mechSetup = G.mechSetup || null; G.mechDeath = null; if (G.chest && !G.chest.items) G.chest = null;
     if (G.boss && G.boss.kind === 'hive' && G.boss.st === 'retreat') { G.boss.st = 'queen'; G.boss.cells = G.boss.cells.filter(() => false); } // saved as she hid in the hive, which she doesn't now
+    if (G.riders) G.riders.live = G.enemies.filter(e => e.rider); // (saved: its riders are the ones in the save)
     G.squads = []; G.squadWarn = []; G.squadPlan = G.squadPlan || null; G.shadow = null; for (const e of G.enemies) if (e.jet) e.jet.sq = null; // squadrons don't survive a save: their jets carry on alone
     if (G.siege && !Array.isArray(G.siege.cols)) G.siege = null; // saved with the old walls
     if (G.ball) { G.balls = [G.ball]; delete G.ball; } // saved before extra balls: its one ball carries over
