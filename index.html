@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 14:31 UTC · c4b429d";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 15:07 UTC · 7e72792";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5083,11 +5083,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       B.down = true; B.beam = null; B.timers.throw = 2.5; shake(6); G.slowT = Math.max(G.slowT, 0.5); gridImpulse(B.x, B.y, Math.max(AW, AH), 260); sfx.obPain(B.x); sfx.obImpact(3, B.x);
       G.banner = { text: 'It\'s down!', sub: mechLeft(B), t: 1.8, max: 1.8, at: 0.45 };
     } else G.banner = { text: 'It\'s limping!', sub: 'Break the other knee to pin it down', t: 1.4, max: 1.4, at: 0.45 };
-    if (!mechWeapons(B).length && B.down && mechBroken(B, 'jets') && B.st === 'fight') { // everything's broken: the reactor's bare
-      B.st = 'core'; B.beam = null; B.sweep = null; B.timers.beam = 3; B.timers.backup = 1.5; B.timers.pulse = 2;
-      B.plateGone = true; armWalkStart(B); // its head tears free and walks on its arms
-      if (G.legTest) { G.legTest = false; for (const A of B.walker.arms) { const d = A.hp; A.hp = 0; A.lost = true; B.core -= d; damageBoss(d, B.x, B.y); } } // the leg walker test: straight past the arm walker
+    if (!mechWeapons(B).length && B.down && mechBroken(B, 'jets') && B.st === 'fight' && !B.swarm) { // everything's broken: first the swarm, then the reactor's bare
+      if (B.swarmDone) mechCore(B); else swarmStart(B);
     }
+  }
+  function mechCore(B) { // its last stand begins: its head tears free and walks on its arms
+    B.st = 'core'; B.beam = null; B.sweep = null; B.timers.beam = 3; B.timers.backup = 1.5; B.timers.pulse = 2;
+    B.plateGone = true; armWalkStart(B);
+    if (G.legTest) { G.legTest = false; for (const A of B.walker.arms) { const d = A.hp; A.hp = 0; A.lost = true; B.core -= d; damageBoss(d, B.x, B.y); } } // the leg walker test: straight past the arm walker
   }
   // What's left to break before the reactor's bare, for the banners
   function mechLeft(B) {
@@ -6284,6 +6287,79 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (Math.random() < 0.05) burst(e.x, e.y, 1, fire, 15, 0.3, 0.2);
   }
 
+  // The swarm: between its first fight and its last stand. Everything broken, pinned to the floor, it stops attacking;
+  // its open chest spews crawlers, and they pour in from every edge too, till the arena's full of them (SWARM_CAP at
+  // once, SWARM_N in all). They're one hit each and they come at you: your ball plows through them (a kill doesn't
+  // bounce it), so one throw can chain dozens. Every one dead: a bonus, and its head tears free for its last stand.
+  const SWARM_N = 300, SWARM_CAP = 160, SWARM_RATE = 18, SWARM_FLOOD = 120, SWARM_FOUNT = 0.35, SWARM_BONUS = 100000, SWARM_V = 0.85; // (the first SWARM_FLOOD pour in at 2.5x the rate)
+  function swarmStart(B) {
+    B.swarm = { n: SWARM_N + 60 * B.cycle, sent: 0, t: 1.4, killed: 0, end: 0 };
+    B.beam = null; B.sweep = null; B.lockT = 0; B.fly = null; B.crawl = null; B.throws = [];
+    G.banner = { text: 'The swarm', sub: 'Its wreck spews crawlers. Kill every one', t: 2.2, max: 2.2, at: 0.45 };
+    shake(5); gridImpulse(B.x, B.y, Math.max(AW, AH), 260); sfx.obRoar(B.x, 1); sfx.obSurge(B.x);
+  }
+  const swarmLeft = (S) => S.n - S.sent + G.enemies.reduce((k, e) => k + (e.sw ? 1 : 0), 0);
+  function updateMechSwarm(B, dt) {
+    const S = B.swarm, p = G.player, alive = G.enemies.reduce((k, e) => k + (e.sw ? 1 : 0), 0);
+    if (S.end > 0) { if ((S.end -= dt) <= 0) { B.swarm = null; B.swarmDone = true; mechCore(B); } return; } // a beat, then its head tears free
+    if (S.sent >= S.n && !alive) { // the last of them
+      S.end = 1.4; const v = SWARM_BONUS * (1 + B.cycle); G.score += v;
+      G.banner = { text: 'Swarm destroyed!', sub: `+${(v * scoreK(G.wave)).toLocaleString()}`, t: 1.4, max: 1.4, at: 0.45 }; sfx.repair(); shake(2);
+      return;
+    }
+    if ((S.t -= dt) > 0) return;
+    S.acc = (S.acc || 0) + SWARM_RATE * dt * (S.sent < SWARM_FLOOD ? 2.5 : 1); // (a flood to start with, then a steady pour)
+    const n = Math.max(0, Math.min(Math.floor(S.acc), SWARM_CAP - alive, S.n - S.sent)); S.acc -= Math.max(0, Math.floor(S.acc));
+    const [cx, cy] = mechAt(B, ...MECH_CORE_AT);
+    for (let k = 0; k < n; k++) {
+      let x, y, vx = 0, vy = 0;
+      if (Math.random() < SWARM_FOUNT) { const a = -Math.PI / 2 + rand(-1.3, 1.3), sp = rand(30, 70); x = cx + rand(-3, 3); y = cy + rand(-2, 2); vx = Math.cos(a) * sp; vy = Math.sin(a) * sp; } // out of its chest, flung
+      else { for (let q = 0; q < 6; q++) { const sd = Math.floor(Math.random() * 4); x = sd === 1 ? AW - 3 : sd === 3 ? 3 : rand(4, AW - 4); y = sd === 0 ? 3 : sd === 2 ? AH - 3 : rand(4, AH - 4); if (Math.hypot(x - p.x, y - p.y) > 45) break; } } // in from an edge, not on top of you
+      const e = makeEnemy('scrapper', x, y); Object.assign(e, { sw: true, vx, vy, spawnT: 0.15, spd: e.spd * SWARM_V, rot: rand(0, 6), v: Math.floor(Math.random() * 6) });
+      G.enemies.push(e); S.sent++;
+      if (k < 3) burst(x, y, 4, heat(MAX_CHARGE * 0.75), 20, 0.4, 0.25);
+    }
+    if (n > 0 && G.time - (S.snd || 0) > 0.12) { S.snd = G.time; sfx.clank(); }
+  }
+  // Swarm crawlers drawn from a few pre-drawn sprites (a hundred and fifty of them, each frame): the scrap crawler's look,
+  // its glow, three chunks on its magnet and the white core, stamped, turned, wobbling
+  const SW_SPR = { key: '', imgs: [] };
+  function swarmSprites() {
+    const px = U * DPR, key = `${look}|${px.toFixed(3)}`;
+    if (SW_SPR.key === key) return SW_SPR.imgs;
+    SW_SPR.key = key; SW_SPR.imgs = [];
+    const R = ENEMY.scrapper.r, W = R * 2.8, size = Math.max(8, Math.ceil(W * px)), H3 = hex(COL.hull);
+    for (let v = 0; v < 6; v++) {
+      const cv = document.createElement('canvas'); cv.width = cv.height = size; const c = cv.getContext('2d');
+      c.translate(size / 2, size / 2); c.scale(size / W, size / W);
+      c.globalCompositeOperation = 'lighter'; const g = c.createRadialGradient(0, 0, 0, 0, 0, R * 1.3); g.addColorStop(0, COL.chalk); g.addColorStop(0.3, COL.threat); g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.globalAlpha = 0.6; c.fillStyle = g; c.beginPath(); c.arc(0, 0, R * 1.3, 0, Math.PI * 2); c.fill(); c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+      for (let i = 0; i < 3; i++) {
+        const a = i / 3 * Math.PI * 2 + v * 0.7 + rand(-0.4, 0.4), d = rand(0.75, 1), x = Math.cos(a) * R * 0.85 * d, y = Math.sin(a) * R * 0.85 * d;
+        c.beginPath(); c.moveTo(0, 0); c.lineTo(x * 0.5 + rand(-0.6, 0.6), y * 0.5 + rand(-0.6, 0.6)); c.lineTo(x, y); c.strokeStyle = COL.threat; c.lineWidth = 0.2; c.globalAlpha = 0.8; c.stroke(); c.globalAlpha = 1;
+        c.save(); c.translate(x, y); c.rotate(rand(0, 6)); c.beginPath(); for (let q = 0; q < 5; q++) { const t = q / 5 * Math.PI * 2, k = rand(0.7, 1.1); q ? c.lineTo(Math.cos(t) * R * 0.62 * k, Math.sin(t) * R * 0.62 * k) : c.moveTo(Math.cos(t) * R * 0.62 * k, Math.sin(t) * R * 0.62 * k); } c.closePath();
+        c.fillStyle = COL.ink; c.fill(); c.fillStyle = `rgba(${H3.join(',')},0.4)`; c.fill(); c.strokeStyle = ECOL.warden; c.lineWidth = 0.3; c.stroke(); c.restore();
+      }
+      c.fillStyle = COL.chalk; c.beginPath(); c.arc(0, 0, R * 0.18, 0, Math.PI * 2); c.fill();
+      SW_SPR.imgs.push(cv);
+    }
+    return SW_SPR.imgs;
+  }
+  function drawSwarmCrawler(e) {
+    const img = swarmSprites()[e.v || 0], W = ENEMY.scrapper.r * 2.8, sk = 1 + 0.08 * Math.sin(G.time * 18 + e.seed * 5); // (skittering)
+    ctx.rotate(e.rot * 0.6 + Math.sin(G.time * 9 + e.seed * 3) * 0.25); ctx.drawImage(img, -W / 2 * sk, -W / 2 / sk, W * sk, W / sk);
+  }
+  // The live chain, big, under its bar while the swarm's on: the count of this throw's kills, kicking with each one
+  function drawSwarmChain() {
+    const B = G.boss; if (!B || !B.swarm || G.attract) return;
+    const C = G.swChain; if (!C || C.n < 2) return;
+    const k = clamp(C.t / 1.2, 0, 1), kick = 1 + Math.max(0, C.kick) * 0.35, sz = Math.min(8, AW / 12) * kick * (C.n >= 50 ? 1.25 : C.n >= 20 ? 1.12 : 1);
+    ctx.save(); ctx.globalAlpha = Math.min(1, k * 2.5); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round'; ctx.strokeStyle = COL.ink; // (an ink edge: it sits over him and the crawlers)
+    ctx.font = `700 ${sz}px ${FONT}`; ctx.lineWidth = sz * 0.16; ctx.strokeText(`${C.n}`, AW / 2, AH * 0.13); ctx.fillStyle = C.n >= 50 ? COL.chalk : ECOL.target; ctx.fillText(`${C.n}`, AW / 2, AH * 0.13);
+    ctx.globalAlpha *= 0.9; ctx.font = `600 ${Math.min(3, AW / 30)}px ${FONT}`; ctx.lineWidth = 0.7; ctx.strokeText('CHAIN', AW / 2, AH * 0.13 + sz * 0.62); ctx.fillStyle = COL.chalk; ctx.fillText('CHAIN', AW / 2, AH * 0.13 + sz * 0.62);
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
   function updateMech(B, dt) {
     const p = G.player, T = B.timers, broken = ['gun', 'claw', 'rack', 'rail', 'kneeL', 'kneeR', 'jets'].filter(k => mechBroken(B, k)).length;
     const desp = 1 + broken * 0.12 + (B.crit ? 0.4 : 0); // its reactor grows desperate with every part you break
@@ -6292,8 +6368,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // its touch hurts, and nothing passes through it
     if (p.inv <= 0) for (const [x, y, r, , , , safe] of mechCircles(B)) if (!safe && Math.hypot(p.x - x, p.y - y) < r + PLAYER_R * 0.8) { damagePlayer(); break; }
     if (B.st === 'intro') { mechIntro(B, dt); return; }
-    if (G.lastStandTest && B.st === 'fight') { G.lastStandTest = false; for (const k of ['gun', 'claw', 'rack', 'rail', 'jets', 'kneeL', 'kneeR']) if (!mechBroken(B, k)) mechHit(B, k, 1e6, B.x, B.y); return; } // the test start: break it all at once
+    if (G.lastStandTest && B.st === 'fight') { G.lastStandTest = false; B.swarmDone = !G.swarmTest; G.swarmTest = false; for (const k of ['gun', 'claw', 'rack', 'rail', 'jets', 'kneeL', 'kneeR']) if (!mechBroken(B, k)) mechHit(B, k, 1e6, B.x, B.y); return; } // the test start: break it all at once
     if (B.plate) { const q = B.plate; q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; if (q.y > AH + 40) B.plate = null; }
+    if (B.swarm) { B.kneel = Math.min(1, B.kneel + dt * 2); updateMechSwarm(B, dt); return; } // the swarm: down on its knees, spewing crawlers
     if (B.walker) { updateArmWalk(B, dt); return; } // its last stand: the arm walker,
     if (B.legs) { updateLegWalk(B, dt); return; } // the leg walker,
     if (B.storm) { updateScrap(B, dt); return; } // then the scrap storm
@@ -7992,6 +8069,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const TANK_BAR_TREADS = 1 / 3, TANK_BAR_GAP = 1.2;
   // Goliath's bar in three: its weapons, its knees, its reactor; the one you can hurt now lit
   function drawMechBar(B, x, y, w) {
+    if (B.swarm) { const S = B.swarm, f = swarmLeft(S) / S.n; ctx.fillStyle = COL.block; ctx.fillRect(x, y, w, 1.4); ctx.fillStyle = COL.threat; ctx.fillRect(x, y, w * clamp(f, 0, 1), 1.4); ctx.strokeStyle = COL.line; ctx.lineWidth = 0.2; ctx.strokeRect(x, y, w, 1.4); ctx.font = `600 1.9px ${FONT}`; ctx.fillStyle = ECOL.warden; ctx.fillText(`SWARM · ${swarmLeft(S)}`, x + w / 2, y + 3.1); return; } // the swarm: how many are left
     const P = B.parts, sum = ks => ks.reduce((a, k) => a + Math.max(0, P[k].hp), 0), max = ks => ks.reduce((a, k) => a + P[k].max, 0);
     const segs = [[sum(['gun', 'claw', 'rack', 'rail']) / max(['gun', 'claw', 'rack', 'rail']), B.st === 'fight', 'ARSENAL', 0.28], [sum(['kneeL', 'kneeR']) / max(['kneeL', 'kneeR']), B.st === 'fight', 'LEGS', 0.2], [sum(['jets']) / max(['jets']), B.st === 'fight', 'THRUSTERS', 0.22], [B.core / B.coreMax, B.st === 'core', 'REACTOR', 0.3]];
     let sx = x;
@@ -10648,11 +10726,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   // Big chains in one throw get celebrated: a beat of slow motion, a flash, a banner with a bonus, a chord.
-  const CHAIN_MILESTONES = [5, 10, 15, 20, 30], CHAIN_SHIELD = 5; // from ×10 a milestone also raises a shield for CHAIN_SHIELD s
+  const CHAIN_MILESTONES = [5, 10, 15, 20, 30, 50, 75, 100, 150, 200, 300], CHAIN_SHIELD = 5; // (past 30: the swarm's) // from ×10 a milestone also raises a shield for CHAIN_SHIELD s
   function chainMilestone(chain, src) {
     const bonus = 50 * chain;
     G.score += bonus;
-    G.chainPop = { text: `CHAIN ×${chain}`, sub: `+${bonus.toLocaleString()}`, t: 1.3, max: 1.3, size: chain >= 15 ? 1.5 : chain >= 10 ? 1.25 : 1 };
+    G.chainPop = { text: `CHAIN ×${chain}`, sub: `+${bonus.toLocaleString()}`, t: 1.3, max: 1.3, size: chain >= 50 ? 1.8 : chain >= 15 ? 1.5 : chain >= 10 ? 1.25 : 1 };
     G.slowT = chain >= 10 ? 0.5 : 0.35; G.screenFlash = chain >= 10 ? 0.35 : 0.2;
     if (chain >= 10) { // a ×10 chain (and every milestone after) puts the one-hit shield up
       const p = G.player, c = `rgb(${HEAT[0].join(',')})`;
@@ -10671,7 +10749,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (src.lit && src.state === 'live') { src.fuse = FUSE_TIME; ring(src.x, src.y, ballR(src.b) + 2, ballR(src.b) + 4, 0.2, COL.chalk, 0.6); } // a kill refills the overload countdown
     G.mult = Math.min(MULT_MAX, G.mult + CHAIN_STEP * chain);
     if (Math.floor(G.mult) > before) { const m = $('mult'); m.classList.remove('bump', 'drop'); void m.offsetWidth; m.classList.add('bump'); }
-    if (chain >= 2 && show) {
+    const swarm = G.boss && G.boss.swarm;
+    if (swarm && chain >= 2 && show) { // the swarm: one big live counter (a float a kill would bury the arena), its sound a few dozen a second at most
+      const C = G.swChain; if (!C || C.src === src || chain >= C.n || C.t < 0.6) G.swChain = { n: chain, t: 1.2, kick: 1, src };
+      if (G.time - (G.swChainSnd || 0) > 0.03) { G.swChainSnd = G.time; sfx.chain(chain); }
+    } else if (chain >= 2 && show) {
       float(src.x, src.y - ballR(b) - 4, `${chain} chain`, COL.chalk, 2.6 + Math.min(chain, 8) * 0.3);
       sfx.chain(chain);
     }
@@ -10729,9 +10811,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return;
     }
     if (e.junk || e.type === 'scrapper' || e.drone) { // 0B-L1-V10N's scrap and drones: they shatter
-      burst(e.x, e.y, 12, heat(Math.max(b, 6)), 35, 0.5, 0.35); burst(e.x, e.y, 6, COL.dim, 25, 0.6, 0.4); ring(e.x, e.y, 0.5, e.r + 3, 0.2, COL.chalk, 0.6);
-      for (let k = 0; k < 5; k++) { const a = rand(0, Math.PI * 2), sp = rand(20, 50); G.shards.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: a, va: rand(-12, 12), size: rand(0.6, 1.1), t: 0, max: rand(0.35, 0.6), color: COL.threat, lit: 1 }); }
-      shake(0.5); sfx.brick(Math.max(b, 4)); sfx.kill(b, e.x);
+      const lite = e.sw; burst(e.x, e.y, lite ? 7 : 12, heat(Math.max(b, 6)), 35, 0.5, 0.35); burst(e.x, e.y, lite ? 3 : 6, COL.dim, 25, 0.6, 0.4); // (a swarm crawler: lighter, there are so many) ring(e.x, e.y, 0.5, e.r + 3, 0.2, COL.chalk, 0.6);
+      for (let k = 0; k < (lite ? 3 : 5); k++) { const a = rand(0, Math.PI * 2), sp = rand(20, 50); G.shards.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, ang: a, va: rand(-12, 12), size: rand(0.6, 1.1), t: 0, max: rand(0.35, 0.6), color: COL.threat, lit: 1 }); }
+      shake(lite ? 0.35 : 0.5); if (!lite || G.time - (G.swSnd || 0) > 0.03) { G.swSnd = G.time; sfx.brick(Math.max(b, 4)); sfx.kill(b, e.x); } // (their sounds, a few dozen a second at most)
       if (G.powers.bolt > 0 && depth < BOLT_HOPS) G.boltQueue.push({ x: e.x, y: e.y, b, depth: depth + 1 });
       if (!G.attract && !G.train && G.pickups.length < PICKUP_MAX && (chain === CHAIN_DROP || Math.random() < DROP_CHANCE)) spawnPickup(e.x, e.y, src);
       return;
@@ -11362,6 +11444,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // keep enemies from stacking into one blob
     for (let i = 0; i < es.length; i++) for (let j = i + 1; j < es.length; j++) {
       const a = es[i], b = es[j], dx = b.x - a.x, dy = b.y - a.y, min = a.r + b.r, d2 = dx * dx + dy * dy;
+      if (d2 >= min * min) continue; // (apart: most pairs, so this first)
+      if (a.rider || b.rider || a.hunter || b.hunter) continue; // (on rails)
       if (a.type === 'rock' || b.type === 'rock' || a.type === 'saucer' || b.type === 'saucer' || a.type === 'wax' || b.type === 'wax' || a.type === 'invader' || b.type === 'invader' || a.junk || b.junk || a.mis || b.mis || a.bomber || b.bomber) continue;
       if (d2 > 0 && d2 < min * min) {
         const d = Math.sqrt(d2), push = (min - d) / 2, nx = dx / d, ny = dy / d;
@@ -11438,6 +11522,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.slowT > 0) { G.slowT -= dt; dt *= 0.4; } // a chain milestone's beat of slow motion
     if (G.screenFlash > 0) G.screenFlash -= dt;
     if (G.chainPop) { G.chainPop.t -= dt; if (G.chainPop.t <= 0) G.chainPop = null; }
+    if (G.swChain) { G.swChain.t -= dt; G.swChain.kick -= dt * 6; if (G.swChain.t <= 0) G.swChain = null; }
     G.time += dt;
     G.shake *= Math.exp(-9 * dt);
     if (G.freeze > 0) { G.freeze -= dt; return; }
@@ -12068,7 +12153,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (e.bomber) { drawBomber(e); ctx.restore(); continue; }
       if (e.rider) { drawRider(e); ctx.restore(); continue; }
       if (e.hunter) { drawHunter(e); ctx.restore(); continue; }
-      if (e.type === 'scrapper') { drawScrapper(e); ctx.restore(); continue; }
+      if (e.type === 'scrapper') { if (e.sw) drawSwarmCrawler(e); else drawScrapper(e); ctx.restore(); continue; }
       if (e.type === 'walker') { drawWalker(e, stroke); for (let k = 0; k < e.maxHp; k++) { const on = k < e.hp, px = (k - (e.maxHp - 1) / 2) * 1.7; ctx.beginPath(); ctx.arc(px, e.r + 2.2, 0.6, 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : COL.ink; ctx.fill(); ctx.strokeStyle = ECOL.warden; ctx.lineWidth = 0.2; ctx.stroke(); } ctx.restore(); continue; }
       if (e.tankette) { // a tank, its armour plates as pips under it
         drawTankette(e, stroke);
@@ -12487,6 +12572,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const B = G.bonus;
       ctx.fillText(`BONUS  ${Math.ceil(B.time)}s   LIT ${B.bumpers.filter(q => q.litT > 0).length}/${B.bumpers.length}${B.jackpots ? `   JACKPOT ×${B.jackpots}` : ''}`, AW / 2, 5);
     }
+    drawSwarmChain();
     if (G.chainPop && !G.attract) { // pops in big, settles, fades
       const C = G.chainPop, k = C.t / C.max, pop = 1 + Math.max(0, (k - 0.85) / 0.15) * 0.5, sz = Math.min(9, AW / 11) * C.size * pop;
       ctx.globalAlpha = Math.min(1, (1 - k) * 10, k * 3); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -12842,7 +12928,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   startSel.add(new Option('Trail Riders (test)', 'trail'));
   startSel.add(new Option('Labyrinth (test)', 'maze'));
   startSel.add(new Option('0B-L1-V10N: last stand (test)', 'last')); // wave 60 with every part already broken: straight to its last stand
-  startSel.add(new Option('0B-L1-V10N: leg walker (test)', 'legs')); // ...and past its arm walker: straight to its leg walker
+  startSel.add(new Option('0B-L1-V10N: leg walker (test)', 'legs'));
+  startSel.add(new Option('0B-L1-V10N: swarm (test)', 'swarm')); // ...straight to its swarm // ...and past its arm walker: straight to its leg walker
   for (let n = 2; n <= LOOP_LEN; n++) {
     const tag = bossFor(n) ? BOSS_NAMES[bossFor(n)] : setPiece(n) ? SET_NAMES[setPiece(n)] : '';
     startSel.add(new Option(`Wave ${n}${tag ? ' · ' + tag : ''}`, String(n)));
@@ -12853,7 +12940,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const v = startSel.value;
     if (!trainAsked && v === '1' && !location.hash) { $('ov-first').hidden = false; $('firstTrain').focus({ preventScroll: true }); return; } // the first Launch asks about training, once
     // (Bombardment from 11: with the wingman Clanktank gives you)
-    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'bomb') { forceBomb = true; startGame(11); } else if (v === 'trail') { forceRiders = true; startGame(11); } else if (v === 'maze') { forceMaze = true; startGame(11); } else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v === 'legs') { startGame(60); G.lastStandTest = true; G.legTest = true; } else if (v !== '1') startGame(+v); else startGame();
+    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'bomb') { forceBomb = true; startGame(11); } else if (v === 'trail') { forceRiders = true; startGame(11); } else if (v === 'maze') { forceMaze = true; startGame(11); } else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v === 'legs') { startGame(60); G.lastStandTest = true; G.legTest = true; } else if (v === 'swarm') { startGame(60); G.lastStandTest = true; G.swarmTest = true; } else if (v !== '1') startGame(+v); else startGame();
   }
   $('play').addEventListener('click', startChosen);
   $('again').addEventListener('click', startChosen);
