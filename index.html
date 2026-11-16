@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 19:56 UTC · c9de47d";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 20:12 UTC · 767f7ed";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -632,7 +632,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     10: 'Clanktank: smash its treads to immobilize it, then every hit hurts it. Don\'t let the repair crew get it moving again',
     11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
     12: 'Blinkers teleport. The ghost shows where',
-    40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, dodge the laser bars from his saucer and hit the pink orbs in his walls: each one bursts the wall round it. Hit a fuel drum in his walls to blow open everything round it',
+    40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, dodge the laser bars from his saucer and pop the pink orbs in his walls: pop them all and he\'s forced out. Hit a fuel drum in his walls to blow open everything round it',
     46: 'Bees! Vexa\'s scouts are out. Something big is buzzing nearby',
     39: 'Crusher II: the walls close in from all four sides now, and faster',
     35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot',
@@ -7567,7 +7567,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   //    it and hurts him (GEO_ORB × the ball's damage).
   //    His last GEO_FINAL health comes off only in his cage: out of it, he's held there and his shell bursts, and that cage
   //    he stays in till you finish him (or GEO_WALL runs out). So the fight always ends in his cage.
-  //  - rebuild: once you've done GEO_CAGE damage to him in his cage (or after GEO_WALL seconds) he comes forward into the middle again and the walls that are left fly in as his
+  //    Each cage holds GEO_CAGE_ORBS orbs in all (a few at a time, shown as pips under his bar): pop every one and he's
+  //    forced out (in his last cage: shot down, straight to his last stand).
+  //  - rebuild: once every orb in his cage is gone (or after GEO_WALL seconds) he comes forward into the middle again and the walls that are left fly in as his
   //    next shell, GEO_THIN crystals thinner for every one you broke.
   // Except while he's cracked, he fires his blaster, always from its muzzle, by turns: a laser (the muzzle flares and a
   // targeting line runs the length of the arena through you, locking and flashing just before he fires; then a beam down
@@ -7579,9 +7581,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // saucer flies over everything: the ball passes under it. The orbs are the way to hurt him while it's up, and each one
   // you pop bursts the wall round it (GEO_ORB_BLAST), opening the room back up. Fuel drums are set in his walls too
   // (geoDrumBlow): hit one and it blows, breaking the wall round it and popping every orb in reach.
-  const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 800, GEO_ORB = 1.5, GEO_TRIP = 100, GEO_BARE = 50, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 40, GEO_CAGE = 150, GEO_FINAL = 200, GEO_LAST = 120, GEO_THIN = 0.3;
+  const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 800, GEO_ORB = 1.5, GEO_TRIP = 100, GEO_BARE = 50, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 40, GEO_FINAL = 200, GEO_LAST = 120, GEO_THIN = 0.3;
   const GEO_PUSH = [2.3, 1.85, 1.4], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
-  const GEO_ORBS = [4, 5, 6], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
+  const GEO_ORBS = [4, 5, 6], GEO_CAGE_ORBS = [6, 8, 10], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
   const GEO_BOLT_V = 300, GEO_CRASH = 1.6, GEO_HOP_EVERY = 2.2, GEO_HOP_T = 0.6, GEO_HOP_R = 14, GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_V = [26, 30, 34];
   const GEO_ORB_BLAST = 16, GEO_DRUMS = [2, 2, 3], GEO_DRUM_BLAST = 20, GEO_DRUM_FUSE = 0.14; // fuel drums in his walls: how many at once, their reach, the ripple from one to the next
   // His last stand: his gun a touch slower than in his cage (GEO_LAST_SLOW), and on every other landing, in place of it, his
@@ -7623,14 +7625,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (bare) { sfx.splat(15); damageBoss(Math.round(GEO_BARE * (1 + B.cycle * 0.6)), B.hx, B.hy - GEO_R); }
   }
   function geoRise(B) { // the walls slide in from every edge as he climbs into his saucer
-    B.bars = null; B.barT = GEO_BAR_FIRST; B.cageHp0 = B.hp;
+    B.bars = null; B.barT = GEO_BAR_FIRST;
     B.st = 'rise'; B.stT = GEO_RISE; B.summon = 1; B.shotT = Math.max(B.shotT, GEO_RISE + 0.8);
     for (const e of G.enemies) { // crushed as the walls come in: nothing gets shoved into you, or you into it
       e.gone = true; burst(e.x, e.y, 10, ECOL[e.type] || COL.lilac, 30, 0.6, 0.35); ring(e.x, e.y, 1, e.r + 4, 0.25, ECOL.splitter, 0.6);
     }
     G.tele.length = 0; G.spawnQueue.length = 0;
     const m = Math.min(Math.round(AW / SIEGE_CELL), Math.round(AH / SIEGE_CELL));
-    setupSiege('crystal', B.cycle, { depth: m * GEO_DEPTH, interval: GEO_PUSH[B.phase - 1], first: 0.35, layers: 1, orb: GEO_ORBS[B.phase - 1], drum: GEO_DRUMS[B.phase - 1] });
+    setupSiege('crystal', B.cycle, { depth: m * GEO_DEPTH, interval: GEO_PUSH[B.phase - 1], first: 0.35, layers: 1, orb: GEO_ORBS[B.phase - 1], quota: GEO_CAGE_ORBS[B.phase - 1], drum: GEO_DRUMS[B.phase - 1] });
+    if (!G.caged) { G.caged = true; G.banner = { text: 'Caged!', sub: 'Pop every pink orb in his walls to break out', t: 2.2, max: 2.2, at: 0.45 }; }
     sfx.crystalGrow(); sfx.boss(); shake(1.5);
   }
   // Forward again: the walls that are left fly in to the middle as his next shell, thinner the more of them you broke.
@@ -7746,6 +7749,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       else B.hopT = 0.5;
     }
   }
+  // His cage's orbs still to pop: those showing, and those still to come in with the layers
+  function geoOrbsLeft(S) { let n = 0; S.cols.forEach(cols => cols.forEach(st => st.forEach(cell => { if (cell.orb) n++; }))); return n + Math.max(0, S.quota - S.sentOrbs); }
+  // None showing and the walls too full for a new layer to bring any: a few of the crystals facing you turn into orbs
+  function geoOrbTopUp(S) {
+    const inner = []; S.cols.forEach((cols, side) => cols.forEach((st, c) => { const k = st.length - 1; if (k >= 0 && !st[k].orb && !st[k].drum) inner.push(st[k]); }));
+    let born = 0; for (; born < S.orb && inner.length && S.sentOrbs < S.quota; born++) { const cell = inner.splice(Math.floor(Math.random() * inner.length), 1)[0]; cell.orb = true; cell.orbAt = G.time; S.sentOrbs++; }
+    if (born) sfx.heartbeat();
+  }
   // A fuel drum in his wall goes up (it can't hurt you, like any drum): the wall round it breaks, every orb in reach pops
   // (each hurting him as if you'd hit it), and any drum in reach goes up a moment later
   function geoDrumBlow(x, y, b) {
@@ -7840,8 +7851,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (B.st === 'wall') {
       const S = G.siege;
       if (S) { S.interval = GEO_PUSH[ph]; S.orb = GEO_ORBS[ph]; S.drum = GEO_DRUMS[ph]; if (S.timer < dt * 1.5) B.summon = 1; } // he shoves with both arms as each layer goes in
-      if (B.hp <= GEO_LAST || (B.stT <= 0 && B.hp <= GEO_FINAL)) geoCrash(B); // low enough in his last cage (or it's run its time): shot down
-      else if (!S || B.stT <= 0 || (B.cageHp0 - B.hp >= GEO_CAGE * (1 + B.cycle * 0.6) && B.hp > GEO_FINAL)) geoRebuild(B); // out once you've done GEO_CAGE to him in here (or after GEO_WALL); his last cage he stays in
+      const left = S ? geoOrbsLeft(S) : 0;
+      if (S && left > 0 && S.sentOrbs < S.quota && left === S.quota - S.sentOrbs && (B.topT = (B.topT || 0) - dt) <= 0) { B.topT = 1.2; geoOrbTopUp(S); } // none showing but some still to come, and no room for a layer: set them in
+      if (S && !left && S.quota && B.hp > GEO_LAST) { if (B.hp <= GEO_FINAL) B.hp = Math.min(B.hp, GEO_LAST); else G.banner = { text: 'Cage broken!', sub: 'Every orb popped', t: 1.4, max: 1.4, at: 0.45 }; } // every orb gone: forced out (in his last cage, shot down: its own banner)
+      if (B.hp <= GEO_LAST || (B.stT <= 0 && B.hp <= GEO_FINAL)) geoCrash(B); // low enough in his last cage (or it's run its time, or you've cleared it): shot down
+      else if (!S || B.stT <= 0 || !left) geoRebuild(B); // out once every orb in here's gone (or after GEO_WALL); his last cage he stays in
     } else if (B.st === 'rebuild') {
       let all = true;
       for (const f of B.fly) {
@@ -8352,6 +8366,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.fillStyle = COL.block; ctx.fillRect(x, y, w, 1.4);
     ctx.fillStyle = COL.threat; ctx.fillRect(x, y, w * f, 1.4);
     ctx.strokeStyle = COL.line; ctx.lineWidth = 0.2; ctx.strokeRect(x, y, w, 1.4);
+    const S = G.siege; if (B.kind === 'geode' && B.st === 'wall' && S && S.quota) { // his cage's orbs: a pip each, hollow once it's gone
+      const n = S.quota, left = geoOrbsLeft(S), gap = 2.3, x0 = cx - (n - 1) * gap / 2, py = y + 3.4;
+      ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.roundRect(x0 - 1.6, py - 1.4, (n - 1) * gap + 3.2, 2.8, 1.4); ctx.fill(); ctx.globalAlpha = 1; // (a dark strip under them: they sit over his walls)
+      for (let i = 0; i < n; i++) { ctx.beginPath(); ctx.arc(x0 + i * gap, py, 0.75, 0, Math.PI * 2); if (i < left) { ctx.fillStyle = GEO_ORB_COL; ctx.fill(); } else { ctx.strokeStyle = GEO_ORB_COL; ctx.globalAlpha = 0.45; ctx.lineWidth = 0.25; ctx.stroke(); ctx.globalAlpha = 1; } }
+    }
   }
   // The Tank's bar comes in two: its treads (drawn a third of the way across, more than their share, so breaking them
   // shows) and its reactor. The one you can't hurt yet is dimmed; the crew's repairs fill the treads back up.
@@ -9287,7 +9306,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const nx = Math.max(6, Math.round(AW / SIEGE_CELL)), ny = Math.max(6, Math.round(AH / SIEGE_CELL)), m = Math.min(nx, ny);
     const S = G.siege = { skin, cycle, nx, ny, cw: AW / nx, ch: AH / ny, kx: m / nx, ky: m / ny, depth: opt.depth ?? m / 2 - 2.5,
                           cols: [nx, ny, nx, ny].map(n => Array.from({ length: n }, () => [])), interval: opt.interval || 3, timer: opt.first ?? 2,
-                          broken: 0, orb: opt.orb || 0, drum: opt.drum || 0, ref: null, wait: CRUSH_WAIT, started: !opt.wait };
+                          broken: 0, orb: opt.orb || 0, quota: opt.quota || 0, sentOrbs: 0, drum: opt.drum || 0, ref: null, wait: CRUSH_WAIT, started: !opt.wait };
     for (let k = 0; k < (opt.layers ?? 1); k++) siegeLayer(true);
     return S;
   }
@@ -9303,7 +9322,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     S.cols.forEach((cols, side) => cols.forEach((st, c) => { if (st.length < sLimit(S, side, c)) { const cell = sNewCell(S); st.unshift(cell); fresh.push(cell); n++; } }));
     if (S.orb && fresh.length) { // the Geode's orbs: a few at a time, set into the layer that's just come in
       let have = 0; S.cols.forEach(cols => cols.forEach(st => st.forEach(cell => { if (cell.orb) have++; })));
-      let born = 0; for (let k = have; k < S.orb && fresh.length; k++) { const cell = fresh.splice(Math.floor(Math.random() * fresh.length), 1)[0]; cell.orb = true; cell.orbAt = G.time; born++; }
+      let born = 0; for (let k = have; k < S.orb && fresh.length && !(S.quota && S.sentOrbs >= S.quota); k++) { const cell = fresh.splice(Math.floor(Math.random() * fresh.length), 1)[0]; cell.orb = true; cell.orbAt = G.time; born++; S.sentOrbs++; } // (no more than the cage's quota)
       if (born && !quiet) sfx.heartbeat(); // a heartbeat as his orbs come in
     }
     if (S.drum && fresh.length) { // ...and his fuel drums, likewise (never in an orb's cell)
