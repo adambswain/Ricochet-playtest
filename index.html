@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 16:48 UTC · d5ac1da";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 16:55 UTC · b59bc4e";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5589,7 +5589,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!B.melt && frac <= MECH_MELT) { B.melt = true; shake(6); G.screenFlash = Math.max(G.screenFlash || 0, 0.4); sfx.obRoar(S.x); sfx.alarm(); G.banner = { text: 'Meltdown!', sub: 'Finish it before it blows', t: 1.8, max: 1.8, at: 0.45 }; }
     if (B.melt) { B.alarmT = (B.alarmT || 0) - dt; if (B.alarmT <= 0) { B.alarmT = 1.4; sfx.alarm(); } }
     S.R = 15 + 13 * frac; // it shrinks as the reactor drains
-    if (S.st === 'form') { const k = ease(clamp(S.t / (STORM_FORM * 0.85), 0, 1)); S.x = S.x0 + (S.tx - S.x0) * k; S.y = S.y0 + (S.ty - S.y0) * k; if (S.t >= STORM_FORM) { S.st = 'storm'; obSay('CONFIG: STORM', 0.4); } }
+    if (S.st === 'form') { const k = ease(clamp(S.t / (STORM_FORM * 0.85), 0, 1)); S.x = S.x0 + (S.tx - S.x0) * k; S.y = S.y0 + (S.ty - S.y0) * k; if (S.t >= STORM_FORM) { S.st = 'storm'; obSay('CONFIG: STORM', 0.4); obResume(1.1); } }
     else if (S.belt) { /* the belt: still as it forms or while it's stunned, else dragging it after you (updateBelt) */ }
     else { // drifting round the upper arena
       S.wT -= dt; if (S.wT <= 0 || Math.hypot(S.tx - S.x, S.ty - S.y) < 4) { S.wT = rand(3, 5); S.tx = rand(AW * 0.25, AW * 0.75); S.ty = rand(AH * 0.2, AH * 0.42); }
@@ -5995,7 +5995,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.x = F.x0 + (mx - F.x0) * r; B.y = F.y0 + (ty - F.y0) * r - bob;
     if (t >= 0.55 && !F.planted) { F.planted = true; for (const H of W.hands) { H.lift = 0; armWalkSlam(H.x, H.y, ws); } shake(3); }
     if (t >= 1.25 && !W.roared) { W.roared = true; B.roar = 1; obSay('CONFIG: WALKER'); for (let i = 0; i < 3; i++) ring(B.x, B.y, 2, 16 + i * 14, 0.4 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3); gridImpulse(B.x, B.y, Math.max(AW, AH), 300); shake(4); sfx.obRoar(B.x); }
-    if (t >= 1.85) { W.st = 'walk'; B.roar = 0; W.fm = null; W.det = null; }
+    if (t >= 1.85) { W.st = 'walk'; B.roar = 0; W.fm = null; W.det = null; obResume(); }
   }
   function armLinkDaze(B, W, dt) { // during the swarm: its head lies where it landed, twitching, sparking, its eye flickering
     const F = W.fm; if (!F || F.st !== 'daze') return; F.t = 0; F.sq = Math.max(0, F.sq - dt * 5);
@@ -6415,7 +6415,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const a0 = LEG_DOCK + LEG_STAND; Lg.emit.forEach((E, k) => { const at = a0 + Math.abs(k - 3) * 0.1; if (!E.lit && t >= at + 0.12) { E.lit = true; const [ex, ey] = legEmit(B, k); ring(ex, ey, 0.5, 5, 0.2, COL.chalk, 0.8); burst(ex, ey, 5, heat(MAX_CHARGE * 0.75), 20, 0.3, 0.2); sfx.clank(); } }); // its lenses opening, the middle first
       if (t >= a0 + LEG_ARRAY && !Lg.roared) { Lg.roared = true; Lg.eye = 1; B.roar = 1; for (let i = 0; i < 3; i++) ring(B.x, B.y, 2, 16 + i * 14, 0.4 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3); gridImpulse(B.x, B.y, Math.max(AW, AH), 300); shake(4); sfx.obRoar(B.x); } // up, armed: it roars
       if (Lg.roared) { B.roar = Math.max(0, B.roar - dt * 1.4); B.y = Lg.ty - Math.sin(Math.PI * clamp((t - a0 - LEG_ARRAY) / (LEG_FORM - a0 - LEG_ARRAY), 0, 1)) * 4 * ws; }
-      if (t >= LEG_FORM) { Lg.st = 'walk'; B.roar = 0; B.y = Lg.ty; }
+      if (t >= LEG_FORM) { Lg.st = 'walk'; B.roar = 0; B.y = Lg.ty; obResume(); }
       return;
     }
     if (Lg.scorch) { for (const q of Lg.scorch) q.t += dt; Lg.scorch = Lg.scorch.filter(q => q.t < 2.6); } // its scorch lines fading
@@ -6534,11 +6534,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Its system log: terse machine readout typed out beside its head as it pulls itself back together (each line in step
   // with what you're watching), fading after a while. obSay(text, delay, key): a line with a key updates in place.
   const OBLOG_LIFE = 5, OBLOG_CPS = 40, OBLOG_MAX = 5;
-  function obSay(text, delay = 0, key = null) {
+  function obSay(text, delay = 0, key = null, hot = false) {
     const L = G.obLog || (G.obLog = { lines: [], x: null, y: null });
     if (key) { const q = L.lines.find(l => l.key === key); if (q) { q.text = text; q.age = Math.max(q.age, text.length / OBLOG_CPS); return; } } // (a counter ticking over: no retyping)
-    L.lines.push({ text, age: -delay, key }); while (L.lines.length > OBLOG_MAX) L.lines.shift();
+    L.lines.push({ text, age: -delay, key, hot }); while (L.lines.length > OBLOG_MAX) L.lines.shift();
   }
+  const obResume = (delay = 0) => obSay('RESUMING OPERATIONS', delay, null, true); // each rebuild's last line, in its threat colour: it's coming for you again
   function updateObLog(dt) {
     const L = G.obLog; if (!L) return;
     for (const l of L.lines) { const was = l.age; l.age += dt; if (was < 0 && l.age >= 0 && G.time - (L.snd || 0) > 0.08) { L.snd = G.time; sfx.blink(); } } // (a blip as each line starts)
@@ -6557,7 +6558,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const glitch = l.text.includes('█') || (l.key === 'reboot'), str = (typing ? l.text.slice(0, n) : l.text) + (typing || (row === L.lines.filter(q => q.age >= 0).length - 1 && Math.floor(G.time * 3) % 2) ? '█' : '');
       const x = L.x, y = L.y + row * lh;
       ctx.globalAlpha = a; ctx.strokeStyle = COL.ink; ctx.lineWidth = sz * 0.35; ctx.strokeText('>', x, y); ctx.fillStyle = COL.threat; ctx.fillText('>', x, y);
-      const bx = x + sz * 0.9; ctx.strokeText(str, bx, y); ctx.fillStyle = glitch && Math.random() < 0.15 ? COL.threat : COL.chalk; ctx.fillText(str, bx, y);
+      const bx = x + sz * 0.9; ctx.strokeText(str, bx, y); ctx.fillStyle = l.hot || (glitch && Math.random() < 0.15) ? COL.threat : COL.chalk; ctx.fillText(str, bx, y);
       row++;
     }
     ctx.restore(); ctx.globalAlpha = 1;
