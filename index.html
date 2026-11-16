@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 22:05 UTC · 855c954";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 23:05 UTC · 61b5590";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1873,7 +1873,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // multiplier), set per boss so a fight pays about as well as the waves round it (Clanktank's and Gorp's fights have
   // little to chain, so their damage pays more); and the kill pays a jackpot that grows through the loop, the finale's
   // a million plus a share by your multiplier (so a hit just before he falls doesn't wipe it out). × the loop.
-  const BOSS_DMG_PTS = { core: 50, tank: 200, serpent: 50, maw: 50, geode: 200, hive: 50, mech: 100 };
+  const BOSS_DMG_PTS = { core: 50, tank: 200, serpent: 50, maw: 50, geode: 200, hive: 17, mech: 100 };
+  // Vexa's fight is all chains (walls of bees, her cages, her honeycomb), so everything in it pays HIVE_PAY of the usual (playtested: 2.3M in 2:17, more a minute than the finale)
+  const HIVE_PAY = 1 / 3, hivePay = () => (G.boss && G.boss.kind === 'hive' ? HIVE_PAY : 1);
   const BOSS_BONUS = { core: 25000, tank: 150000, serpent: 250000, maw: 350000, geode: 500000, hive: 650000, mech: 1000000 }, FINALE_MULT_PTS = 50000; // (playtested: a kill's a payday, more than the waves round it; and it grows through the loop)
   const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [4.5, 3.8, 3], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
   const HIVE_LULL = 0.6, COMB_LULL = 1; // during the dig, once you've cleared every bee (or every chunk of honeycomb), the next comes this soon
@@ -2560,14 +2562,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function hiveCellHit(B, c, dmg, b) {
     c.hp -= dmg; c.flash = 0.15; B.flash = 0.06;
-    if (c.hp > 0) { G.score += Math.round(15 * (1 + b) * G.mult); sfx.clank(); return; }
-    c.hp = 0; G.score += Math.round(40 * (1 + b) * G.mult);
+    if (c.hp > 0) { G.score += Math.round(15 * (1 + b) * G.mult * HIVE_PAY); sfx.clank(); return; }
+    c.hp = 0; G.score += Math.round(40 * (1 + b) * G.mult * HIVE_PAY);
     burst(c.x, c.y, 12, GOLD(), 35, 0.6, 0.4); ring(c.x, c.y, 1, HIVE_CELL + 2, 0.25, GOLD(), 0.6); gridImpulse(c.x, c.y, 10, 40); sfx.brick(b); shake(0.4);
     if (c.d === 0) crackHive(B);
   }
   // The royal cell is broken: the comb crumbles away and the queen comes out (untouchable while she emerges).
   function crackHive(B) {
-    for (const c of B.cells) if (c.hp > 0) { burst(c.x, c.y, 6, GOLD(), 40, 0.7, 0.5); G.score += Math.round(20 * G.mult); c.hp = 0; }
+    for (const c of B.cells) if (c.hp > 0) { burst(c.x, c.y, 6, GOLD(), 40, 0.7, 0.5); G.score += Math.round(20 * G.mult * HIVE_PAY); c.hp = 0; }
     Object.assign(B, { st: 'emerge', modeT: QUEEN_EMERGE, x: B.cx, y: B.cy, flash: 0.3, combT: VEXA_COMB[0], taken: 0, mode: 'hang', formT: 3, stingT: 2.4, forms: [], swoop: null, swoopT: 9 }); // her first bee wall soon after she's settled in
     B.outs = (B.outs || 0) + 1;
     for (const e of G.enemies) e.mend = null;
@@ -2664,7 +2666,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (const c of C.cells) {
         if (c.hp <= 0) continue;
         if (C.t < c.pop) { left = true; continue; }
-        c.hp = 0; burst(c.x, c.y, 8, GOLD(), 30, 0.5, 0.35); G.score += Math.round(20 * G.mult);
+        c.hp = 0; burst(c.x, c.y, 8, GOLD(), 30, 0.5, 0.35); G.score += Math.round(20 * G.mult * HIVE_PAY);
         if ((C.n = (C.n || 0) + 1) % 3 === 1) sfx.brick(4);
       }
       if (!left) B.cage = null;
@@ -2713,7 +2715,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const nx = dx / d, ny = dy / d; o.x = c.x + nx * (CAGE_CELL + r + 0.05); o.y = c.y + ny * (CAGE_CELL + r + 0.05);
       const dot = o.vx * nx + o.vy * ny; if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
       c.hp -= b >= 8 ? 2 : 1; c.flash = 0.15;
-      if (c.hp <= 0) { burst(c.x, c.y, 12, GOLD(), 35, 0.6, 0.4); ring(c.x, c.y, 1, CAGE_CELL + 3, 0.25, GOLD(), 0.6); G.score += Math.round(40 * (1 + b) * G.mult); chainCredit(o, c.x, c.y, b); sfx.brick(b); shake(0.4); }
+      if (c.hp <= 0) { burst(c.x, c.y, 12, GOLD(), 35, 0.6, 0.4); ring(c.x, c.y, 1, CAGE_CELL + 3, 0.25, GOLD(), 0.6); G.score += Math.round(40 * (1 + b) * G.mult * HIVE_PAY); chainCredit(o, c.x, c.y, b); sfx.brick(b); shake(0.4); }
       else sfx.clank();
       return true;
     }
@@ -9944,21 +9946,21 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const bombGround = () => AH - BOMB_GROUND;
   function setupBomb(cycle) {
     const y = bombGround();
-    G.bomb = { salvo: 0, t: 0, plan: [], breath: 0.6, cycle, blasts: [], craters: [], done: false, bomber: false,
+    G.bomb = { salvo: 0, t: 0, plan: [], breath: 0.6, cycle, k: tbK(G.wave), blasts: [], craters: [], done: false, bomber: false,
       bases: Array.from({ length: BOMB_BASES }, (_, i) => ({ x: AW * (i + 0.5) / BOMB_BASES, y, alive: true, hp: BOMB_BASE_HP, flash: 0 })) };
     const p = G.player; p.x = AW / 2; p.y = y - 30;
   }
   // a missile: from (x, y) toward the ground at tx; its trail runs back to where it set out
   function bombLaunch(x, y, tx, split) {
-    const B = G.bomb, gy = bombGround(), v = BOMB_V[Math.min(B.salvo, BOMB_SALVOS) - 1] * (1 + 0.15 * B.cycle), a = Math.atan2(gy - y, tx - x), e = makeEnemy('missile', x, y);
+    const B = G.bomb, gy = bombGround(), v = BOMB_V[Math.min(B.salvo, BOMB_SALVOS) - 1] * (1 + 0.15 * B.cycle + 0.2 * (B.k || 0)), a = Math.atan2(gy - y, tx - x), e = makeEnemy('missile', x, y);
     Object.assign(e, { hp: 1, maxHp: 1, spawnT: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v, mis: { x0: x, y0: y, split, splitY: rand(AH * 0.28, AH * 0.48) } });
     G.enemies.push(e);
   }
   const bombTarget = () => { const live = G.bomb.bases.filter(b => b.alive); return live.length && Math.random() < 0.75 ? live[Math.floor(Math.random() * live.length)].x + rand(-2, 2) : rand(6, AW - 6); };
   function bombSalvo() { // the next salvo's plan: when each missile sets out, and which split
-    const B = G.bomb, k = B.salvo - 1, n = BOMB_N[k] + B.cycle * 3, plan = [];
+    const B = G.bomb, k = B.salvo - 1, n = BOMB_N[k] + B.cycle * 3 + Math.round(6 * (B.k || 0)), plan = []; // (late: six more a salvo)
     for (let left = n; left > 0;) { const g = Math.min(left, Math.max(1, Math.round(BOMB_GROUP[k] + rand(-0.6, 0.6)))); plan.push({ t: rand(0, BOMB_SPAN[k]), n: g, split: false }); left -= g; } // in groups, from one launch point each
-    plan.sort((a, b) => a.t - b.t); for (let s = Math.min(plan.length, BOMB_SPLIT[k] + (k ? B.cycle : 0)); s > 0;) { const q = plan[Math.floor(Math.random() * plan.length)]; if (!q.split) { q.split = true; s--; } }
+    plan.sort((a, b) => a.t - b.t); for (let s = Math.min(plan.length, BOMB_SPLIT[k] + (k ? B.cycle : 0) + Math.round(2 * (B.k || 0))); s > 0;) { const q = plan[Math.floor(Math.random() * plan.length)]; if (!q.split) { q.split = true; s--; } }
     B.plan = plan; B.t = 0; B.bomber = k >= 1;
   }
   // an interception blast: it grows, holds, and takes every missile it touches with it
@@ -9983,7 +9985,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     while (B.plan.length && B.plan[0].t <= B.t) { const q = B.plan.shift(), x = rand(8, AW - 8); for (let i = 0; i < q.n; i++) bombLaunch(x + rand(-1, 1), -2 - i * 1.2, bombTarget(), q.split && i === 0); sfx.launch(x); } // a group: one launch point, fanning out
     if (B.bomber && B.t >= 2.5) { // the bomber: across the top, dropping more
       B.bomber = false; const side = Math.random() < 0.5, e = makeEnemy('bomber', side ? -10 : AW + 10, 15);
-      Object.assign(e, { hp: BOMBER_HP + B.cycle, maxHp: BOMBER_HP + B.cycle, spawnT: 0, vx: (side ? 1 : -1) * BOMBER_V, vy: 0, bomber: { dropT: 1 } }); G.enemies.push(e); sfx.boss();
+      Object.assign(e, { hp: BOMBER_HP + B.cycle + Math.round(2 * (B.k || 0)), maxHp: BOMBER_HP + B.cycle + Math.round(2 * (B.k || 0)), spawnT: 0, vx: (side ? 1 : -1) * BOMBER_V, vy: 0, bomber: { dropT: 1 } }); G.enemies.push(e); sfx.boss();
     }
     // salvo over: the next, or the tally
     const left = G.enemies.some(e => (e.mis || e.bomber) && !e.gone);
@@ -10086,9 +10088,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const toGrid = (v, d) => d > 0 ? (Math.floor(v / RD_GRID + 1e-6) + 1) * RD_GRID - v : v - (Math.ceil(v / RD_GRID - 1e-6) - 1) * RD_GRID; // to the next grid line ahead
   const riderSegs = e => { const T = e.rider.tr, out = []; for (let i = 0; i < T.length; i++) out.push([T[i], i + 1 < T.length ? T[i + 1] : [e.x, e.y]]); return out; }; // tail to head
   function setupRiders(cycle) {
-    G.riders = { cycle, n: RD_N + 2 * cycle, sent: 0, t: 0.8, ship: [], ghosts: [], live: [], done: false };
+    const k = tbK(G.wave);
+    G.riders = { cycle, k, n: RD_N + 2 * cycle + Math.round(12 * k), live0: RD_LIVE + Math.round(3 * k), sent: 0, t: 0.8, ship: [], ghosts: [], live: [], done: false }; // (late: 30 riders, 8 at once)
     const p = G.player; p.x = AW / 2; p.y = AH * 0.62;
   }
+  // How late in the loop a throwback lands (they come between waves 15 and 56): 0 at 15 (and in the tests, earlier), 1 at 56.
+  // Each grows with it, so a late one meets you and your wingmen with more: more of them, more at once, a little faster.
+  const tbK = n => clamp((inLoop(n) - 15) / 41, 0, 1);
   function tbClear(text, cycle, part = 1) { G.tbBonus = Math.round(TB_CLEAR * G.wave * (1 + cycle) * part); } // (part: Bombardment's, by the bases you saved) // a throwback done: its share of points goes into the usual "Wave clear" (it's a wave like any other)
   function finishRiders() { if (G.riders) { for (const e of G.enemies) if (e.rider) e.gone = true; G.riders = null; } }
   // what's at (x, y): the edge, a rider's trail (not a rider's own newest two stretches), or your trail
@@ -10111,7 +10117,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     if (!best) return;
     const [x, y, dx, dy] = best.c, e = makeEnemy('rider', x, y);
-    e.hp = e.maxHp = RD_HP + R.cycle;
+    e.hp = e.maxHp = RD_HP + R.cycle + (R.k >= 0.5 ? 1 : 0);
     Object.assign(e, { rider: { dx, dy, tr: [[x, y]] }, spawnT: 0.3 });
     G.enemies.push(e); R.sent++; R.live.push(e);
     burst(x, y, 12, COL.threat, 30, 0.6, 0.35); ring(x, y, 1, 7, 0.3, COL.threat, 0.8); sfx.blink();
@@ -10130,7 +10136,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function updateRider(e, dt) {
     const D = e.rider; e.vx = e.vy = 0; // (on rails: a hit doesn't knock it about)
-    let left = RD_V * (1 + 0.12 * G.riders.cycle) * dt;
+    let left = RD_V * (1 + 0.12 * G.riders.cycle + 0.15 * (G.riders.k || 0)) * dt;
     for (let g = 0; g < 8 && left > 0; g++) {
       const dist = D.dx ? toGrid(e.x, D.dx) : toGrid(e.y, D.dy);
       if (dist > left) { e.x += D.dx * left; e.y += D.dy * left; break; }
@@ -10163,7 +10169,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let i = R.live.length - 1; i >= 0; i--) { const e = R.live[i]; if (!G.enemies.includes(e)) { R.ghosts.push({ segs: riderSegs(e), t: 0 }); R.live.splice(i, 1); } } // one down: its trail fades
     for (let i = R.ghosts.length - 1; i >= 0; i--) if ((R.ghosts[i].t += dt) > 0.6) R.ghosts.splice(i, 1);
     if (p.inv <= 0 && G.dying <= 0) for (const e of G.enemies) if (e.rider && riderSegs(e).some(([a, b]) => segDist(p.x, p.y, a[0], a[1], b[0], b[1]) < PLAYER_R * 0.8 + RD_W)) { damagePlayer(); break; } // touching a trail
-    if (R.sent < R.n && R.live.length < RD_LIVE) { R.t -= dt; if (R.t <= 0) { riderLaunch(); R.t = 1.0; } }
+    if (R.sent < R.n && R.live.length < (R.live0 || RD_LIVE)) { R.t -= dt; if (R.t <= 0) { riderLaunch(); R.t = 1.0 - 0.3 * (R.k || 0); } }
     if (R.sent >= R.n && !R.live.length && !R.done) { R.done = true; tbClear('All riders down', R.cycle); }
   }
   function riderBounce(ball, r) { // off a rider's trail, like off any wall
@@ -10234,7 +10240,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if ((c === den[0] && r === den[1]) || (c === home[0] && r === home[1])) continue;
       dots.push({ x: (c + 0.5) * cw, y: (r + 0.5) * ch, on: true, a: Math.random() * Math.PI });
     }
-    G.maze = { cycle, cols, rows, cw, ch, open, den, dots, dotsN: dots.length, n: MZ_HUNT + cycle, sent: 0, t: 1.2, dist: null, distT: 0, done: false, streak: 0, streakT: 0 };
+    const k = tbK(G.wave);
+    G.maze = { cycle, k, cols, rows, cw, ch, open, den, dots, dotsN: dots.length, n: MZ_HUNT + cycle + Math.round(10 * k), live0: MZ_LIVE + Math.round(3 * k), sent: 0, t: 1.2, dist: null, distT: 0, done: false, streak: 0, streakT: 0 };
     const p = G.player; p.x = (home[0] + 0.5) * cw; p.y = (home[1] + 0.5) * ch;
   }
   function mazeBlocked(x0, y0, x1, y1) { // a maze wall between two points (a blast doesn't go through them)
@@ -10253,14 +10260,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function mazeLaunch() {
     const M = G.maze, [c, r] = M.den, e = makeEnemy('hunter', (c + 0.5) * M.cw, (r + 0.5) * M.ch);
-    e.hp = e.maxHp = MZ_HP + M.cycle;
+    e.hp = e.maxHp = MZ_HP + M.cycle + Math.round(2 * (M.k || 0));
     Object.assign(e, { hunter: { c, r, tc: c, tr: r, k: Math.floor(Math.random() * 4), hue: M.sent % 4 }, spawnT: 0.4 });
     G.enemies.push(e); M.sent++;
     ring(e.x, e.y, 1, 9, 0.35, COL.threat, 0.9); burst(e.x, e.y, 10, COL.threat, 25, 0.6, 0.35); sfx.advance();
   }
   function updateHunter(e, dt) {
     const M = G.maze, H = e.hunter, D = [[1, 0], [0, 1], [-1, 0], [0, -1]]; e.vx = e.vy = 0;
-    const tx = (H.tc + 0.5) * M.cw, ty = (H.tr + 0.5) * M.ch, dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy), v = MZ_V * (1 + 0.12 * M.cycle) * dt;
+    const tx = (H.tc + 0.5) * M.cw, ty = (H.tr + 0.5) * M.ch, dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy), v = MZ_V * (1 + 0.12 * M.cycle + 0.2 * (M.k || 0)) * dt;
     if (d > v) { e.x += dx / d * v; e.y += dy / d * v; return; }
     e.x = tx; e.y = ty; H.c = H.tc; H.r = H.tr; // at a cell's middle: which way next
     const cell = H.r * M.cols + H.c, ways = [0, 1, 2, 3].filter(k => M.open[cell][k] && k !== (H.k + 2) % 4), all = ways.length ? ways : [(H.k + 2) % 4]; // (not back the way it came, unless it must)
@@ -10280,7 +10287,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       burst(d.x, d.y, 6, GOLD(), 24, 0.5, 0.3); burst(d.x, d.y, 3, COL.chalk, 18, 0.4, 0.25); sfx.crystal(Math.min(MAX_CHARGE, M.streak));
       if (!M.dots.some(q => q.on)) { const jp = MZ_JACK * (1 + M.cycle); G.score += jp; float(AW / 2, AH / 2, `Every crystal! +${(jp * scoreK(G.wave)).toLocaleString()}`, GOLD(), 4); sfx.repair(); }
     }
-    if (M.sent < M.n && G.enemies.reduce((k, e) => k + (e.hunter ? 1 : 0), 0) < MZ_LIVE) { M.t -= dt; if (M.t <= 0) { mazeLaunch(); M.t = 1.6; } } // (a few at a time, out of the den)
+    if (M.sent < M.n && G.enemies.reduce((k, e) => k + (e.hunter ? 1 : 0), 0) < (M.live0 || MZ_LIVE)) { M.t -= dt; if (M.t <= 0) { mazeLaunch(); M.t = 1.6 - 0.6 * (M.k || 0); } } // (a few at a time, out of the den)
     if (M.sent >= M.n && !G.enemies.some(e => e.hunter) && !M.done) { M.done = true; tbClear('Maze cleared', M.cycle); }
   }
   function drawMaze() {
@@ -10705,7 +10712,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
             m.seed = a; if (t.type === 'bees') m.bee = true; G.enemies.push(m);
           }
         } else if (t.type === 'rock') {
-          G.enemies.push(makeRock(3, t.x, t.y, Math.atan2(AH / 2 - t.y, AW / 2 - t.x) + rand(-0.6, 0.6), rand(7, 11)));
+          G.enemies.push(makeRock(3, t.x, t.y, Math.atan2(AH / 2 - t.y, AW / 2 - t.x) + rand(-0.6, 0.6), rand(7, 11) * (1 + 0.4 * tbK(G.wave)))); // (late in the loop, faster: their splits are faster still)
         } else {
           const e = makeEnemy(t.type === 'tankette' ? 'drifter' : t.type, t.x, t.y);
           if (t.type === 'tankette') { const d = ENEMY.tankette, hp = d.hp; /* its armour doesn't scale: it's hits, not damage */ Object.assign(e, { tankette: true, r: d.r, hp, maxHp: hp, pts: d.pts, spd: e.spd * d.spd / ENEMY.drifter.spd }); }
@@ -11104,7 +11111,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         kill(j, chargeOverride, depth, src); }
       G.crewChain = false; sfx.blink();
     }
-    const pts = Math.round(e.pts * (1 + b) * G.mult);
+    const pts = Math.round(e.pts * (1 + b) * G.mult * hivePay());
     G.score += pts;
     float(e.x, e.y - e.r - 1, `${pts * scoreK(G.wave)}`, heat(b), 2.4 + Math.min(b, MAX_CHARGE) * 0.08);
     const chain = chainCredit(src, e.x, e.y, b, chargeOverride === undefined);
