@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 20:18 UTC · 86232d7";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 20:25 UTC · a1d3340";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5004,7 +5004,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
   const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.4, MECH_FLY_UP = 1.0, MECH_FLY_DOWN = 1.9, MECH_FLY_DROP = 0.5;
   const MECH_CANNON_HP = 6, MECH_CANNON_CHARGE = 0.7, MECH_CANNON_LOCK = 0.22, MECH_CANNON_GAP = 0.38, MECH_CANNON_REST = 1.1, MECH_CANNON_V = 44; // his battery, while he's up: wall cannons firing in a ripple
-  const MECH_RUNS = 6, MECH_RUN_GAP = 1.5, MECH_RUN_WARN = 1.3, MECH_RUN_V = 100, MECH_RUN_HALF = 11, MECH_BOMB_FALL = 0.5, MECH_BOMB_R = 7, MECH_BOMB_GAP = 6, MECH_LAND_R = 24; // (a carpet: three rows down its lane, MECH_BOMB_GAP apart)
+  const MECH_RUNS = 6, MECH_RUN_GAP = 0.95, MECH_RUN_WARN = 1.3, MECH_RUN_V = 100, MECH_RUN_HALF = 11, MECH_BOMB_FALL = 0.5, MECH_BOMB_R = 7, MECH_BOMB_GAP = 6, MECH_LAND_R = 24; // (a carpet: three rows down its lane, MECH_BOMB_GAP apart)
   const MECH_RUN_REACH = MECH_RUN_HALF * 0.45 + MECH_BOMB_R + PLAYER_R * 0.5; // how far either side of a run's line its bombs reach you: its lane, shadowed, and its shadow, are exactly this wide
   const mechS = () => clamp(Math.min(AW / 120, AH / 200), 0.8, 1.5); // its size: it all but spans a portrait arena
   // Its parts, in its own units (x across, y down from the middle of its chest), standing.
