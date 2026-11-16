@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 16:42 UTC · fe701bb";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 16:48 UTC · d5ac1da";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5479,7 +5479,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let i = 0; S.pcs.length < STORM_N; i++) { const [ax, ay] = anchors[i % anchors.length]; S.pcs.push(scrapPiece(ax + rand(-5, 5) * B.s, ay + rand(-5, 5) * B.s)); }
     for (const q of S.pcs) { q.sp = 1.4 - 0.6 * q.ra; q.delay = Math.hypot(q.x - cx, q.y - cy) * 0.006 + rand(0, 0.25); burst(q.x, q.y, 3, heat(MAX_CHARGE * 0.75), 25, 0.5, 0.35); }
     B.beam = null; B.sweep = null; B.lance = null; B.pulses = []; B.pulseWarn = null; B.throws = []; B.crawl = null; B.plate = null; G.banner = null; // (not "It's down!": it's the storm now)
-    G.screenFlash = Math.max(G.screenFlash || 0, 0.5); G.slowT = Math.max(G.slowT, 0.6); shake(5); gridImpulse(cx, cy, Math.max(AW, AH), 300); sfx.obBlast(cx); sfx.shatter(); sfx.magnet();
+    G.screenFlash = Math.max(G.screenFlash || 0, 0.5); G.slowT = Math.max(G.slowT, 0.6); shake(5); gridImpulse(cx, cy, Math.max(AW, AH), 300); sfx.obBlast(cx); sfx.shatter(); sfx.magnet(); obSay('CHASSIS LOST'); obSay('MAGNET: MAXIMUM', 0.6);
   }
   // What the storm is made of right now, for the ball, your ship and blasts: [x, y, r, 'core', hurts, piece]: the
   // reactor and every piece (all of it hurts to touch); nothing while it's still forming (but the reactor).
@@ -5589,7 +5589,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!B.melt && frac <= MECH_MELT) { B.melt = true; shake(6); G.screenFlash = Math.max(G.screenFlash || 0, 0.4); sfx.obRoar(S.x); sfx.alarm(); G.banner = { text: 'Meltdown!', sub: 'Finish it before it blows', t: 1.8, max: 1.8, at: 0.45 }; }
     if (B.melt) { B.alarmT = (B.alarmT || 0) - dt; if (B.alarmT <= 0) { B.alarmT = 1.4; sfx.alarm(); } }
     S.R = 15 + 13 * frac; // it shrinks as the reactor drains
-    if (S.st === 'form') { const k = ease(clamp(S.t / (STORM_FORM * 0.85), 0, 1)); S.x = S.x0 + (S.tx - S.x0) * k; S.y = S.y0 + (S.ty - S.y0) * k; if (S.t >= STORM_FORM) S.st = 'storm'; }
+    if (S.st === 'form') { const k = ease(clamp(S.t / (STORM_FORM * 0.85), 0, 1)); S.x = S.x0 + (S.tx - S.x0) * k; S.y = S.y0 + (S.ty - S.y0) * k; if (S.t >= STORM_FORM) { S.st = 'storm'; obSay('CONFIG: STORM', 0.4); } }
     else if (S.belt) { /* the belt: still as it forms or while it's stunned, else dragging it after you (updateBelt) */ }
     else { // drifting round the upper arena
       S.wT -= dt; if (S.wT <= 0 || Math.hypot(S.tx - S.x, S.ty - S.y) < 4) { S.wT = rand(3, 5); S.tx = rand(AW * 0.25, AW * 0.75); S.ty = rand(AH * 0.2, AH * 0.42); }
@@ -5598,7 +5598,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // the pieces: gathering in, whirling, flung
     for (let i = S.pcs.length - 1; i >= 0; i--) {
       const q = S.pcs[i]; q.rot += q.va * dt * (q.m === 'orbit' ? S.spin : 1); q.flash -= dt;
-      if (q.m === 'gather') { if ((q.delay -= dt) > 0) continue; q.a += q.sp * S.spin * dt; const [ox, oy] = scrapOrbit(S, q), k = Math.min(1, dt * 5); q.x += (ox - q.x) * k; q.y += (oy - q.y) * k; if ((q.g = (q.g || 0) + dt) > 0.9) { q.m = 'orbit'; q.lock = 0.25; ring(q.x, q.y, 0.5, q.r + 3, 0.2, COL.chalk, 0.7); if (G.time - (S.lockSnd || 0) > 0.06) { S.lockSnd = G.time; sfx.clank(); } } } // it locks on: a clank, a ring // flying in to its place in the whirl (which moves), then whirling
+      if (q.m === 'gather') { if ((q.delay -= dt) > 0) continue; q.a += q.sp * S.spin * dt; const [ox, oy] = scrapOrbit(S, q), k = Math.min(1, dt * 5); q.x += (ox - q.x) * k; q.y += (oy - q.y) * k; if ((q.g = (q.g || 0) + dt) > 0.9) { q.m = 'orbit'; q.lock = 0.25; S.got = (S.got || 0) + 1; obSay(`SCRAP ${S.got}/${S.pcs.length}`, 0, 'scrap'); ring(q.x, q.y, 0.5, q.r + 3, 0.2, COL.chalk, 0.7); if (G.time - (S.lockSnd || 0) > 0.06) { S.lockSnd = G.time; sfx.clank(); } } } // it locks on: a clank, a ring // flying in to its place in the whirl (which moves), then whirling
       else if (q.m === 'belt') { // out to its place in the belt (once its way there's clear of you), then round with it
         if (!S.belt) { q.m = 'orbit'; continue; }
         const [tx, ty] = beltAt(S, q);
@@ -5713,7 +5713,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       arms: [0, 1].map(() => ({ hp: ARM_HP / 2, max: ARM_HP / 2, plates: Array(ARM_PLATES).fill(true), lost: false, flash: 0 })) };
     for (const sd of [-1, 1]) { const [x, y] = mechAt(B, sd * 42, 13); W.hands.push({ x, y, x0: x, y0: y, tx: clamp(hx + sd * 24 * ws, 6, AW - 6), ty: clamp(hy + 30 * ws + 8, 10, AH - 4), lift: 0 }); }
     B.x = hx; B.y = hy; B.walk = null; B.beam = null; B.sweep = null; B.lance = null; B.pulses = []; B.pulseWarn = null; B.throws = []; B.crawl = null; B.plate = null; G.banner = null;
-    shake(2); sfx.obSurge(B.x); // (the rest when it rips free: updateArmWalk)
+    shake(2); sfx.obSurge(B.x); obSay('HULL INTEGRITY 0%'); // (the rest when it rips free: updateArmWalk)
   }
   const armWalkShoulder = (B, i) => { const ws = B.s * WALK_S, D = B.walker && B.walker.det && B.walker.det[i]; return D ? [D.x, D.y] : [B.x + (i ? 1 : -1) * 11 * ws, B.y + 6 * ws]; }; // (a loose arm: where it lies)
   // An arm in the world: shoulder, elbow (bent up, like a spider's knee), hand. A lifted hand rides higher; a sweeping
@@ -5955,13 +5955,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const i = F.i, D = W.det[i], t = F.t, fire = heat(MAX_CHARGE * 0.75), H = W.hands[i], ws = B.s * WALK_S;
     { const pull = clamp((t - PLUG.cable) / (PLUG.clamp - PLUG.cable), 0, 1), e = pull * pull * (3 - 2 * pull), [dx, dy] = armSocketHead(B, i); B.x = dx - (i ? 1 : -1) * ARM_GAP * ws * (1 - e); B.y = dy; } // the cable drawing its head in
     F.link = { i, x: D.x, y: D.y, cable: clamp(t / PLUG.cable, 0, 1), clamp: clamp((t - PLUG.cable) / (PLUG.clamp - PLUG.cable), 0, 1), bolts: clamp((t - PLUG.clamp) / (PLUG.bolts - PLUG.clamp), 0, 1), power: clamp((t - PLUG.bolts) / (PLUG.power - PLUG.bolts), 0, 1) };
-    if (!F.e1 && t >= PLUG.cable) { F.e1 = true; burst(D.x, D.y, 10, COL.chalk, 35, 0.4, 0.3); sfx.clank(); } // plugged in
-    if (!F.e2 && t >= PLUG.clamp) { F.e2 = true; burst(D.x, D.y, 14, fire, 40, 0.5, 0.35); shake(1); sfx.clank(); sfx.hiss(); } // clamped
-    for (let k = 0; k < 3; k++) { const at = PLUG.clamp + (k + 1) / 3 * (PLUG.bolts - PLUG.clamp); if (!(F.eb & (1 << k)) && t >= at) { F.eb = (F.eb || 0) | (1 << k); const a = k * 2.09 + 0.5; burst(D.x + Math.cos(a) * 3.4 * B.s, D.y + Math.sin(a) * 3.4 * B.s, 5, COL.chalk, 25, 0.3, 0.2); sfx.brick(6 + k * 2); } } // each bolt home
+    if (!F.e1 && t >= PLUG.cable) { F.e1 = true; burst(D.x, D.y, 10, COL.chalk, 35, 0.4, 0.3); sfx.clank(); obSay('UPLINK... OK'); } // plugged in
+    if (!F.e2 && t >= PLUG.clamp) { F.e2 = true; burst(D.x, D.y, 14, fire, 40, 0.5, 0.35); shake(1); sfx.clank(); sfx.hiss(); obSay('CLAMPS LOCKED'); } // clamped
+    for (let k = 0; k < 3; k++) { const at = PLUG.clamp + (k + 1) / 3 * (PLUG.bolts - PLUG.clamp); if (!(F.eb & (1 << k)) && t >= at) { F.eb = (F.eb || 0) | (1 << k); const a = k * 2.09 + 0.5; burst(D.x + Math.cos(a) * 3.4 * B.s, D.y + Math.sin(a) * 3.4 * B.s, 5, COL.chalk, 25, 0.3, 0.2); sfx.brick(6 + k * 2); obSay(`TORQUE ${k + 1}/3`, 0, 'tq' + i); } } // each bolt home
     if (!F.e4 && t >= PLUG.bolts) { F.e4 = true; sfx.obServo(0.45, D.x); }
     if (t >= PLUG.bolts) H.lift = 0.35 * Math.sin(Math.PI * F.link.power) * (0.6 + 0.4 * Math.sin(t * 40)); // its hand twitching as the power reaches it
     if (t < PLUG.power) return false;
-    W.det[i] = null; F.link = null; F.e1 = F.e2 = F.e4 = false; F.eb = 0; H.lift = 0; // it's on
+    W.det[i] = null; F.link = null; F.e1 = F.e2 = F.e4 = false; F.eb = 0; H.lift = 0; obSay(`ARM ${i ? 'R' : 'L'} ONLINE`); // it's on
     const [sx, sy] = armWalkShoulder(B, i); ring(sx, sy, 1, 9, 0.3, COL.chalk, 0.8); burst(H.x, H.y, 8, fire, 30, 0.4, 0.3); shake(1.5); sfx.obImpact(1, sx);
     return true;
   }
@@ -5994,11 +5994,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const mx = (W.hands[0].x + W.hands[1].x) / 2, my = (W.hands[0].y + W.hands[1].y) / 2, ty = Math.max(AH * 0.1, my - 30 * ws), r = ease(clamp((t - 0.45) / 0.7, 0, 1)), bob = t >= 1.15 ? Math.sin(Math.PI * clamp((t - 1.15) / 0.6, 0, 1)) * 5 * ws : 0;
     B.x = F.x0 + (mx - F.x0) * r; B.y = F.y0 + (ty - F.y0) * r - bob;
     if (t >= 0.55 && !F.planted) { F.planted = true; for (const H of W.hands) { H.lift = 0; armWalkSlam(H.x, H.y, ws); } shake(3); }
-    if (t >= 1.25 && !W.roared) { W.roared = true; B.roar = 1; for (let i = 0; i < 3; i++) ring(B.x, B.y, 2, 16 + i * 14, 0.4 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3); gridImpulse(B.x, B.y, Math.max(AW, AH), 300); shake(4); sfx.obRoar(B.x); }
+    if (t >= 1.25 && !W.roared) { W.roared = true; B.roar = 1; obSay('CONFIG: WALKER'); for (let i = 0; i < 3; i++) ring(B.x, B.y, 2, 16 + i * 14, 0.4 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3); gridImpulse(B.x, B.y, Math.max(AW, AH), 300); shake(4); sfx.obRoar(B.x); }
     if (t >= 1.85) { W.st = 'walk'; B.roar = 0; W.fm = null; W.det = null; }
   }
   function armLinkDaze(B, W, dt) { // during the swarm: its head lies where it landed, twitching, sparking, its eye flickering
     const F = W.fm; if (!F || F.st !== 'daze') return; F.t = 0; F.sq = Math.max(0, F.sq - dt * 5);
+    if ((F.rb = (F.rb || 0) + dt) > 2.4) obSay('REBOOTING' + '.'.repeat(1 + Math.floor(G.time * 2) % 3), 0, 'reboot'); // (once the swarm's under way)
     B.x = F.hx + (Math.random() < 0.04 ? rand(-0.8, 0.8) : 0); B.y = F.hy; B.roar = Math.random() < 0.05 ? 0.4 : Math.max(0, (B.roar || 0) - dt * 2);
     if (Math.random() < dt * 4) burst(B.x + rand(-4, 4), B.y + rand(-3, 3), 2, Math.random() < 0.5 ? COL.chalk : heat(MAX_CHARGE * 0.75), 20, 0.3, 0.2);
   }
@@ -6022,17 +6023,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (!F.l3) { F.l3 = true; F.sq = 0.35; B.y = F.hy; }
       if (!B.swarmDone && !B.swarm) { swarmStart(B); F.st = 'daze'; F.t = 0; return; } // knocked senseless: its wreck spews the swarm (updateMech runs it)
       if (bt < b1 + b2 + 0.35) return; // a beat: it looks round for an arm
-      armHopTo(F, B, armSocketHead(B, F.first, ARM_GAP), ws); F.st = 'hop'; F.t = 0; return;
+      armHopTo(F, B, armSocketHead(B, F.first, ARM_GAP), ws); F.st = 'hop'; F.t = 0; obSay(`ARM ${F.first ? 'R' : 'L'} FOUND`); return;
     }
     if (F.st === 'daze') { // the swarm's over: it comes to (shakes itself, its eye relighting), looks round, and goes for an arm
       const k = clamp(F.t / 0.9, 0, 1); B.x = F.hx + Math.sin(F.t * 30) * 1.2 * (1 - k); B.roar = 0.5 * Math.sin(Math.PI * k);
-      if (!F.woke) { F.woke = true; sfx.obServo(0.6, B.x); burst(B.x, B.y, 12, heat(MAX_CHARGE * 0.75), 30, 0.5, 0.3); }
-      if (k >= 1) { B.x = F.hx; armHopTo(F, B, armSocketHead(B, F.first, ARM_GAP), ws); F.st = 'hop'; F.t = 0; }
+      if (!F.woke) { F.woke = true; obSay('REBOOT COMPLETE', 0, 'reboot'); obSay('SCANNING FOR LIMBS', 0.45); sfx.obServo(0.6, B.x); burst(B.x, B.y, 12, heat(MAX_CHARGE * 0.75), 30, 0.5, 0.3); }
+      if (k >= 1) { B.x = F.hx; armHopTo(F, B, armSocketHead(B, F.first, ARM_GAP), ws); F.st = 'hop'; F.t = 0; obSay(`ARM ${F.first ? 'R' : 'L'} FOUND`); }
       return;
     }
     if (F.st === 'hop') { if (armHop(F, B, dt, ws, land)) { F.st = 'plug'; F.t = 0; F.i = F.first; } return; }
     if (F.st === 'plug') {
-      if (armPlug(B, W, F, dt)) { const j = 1 - F.i; if (W.det[j]) { F.st = 'drag'; F.t = 0; F.drag = { ph: 'reach', t: 0, n: 0 }; F.goal = armSocketHead(B, j, ARM_GAP); } else { F.st = 'rise'; F.t = 0; armRiseStart(B, W, ws); } }
+      if (armPlug(B, W, F, dt)) { const j = 1 - F.i; if (W.det[j]) { F.st = 'drag'; F.t = 0; F.drag = { ph: 'reach', t: 0, n: 0 }; F.goal = armSocketHead(B, j, ARM_GAP); obSay(`RETRIEVING ARM ${j ? 'R' : 'L'}`, 0.3); } else { F.st = 'rise'; F.t = 0; armRiseStart(B, W, ws); } }
       return;
     }
     if (F.st === 'drag') { if (armDrag(B, W, F, dt, ws, ease, land)) { F.st = 'plug'; F.t = 0; F.i = W.det[0] ? 0 : 1; } return; }
@@ -6105,6 +6106,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         return;
       }
       if (!W.ripped) { // it rips free: the cables snap, a flash
+        obSay('EJECTING CORE');
         W.ripped = true; W.strain = 0; W.fx = B.x; W.fy = B.y - 6 * ws; B.y = W.fy;
         burst(B.x, B.y + 5 * ws, 40, fire, 70, 0.7, 0.5); burst(B.x, B.y + 5 * ws, 20, COL.chalk, 60, 0.4, 0.3); for (let i = 0; i < 3; i++) ring(B.x, B.y, 2, 12 + i * 10, 0.35 + i * 0.1, i % 2 ? COL.chalk : COL.threat, 1.2);
         G.screenFlash = Math.max(G.screenFlash || 0, 0.4); G.slowT = Math.max(G.slowT, 0.3); shake(5); sfx.cableSnap(); sfx.shatter();
@@ -6192,7 +6194,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       emit: Array.from({ length: EMIT_N }, () => ({ hits: EMIT_HITS, flash: 0 })), next: 0, step: null,
       legs: [0, 1].map(() => ({ hp: LEG_HP / 2, max: LEG_HP / 2, pcs: [true, true, true, true], lost: false, flash: 0 })),
       feet: [-1, 1].map(sd => { const x = wx + sd * 28 * s, y = wy + 52 * s; return { x, y, x0: x, y0: y, lift: 0 }; }) }; // its legs, from where they knelt on the wreck
-    shake(2); sfx.obPain(B.x); // (armless, it sags; then it's flung back to the wreck: updateLegWalk)
+    shake(2); sfx.obPain(B.x); obSay('LOCOMOTION LOST'); // (armless, it sags; then it's flung back to the wreck: updateLegWalk)
   }
   // A leg in the world: hip, knee (a little out to the side), foot. A lost leg: its thigh, and the knee down on the floor.
   function legWalkLeg(B, i) {
@@ -6352,19 +6354,19 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (!F.l2) { F.l2 = true; F.sq = 0.6; land(B.x, B.y + 6 * ws, false); }
       if (bt < b1 + b2) { B.y = F.hy - Math.sin(Math.PI * (bt - b1) / b2) * 3 * ws; return false; }
       if (bt < b1 + b2 + 0.3) { B.y = F.hy; return false; } // a beat: it turns to its wreck
-      armHopTo(F, B, [Lg.tx, Lg.ty - 12 * ws], ws); F.st = 'hop'; F.t = 0; return false;
+      armHopTo(F, B, [Lg.tx, Lg.ty - 12 * ws], ws); F.st = 'hop'; F.t = 0; obSay('RETURNING TO CHASSIS'); return false;
     }
     if (F.st === 'hop') { if (armHop(F, B, dt, ws, land)) { F.st = 'plug'; F.t = 0; F.i = F.first; } return false; }
     if (F.st === 'plug') { // a cable down into a hip socket: clamped, bolted, live
       const i = F.i, [x, y] = legSocket(B, Lg, i), t = F.t, Ft = Lg.feet[i];
       F.link = { i, x, y, cable: clamp(t / PLUG.cable, 0, 1), clamp: clamp((t - PLUG.cable) / (PLUG.clamp - PLUG.cable), 0, 1), bolts: clamp((t - PLUG.clamp) / (PLUG.bolts - PLUG.clamp), 0, 1), power: clamp((t - PLUG.bolts) / (PLUG.power - PLUG.bolts), 0, 1) };
-      if (!F.e1 && t >= PLUG.cable) { F.e1 = true; burst(x, y, 10, COL.chalk, 35, 0.4, 0.3); sfx.clank(); }
+      if (!F.e1 && t >= PLUG.cable) { F.e1 = true; burst(x, y, 10, COL.chalk, 35, 0.4, 0.3); sfx.clank(); obSay(`HIP ${i ? 'R' : 'L'} UPLINK... OK`); }
       if (!F.e2 && t >= PLUG.clamp) { F.e2 = true; burst(x, y, 14, fire, 40, 0.5, 0.35); shake(1); sfx.clank(); sfx.hiss(); }
       for (let k = 0; k < 3; k++) { const at = PLUG.clamp + (k + 1) / 3 * (PLUG.bolts - PLUG.clamp); if (!(F.eb & (1 << k)) && t >= at) { F.eb = (F.eb || 0) | (1 << k); const a = k * 2.09 + 0.5; burst(x + Math.cos(a) * 5.4 * ws, y + Math.sin(a) * 5.4 * ws, 5, COL.chalk, 25, 0.3, 0.2); sfx.brick(6 + k * 2); } }
       if (!F.e4 && t >= PLUG.bolts) { F.e4 = true; sfx.obServo(0.45, x); }
       if (t >= PLUG.power - 0.15 && !F.e5) { F.e5 = true; burst(Ft.x0, Ft.y0, 10, fire, 30, 0.4, 0.3); shake(0.8); sfx.obImpact(1, Ft.x0); } // its foot jerks
       if (t < PLUG.power) return false;
-      F.done[i] = true; F.link = null; F.e1 = F.e2 = F.e4 = F.e5 = false; F.eb = 0;
+      F.done[i] = true; F.link = null; F.e1 = F.e2 = F.e4 = F.e5 = false; F.eb = 0; obSay(`LEG ${i ? 'R' : 'L'} ONLINE`);
       if (!F.done[1 - i]) { F.i = 1 - i; F.t = 0; } else { F.st = 'dock'; F.t = 0; F.y0 = B.y; }
       return false;
     }
@@ -6395,7 +6397,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return;
     }
     if (Lg.st === 'form') { // armless, its head sags, drops and hops to its wreck, plugs into each hip, slams onto the hips, the legs tear free and stand; the emitters iris open
-      if (!Lg.fmDone) { if (!legLink(B, Lg, dt, ws, ease)) return; Lg.fmDone = true; Lg.t = LEG_DOCK; } // (the hookup; then on from the slam)
+      if (!Lg.fmDone) { if (!legLink(B, Lg, dt, ws, ease)) return; Lg.fmDone = true; Lg.t = LEG_DOCK; obSay('CONFIG: STRIDER', 0.6); } // (the hookup; then on from the slam)
       const t = Lg.t, fy0 = Lg.fy + 8 * ws;
       if (t < LEG_SAG) { const k = ease(t / LEG_SAG); B.x = Lg.fx + rand(-0.8, 0.8); B.y = Lg.fy + 8 * ws * k + rand(-0.8, 0.8); if (Math.random() < 0.5) burst(B.x + rand(-4, 4), B.y + 4, 2, heat(MAX_CHARGE * 0.75), 25, 0.3, 0.2); return; }
       if (t < LEG_SAG + LEG_CALL) { Lg.call = (t - LEG_SAG) / LEG_CALL; B.x = Lg.fx + rand(-0.6, 0.6); B.y = fy0 + rand(-0.6, 0.6); B.roar = 0.3 + 0.5 * Lg.call; // it calls its legs: its eye flaring at the heap, its magnet humming, arcs leaping between them
@@ -6526,7 +6528,39 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.swarm = { n: SWARM_N + 60 * B.cycle, sent: 0, t: 0.9, killed: 0, end: 0 };
     B.beam = null; B.sweep = null; B.lockT = 0; B.fly = null; B.crawl = null; B.throws = [];
     G.banner = { text: 'The swarm', sub: 'Its wreck spews crawlers. Kill every one', t: 2.2, max: 2.2, at: 0.45 };
+    obSay('MOTOR CONTROL LOST'); obSay('RELEASE CRAWLERS', 0.9);
     const [sx, sy] = swarmSrc(B); shake(4); gridImpulse(sx, sy, Math.max(AW, AH), 260); burst(sx, sy, 30, heat(MAX_CHARGE * 0.75), 60, 0.7, 0.5); sfx.obSurge(sx);
+  }
+  // Its system log: terse machine readout typed out beside its head as it pulls itself back together (each line in step
+  // with what you're watching), fading after a while. obSay(text, delay, key): a line with a key updates in place.
+  const OBLOG_LIFE = 5, OBLOG_CPS = 40, OBLOG_MAX = 5;
+  function obSay(text, delay = 0, key = null) {
+    const L = G.obLog || (G.obLog = { lines: [], x: null, y: null });
+    if (key) { const q = L.lines.find(l => l.key === key); if (q) { q.text = text; q.age = Math.max(q.age, text.length / OBLOG_CPS); return; } } // (a counter ticking over: no retyping)
+    L.lines.push({ text, age: -delay, key }); while (L.lines.length > OBLOG_MAX) L.lines.shift();
+  }
+  function updateObLog(dt) {
+    const L = G.obLog; if (!L) return;
+    for (const l of L.lines) { const was = l.age; l.age += dt; if (was < 0 && l.age >= 0 && G.time - (L.snd || 0) > 0.08) { L.snd = G.time; sfx.blink(); } } // (a blip as each line starts)
+    L.lines = L.lines.filter(l => l.age < l.text.length / OBLOG_CPS + OBLOG_LIFE);
+  }
+  function drawObLog() {
+    const L = G.obLog, B = G.boss, D = G.mechDeath; if (!L || !L.lines.some(l => l.age >= 0)) return;
+    const S = B && B.storm, hx = D ? D.B.x : S ? S.x : B ? B.x : AW / 2, hy = D ? D.B.y : S ? S.y : B ? B.y : AH / 2;
+    const sz = Math.min(4, AW / 30), lh = sz * 1.35, w = sz * 0.6 * 22, side = hx < AW / 2 ? 1 : -1, tx = clamp(side > 0 ? hx + 14 : hx - 14 - w, 3, AW - w - 3), ty = clamp(hy - 18, 15, AH - lh * OBLOG_MAX - 6); // (clear of its bar up top)
+    if (L.x === null) { L.x = tx; L.y = ty; } L.x += (tx - L.x) * 0.08; L.y += (ty - L.y) * 0.08; // (it trails its head, gently)
+    ctx.save(); ctx.font = `500 ${sz}px "IBM Plex Mono", ui-monospace, monospace`; ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.lineJoin = 'round';
+    let row = 0;
+    for (const l of L.lines) {
+      if (l.age < 0) continue;
+      const n = Math.min(l.text.length, Math.floor(l.age * OBLOG_CPS)), typing = n < l.text.length, left = l.text.length / OBLOG_CPS + OBLOG_LIFE - l.age, a = clamp(left / 0.8, 0, 1);
+      const glitch = l.text.includes('█') || (l.key === 'reboot'), str = (typing ? l.text.slice(0, n) : l.text) + (typing || (row === L.lines.filter(q => q.age >= 0).length - 1 && Math.floor(G.time * 3) % 2) ? '█' : '');
+      const x = L.x, y = L.y + row * lh;
+      ctx.globalAlpha = a; ctx.strokeStyle = COL.ink; ctx.lineWidth = sz * 0.35; ctx.strokeText('>', x, y); ctx.fillStyle = COL.threat; ctx.fillText('>', x, y);
+      const bx = x + sz * 0.9; ctx.strokeText(str, bx, y); ctx.fillStyle = glitch && Math.random() < 0.15 ? COL.threat : COL.chalk; ctx.fillText(str, bx, y);
+      row++;
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
   }
   // Its scrap volleys: it heaves chunks of scrap out of its chest, one at you and the rest round you (later on, one more);
   // each comes down on its landing circle (like its mortars: a hit if you're under it) and cracks open into crawlers
@@ -7448,7 +7482,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function mechDie(B) {
     const S = B.storm && { ...B.storm, atk: null, pcs: B.storm.pcs.map(q => { const a = Math.atan2(q.y - B.storm.y, q.x - B.storm.x) + rand(-0.4, 0.4), v = rand(20, 60); return { ...q, m: 'die', hot: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v }; }) };
     G.mechDeath = { B: { ...B, parts: JSON.parse(JSON.stringify(B.parts)), beam: null, sweep: null, flash: 0.2, ...(S ? { storm: S, x: S.x, y: S.y + 4 * B.s, kneel: 0 } : {}) }, t: 0, blown: false, result: G.result };
-    G.result = null; G.rockets = []; G.mortars = []; G.barrage = []; G.mortarUp = []; G.bullets = G.bullets.filter(q => !q.mg);
+    G.result = null; G.rockets = []; G.mortars = []; G.barrage = []; G.mortarUp = []; G.bullets = G.bullets.filter(q => !q.mg); obSay('CORE FAILURE'); obSay('SHUTD█WN', 0.9);
     for (let i = G.enemies.length - 1; i >= 0; i--) { const e = G.enemies[i]; if (!e.junk && e.type !== 'scrapper') continue; burst(e.x, e.y, 10, heat(MAX_CHARGE * 0.75), 30, 0.5, 0.3); burst(e.x, e.y, 6, COL.dim, 20, 0.5, 0.3); G.enemies.splice(i, 1); } // its scrap falls dead with it
     G.freeze = Math.max(G.freeze, 0.2); shake(3); sfx.obPain(B.x); sfx.obPowerDown(MECH_BLOW, B.x);
   }
@@ -11786,6 +11820,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.screenFlash > 0) G.screenFlash -= dt;
     if (G.chainPop) { G.chainPop.t -= dt; if (G.chainPop.t <= 0) G.chainPop = null; }
     if (G.swChain) { G.swChain.t -= dt; G.swChain.kick -= dt * 6; if (G.swChain.t <= 0) G.swChain = null; }
+    updateObLog(dt);
     G.time += dt;
     G.shake *= Math.exp(-9 * dt);
     if (G.freeze > 0) { G.freeze -= dt; return; }
@@ -12835,7 +12870,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const B = G.bonus;
       ctx.fillText(`BONUS  ${Math.ceil(B.time)}s   LIT ${B.bumpers.filter(q => q.litT > 0).length}/${B.bumpers.length}${B.jackpots ? `   JACKPOT ×${B.jackpots}` : ''}`, AW / 2, 5);
     }
-    drawSwarmChain();
+    drawSwarmChain(); drawObLog();
     if (G.chainPop && !G.attract) { // pops in big, settles, fades
       const C = G.chainPop, k = C.t / C.max, pop = 1 + Math.max(0, (k - 0.85) / 0.15) * 0.5, sz = Math.min(9, AW / 11) * C.size * pop;
       ctx.globalAlpha = Math.min(1, (1 - k) * 10, k * 3); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
