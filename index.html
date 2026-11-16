@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 20:25 UTC · a1d3340";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 20:34 UTC · 81861b6";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1873,7 +1873,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // little to chain, so their damage pays more); and the kill pays a jackpot that grows through the loop, the finale's
   // a million plus a share by your multiplier (so a hit just before he falls doesn't wipe it out). × the loop.
   const BOSS_DMG_PTS = { core: 50, tank: 200, serpent: 50, maw: 50, geode: 200, hive: 50, mech: 100 };
-  const BOSS_BONUS = { core: 25000, tank: 50000, serpent: 100000, maw: 150000, geode: 200000, hive: 250000, mech: 1000000 }, FINALE_MULT_PTS = 50000;
+  const BOSS_BONUS = { core: 25000, tank: 150000, serpent: 250000, maw: 350000, geode: 500000, hive: 650000, mech: 1000000 }, FINALE_MULT_PTS = 50000; // (playtested: a kill's a payday, more than the waves round it; and it grows through the loop)
   const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [4.5, 3.8, 3], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
   const HIVE_LULL = 0.6, COMB_LULL = 1; // during the dig, once you've cleared every bee (or every chunk of honeycomb), the next comes this soon
   const VEXA_SC = 1.5, VEXA_CAGE_AT = 0.5, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [5, 4.3, 3.7, 3.2], VEXA_STING = [2.6, 2.2, 1.9, 1.5];
