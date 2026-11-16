@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 16:16 UTC · aa2e99f";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 16:42 UTC · fe701bb";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1122,7 +1122,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const belt = !!(Bt && Bt.st !== 'stun' && Bt.st !== 'form');
       hums.obBelt.g.gain.setTargetAtTime(belt ? (Bt.trap ? 0.07 : 0.045) : 0, now, 0.15);
       if (belt) { const f = Bt.trap && Bt.st === 'hunt' ? 62 + 4 * Math.sin(now * 9) : 55; hums.obBelt.o.frequency.setTargetAtTime(f, now, 0.05); hums.obBelt.o2.frequency.setTargetAtTime(f * 1.01, now, 0.05); if (hums.obBelt.pn.pan) hums.obBelt.pn.pan.setTargetAtTime(panOf(Bt.cx ?? S.x), now, 0.1); }
-      const setPiece = !!(active && (G.mechDeath || (B && B.walker && B.walker.st === 'form'))), dip = !!(B && ((Lg && (Lg.st === 'form' || Lg.st === 'die')) || (S && S.st === 'form'))); // (silent for the hand-off into his last stand and for his death; his other set pieces just dip it)
+      const setPiece = !!(active && (G.mechDeath || (B && B.walker && B.walker.st === 'form' && !B.swarm))), dip = !!(B && ((Lg && (Lg.st === 'form' || Lg.st === 'die')) || (S && S.st === 'form'))); // (silent for the hand-off into his last stand and for his death; his other set pieces just dip it)
       const lasers = !!(B && (Bm || (B.lance && B.lance.t >= MECH_LANCE_AIM) || (Lg && (Lg.gates || (Lg.atk && Lg.atk.k !== 'gates'))) || (Bt && Bt.trap)));
       musicBus.gain.setTargetAtTime((musicOn ? 0.3 : 0) * (setPiece ? 0 : dip ? 0.5 : lasers ? 0.8 : 1), now, setPiece ? 0.3 : 0.15); }
     if (G && G.stingDue && !G.attract && !(G.boss || G.tankDeath || G.mawDeath || G.geoDeath || G.vexaDeath || G.mechDeath)) { playSting(G.stingDue); G.stingDue = null; }
@@ -5083,8 +5083,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       B.down = true; B.beam = null; B.timers.throw = 2.5; shake(6); G.slowT = Math.max(G.slowT, 0.5); gridImpulse(B.x, B.y, Math.max(AW, AH), 260); sfx.obPain(B.x); sfx.obImpact(3, B.x);
       G.banner = { text: 'It\'s down!', sub: mechLeft(B), t: 1.8, max: 1.8, at: 0.45 };
     } else G.banner = { text: 'It\'s limping!', sub: 'Break the other knee to pin it down', t: 1.4, max: 1.4, at: 0.45 };
-    if (!mechWeapons(B).length && B.down && mechBroken(B, 'jets') && B.st === 'fight' && !B.swarm) { // everything's broken: first the swarm, then the reactor's bare
-      if (B.swarmDone) mechCore(B); else swarmStart(B);
+    if (!mechWeapons(B).length && B.down && mechBroken(B, 'jets') && B.st === 'fight' && !B.swarm) { // everything's broken: the reactor's bare
+      mechCore(B); // it overloads and blows apart; its wreck spews the swarm (armLink), then its head goes for its arms
     }
   }
   function mechCore(B) { // its last stand begins: its head tears free and walks on its arms
@@ -5745,6 +5745,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // A hit on the walker: chips sparks off; past each mark a plate comes off (the nearest the hit); stripped, the arm snaps
   function armWalkHit(B, key, dmg, x, y) {
     const W = B.walker, ws = B.s * WALK_S, live = [0, 1].filter(i => !W.arms[i].lost);
+    if (W.st === 'form') { ring(x, y, 0.5, 4, 0.15, COL.chalk, 0.5); sfx.shell(); return; } // still forming: it can't be hurt yet (the ball clanks off)
     if (key.startsWith('fl')) { // a piece of the chunk it's swinging: it shatters; all of them and it's empty-handed
       const F = W.fl, q = F && F.pcs[+key.slice(2)]; if (!q || !q.on) return; q.on = false; const [qx, qy] = flailPiece(F, q);
       scrapShatter({ x: qx, y: qy, r: q.r }, B.hitBall ? B.hitBall.b : 6); if (B.hitBall) chainCredit(B.hitBall, qx, qy, B.hitBall.b);
@@ -5996,6 +5997,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (t >= 1.25 && !W.roared) { W.roared = true; B.roar = 1; for (let i = 0; i < 3; i++) ring(B.x, B.y, 2, 16 + i * 14, 0.4 + i * 0.12, i % 2 ? COL.chalk : COL.threat, 1.3); gridImpulse(B.x, B.y, Math.max(AW, AH), 300); shake(4); sfx.obRoar(B.x); }
     if (t >= 1.85) { W.st = 'walk'; B.roar = 0; W.fm = null; W.det = null; }
   }
+  function armLinkDaze(B, W, dt) { // during the swarm: its head lies where it landed, twitching, sparking, its eye flickering
+    const F = W.fm; if (!F || F.st !== 'daze') return; F.t = 0; F.sq = Math.max(0, F.sq - dt * 5);
+    B.x = F.hx + (Math.random() < 0.04 ? rand(-0.8, 0.8) : 0); B.y = F.hy; B.roar = Math.random() < 0.05 ? 0.4 : Math.max(0, (B.roar || 0) - dt * 2);
+    if (Math.random() < dt * 4) burst(B.x + rand(-4, 4), B.y + rand(-3, 3), 2, Math.random() < 0.5 ? COL.chalk : heat(MAX_CHARGE * 0.75), 20, 0.3, 0.2);
+  }
   function armLink(B, W, dt, ws, ease) {
     const F = W.fm; F.t += dt; F.sq = Math.max(0, F.sq - dt * 5); B.roar = Math.max(0, (B.roar || 0) - dt * 1.5);
     const land = (x, y, big) => { burst(x, y, big ? 14 : 6, COL.dim, 30, 0.5, 0.4); shake(big ? 2.5 : 0.7); sfx.obImpact(big ? 2 : 1, x); };
@@ -6014,8 +6020,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (!F.l2) { F.l2 = true; F.sq = 0.6; land(B.x, B.y + 6 * ws, false); }
       if (bt < b1 + b2) { B.y = F.hy - Math.sin(Math.PI * (bt - b1) / b2) * 3 * ws; return; }
       if (!F.l3) { F.l3 = true; F.sq = 0.35; B.y = F.hy; }
+      if (!B.swarmDone && !B.swarm) { swarmStart(B); F.st = 'daze'; F.t = 0; return; } // knocked senseless: its wreck spews the swarm (updateMech runs it)
       if (bt < b1 + b2 + 0.35) return; // a beat: it looks round for an arm
       armHopTo(F, B, armSocketHead(B, F.first, ARM_GAP), ws); F.st = 'hop'; F.t = 0; return;
+    }
+    if (F.st === 'daze') { // the swarm's over: it comes to (shakes itself, its eye relighting), looks round, and goes for an arm
+      const k = clamp(F.t / 0.9, 0, 1); B.x = F.hx + Math.sin(F.t * 30) * 1.2 * (1 - k); B.roar = 0.5 * Math.sin(Math.PI * k);
+      if (!F.woke) { F.woke = true; sfx.obServo(0.6, B.x); burst(B.x, B.y, 12, heat(MAX_CHARGE * 0.75), 30, 0.5, 0.3); }
+      if (k >= 1) { B.x = F.hx; armHopTo(F, B, armSocketHead(B, F.first, ARM_GAP), ws); F.st = 'hop'; F.t = 0; }
+      return;
     }
     if (F.st === 'hop') { if (armHop(F, B, dt, ws, land)) { F.st = 'plug'; F.t = 0; F.i = F.first; } return; }
     if (F.st === 'plug') {
@@ -6510,15 +6523,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // bounce it), so one throw can chain dozens. Every one dead: a bonus, and its head tears free for its last stand.
   const SWARM_N = 300, SWARM_CAP = 160, SWARM_RATE = 18, SWARM_FLOOD = 120, SWARM_FOUNT = 0.35, SWARM_BONUS = 100000, SWARM_V = 1.0, SWARM_LOB_T = 2.6, SWARM_LOB_FALL = 1.15, SWARM_HATCH = 4, SW_LUNGE = 82, SW_CROUCH = 0.3, SW_DASH = 0.28, SW_REACH = 26; // (LOB: its scrap volleys; a crawler near you crouches, then lunges) // (LOB: its scrap volleys) // (the first SWARM_FLOOD pour in at 2.5x the rate)
   function swarmStart(B) {
-    B.swarm = { n: SWARM_N + 60 * B.cycle, sent: 0, t: 1.4, killed: 0, end: 0 };
+    B.swarm = { n: SWARM_N + 60 * B.cycle, sent: 0, t: 0.9, killed: 0, end: 0 };
     B.beam = null; B.sweep = null; B.lockT = 0; B.fly = null; B.crawl = null; B.throws = [];
     G.banner = { text: 'The swarm', sub: 'Its wreck spews crawlers. Kill every one', t: 2.2, max: 2.2, at: 0.45 };
-    shake(5); gridImpulse(B.x, B.y, Math.max(AW, AH), 260); sfx.obRoar(B.x, 1); sfx.obSurge(B.x);
+    const [sx, sy] = swarmSrc(B); shake(4); gridImpulse(sx, sy, Math.max(AW, AH), 260); burst(sx, sy, 30, heat(MAX_CHARGE * 0.75), 60, 0.7, 0.5); sfx.obSurge(sx);
   }
   // Its scrap volleys: it heaves chunks of scrap out of its chest, one at you and the rest round you (later on, one more);
   // each comes down on its landing circle (like its mortars: a hit if you're under it) and cracks open into crawlers
   function swarmLob(B, S) {
-    const p = G.player, R = MORTAR_R, [cx, cy] = mechAt(B, ...MECH_CORE_AT), n = S.sent > S.n * 0.5 ? 4 : 3, pts = [[clamp(p.x, R, AW - R), clamp(p.y, R, AH - R)]];
+    const p = G.player, R = MORTAR_R, [cx, cy] = swarmSrc(B), n = S.sent > S.n * 0.5 ? 4 : 3, pts = [[clamp(p.x, R, AW - R), clamp(p.y, R, AH - R)]];
     for (let tries = 0; pts.length < n && tries < 40; tries++) { const a = rand(0, Math.PI * 2), d = rand(16, 30), x = clamp(pts[0][0] + Math.cos(a) * d, R, AW - R), y = clamp(pts[0][1] + Math.sin(a) * d, R, AH - R); if (pts.every(([qx, qy]) => Math.hypot(qx - x, qy - y) >= 14)) pts.push([x, y]); }
     pts.forEach(([x, y], i) => { const hatch = Math.min(SWARM_HATCH, S.n - S.sent), T = SWARM_LOB_FALL + i * 0.15; if (hatch <= 0) return; S.sent += hatch;
       G.mortars.push({ x, y, t: T, T, ob: true, hatch, scrap: { x0: cx, y0: cy, sh: Array.from({ length: 6 }, () => rand(0.7, 1.1)), rot: rand(0, 6), va: rand(-9, 9) } }); });
@@ -6529,10 +6542,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       Object.assign(e, { sw: true, vx: Math.cos(a) * 35, vy: Math.sin(a) * 35, spawnT: 0.2, spd: e.spd * SWARM_V, rot: rand(0, 6), v: Math.floor(Math.random() * 6) }); G.enemies.push(e); }
     burst(m.x, m.y, 10, COL.dim, 30, 0.5, 0.4); sfx.clank();
   }
+  const swarmSrc = B => B.walker ? [B.walker.wx, B.walker.wy + 8 * B.s] : mechAt(B, ...MECH_CORE_AT); // where the swarm comes from: its burst wreck
   const swarmLeft = (S) => S.n - S.sent + G.enemies.reduce((k, e) => k + (e.sw ? 1 : 0), 0);
   function updateMechSwarm(B, dt) {
     const S = B.swarm, p = G.player, alive = G.enemies.reduce((k, e) => k + (e.sw ? 1 : 0), 0);
-    if (S.end > 0) { if ((S.end -= dt) <= 0) { B.swarm = null; B.swarmDone = true; mechCore(B); } return; } // a beat, then its head tears free
+    if (S.end > 0) { if ((S.end -= dt) <= 0) { B.swarm = null; B.swarmDone = true; } return; } // a beat, then its head comes to (armLink)
     if (S.sent >= S.n && !alive && !G.mortars.some(m => m.hatch)) { // the last of them (none still in the air)
       S.end = 1.4; const v = SWARM_BONUS * (1 + B.cycle); G.score += v;
       G.banner = { text: 'Swarm destroyed!', sub: `+${(v * scoreK(G.wave)).toLocaleString()}`, t: 1.4, max: 1.4, at: 0.45 }; sfx.repair(); shake(2);
@@ -6542,7 +6556,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if ((S.lobT = (S.lobT ?? 2) - dt) <= 0 && S.sent < S.n) { S.lobT = SWARM_LOB_T * Math.max(0.6, 1 - 0.15 * B.cycle); swarmLob(B, S); } // and it heaves scrap at you
     S.acc = (S.acc || 0) + SWARM_RATE * dt * (S.sent < SWARM_FLOOD ? 2.5 : 1); // (a flood to start with, then a steady pour)
     const n = Math.max(0, Math.min(Math.floor(S.acc), SWARM_CAP - alive, S.n - S.sent)); S.acc -= Math.max(0, Math.floor(S.acc));
-    const [cx, cy] = mechAt(B, ...MECH_CORE_AT);
+    const [cx, cy] = swarmSrc(B);
     for (let k = 0; k < n; k++) {
       let x, y, vx = 0, vy = 0;
       if (Math.random() < SWARM_FOUNT) { const a = -Math.PI / 2 + rand(-1.3, 1.3), sp = rand(30, 70); x = cx + rand(-3, 3); y = cy + rand(-2, 2); vx = Math.cos(a) * sp; vy = Math.sin(a) * sp; } // out of its chest, flung
@@ -6605,7 +6619,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.st === 'intro') { mechIntro(B, dt); return; }
     if (G.lastStandTest && B.st === 'fight') { G.lastStandTest = false; B.swarmDone = !G.swarmTest; G.swarmTest = false; for (const k of ['gun', 'claw', 'rack', 'rail', 'jets', 'kneeL', 'kneeR']) if (!mechBroken(B, k)) mechHit(B, k, 1e6, B.x, B.y); return; } // the test start: break it all at once
     if (B.plate) { const q = B.plate; q.vy += 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.a += q.va * dt; if (q.y > AH + 40) B.plate = null; }
-    if (B.swarm) { B.kneel = Math.min(1, B.kneel + dt * 2); updateMechSwarm(B, dt); return; } // the swarm: down on its knees, spewing crawlers
+    if (B.swarm) { if (B.walker && B.walker.fm) { const W = B.walker; W.t += dt; armLinkDaze(B, W, dt); W.pileK = clamp((W.t - ARM_T.blow) / 0.8, 0, 1); } updateMechSwarm(B, dt); return; } // the swarm: its wreck spewing crawlers, its head lying dazed
     if (B.walker) { updateArmWalk(B, dt); return; } // its last stand: the arm walker,
     if (B.legs) { updateLegWalk(B, dt); return; } // the leg walker,
     if (B.storm) { updateScrap(B, dt); return; } // then the scrap storm
@@ -7166,6 +7180,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const zW = 1 + (W.air ? W.air.h * 0.2 : 0); ctx.save(); ctx.translate(B.x + rand(-shkW, shkW), B.y + rand(-shkW, shkW)); ctx.scale(ws * zW, ws * zW); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
       const limb = (x0, y0, x1, y1, w0, w1, o = {}) => { const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d; plate([[x0 + nx * w0, y0 + ny * w0], [x1 + nx * w1, y1 + ny * w1], [x1 - nx * w1, y1 - ny * w1], [x0 - nx * w0, y0 - ny * w0]], o); };
       for (const i of [0, 1]) {
+        if (W.st === 'form' && !W.det) continue; // (still part of its body till the blast tears them off)
         const [sx, sy, ex, ey, hx, hy] = armWalkArm(B, i).map((v, j) => (v - (j % 2 ? B.y : B.x)) / ws), H = W.hands[i], A = W.arms[i];
         const hot = (W.sw && W.sw.i === i && W.sw.ph !== 'rec') || (W.th && W.th.i === i && W.th.ph === 'wind'), fl = A.flash > 0;
         if (hot) glow(() => { ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.lineWidth = 9; ctx.stroke(); }, COL.threat, 0.25 + 0.2 * Math.sin(t * 30));
