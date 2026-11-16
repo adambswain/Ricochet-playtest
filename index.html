@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 19:49 UTC · e33ad6c";</script>
+<script>window.RICOCHET_BUILD = "Nov 16 19:56 UTC · c9de47d";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -5005,6 +5005,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.1, MECH_FLY_UP = 0.75, MECH_FLY_DOWN = 1.5, MECH_FLY_DROP = 0.4;
   const MECH_CANNON_HP = 6, MECH_CANNON_CHARGE = 0.7, MECH_CANNON_LOCK = 0.22, MECH_CANNON_GAP = 0.38, MECH_CANNON_REST = 1.1, MECH_CANNON_V = 44; // his battery, while he's up: wall cannons firing in a ripple
   const MECH_RUNS = 5, MECH_RUN_GAP = 0.95, MECH_RUN_WARN = 0.85, MECH_RUN_V = 150, MECH_RUN_HALF = 11, MECH_BOMB_FALL = 0.32, MECH_BOMB_R = 7, MECH_LAND_R = 24;
+  const MECH_RUN_REACH = MECH_RUN_HALF * 0.45 + MECH_BOMB_R + PLAYER_R * 0.5; // how far either side of a run's line its bombs reach you: its lane, shadowed, and its shadow, are exactly this wide
   const mechS = () => clamp(Math.min(AW / 120, AH / 200), 0.8, 1.5); // its size: it all but spans a portrait arena
   // Its parts, in its own units (x across, y down from the middle of its chest), standing.
   const MECH_PARTS = { gun: [-42, 18, 10], claw: [42, 18, 10], rack: [-29, -28, 8], rail: [29, -29, 8] };
@@ -6882,7 +6883,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         F.ph = 'up'; F.t = 0; F.air = true; B.walk = { foot: 0, t: 1.2, lift: 0 }; mechBattery(B);
         for (const sd of [-1, 1]) { const [fx, fy] = mechFoot(B, sd); burst(fx, fy, 30, COL.dim, 60, 1, 0.7); burst(fx, fy, 16, fire, 50, 0.7, 0.4); }
         ring(B.x, B.y + 50 * s, 2, 40 * s, 0.6, COL.chalk, 1.2); gridImpulse(B.x, B.y + 45 * s, 90, 280); shake(5); sfx.obJetTakeoff(B.x);
-        if (!B.flown) { B.flown = true; G.banner = { text: 'Airstrike!', sub: 'Stay out of the marked lanes', t: 1.6, max: 1.6, at: 0.45 }; }
+        if (!B.flown) { B.flown = true; G.banner = { text: 'Airstrike!', sub: 'Bombs fall all along the dark lanes: get out of them', t: 1.8, max: 1.8, at: 0.45 }; }
       }
     } else if (F.ph === 'up') { // up and out of the top
       const k = clamp(F.t / MECH_FLY_UP, 0, 1); B.y = F.hy + (yUp - F.hy) * k * k;
@@ -6943,8 +6944,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   const T_fly = B => { B.timers.fly = MECH_FLY_EVERY; B.timers.beam = Math.max(B.timers.beam, 2); B.timers.gun = Math.max(B.timers.gun, 1.2); B.timers.claw = Math.max(B.timers.claw, 1.6); B.timers.rack = Math.max(B.timers.rack, 3); B.timers.rail = Math.max(B.timers.rail, 2); };
   // Its shadow from above on a bombing run: the hulk, the pauldrons, the two pods
-  function runShadow(x, y, R, sc, a) {
-    ctx.save(); ctx.translate(x, y); ctx.rotate(R.across ? 0 : Math.PI / 2); if (R.dir < 0) ctx.scale(-1, 1); ctx.scale(sc, sc);
+  function runShadow(x, y, R, sc, a) { // (squeezed across to its lane: everything under it gets bombed)
+    ctx.save(); ctx.translate(x, y); ctx.rotate(R.across ? 0 : Math.PI / 2); if (R.dir < 0) ctx.scale(-1, 1); ctx.scale(sc, MECH_RUN_REACH / 45);
     ctx.fillStyle = '#000'; ctx.globalAlpha = a; ctx.beginPath(); ctx.ellipse(0, 0, 16, 24, 0, 0, Math.PI * 2); ctx.fill(); // (black, like every shadow: ink barely shows on the grid)
     for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(-2, sd * 26, 11, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(-8, sd * 40, 8, 5, 0, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore(); ctx.globalAlpha = 1;
@@ -6958,6 +6959,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = locked ? (fl ? 0.85 : 0.5) : 0.25 + 0.5 * k; ctx.fillStyle = fl ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (1.1 + 0.6 * k), 0, Math.PI * 2); ctx.fill(); ctx.restore(); ctx.globalAlpha = 1; }
     for (const q of B.bombs) groundShadow(q.x, q.y, MECH_BOMB_R, clamp(q.t / q.at, 0, 1)); // a bomb falling: its shadow, as wide as its blast, darkening as it drops
     if (F) {
+      for (const R of F.runs) { // the lane it'll bomb, shadowed (dark right out to where its bombs reach you, soft past it), darkening as it comes and clearing behind it
+        const tt = F.t - R.t0, warn = clamp(tt / MECH_RUN_WARN, 0, 1), W = MECH_RUN_REACH, W2 = W * 1.25;
+        let a0 = 0, a1 = R.len; if (R.pos !== undefined) { const gone = clamp(R.pos, 0, R.len); if (R.dir > 0) a0 = gone; else a1 = R.len - gone; } // the stretch still ahead of it
+        if (a1 - a0 < 0.5) continue;
+        const g = R.across ? ctx.createLinearGradient(0, R.c - W2, 0, R.c + W2) : ctx.createLinearGradient(R.c - W2, 0, R.c + W2, 0);
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.1, 'rgba(0,0,0,0.6)'); g.addColorStop(0.5, 'rgba(0,0,0,0.7)'); g.addColorStop(0.9, 'rgba(0,0,0,0.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g; ctx.globalAlpha = 0.25 + 0.4 * warn; if (R.across) ctx.fillRect(a0, R.c - W2, a1 - a0, W2 * 2); else ctx.fillRect(R.c - W2, a0, W2 * 2, a1 - a0); ctx.globalAlpha = 1;
+      }
       for (const R of F.runs) {
         const tt = F.t - R.t0, warn = clamp(tt / MECH_RUN_WARN, 0, 1), done = R.pos !== undefined && R.pos > R.len + R.M;
         if (R.pos === undefined && tt < MECH_RUN_WARN) { // before it comes over: its shadow sliding in from the edge it'll come in at, big and soft (it's high up), darkening as it nears
@@ -6967,7 +6976,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (R.pos !== undefined && !done) { // its shadow, from above: the hulk, the pauldrons, the two pods, streaking over
           const u = R.dir > 0 ? R.pos : R.len - R.pos, [x, y] = R.across ? [u, R.c] : [R.c, u];
           runShadow(x, y, R, s, 0.55);
-          ctx.save(); ctx.translate(x, y); ctx.rotate(R.across ? 0 : Math.PI / 2); if (R.dir < 0) ctx.scale(-1, 1); ctx.scale(s, s);
+          ctx.save(); ctx.translate(x, y); ctx.rotate(R.across ? 0 : Math.PI / 2); if (R.dir < 0) ctx.scale(-1, 1); ctx.scale(s, MECH_RUN_REACH / 45); // (inside its lane, like its shadow)
           ctx.globalAlpha = 0.3; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.6; for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(-14 - k * 9, sd * (34 + k * 4)); ctx.lineTo(-30 - k * 14, sd * (34 + k * 4)); ctx.stroke(); } // its thrust streaming behind
           ctx.restore(); ctx.globalAlpha = 1;
         }
