@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 17 15:57 UTC · ec7171f";</script>
+<script>window.RICOCHET_BUILD = "Nov 17 16:06 UTC · 516efa0";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -811,6 +811,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // A beat of near-silence (everything but the music dips), before something lands
   function hush(dur) { if (!AC) return; const now = AC.currentTime; sfxBus.gain.cancelScheduledValues(now); sfxBus.gain.setTargetAtTime(0.1, now, 0.03); sfxBus.gain.setTargetAtTime(0.9, now + dur, 0.004); }
   const gateAt = {};
+  // The combat chatter (kills, bounces, clanks, zaps, bells...) shares a budget: at most CHATTER_MAX in any CHATTER_WIN ms,
+  // so a huge chain (the swarm's hundreds of crawlers) crackles instead of turning to mush (and the tells, outside it, still cut through)
+  const CHATTER_MAX = 8, CHATTER_WIN = 100, chatterAt = [];
+  const chatter = () => { const now = performance.now(); while (chatterAt.length && now - chatterAt[0] > CHATTER_WIN) chatterAt.shift(); if (chatterAt.length >= CHATTER_MAX) return false; chatterAt.push(now); return true; };
   const gate = (key, ms) => { const now = performance.now(); if (now - (gateAt[key] || 0) < ms) return false; gateAt[key] = now; return true; };
   const panOf = x => x === undefined ? 0 : clamp(x / AW * 2 - 1, -1, 1) * 0.6;
 
@@ -844,7 +848,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
   }
   const sfx = {
-    march(k) { const f = [98, 87.3, 77.8, 73.4][k % 4]; voice({ type: 'square', f, f2: f * 0.97, dur: 0.09, vol: 0.16, filter: 'lowpass', ff: 420, q: 1.2 }); voice({ f, dur: 0.1, vol: 0.22 }); },
+    march(k) { const f = [98, 87.3, 77.8, 73.4][k % 4]; voice({ type: 'square', f, f2: f * 0.97, dur: 0.09, vol: 0.1, filter: 'lowpass', ff: 420, q: 1.2 }); voice({ f, dur: 0.1, vol: 0.14 }); }, // (under the action: it never stops)
     invShot(x) { if (gate('invShot', 80)) voice({ type: 'square', f: 900, f2: 300, dur: 0.08, vol: 0.04, filter: 'lowpass', ff: 2500, pan: panOf(x) }); },
     alarm() { voice({ type: 'square', f: 880, f2: 660, dur: 0.22, vol: 0.035, filter: 'lowpass', ff: 2400 }); voice({ type: 'square', f: 660, f2: 880, dur: 0.22, vol: 0.035, filter: 'lowpass', ff: 2400, at: AC && AC.currentTime + 0.24 }); },
     heartbeat() { voice({ f: 72, f2: 44, dur: 0.13, vol: 0.28, filter: 'lowpass', ff: 300 }); voice({ f: 64, f2: 40, dur: 0.15, vol: 0.22, filter: 'lowpass', ff: 260, at: 0.19 }); },
@@ -856,7 +860,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     saucerShot(x) { if (gate('saucerShot', 60)) voice({ type: 'square', f: 1250, f2: 420, dur: 0.12, vol: 0.07, filter: 'lowpass', ff: 3000, pan: panOf(x) }); },
     // bounce: a bright ping that climbs the scale with charge, with a click on contact and grit once it's dangerous
     bounce(b, x) {
-      if (!gate('bounce', 18)) return;
+      if (!gate('bounce', 18) || !chatter()) return;
       const f = note(Math.floor(10 + b * 0.8)), pan = panOf(x);
       voice({ f, f2: f * 0.98, dur: 0.22, vol: 0.16, pan, wet: 0.12 });
       voice({ type: 'triangle', f: f * 2, dur: 0.07, vol: 0.05, pan });
@@ -869,7 +873,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     },
     // kill: low thump + crunchy body + crack; bigger and longer with charge, with a rumble tail when hot
     kill(b, x) {
-      if (!gate('kill', 22)) return;
+      if (!gate('kill', 22) || !chatter()) return;
       const pan = panOf(x);
       voice({ f: 160, f2: 42, dur: 0.2 + b * 0.012, vol: 0.3, pan, wet: 0.1 });
       voice({ noise: true, filter: 'bandpass', ff: 1000 + b * 140, ff2: 260, q: 0.9, dur: 0.16 + b * 0.014, vol: 0.24, pan });
@@ -877,7 +881,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (b >= 8) voice({ type: 'sawtooth', f: 85, f2: 38, filter: 'lowpass', ff: 420, dur: 0.4, vol: 0.12, pan, wet: 0.2 });
     },
     // chain: a bell note per kill in the throw, one scale step higher each time
-    crystal(b) { if (gate('crystal', 25)) { const f = note(18 + (b % 7)); voice({ type: 'triangle', f, f2: f * 1.5, dur: 0.12, vol: 0.06, wet: 0.35 }); voice({ noise: true, filter: 'highpass', ff: 5200, dur: 0.06, vol: 0.06 }); } },
+    crystal(b) { if (gate('crystal', 25) && chatter()) { const f = note(18 + (b % 7)); voice({ type: 'triangle', f, f2: f * 1.5, dur: 0.12, vol: 0.06, wet: 0.35 }); voice({ noise: true, filter: 'highpass', ff: 5200, dur: 0.06, vol: 0.06 }); } },
     crystalGrow() { voice({ type: 'sine', f: 520, f2: 880, dur: 0.35, vol: 0.05, wet: 0.5 }); voice({ noise: true, filter: 'bandpass', ff: 3200, ff2: 6000, q: 3, dur: 0.3, vol: 0.05 }); },
     splat(b = 0) { // a meaty hit: a low thump, a wet slap and a click
       voice({ f: 150 - Math.min(b, 15) * 4, f2: 55, dur: 0.16, vol: 0.3 });
@@ -897,13 +901,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       voice({ type: 'triangle', f, dur: 0.12, vol: 0.07, wet: 0.25 }); voice({ f: f * 2, dur: 0.07, vol: 0.03 });
     },
     chain(n) {
+      if (!gate('chain', 30) || !chatter()) return;
       const f = note(12 + Math.min(n, 14));
       voice({ f, dur: 0.55, vol: 0.11, wet: 0.45 });
       voice({ f: f * 2.01, dur: 0.22, vol: 0.04, wet: 0.3 });
       voice({ type: 'triangle', f: f * 3, dur: 0.08, vol: 0.025 });
     },
     hit(x) {
-      if (!gate('hit', 30)) return;
+      if (!gate('hit', 30) || !chatter()) return;
       const pan = panOf(x);
       voice({ type: 'square', f: 220, f2: 140, dur: 0.07, vol: 0.06, filter: 'lowpass', ff: 1800, pan });
       voice({ noise: true, filter: 'bandpass', ff: 1300, q: 1.5, dur: 0.05, vol: 0.1, pan });
@@ -991,20 +996,22 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       voice({ f: 120, f2: 34, dur: 0.5, vol: 0.3 });
     },
     zap(x) {
-      if (!gate('zap', 30)) return;
+      if (!gate('zap', 30) || !chatter()) return;
       const pan = panOf(x);
       voice({ noise: true, filter: 'highpass', ff: 3600, dur: 0.09, vol: 0.13, pan });
       voice({ type: 'square', f: 1600, f2: 480, dur: 0.07, vol: 0.03, pan });
     },
-    brick(b) { if (gate('brick', 20)) { voice({ type: 'triangle', f: note(14 + (b % 6)), dur: 0.09, vol: 0.06, wet: 0.15 }); voice({ noise: true, filter: 'bandpass', ff: 2600, q: 1.5, dur: 0.05, vol: 0.09 }); } },
+    brick(b) { if (gate('brick', 20) && chatter()) { voice({ type: 'triangle', f: note(14 + (b % 6)), dur: 0.09, vol: 0.06, wet: 0.15 }); voice({ noise: true, filter: 'bandpass', ff: 2600, q: 1.5, dur: 0.05, vol: 0.09 }); } },
     advance() { voice({ f: 95, f2: 48, dur: 0.25, vol: 0.22 }); voice({ noise: true, filter: 'lowpass', ff: 600, dur: 0.2, vol: 0.12 }); },
     clank() {
+      if (!gate('clank', 40) || !chatter()) return;
       voice({ type: 'square', f: 340, f2: 180, dur: 0.1, vol: 0.07, filter: 'lowpass', ff: 2400 });
       voice({ noise: true, filter: 'bandpass', ff: 1800, q: 3, dur: 0.06, vol: 0.12 });
       voice({ f: 920, dur: 0.18, vol: 0.03, wet: 0.3 });
     },
     blink() { voice({ f: 600, f2: 2000, dur: 0.13, vol: 0.06, wet: 0.35 }); },
-    klaxon(k) { const f = k % 2 ? 520 : 660; voice({ type: 'square', f, f2: f * 0.98, dur: 0.38, vol: 0.05, filter: 'lowpass', ff: 1800, atk: 0.02 }); voice({ type: 'sawtooth', f: f / 2, dur: 0.38, vol: 0.03, filter: 'lowpass', ff: 700, atk: 0.02 }); },
+    klaxon(k, loud = 1) { const f = k % 2 ? 520 : 660; voice({ type: 'square', f, f2: f * 0.98, dur: 0.38, vol: 0.05 * loud, filter: 'lowpass', ff: 1800, atk: 0.02 }); voice({ type: 'sawtooth', f: f / 2, dur: 0.38, vol: 0.03 * loud, filter: 'lowpass', ff: 700, atk: 0.02 }); },
+    gorpGurgle() { amVoice({ type: 'triangle', f: 170, f2: 460, dur: GEO_SPIT_WIND, vol: 0.13, atk: 0.08, rate: 12, rate2: 26, depth: 0.65, ff: 1500, ff2: 2600, wet: 0.2 }); voice({ noise: true, filter: 'bandpass', ff: 700, ff2: 1600, q: 3, dur: GEO_SPIT_WIND, vol: 0.04 }); }, // Gorp's spit, welling up (not his blaster's charge)
     boss() {
       [55, 82.4, 110].forEach(f => voice({ type: 'sawtooth', f, filter: 'lowpass', ff: 300, ff2: 900, atk: 0.15, dur: 1.3, vol: 0.07, wet: 0.3 }));
       voice({ noise: true, filter: 'lowpass', ff: 300, ff2: 1200, atk: 0.4, dur: 1.0, vol: 0.12 });
@@ -3016,6 +3023,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       // with the doors shut, the wing turrets charge (MAW_GUN_WARN) and fire a fan at you, once per shut: the fight
       // alternates guns (doors shut) and fighters (doors open)
       if (B.st === 'closed' && B.gunT > 0) {
+        if (B.torpNext && B.gunT > TORP_WARN && B.gunT - dt <= TORP_WARN) { sfx.clank(); sfx.hiss(); } // its torpedo tubes loading
         B.gunT -= dt;
         if (B.gunT <= 0 && B.torpNext) mawTorpedoes(B);
         else if (B.gunT <= 0) {
@@ -3574,7 +3582,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     B.scr = { ph: 'purge', t: 0, k: 0 }; B.st = 'closed'; B.landing = []; B.launching = []; B.gunT = 0; B.torpNext = false;
     for (const br of B.bricks) br.pick = false; for (const d of B.decks) d.landing = false;
     G.banner = { text: 'Scramble!', sub: 'It\'s pulling out. Everything it has is coming at you', t: 2.4, max: 2.4, at: 0.45 };
-    sfx.klaxon(0); shake(2);
+    sfx.klaxon(0, 2.4); shake(2);
   }
   function mawEject(B, blast) { // every ball in its bay, on its decks or under it is thrown clear, out below it
     for (const o of G.balls.concat(G.extras || [])) {
@@ -3589,7 +3597,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const S = B.scr; S.t += dt;
     B.open += clamp(1 - B.open, -dt * 3, dt * 3);
     if (S.ph === 'purge') { // the klaxon, its hull flashing; then its doors blow and the bay's blasted clear
-      if (Math.floor(S.t / 0.45) > S.k) { S.k++; sfx.klaxon(S.k); }
+      if (Math.floor(S.t / 0.45) > S.k) { S.k++; sfx.klaxon(S.k, 2.4); }
       if (!S.blown && S.t >= MAW_PURGE * 0.7) {
         S.blown = true; mawEject(B, true);
         for (let k = 0; k < 3; k++) ring(B.bx, B.D, 2, 20 + k * 12, 0.4 + k * 0.1, k % 2 ? COL.chalk : ECOL.dasher, 1.2);
@@ -7872,7 +7880,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (k >= 1) { // he lands: a shockwave
         B.hop = null; B.hopZ = 0; B.hopT = GEO_HOP_EVERY; B.lands = (B.lands || 0) + 1;
         const room = Math.min(GEO_SPIT_N, GEO_SPIT_CAP - G.enemies.filter(e => e.gorp).length);
-        if (B.lands % 2 === 1 && room >= 3) { B.spit = { t: 0, n: 0, a: null, max: room }; B.duckSide = p.x >= B.lx ? 1 : -1; sfx.blasterCharge(); } // on every other landing: his spit
+        if (B.lands % 2 === 1 && room >= 3) { B.spit = { t: 0, n: 0, a: null, max: room }; B.duckSide = p.x >= B.lx ? 1 : -1; sfx.gorpGurgle(); } // on every other landing: his spit
         ring(B.lx, B.ly, 2, GEO_HOP_R, 0.35, COL.threat, 1.2); ring(B.lx, B.ly, 1, GEO_HOP_R * 0.6, 0.25, COL.chalk, 0.8); burst(B.lx, B.ly + 6, 24, ECOL.splitter, 50, 0.6, 0.4);
         gridImpulse(B.lx, B.ly, GEO_HOP_R * 2.2, 200); shake(2.5); sfx.rockBoom(2);
         if (p.inv <= 0 && Math.hypot(p.x - B.lx, p.y - B.ly) < GEO_HOP_R + PLAYER_R * 0.6) damagePlayer();
@@ -7993,7 +8001,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (S) { S.interval = GEO_PUSH[ph]; S.orb = GEO_ORBS[ph]; S.drum = GEO_DRUMS[ph]; if (S.timer < dt * 1.5) B.summon = 1; } // he shoves with both arms as each layer goes in
       const left = S ? geoOrbsLeft(S) : 0;
       if (S && left > 0 && S.sentOrbs < S.quota && left === S.quota - S.sentOrbs && (B.topT = (B.topT || 0) - dt) <= 0) { B.topT = 1.2; geoOrbTopUp(S); } // none showing but some still to come, and no room for a layer: set them in
-      if (S && !left && S.quota && B.hp > GEO_LAST) { if (B.hp <= GEO_FINAL) B.hp = Math.min(B.hp, GEO_LAST); else G.banner = { text: 'Cage broken!', sub: 'Every orb popped', t: 1.4, max: 1.4, at: 0.45 }; } // every orb gone: forced out (in his last cage, shot down: its own banner)
+      if (S && !left && S.quota && B.hp > GEO_LAST) { if (B.hp <= GEO_FINAL) B.hp = Math.min(B.hp, GEO_LAST); else { G.banner = { text: 'Cage broken!', sub: 'Every orb popped', t: 1.4, max: 1.4, at: 0.45 }; sfx.repair(); } } // every orb gone: forced out (in his last cage, shot down: its own banner)
       if (B.hp <= GEO_LAST || (B.stT <= 0 && B.hp <= GEO_FINAL)) geoCrash(B); // low enough in his last cage (or it's run its time, or you've cleared it): shot down
       else if (!S || B.stT <= 0 || !left) geoRebuild(B); // out once every orb in here's gone (or after GEO_WALL); his last cage he stays in
     } else if (B.st === 'rebuild') {
