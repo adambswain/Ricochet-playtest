@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 16 23:05 UTC · 61b5590";</script>
+<script>window.RICOCHET_BUILD = "Nov 17 15:57 UTC · ec7171f";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -644,7 +644,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     18: 'Serpent eggs: break a clutch before it hatches, or what hatches swarms you together. Hatchlings only bite with the head',
     19: 'Something big is hatching. Vipers are tough: hit them with a charged ball. A Brute Wall marches in partway through',
     29: 'Fighters overhead: something big is coming',
-    30: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going',
+    30: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going. Later it fires torpedoes: hit one back and it blows up on the Carrier',
     57: 'Walkers fire rockets at you. Hit a rocket with your ball to send it back',
     58: 'Mortars: circles show where the shells will land, one right on you. Keep moving',
     59: 'Something huge is coming. Feel that?',
@@ -1843,6 +1843,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // but they count toward the chain). Each launch, MAW_DECK_LAUNCH of them take off from the decks too. Every MAW_DECK_LAND seconds a jet flies in from off the
   // arena and lands on an empty spot (MAW_LAND_T to land). The right deck has the island, a tower the ball bounces off.
   const MAW_PRONG = 9, MAW_PYLON = 1.6, MAW_DECK_GAP = 13.5, MAW_DECK_LAND = [2.4, 2, 1.6], MAW_LAND_T = 1.4;
+  // Halfway (MAW_SCRAMBLE of its health) it scrambles: a klaxon, its hull flashing, its doors blowing open with a blast
+  // that throws your balls clear (MAW_PURGE); it lifts out of the top (MAW_LIFT), and every fighter it has comes in as
+  // squadrons, a V every MAW_SQUAD_GAP. Once they're all down (or after MAW_SCRAMBLE_MAX), its shadow falls across the
+  // top and it drops back in (MAW_RETURN), its racks less than half full (MAW_RETURN_RACKS). From then on, every other
+  // time its doors shut its gun pods fire torpedoes instead of a fan (a torpedo's nose pushing out of each pod for
+  // TORP_WARN first): big and slow, straight at where you were. Hit one and it's yours: it runs back to the Carrier,
+  // plowing through any fighter on the way, and blows up there, wrecking the racks round it (TORP_BLAST) and hurting
+  // its throat (TORP_DMG).
+  const MAW_SCRAMBLE = 0.5, MAW_PURGE = 1.1, MAW_LIFT = 1.1, MAW_SQUAD_N = 5, MAW_SQUAD_GAP = 2, MAW_SCRAMBLE_MAX = 30, MAW_RETURN = 1.8, MAW_RETURN_RACKS = 0.4;
+  const mawUp = B => (B.lift || 0) * (B.D + MAW_PRONG + 14); // how far it's lifted (its prongs and pods hang below the hull)
+  const TORP_WARN = 1.0, TORP_V = 24, TORP_R = 2.8, TORP_DMG = 14, TORP_BLAST = 22, TORP_BACK = 70;
   const MAW_THROAT_D = 7, MAW_THROAT_HP = 189, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 2, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [3, 4, 4], MAW_DECK_LAUNCH = [1, 1, 2], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
 
   // The Hive (wave 50, the finale): Queen Vexa, in a loop. The dig: HIVE_RINGS rings of hexagonal wax cells round a
@@ -2354,9 +2365,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
                              { x0: B.bx + B.MW / 2 - half, x1: B.bx + B.MW / 2, y0: B.D - MAW_JAW_T, y1: B.D, jaw: true });
     return out;
   }
-  const mawIn = B => (B.kind === 'maw' || B.kind === 'mech') && B.enter <= BOSS_ENTER - MAW_IN; // the Carrier (and Goliath) is in place, and solid, before its warning's over
+  const mawIn = B => (B.kind === 'maw' || B.kind === 'mech') && B.enter <= BOSS_ENTER - MAW_IN && !(B.lift > 0); // the Carrier (and Goliath) is in place, and solid, before its warning's over
   const inRect = (R0, x, y) => x > R0.x0 && x < R0.x1 && y > R0.y0 && y < R0.y1;
-  const inMawBay = o => !!(G.boss && G.boss.kind === 'maw' && (inRect(mawCavity(G.boss), o.x, o.y) || inConvex(mawWing(G.boss, -1), o.x, o.y) || inConvex(mawWing(G.boss, 1), o.x, o.y))); // the bay or a deck
+  const inMawBay = o => !!(G.boss && G.boss.kind === 'maw' && !(G.boss.lift > 0) && (inRect(mawCavity(G.boss), o.x, o.y) || inConvex(mawWing(G.boss, -1), o.x, o.y) || inConvex(mawWing(G.boss, 1), o.x, o.y))); // the bay or a deck
 
   function damageBoss(dmg, x, y) {
     const B = G.boss; if (!B || B.hp <= 0 || (B.enter > 0 && !mawIn(B))) return;
@@ -2401,6 +2412,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return;
     }
     if (B.kind === 'maw') { // a blast wrecks the fighters it reaches, and hurts if it reaches the throat
+      if (B.lift > 0) return; // (up and away)
       B.bricks.forEach((br, i) => { if (br.alive) { const R0 = mawBrick(B, br); if (Math.hypot(clamp(x, R0.x0, R0.x1) - x, clamp(y, R0.y0, R0.y1) - y) < rad) mawBrickBreak(i, 4); } });
       for (const d of B.decks) if (d.alive) { const [dx, dy] = mawDeckAt(B, d); if (Math.hypot(dx - x, dy - y) < rad + MAW_SHIP_R) mawDeckBreak(B, d, 4); }
       const T = mawThroat(B);
@@ -2970,6 +2982,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (n > 0) { sfx.advance(); shake(0.8); }
       }
     } else {
+      if (B.scr) { mawScramble(B, dt); return; } // up and away, its squadrons out
+      if (!B.scrDone && !(B.launching || []).length && bossHp(B) <= B.maxHp * MAW_SCRAMBLE) { mawScrambleStart(B); return; }
       // slides along its wall to line up with you (crawls with the doors open, holds still while launching)
       const tgt = clamp(p.x, B.W / 2 + 1, AW - B.W / 2 - 1), slide = B.st === 'closed' ? MAW_SLIDE : B.st === 'charge' ? MAW_SLIDE * 0.25 : 0;
       B.bx += clamp(tgt - B.bx, -slide * dt, slide * dt); B.x = B.bx;
@@ -2998,12 +3012,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           G.enemies.push(e); burst(x, y, 10, ECOL.dasher, 30, 0.5, 0.3); sfx.launch(x);
         });
         B.st = 'hold'; B.stT = Math.max(0.7, go.length * MAW_LAUNCH_GAP + MAW_LAUNCH_T + 0.2); // the doors stay open until the last one is out
-      } else if (B.st === 'hold' && B.stT <= 0) { B.st = 'closed'; B.stT = [3, 2.5, 2][B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1); B.gunT = B.stT * 0.5; }
+      } else if (B.st === 'hold' && B.stT <= 0) { B.st = 'closed'; B.stT = [3, 2.5, 2][B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1); B.gunT = Math.max(B.stT * 0.5, B.scrDone ? TORP_WARN + 0.1 : 0); B.torpNext = !!B.scrDone && (B.shutN = (B.shutN || 0) + 1) % 2 === 1; } // (after the scramble, every other shut: torpedoes)
       // with the doors shut, the wing turrets charge (MAW_GUN_WARN) and fire a fan at you, once per shut: the fight
       // alternates guns (doors shut) and fighters (doors open)
       if (B.st === 'closed' && B.gunT > 0) {
         B.gunT -= dt;
-        if (B.gunT <= 0) {
+        if (B.gunT <= 0 && B.torpNext) mawTorpedoes(B);
+        else if (B.gunT <= 0) {
           const n = [3, 4, 5][B.phase - 1], spread = [0.45, 0.6, 0.75][B.phase - 1];
           for (const [gx, gy] of mawGuns(B)) {
             const a0 = Math.atan2(p.y - gy, p.x - gx); // they track you wherever you are (there's no hiding up beside it)
@@ -3554,6 +3569,117 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // reactor goes up in a white flash, the ship breaks in two down the middle and both halves tumble down through the
   // arena, burning and trailing fire, while debris spins away; the reward lands with the blow.
   const MAW_DIE_HIT = 0.25, MAW_BLOW = 2.1, MAW_AFTER = 3.2;
+  // The scramble (see MAW_SCRAMBLE)
+  function mawScrambleStart(B) {
+    B.scr = { ph: 'purge', t: 0, k: 0 }; B.st = 'closed'; B.landing = []; B.launching = []; B.gunT = 0; B.torpNext = false;
+    for (const br of B.bricks) br.pick = false; for (const d of B.decks) d.landing = false;
+    G.banner = { text: 'Scramble!', sub: 'It\'s pulling out. Everything it has is coming at you', t: 2.4, max: 2.4, at: 0.45 };
+    sfx.klaxon(0); shake(2);
+  }
+  function mawEject(B, blast) { // every ball in its bay, on its decks or under it is thrown clear, out below it
+    for (const o of G.balls.concat(G.extras || [])) {
+      if (o.state !== 'live' && o.state !== 'ember') continue;
+      if (!(inMawBay(o) || (o.y < B.D + 4 && Math.abs(o.x - B.bx) < B.W / 2 + 3))) continue;
+      const a = Math.PI / 2 + rand(-0.55, 0.55), sp = o.state === 'live' ? ballSpeed(o.b) : 30;
+      o.x = clamp(o.x, 6, AW - 6); o.y = B.D + 6; o.vx = Math.cos(a) * sp; o.vy = Math.sin(a) * sp;
+      if (blast) { ring(o.x, o.y, 1, 8, 0.3, COL.chalk, 0.8); burst(o.x, o.y, 8, COL.chalk, 40, 0.4, 0.3); }
+    }
+  }
+  function mawScramble(B, dt) {
+    const S = B.scr; S.t += dt;
+    B.open += clamp(1 - B.open, -dt * 3, dt * 3);
+    if (S.ph === 'purge') { // the klaxon, its hull flashing; then its doors blow and the bay's blasted clear
+      if (Math.floor(S.t / 0.45) > S.k) { S.k++; sfx.klaxon(S.k); }
+      if (!S.blown && S.t >= MAW_PURGE * 0.7) {
+        S.blown = true; mawEject(B, true);
+        for (let k = 0; k < 3; k++) ring(B.bx, B.D, 2, 20 + k * 12, 0.4 + k * 0.1, k % 2 ? COL.chalk : ECOL.dasher, 1.2);
+        burst(B.bx, B.D - 4, 40, COL.chalk, 70, 0.8, 0.5); gridImpulse(B.bx, B.D, 80, 260); shake(4); sfx.hiss(); sfx.shock();
+      }
+      if (S.t >= MAW_PURGE) { S.ph = 'up'; S.t = 0; sfx.launch(B.bx); sfx.advance(); }
+      return;
+    }
+    if (S.ph === 'up') { // it lifts out of the top, thrusters roaring under it
+      const k = clamp(S.t / MAW_LIFT, 0, 1); B.lift = k * k; shake(1.2 * (1 - k));
+      if (Math.random() < 0.8) burst(B.bx + rand(-0.45, 0.45) * B.W, B.D - mawUp(B), 2, Math.random() < 0.5 ? heat(MAX_CHARGE * 0.75) : COL.dim, 30, 0.5, 0.35);
+      if (k >= 1) { // gone: every fighter it had comes in as squadrons
+        B.lift = 1; S.ph = 'scramble'; S.t = 0;
+        const n = clamp(B.bricks.filter(br => br.alive).length + B.decks.filter(d => d.alive).length, 12, 24), sq = Math.ceil(n / MAW_SQUAD_N);
+        for (const br of B.bricks) br.alive = false; for (const d of B.decks) d.alive = false;
+        G.squadPlan = { at: Array.from({ length: sq }, (_, i) => 0.6 + i * MAW_SQUAD_GAP), t: 0, n: MAW_SQUAD_N, shadow: false };
+      }
+      return;
+    }
+    if (S.ph === 'scramble') { // till they're all down
+      const left = G.enemies.some(e => e.jet || e.fromMaw) || G.squadWarn.length || G.squads.length || (G.squadPlan && G.squadPlan.at.length);
+      if ((!left && S.t > 1.5) || S.t > MAW_SCRAMBLE_MAX) { S.ph = 'shadow'; S.t = 0; G.squadPlan = null; sfx.field(); }
+      return;
+    }
+    if (S.ph === 'shadow') { if (S.t >= MAW_RETURN * 0.45) { S.ph = 'down'; S.t = 0; } return; } // its shadow falls across the top (drawn), darkening
+    if (S.ph === 'down') { // and down it comes, its racks less than half full
+      const k = clamp(S.t / (MAW_RETURN * 0.55), 0, 1); B.lift = 1 - k * k * (3 - 2 * k);
+      if (k >= 1) {
+        B.lift = 0; mawEject(B, false);
+        for (const br of B.bricks) { br.alive = Math.random() < MAW_RETURN_RACKS; br.hp = br.max; br.pick = false; br.flash = 0; }
+        B.scr = null; B.scrDone = true; B.st = 'closed'; B.stT = 2.5; B.gunT = 1.25; B.torpNext = false; B.shutN = 0; B.dockT = 1; B.landT = 1.5;
+        gridImpulse(B.bx, B.D, Math.max(AW, AH), 280); shake(4); G.slowT = Math.max(G.slowT, 0.25); sfx.advance(); sfx.clank(); sfx.boss();
+        float(B.bx, B.D + 10, 'Its racks are half empty!', COL.chalk, 3.6);
+      }
+    }
+  }
+  // Its torpedoes: one from each gun pod, straight at where you are (they don't turn)
+  function mawTorpedoes(B) {
+    const p = G.player;
+    for (const [gx, gy] of mawGuns(B)) {
+      const a = Math.atan2(p.y - gy, p.x - gx), x = gx + Math.cos(a) * 4, y = gy + Math.sin(a) * 4;
+      G.rockets.push({ x, y, vx: Math.cos(a) * TORP_V, vy: Math.sin(a) * TORP_V, t: 0, life: 14, friendly: false, torp: true });
+      burst(x, y, 12, COL.threat, 30, 0.5, 0.3); ring(x, y, 1, 6, 0.25, COL.threat, 0.8);
+    }
+    sfx.launch(B.bx); sfx.advance(); shake(1.2);
+  }
+  // One of its torpedoes, sent back home: it blows up on the Carrier, wrecking the racks round it and hurting its throat
+  function mawTorpHit(B, o) {
+    const x = o.x, y = o.y, src = o.src && o.src.state ? o.src : G.balls[0];
+    B.bricks.forEach((br, i) => { if (!br.alive) return; const R0 = mawBrick(B, br); if (Math.hypot(clamp(x, R0.x0, R0.x1) - x, clamp(y, R0.y0, R0.y1) - y) < TORP_BLAST) mawBrickBreak(i, 8, src); });
+    for (const d of B.decks) if (d.alive) { const [dx, dy] = mawDeckAt(B, d); if (Math.hypot(dx - x, dy - y) < TORP_BLAST + MAW_SHIP_R) mawDeckBreak(B, d, 8, src); }
+    damageBoss(Math.round(TORP_DMG * (1 + B.cycle * 0.6)), B.bx, MAW_THROAT_D + 3);
+    for (let k = 0; k < 3; k++) ring(x, y, 2, TORP_BLAST * (0.6 + k * 0.3), 0.35 + k * 0.1, k % 2 ? COL.chalk : heat(12), 1.2);
+    burst(x, y, 40, heat(12), 70, 0.8, 0.5); gridImpulse(x, y, TORP_BLAST * 2.5, 220); shake(3); G.freeze = Math.max(G.freeze, 0.06);
+    float(x, y + 8, 'Torpedo hit!', COL.chalk, 3.4);
+  }
+  // A torpedo: a fat capsule, a lit nose, tail fins, a churning wake; ringed while it's theirs (hit it back)
+  function drawTorp(o) {
+    const a = Math.atan2(o.vy, o.vx), c = o.friendly ? heat(12) : COL.threat, L = 4.6, R = 1.7, t = G.time;
+    ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(a);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = c;
+    for (let k = 1; k <= 5; k++) { ctx.globalAlpha = 0.55 - k * 0.09; ctx.beginPath(); ctx.arc(-L - k * 1.7, Math.sin(t * 16 + k * 2) * 0.7, 1 - k * 0.13, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+    ctx.beginPath(); ctx.moveTo(L, 0); ctx.quadraticCurveTo(L, -R, L - R, -R); ctx.lineTo(-L, -R); ctx.lineTo(-L, R); ctx.lineTo(L - R, R); ctx.quadraticCurveTo(L, R, L, 0); ctx.closePath();
+    ctx.fillStyle = COL.ink; ctx.fill(); ctx.strokeStyle = c; ctx.lineWidth = 0.45; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-L + 1.2, -R); ctx.lineTo(-L - 0.8, -R - 1.5); ctx.lineTo(-L - 0.8, -R); ctx.moveTo(-L + 1.2, R); ctx.lineTo(-L - 0.8, R + 1.5); ctx.lineTo(-L - 0.8, R); ctx.stroke();
+    ctx.lineWidth = 0.3; ctx.beginPath(); ctx.moveTo(-L * 0.15, -R); ctx.lineTo(-L * 0.15, R); ctx.stroke();
+    ctx.fillStyle = Math.floor(t * 10) % 2 ? COL.chalk : c; ctx.beginPath(); ctx.arc(L - 1, 0, 0.75, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    if (!o.friendly) { ctx.globalAlpha = 0.4; ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.3; ctx.beginPath(); ctx.arc(o.x, o.y, L + 1.8, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; } // hit it!
+  }
+  // Over the Carrier: its hull flashing red as the klaxon goes; its shadow falling across the top as it comes back down;
+  // a torpedo's nose pushing out of each gun pod before they fire
+  function drawMawExtras(B) {
+    const S = B.scr;
+    if (S && S.ph === 'purge') { const on = Math.floor(G.time * 4.4) % 2; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = on ? 0.22 : 0.06; ctx.fillStyle = COL.threat; ctx.fillRect(B.bx - B.W / 2, 0, B.W, B.D); ctx.restore(); ctx.globalAlpha = 1; }
+    if (S && (S.ph === 'shadow' || S.ph === 'down')) { // something coming down: its shadow, as wide as the hull, darkening
+      const k = S.ph === 'shadow' ? clamp(S.t / (MAW_RETURN * 0.45), 0, 1) : 1, g = ctx.createLinearGradient(0, 0, 0, B.D + 6);
+      g.addColorStop(0, 'rgba(0,0,0,0.75)'); g.addColorStop(0.85, 'rgba(0,0,0,0.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.save(); ctx.globalAlpha = 0.3 + 0.7 * k; ctx.fillStyle = g; ctx.fillRect(B.bx - B.W / 2, 0, B.W, B.D + 6); ctx.restore(); ctx.globalAlpha = 1;
+    }
+    if (!S && B.torpNext && B.st === 'closed' && B.gunT > 0 && B.gunT < TORP_WARN) { // its torpedoes, nosing out of the pods at you
+      const k = 1 - B.gunT / TORP_WARN, p = G.player, fl = k > 0.75 && Math.floor(G.time * 16) % 2;
+      for (const [gx, gy] of mawGuns(B)) {
+        const a = Math.atan2(p.y - gy, p.x - gx), nx = gx + Math.cos(a) * (2 + 3 * k), ny = gy + Math.sin(a) * (2 + 3 * k);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 + 0.5 * k; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(nx, ny, 2 + 2 * k, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        ctx.globalAlpha = 1; ctx.fillStyle = fl ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(nx, ny, 1.1 + 0.5 * k, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
   function mawDie(B) {
     const S = { ...B, bricks: B.bricks.map(br => ({ ...br, pick: false })), decks: B.decks.map(d => ({ ...d })), launching: [], landing: [], st: 'closed', open: 0, flash: 0.2, gunT: 0 };
     G.mawDeath = { B: S, t: 0, blown: false, result: G.result, halves: [], debris: [], fires: [] };
@@ -3783,7 +3909,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.fillStyle = blink ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(bm.x, bm.y, BOMB_R * 0.45, 0, Math.PI * 2); ctx.fill();
     }
     if (!B) return;
-    if (B.kind === 'maw') { drawMaw(B); return; }
+    if (B.kind === 'maw') { const oy = mawUp(B); if (oy > 0) { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -oy); drawMaw(B); ctx.restore(); } else drawMaw(B); drawMawExtras(B); return; }
     if (B.kind === 'hive') { drawHive(B); return; }
     if (B.kind === 'geode') { drawGeodeFg(B); return; }
     if (B.kind === 'tank') { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); drawTank(B); ctx.restore(); return; } // never over the HUD
@@ -4168,7 +4294,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.fillStyle = bl ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(ix, iy + 0.8, 0.45, 0, Math.PI * 2); ctx.fill();
     }
     // --- gun pods on the bows: an armoured dome, twin barrels tracking you, a lens that heats as they charge
-    const gunsHot = B.st === 'closed' && B.gunT > 0 && B.gunT < MAW_GUN_WARN, heatK = gunsHot ? 1 - B.gunT / MAW_GUN_WARN : 0;
+    const gunsHot = B.st === 'closed' && B.gunT > 0 && B.gunT < MAW_GUN_WARN && !B.torpNext, heatK = gunsHot ? 1 - B.gunT / MAW_GUN_WARN : 0;
     for (const [gx, gy] of mawGuns(B)) {
       const a = Math.atan2(p.y - gy, p.x - gx), ca = Math.cos(a), sa = Math.sin(a); // the barrel points where it fires: at you, wherever you are
       for (const o of [-0.7, 0.7]) { ctx.beginPath(); ctx.moveTo(gx - sa * o, gy + ca * o); ctx.lineTo(gx - sa * o + ca * 5, gy + ca * o + sa * 5); stroke(0.9, 1, hullC); ctx.beginPath(); ctx.moveTo(gx - sa * o, gy + ca * o); ctx.lineTo(gx - sa * o + ca * 5, gy + ca * o + sa * 5); stroke(0.45, 1, COL.ink); }
@@ -5226,6 +5352,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // Heavy rockets: theirs curve after you for a while; hit one with a ball and it's yours, homing on what you can hurt
   function rocketTarget(o) {
+    if (o.torp && G.boss && G.boss.kind === 'maw') return [G.boss.bx, MAW_THROAT_D + 2]; // a torpedo sent back runs home to the Carrier
     if (o.from && G.enemies.includes(o.from)) return [o.from.x, o.from.y]; // a walker's own rocket goes back to it
     const B = G.boss;
     if (B && B.kind === 'mech') {
@@ -5243,7 +5370,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const o = G.rockets[i]; o.t += dt;
       const sp = Math.hypot(o.vx, o.vy) || 1;
       let a = Math.atan2(o.vy, o.vx), want = null;
-      if (!o.friendly && o.t < MECH_ROCKET_HOME) want = Math.atan2(p.y - o.y, p.x - o.x);
+      if (!o.friendly && !o.torp && o.t < MECH_ROCKET_HOME) want = Math.atan2(p.y - o.y, p.x - o.x); // (a torpedo runs straight)
       if (o.friendly) { const T = rocketTarget(o); if (T) want = Math.atan2(T[1] - o.y, T[0] - o.x); }
       if (want !== null) { let da = want - a; da = Math.atan2(Math.sin(da), Math.cos(da)); a += clamp(da, -(o.friendly ? 4 : MECH_ROCKET_TURN) * dt, (o.friendly ? 4 : MECH_ROCKET_TURN) * dt); }
       o.vx = Math.cos(a) * sp; o.vy = Math.sin(a) * sp; o.x += o.vx * dt; o.y += o.vy * dt;
@@ -5252,19 +5379,28 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (o.x < -4 || o.x > AW + 4 || o.y < -4 || o.y > AH + 4 || o.t > o.life) { G.rockets.splice(i, 1); continue; }
       if (!o.friendly) {
         let hitBy = null;
-        for (const b of G.balls.concat(G.extras)) if (b.state === 'live' && Math.hypot(b.x - o.x, b.y - o.y) < MECH_ROCKET_R + ballR(b.b || 0) + 0.8) { hitBy = b; break; }
+        for (const b of G.balls.concat(G.extras)) if (b.state === 'live' && Math.hypot(b.x - o.x, b.y - o.y) < (o.torp ? TORP_R : MECH_ROCKET_R) + ballR(b.b || 0) + 0.8) { hitBy = b; break; }
         if (hitBy) { // knocked back: it's yours now
           o.friendly = true; o.src = hitBy; o.t = 0; o.life = 4;
           const T = rocketTarget(o), a2 = T ? Math.atan2(T[1] - o.y, T[0] - o.x) : Math.atan2(-o.vy, -o.vx);
-          o.vx = Math.cos(a2) * MECH_ROCKET_BACK; o.vy = Math.sin(a2) * MECH_ROCKET_BACK;
+          o.vx = Math.cos(a2) * (o.torp ? TORP_BACK : MECH_ROCKET_BACK); o.vy = Math.sin(a2) * (o.torp ? TORP_BACK : MECH_ROCKET_BACK);
           ring(o.x, o.y, 1, 8, 0.25, heat(hitBy.b || 0), 0.9); float(o.x, o.y - 4, 'Sent back!', COL.chalk, 2.8); sfx.bump(); G.freeze = Math.max(G.freeze, 0.04);
           continue;
         }
-        if (p.inv <= 0 && Math.hypot(p.x - o.x, p.y - o.y) < MECH_ROCKET_R + PLAYER_R * 0.85) { pop(false); damagePlayer(); continue; }
+        if (p.inv <= 0 && Math.hypot(p.x - o.x, p.y - o.y) < (o.torp ? TORP_R : MECH_ROCKET_R) + PLAYER_R * 0.85) { pop(o.torp); damagePlayer(); continue; }
         continue;
       }
       // yours: it blows up on the first thing it reaches
       const B = G.boss;
+      if (o.torp) { // a torpedo plows through fighters on its way home, and blows up on the Carrier
+        if (B && B.kind === 'maw' && mawIn(B) && o.y < B.D + 1 && Math.abs(o.x - B.bx) < B.W / 2) { // on the hull, or into the bay to the first rack (or the throat)
+          const hull = Math.abs(o.x - B.bx) > B.MW / 2 - 1, rack = B.bricks.some(br => { if (!br.alive) return false; const R0 = mawBrick(B, br); return Math.hypot(clamp(o.x, R0.x0, R0.x1) - o.x, clamp(o.y, R0.y0, R0.y1) - o.y) < TORP_R; });
+          if (hull || rack || o.y < MAW_THROAT_D + 5) { mawTorpHit(B, o); pop(true); continue; }
+        }
+        const src = o.src && o.src.state ? o.src : G.balls[0];
+        for (let j = G.enemies.length - 1; j >= 0; j--) { const e = G.enemies[j]; if (!e.gone && !isStone(e) && Math.hypot(e.x - o.x, e.y - o.y) < e.r + TORP_R) kill(j, 6, 0, src); }
+        continue;
+      }
       if (B && B.kind === 'mech') {
         let hit = null;
         for (const c of mechCircles(B)) if (Math.hypot(c[0] - o.x, c[1] - o.y) < c[2] + MECH_ROCKET_R) { if (!hit || c[4]) hit = c; if (c[4]) break; }
@@ -5282,6 +5418,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function drawRockets() {
     for (const o of G.rockets) {
+      if (o.torp) { drawTorp(o); continue; }
       const a = Math.atan2(o.vy, o.vx), c = o.friendly ? heat(12) : COL.threat;
       ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(a);
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; const g = ctx.createLinearGradient(-9, 0, -1, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, c); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-1.5, -1); ctx.lineTo(-9 - Math.random() * 2, 0); ctx.lineTo(-1.5, 1); ctx.fill(); ctx.restore(); // its flame
@@ -8357,8 +8494,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   function drawBossBar() {
     const B = G.boss; if (!B || G.attract) return;
+    if (B.kind === 'maw' && mawUp(B) > 4) return; // (up and away: its gauge goes with it)
     // the Maw carries its gauge just under its throat
-    const maw = B.kind === 'maw', cx = maw ? B.bx : AW / 2, w = maw ? B.MW - 8 : Math.min(AW * 0.5, 70), x = cx - w / 2, y = maw ? MAW_THROAT_D + 1.2 : 6;
+    const maw = B.kind === 'maw', cx = maw ? B.bx : AW / 2, w = maw ? B.MW - 8 : Math.min(AW * 0.5, 70), x = cx - w / 2, y = maw ? MAW_THROAT_D + 1.2 - mawUp(B) : 6; // (the Carrier's goes with it when it's up)
     const royal = B.kind === 'hive' && B.st === 'comb' && B.cells.find(c => c.d === 0); // the comb's bar is the royal cell: that's the goal
     const f = bossHp(B) / B.maxHp;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 2.8px ${FONT}`; ctx.fillStyle = ECOL.warden;
@@ -9552,7 +9690,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (G.boss && G.boss.kind === 'geode') pushOutGeode(G.boss, o, r);
     else if (G.boss && G.boss.kind === 'tank') pushOutTank(G.boss, o, r);
     else if (G.boss && G.boss.kind === 'mech') pushOutMech(G.boss, o, r);
-    else if (G.boss && G.boss.kind === 'maw') { // the wings, and the bay as a block (only the ball goes in)
+    else if (G.boss && G.boss.kind === 'maw' && !(G.boss.lift > 0)) { // the wings, and the bay as a block (only the ball goes in) (not while it's up and away)
       const B = G.boss;
       const solids = [mawWing(B, -1), mawWing(B, 1), mawCavity(B)], inside = () => solids.some(S => Array.isArray(S) ? inConvex(S, o.x, o.y) : inRect(S, o.x, o.y));
       if (inside()) { let k = 0; while (inside() && k++ < 400) o.y += 1; o.y += r; } // swallowed by the hull (it slid over you, or you squeezed into its corner against the walls): out underneath it, never pinned inside
