@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 17 17:06 UTC · 232a46b";</script>
+<script>window.RICOCHET_BUILD = "Nov 17 19:06 UTC · 39953d3";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -397,7 +397,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <ul class="rules">
       <li><b>+1</b><span>Each bounce off a wall or obstacle adds 1 damage to your ball. Enemy health is written at its center. Enemies with no number have 1 health.</span></li>
       <li><b>↶</b><span>Hold pull to bend the ball toward you.</span></li>
-      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.<br>Getting hit resets your multiplier.</span></li>
+      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.<br>Getting hit resets your multiplier.<br>Bonus rounds (Pinball, Coin Rush, Lucky Blocks) pay at the multiplier you bring in.</span></li>
       <li><b>◇</b><span>Pull the ball until it reaches your ship to catch it. A catch takes 5 off its charge and it keeps the rest; while you hold it, it cools a charge a second.</span></li>
       <li><b>⁂</b><span>Bosses grant rewards: a points jackpot, and a wingman or extra Hull.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.</span></li>
       <li><b>◆</b><span>Enemies may drop Capsules. Capsules are marked with different icons, each granting a unique power-up. Hit a Capsule with your ball to collect it. The more charge the ball has, the longer and/or stronger the power-up. <button class="linkbtn powersBtn" type="button">See the power-ups</button></span></li>
@@ -1862,7 +1862,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MAW_SCRAMBLE = 0.5, MAW_PURGE = 1.1, MAW_LIFT = 1.1, MAW_SQUADS = 6, MAW_SQUAD_N = 6, MAW_SQUAD_GAP = 1.1, MAW_SQUAD_FAST = { v: 44, hold: 0.3, peel: 0.18, spd: 1.5 }, MAW_SCRAMBLE_MAX = 35, MAW_RETURN = 1.8;
   const mawUp = B => (B.lift || 0) * (B.D + MAW_PRONG + 14); // how far it's lifted (its prongs and pods hang below the hull)
   const TORP_WARN = 1.0, TORP_V = 46, TORP_R = 2.8, TORP_BLAST = 15, TORP_SPREAD = 9;
-  const MAW_THROAT_D = 7, MAW_THROAT_HP = 189, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 2, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [3, 4, 4], MAW_DECK_LAUNCH = [1, 1, 2], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
+  const MAW_THROAT_D = 7, MAW_THROAT_HP = 208, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 2, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [3, 4, 4], MAW_DECK_LAUNCH = [1, 1, 2], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
 
   // The Hive (wave 50, the finale): Queen Vexa, in a loop. The dig: HIVE_RINGS rings of hexagonal wax cells round a
   // royal cell. The ball always bounces off a cell (1 damage, 2 when hot), so it digs tunnels; every few seconds an
@@ -11747,6 +11747,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   /* ---------- enemies ---------- */
+  // An enemy walking at you that's been pressed against a block for DETOUR_PIN goes round it: along the block to its nearer
+  // end (on your side), then on at you. (Without it, one spawned behind a gate leans on it for good, out of reach.)
+  const DETOUR_PIN = 1, DETOUR_T = 3, DETOURS = new Set(['drifter', 'brute', 'dasher', 'splitter', 'mini', 'magnet', 'bulwark', 'warden', 'monolith', 'swarm', 'snake', 'viper', 'blinker', 'tankette', 'scrapper']);
+  function enemyPinned(e, pushed, dt) {
+    e.pinT = pushed ? (e.pinT || 0) + dt : Math.max(0, (e.pinT || 0) - dt * 2);
+    if (e.detour || e.pinT < DETOUR_PIN || !DETOURS.has(e.type)) return;
+    const o = G.obstacles.find(q => !q.dying && hitObs(e.x, e.y, e.r + 1, q)); if (!o) return;
+    const R = rectOf(o), p = G.player, m = e.r + 3;
+    if (e.y <= R.y0 || e.y >= R.y1) e.detour = { x: clamp(p.x < (R.x0 + R.x1) / 2 ? R.x0 - m : R.x1 + m, e.r + 1, AW - e.r - 1), y: e.y, t: DETOUR_T }; // on top of it (or under): along to an end
+    else e.detour = { x: e.x, y: clamp(p.y < (R.y0 + R.y1) / 2 ? R.y0 - m : R.y1 + m, e.r + 1, AH - e.r - 1), t: DETOUR_T }; // beside it: up or down to an end
+  }
   function updateEnemies(dt) {
     const p = G.player, steer = Math.min(1, dt * 3);
     const packs = new Map(); // a hatched clutch: where its school is, and who's in it
@@ -11754,7 +11765,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const q of packs.values()) { q.x /= q.m.length; q.y /= q.m.length; }
     for (const e of G.enemies) {
       e.hitCd -= dt; e.flash -= dt; e.rot += dt * 0.8; if (e.spawnT > 0) e.spawnT -= dt;
-      const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+      if (e.detour && ((e.detour.t -= dt) <= 0 || Math.hypot(e.detour.x - e.x, e.detour.y - e.y) < 2)) { e.detour = null; e.pinT = 0; } // round the block: on at you again
+      const gx = e.detour ? e.detour.x : p.x, gy = e.detour ? e.detour.y : p.y, dx = gx - e.x, dy = gy - e.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d; // (heading for you, or round a block it's stuck on)
       if (e.dummy) { const k = Math.exp(-6 * dt); e.vx = (e.vx + (e.hx - e.x) * 40 * dt) * k; e.vy = (e.vy + (e.hy - e.y) * 40 * dt) * k; e.x += e.vx * dt; e.y += e.vy * dt; continue; } // a training target: knocked back, it springs home
       if (e.type === 'egg') { // drifts to a stop, then hatches
         const k = Math.exp(-2 * dt); e.vx *= k; e.vy *= k; e.x += e.vx * dt; e.y += e.vy * dt; keepIn(e, e.r);
@@ -11908,7 +11920,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       e.x += e.vx * dt; e.y += e.vy * dt;
       if (e.type === 'snake' || e.type === 'viper') snakeTrail(e);
       if (e.form) { if ((e.x < -12 && e.vx <= 0) || (e.x > AW + 12 && e.vx >= 0) || (e.y < -12 && e.vy <= 0) || (e.y > AH + 12 && e.vy >= 0)) e.gone = true; } // a formation flies straight through and out (its back rows start off the edge, on their way in)
-      else { keepIn(e, e.r); if (!e.mend && !e.fromMaw) pushOut(e, e.r); } // a worker flies over the comb; the Carrier's jets fly over the Carrier
+      else { keepIn(e, e.r); if (!e.mend && !e.fromMaw) { const x0 = e.x, y0 = e.y; pushOut(e, e.r); enemyPinned(e, Math.hypot(e.x - x0, e.y - y0) > 0.02, dt); } } // a worker flies over the comb; the Carrier's jets fly over the Carrier
     }
     // Warden shields: an enemy inside a Warden's aura carries a WARD_LAYERS shield. Each ball hit pops a layer (and
     // charges the ball, like bouncing off a wall); once both are gone it reforms after WARD_CD, blinking back in faster and
