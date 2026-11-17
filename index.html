@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 17 16:06 UTC · 516efa0";</script>
+<script>window.RICOCHET_BUILD = "Nov 17 16:09 UTC · 23696d1";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1853,12 +1853,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Halfway (MAW_SCRAMBLE of its health) it scrambles: a klaxon, its hull flashing, its doors blowing open with a blast
   // that throws your balls clear (MAW_PURGE); it lifts out of the top (MAW_LIFT), and every fighter it has comes in as
   // squadrons, a V every MAW_SQUAD_GAP. Once they're all down (or after MAW_SCRAMBLE_MAX), its shadow falls across the
-  // top and it drops back in (MAW_RETURN), its racks less than half full (MAW_RETURN_RACKS). From then on, every other
+  // top and it drops back in (MAW_RETURN), rearmed, every rack and deck full, its doors opening at once. From then on, every other
   // time its doors shut its gun pods fire torpedoes instead of a fan (a torpedo's nose pushing out of each pod for
   // TORP_WARN first): big and slow, straight at where you were. Hit one and it's yours: it runs back to the Carrier,
   // plowing through any fighter on the way, and blows up there, wrecking the racks round it (TORP_BLAST) and hurting
   // its throat (TORP_DMG).
-  const MAW_SCRAMBLE = 0.5, MAW_PURGE = 1.1, MAW_LIFT = 1.1, MAW_SQUAD_N = 5, MAW_SQUAD_GAP = 2, MAW_SCRAMBLE_MAX = 30, MAW_RETURN = 1.8, MAW_RETURN_RACKS = 0.4;
+  const MAW_SCRAMBLE = 0.5, MAW_PURGE = 1.1, MAW_LIFT = 1.1, MAW_SQUAD_N = 5, MAW_SQUAD_GAP = 2, MAW_SCRAMBLE_MAX = 30, MAW_RETURN = 1.8;
   const mawUp = B => (B.lift || 0) * (B.D + MAW_PRONG + 14); // how far it's lifted (its prongs and pods hang below the hull)
   const TORP_WARN = 1.0, TORP_V = 24, TORP_R = 2.8, TORP_DMG = 14, TORP_BLAST = 22, TORP_BACK = 70;
   const MAW_THROAT_D = 7, MAW_THROAT_HP = 189, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 2, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [3, 4, 4], MAW_DECK_LAUNCH = [1, 1, 2], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
@@ -2377,7 +2377,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const inMawBay = o => !!(G.boss && G.boss.kind === 'maw' && !(G.boss.lift > 0) && (inRect(mawCavity(G.boss), o.x, o.y) || inConvex(mawWing(G.boss, -1), o.x, o.y) || inConvex(mawWing(G.boss, 1), o.x, o.y))); // the bay or a deck
 
   function damageBoss(dmg, x, y) {
-    const B = G.boss; if (!B || B.hp <= 0 || (B.enter > 0 && !mawIn(B))) return;
+    const B = G.boss; if (!B || B.hp <= 0 || (B.enter > 0 && !mawIn(B)) || (B.kind === 'maw' && B.lift > 0)) return;
     if (B.kind === 'serpent') { B.x = x; B.y = y; } // so its defeat goes off where the last blow landed
     if (B.kind === 'geode' && (B.st === 'wall' || B.st === 'rise') && B.hp > GEO_LAST && B.hp - dmg < GEO_LAST) dmg = B.hp - GEO_LAST; // in his cage he goes down to GEO_LAST, no further: the rest is his last stand
     if (B.kind === 'geode' && B.st !== 'wall' && B.st !== 'rise' && B.st !== 'last') { // Gorp's last GEO_FINAL can only come off in his cage: out of it, he's held there and his shell bursts
@@ -2796,7 +2796,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Ball against the boss body. Returns 'bounce' when it came off a solid part (the caller adds charge).
   function ballBoss(o, r, b) {
     const B = G.boss; if (!B || (B.enter > 0 && !mawIn(B))) return '';
-    if (B.kind === 'maw') return ballMaw(B, o, r, b);
+    if (B.kind === 'maw') return B.lift > 0 ? '' : ballMaw(B, o, r, b); // (up and away: nothing there)
     if (B.kind === 'serpent') return ballSerpent(B, o, r, b);
     if (B.kind === 'hive') return ballHive(B, o, r, b);
     if (B.kind === 'geode') return ballGeode(B, o, r, b);
@@ -3623,14 +3623,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       return;
     }
     if (S.ph === 'shadow') { if (S.t >= MAW_RETURN * 0.45) { S.ph = 'down'; S.t = 0; } return; } // its shadow falls across the top (drawn), darkening
-    if (S.ph === 'down') { // and down it comes, its racks less than half full
+    if (S.ph === 'down') { // and down it comes, rearmed
       const k = clamp(S.t / (MAW_RETURN * 0.55), 0, 1); B.lift = 1 - k * k * (3 - 2 * k);
       if (k >= 1) {
         B.lift = 0; mawEject(B, false);
-        for (const br of B.bricks) { br.alive = Math.random() < MAW_RETURN_RACKS; br.hp = br.max; br.pick = false; br.flash = 0; }
-        B.scr = null; B.scrDone = true; B.st = 'closed'; B.stT = 2.5; B.gunT = 1.25; B.torpNext = false; B.shutN = 0; B.dockT = 1; B.landT = 1.5;
+        for (const br of B.bricks) { br.alive = true; br.hp = br.max; br.pick = false; br.flash = 0.2; br.born = 0.4; }
+        for (const d of B.decks) { d.alive = true; d.landing = false; d.flash = 0.2; d.born = 0.4; }
+        B.scr = null; B.scrDone = true; B.st = 'closed'; B.stT = 0.5; B.gunT = 0; B.torpNext = false; B.shutN = 0; B.dockT = 1; B.landT = 1.5; // (its doors open at once: a launch, no fan first)
         gridImpulse(B.bx, B.D, Math.max(AW, AH), 280); shake(4); G.slowT = Math.max(G.slowT, 0.25); sfx.advance(); sfx.clank(); sfx.boss();
-        float(B.bx, B.D + 10, 'Its racks are half empty!', COL.chalk, 3.6);
+        float(B.bx, B.D + 10, 'Rearmed!', COL.chalk, 3.6);
       }
     }
   }
