@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 17 16:09 UTC · 23696d1";</script>
+<script>window.RICOCHET_BUILD = "Nov 17 16:50 UTC · 3811461";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13467,8 +13467,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function tick(raw, dt) {
     if (mode === 'play' && !document.hidden && raw < 200) {
       frameEma = frameEma * 0.95 + raw * 0.05;
-      slowFrames = frameEma > 24 ? slowFrames + 1 : 0;
-      if (slowFrames > 120 && quality > 0) { quality--; slowFrames = 0; frameEma = 16; buildGrid(); sizeBloom(); }
+      slowFrames = frameEma > 24 ? slowFrames + raw : 0; // (how long, in ms, it's been running slow)
+      if (slowFrames > 1500 && quality > 0) { quality--; slowFrames = 0; frameEma = 16; buildGrid(); sizeBloom(); } // (a slow phone steps its glow down after a second and a half of it, however few frames that is)
     }
     if (G && mode === 'play' && !G.attract && !G.train && !document.hidden) G.clock = (G.clock || 0) + Math.min(raw, 250) / 1000; // the run's clock: time played (not paused, not training)
     if (G && (mode === 'play' || G.attract) && !(G.train && G.train.box)) step(dt); // (training's text box stops the world)
