@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 17 21:56 UTC · 5408ddf";</script>
+<script>window.RICOCHET_BUILD = "Nov 17 22:26 UTC · 28b9dbd";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -399,7 +399,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       <li><b>↶</b><span>Hold pull to bend the ball toward you.</span></li>
       <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the Charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.<br>Getting hit resets your multiplier.<br>Bonus rounds (Pinpong, Coin Rush, Lucky Blocks) pay at the multiplier you bring in.</span></li>
       <li><b>◇</b><span>Pull the ball until it reaches your ship to catch it. A catch removes 5 Charge and the ball keeps the rest; while you hold it, it loses 1 Charge per second.</span></li>
-      <li><b>⁂</b><span>Bosses grant rewards: a Wingman or extra Hull, and Capsules.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.<br><em>Capsules:</em> Capsules contain power-ups. Hit one with your ball to collect it. The more Charge your ball has, the longer and/or stronger the power-up. <button class="linkbtn powersBtn" type="button">See the power-ups section</button></span></li>
+      <li><b>⁂</b><span>Bosses grant rewards: a Wingman or extra Hull, and Capsules.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.<br><em>Capsules:</em> Capsules contain power-ups. Sometimes dropped by enemies, too. Hit one with your ball to collect it. The more Charge your ball has, the longer and/or stronger the power-up. <button class="linkbtn powersBtn" type="button">See the power-ups section</button></span></li>
       <li><b>♥</b><span>Score milestones repair one Hull point, up to your Hull's cap. The next milestone is displayed under your Hull.</span></li>
       <li><b>15</b><span>At 15 Charge, your ball enters Overload and a 2-second countdown begins. Each enemy killed resets the timer. Once the timer runs out, the next bounce makes the ball explode, killing nearby enemies and resetting your multiplier. After the explosion, the ball drifts back to you (hold to pull it closer).</span></li>
     </ul>
@@ -588,7 +588,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const DROP_CHANCE = 0.1, CHAIN_DROP = 5, PICKUP_MAX = 3, PICKUP_R = 3.6; // capsules stay until the ball collects them
   const powerTime = b => 3.3 + 0.5 * b;
   const WARD_LAYERS = 2, WARD_CD = 4, WARD_FORM = 1.2; // Warden shields: layers, seconds to reform after popping, blink-in time
-  const SWARM_SIZE = 8, WARD_R = 16, BLINK_WARN = 0.6;
+  let SWARM_SIZE = 8, WARD_R = 16, BLINK_WARN = 0.6;
   const BIG_SCALE = 2; // Wrecking Ball: twice the hit size (the catch distance stays the same so catching feels unchanged),
   // and an enemy it can't kill doesn't stop it: it takes the hit and is knocked aside, and the ball smashes on through
   // (a shield, a stone or a boss still turns it)
@@ -612,7 +612,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // (16 damage) can still one-shot a brute deep into the game. Speed stops climbing at SPEED_CAP_WAVE.
   const HP_RAMP = 0.12, HP_RAMP_LATE = 0.04, SPEED_CAP_WAVE = 12, MIX_PACE = 0.6;
   const hpScale = n => 1 + HP_RAMP * clamp(n - 3, 0, 7) + HP_RAMP_LATE * Math.max(0, n - 10);
-  const mixWave = n => n > LOOP_LEN ? Math.max(10, mixWave(inLoop(n))) : n <= 10 ? n : Math.floor(8 + (n - 10) * MIX_PACE); // later loops skip the gentle start
+  const LOOP_MIX = 20; // later loops open at wave 31's mix (a full wave, about 42 groups), not wave 10's: they pick up where the last loop's density left off
+  const mixWave = n => n > LOOP_LEN ? Math.max(LOOP_MIX, mixWave(inLoop(n))) : n <= 10 ? n : Math.floor(8 + (n - 10) * MIX_PACE); // later loops skip the gentle start
   // Touch: the screen splits in half. Move side: a floating joystick wherever the thumb lands. Action side: hold to
   // pull, swipe to throw that way, tap to throw where the ship faces.
   const STICK_R = 46, STICK_DEAD = 0.12, SWIPE_MIN = 22;
@@ -727,6 +728,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // accessibility settings: screen-shake strength (1, 0.4, 0) and flashes (1 full, 0 reduced: no full-screen flashes,
   // no strobing alert lights)
   let shakeK = 1, flashK = 1;
+  let tellK = 1; // how far later loops stretch every warning (see setTellK)
   try { const sk = localStorage.getItem('ricochet.shake'), fk = localStorage.getItem('ricochet.flash'); if (sk !== null) shakeK = +sk; if (fk !== null) flashK = +fk; } catch (e) {}
   try { best = +localStorage.getItem('ricochet.best') || 0; muted = localStorage.getItem('ricochet.muted') === '1'; swapSides = localStorage.getItem('ricochet.swap') === '1'; pullMode = ((v) => v !== null && [0, 1, 2].includes(+v) ? +v : 2)(localStorage.getItem('ricochet.pull')); /* a new player starts on Medium: Classic lets about 1 catch in 5 circle a still ship */ touchHint = localStorage.getItem('ricochet.touchHint') !== 'done'; musicOn = localStorage.getItem('ricochet.music') !== '0'; } catch (e) {}
 
@@ -902,8 +904,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       voice({ noise: true, filter: 'bandpass', ff: 1900, q: 5, dur: 0.05, vol: 0.09 });
     },
     vexaGo() { voice({ type: 'square', f: 1700, f2: 2300, dur: 0.07, vol: 0.05, filter: 'lowpass', ff: 3200 }); }, // her tell's last beat: she's about to dive
-    vexaBuzz() { voice({ type: 'sine', f: 1900, f2: 2600, dur: 0.12, vol: 0.05 }); voice({ type: 'sawtooth', f: 140, f2: 440, dur: SWOOP_WARN, vol: 0.05, filter: 'lowpass', ff: 1500 }); voice({ type: 'square', f: 70, f2: 220, dur: SWOOP_WARN, vol: 0.03, filter: 'lowpass', ff: 600 }); }, // Vexa's swoop tell: a glint, then a rising buzz
-    blasterCharge() { voice({ type: 'sine', f: 260, f2: 980, dur: GEO_CHARGE, vol: 0.06, wet: 0.2 }); voice({ type: 'sawtooth', f: 130, f2: 490, dur: GEO_CHARGE, vol: 0.03, filter: 'lowpass', ff: 900 }); },
+    vexaBuzz() { voice({ type: 'sine', f: 1900, f2: 2600, dur: 0.12, vol: 0.05 }); voice({ type: 'sawtooth', f: 140, f2: 440, dur: SWOOP_WARN / tellK, vol: 0.05, filter: 'lowpass', ff: 1500 }); voice({ type: 'square', f: 70, f2: 220, dur: SWOOP_WARN / tellK, vol: 0.03, filter: 'lowpass', ff: 600 }); }, // Vexa's swoop tell: a glint, then a rising buzz
+    blasterCharge() { voice({ type: 'sine', f: 260, f2: 980, dur: GEO_CHARGE / tellK, vol: 0.06, wet: 0.2 }); voice({ type: 'sawtooth', f: 130, f2: 490, dur: GEO_CHARGE / tellK, vol: 0.03, filter: 'lowpass', ff: 900 }); },
     blaster() { voice({ type: 'square', f: 720, f2: 170, dur: 0.22, vol: 0.12, filter: 'lowpass', ff: 2400 }); voice({ f: 90, f2: 50, dur: 0.18, vol: 0.2 }); voice({ noise: true, filter: 'bandpass', ff: 1400, q: 1, dur: 0.1, vol: 0.08 }); },
     geoSwell() { voice({ type: 'sine', f: 180, f2: 1100, dur: GEO_POP, vol: 0.09, wet: 0.3 }); voice({ type: 'sawtooth', f: 90, f2: 420, dur: GEO_POP, vol: 0.05, filter: 'lowpass', ff: 700 }); },
     shatter() { for (let i = 0; i < 6; i++) voice({ type: 'triangle', f: note(20 + Math.floor(Math.random() * 8)), dur: 0.25, vol: 0.05, at: AC && AC.currentTime + i * 0.025, wet: 0.4 }); voice({ noise: true, filter: 'highpass', ff: 3000, dur: 0.45, vol: 0.14 }); voice({ f: 110, f2: 40, dur: 0.3, vol: 0.25 }); },
@@ -1025,7 +1027,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     },
     blink() { voice({ f: 600, f2: 2000, dur: 0.13, vol: 0.06, wet: 0.35 }); },
     klaxon(k, loud = 1) { const f = k % 2 ? 520 : 660; voice({ type: 'square', f, f2: f * 0.98, dur: 0.38, vol: 0.05 * loud, filter: 'lowpass', ff: 1800, atk: 0.02 }); voice({ type: 'sawtooth', f: f / 2, dur: 0.38, vol: 0.03 * loud, filter: 'lowpass', ff: 700, atk: 0.02 }); },
-    gorpGurgle() { amVoice({ type: 'triangle', f: 170, f2: 460, dur: GEO_SPIT_WIND, vol: 0.13, atk: 0.08, rate: 12, rate2: 26, depth: 0.65, ff: 1500, ff2: 2600, wet: 0.2 }); voice({ noise: true, filter: 'bandpass', ff: 700, ff2: 1600, q: 3, dur: GEO_SPIT_WIND, vol: 0.04 }); }, // Gorp's spit, welling up (not his blaster's charge)
+    gorpGurgle() { amVoice({ type: 'triangle', f: 170, f2: 460, dur: GEO_SPIT_WIND / tellK, vol: 0.13, atk: 0.08, rate: 12, rate2: 26, depth: 0.65, ff: 1500, ff2: 2600, wet: 0.2 }); voice({ noise: true, filter: 'bandpass', ff: 700, ff2: 1600, q: 3, dur: GEO_SPIT_WIND / tellK, vol: 0.04 }); }, // Gorp's spit, welling up (not his blaster's charge)
     boss() {
       [55, 82.4, 110].forEach(f => voice({ type: 'sawtooth', f, filter: 'lowpass', ff: 300, ff2: 900, atk: 0.15, dur: 1.3, vol: 0.07, wet: 0.3 }));
       voice({ noise: true, filter: 'lowpass', ff: 300, ff2: 1200, atk: 0.4, dur: 1.0, vol: 0.12 });
@@ -1094,7 +1096,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     obJetTakeoff(x) { const pan = panOf(x); voice({ noise: true, filter: 'bandpass', ff: 250, ff2: 2200, q: 0.9, dur: 1.5, vol: 0.2, atk: 0.35, pan, wet: 0.2 }); voice({ type: 'sawtooth', f: 55, f2: 190, dur: 1.4, vol: 0.08, filter: 'lowpass', ff: 300, ff2: 1500, atk: 0.3, pan }); voice({ f: 42, f2: 30, dur: 1.2, vol: 0.2, atk: 0.1, pan }); },
     obFlyby(x0, x1, dur = 0.95) { voice({ noise: true, filter: 'bandpass', ff: 2800, ff2: 450, q: 1.3, dur, vol: 0.15, atk: 0.3 * dur / 0.95, pan: panOf(x0), pan2: panOf(x1) }); voice({ type: 'sawtooth', f: 560, f2: 150, dur, vol: 0.04, filter: 'lowpass', ff: 1600, atk: 0.3 * dur / 0.95, pan: panOf(x0), pan2: panOf(x1) }); }, // (as long as the run takes to pass over)
     // His wall cannons: a whine charging, a click as it locks; a heavy thump when it fires
-    obCannonCharge(x) { const pan = panOf(x), d = MECH_CANNON_CHARGE - MECH_CANNON_LOCK; voice({ type: 'sine', f: 380, f2: 1500, dur: d, vol: 0.03, pan }); voice({ type: 'square', f: 2200, dur: 0.03, vol: 0.04, filter: 'lowpass', ff: 5000, at: AC && AC.currentTime + d, pan }); },
+    obCannonCharge(x) { const pan = panOf(x), d = (MECH_CANNON_CHARGE - MECH_CANNON_LOCK) / tellK; voice({ type: 'sine', f: 380, f2: 1500, dur: d, vol: 0.03, pan }); voice({ type: 'square', f: 2200, dur: 0.03, vol: 0.04, filter: 'lowpass', ff: 5000, at: AC && AC.currentTime + d, pan }); },
     obCannonShot(x) { if (!gate('obCannon', 40)) return; const pan = panOf(x); voice({ f: 150, f2: 48, dur: 0.2, vol: 0.2, pan }); voice({ noise: true, filter: 'lowpass', ff: 2200, ff2: 300, dur: 0.16, vol: 0.13, pan }); },
     // The lance: a ping as it locks; the shot a crack and a thump
     obLanceLock(x) { const pan = panOf(x); voice({ type: 'square', f: 2600, dur: 0.06, vol: 0.1, filter: 'lowpass', ff: 6000, pan }); voice({ type: 'triangle', f: 1300, dur: 0.3, vol: 0.09, pan, wet: 0.4 }); },
@@ -1817,7 +1819,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const bossCycle = n => loopOf(n);
   const BOSS_NAMES = { core: 'The Core', tank: 'Clanktank', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'Vexa', mech: '0B-L1-V10N' };
   const BOSS_TITLES = { geode: 'the Jailer' }; // shown under the name as it lands
-  const RAM_AIM = 1.2, RAM_LOCK = 0.35, RAM_SPEED = 110, RAM_STUN = 2.4;
+  let RAM_AIM = 1.2, RAM_LOCK = 0.35, RAM_SPEED = 110, RAM_STUN = 2.4;
   const CORE_R = 16, CORE_SPEED = 9, BOMB_R = 3.6, BOMB_SPEED = 16, BOMB_RETURN = 90, BOMB_FUSE = 10, BOMB_FUSE_BLAST = 14, BOMB_MAX = 4;
   // Bosses announce themselves: for BOSS_ENTER seconds the arena goes to red alert (a klaxon, a red wash, the edges and
   // corner lights strobing, hazard bars along the top and bottom) while each boss makes its own entrance: searchlights
@@ -1842,7 +1844,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const SERP_N = 14, SERP_GAP = 10.5, SERP_HEAD = 12, SERP_SPEED = [48, 56, 66], SERP_REST = [0.7, 0.5, 0.35], SERP_CROWD = [18, 22, 26];
   const SERP_CLUTCH = [6, 5, 4], SERP_EGGS = [8, 10, 12], SEGG_HATCH = 5.5, SEGG_HATCH_BOSS = 2.9; // how often it lays a clutch, how many eggs in one, how long they take to hatch (the Serpent's own: quicker)
   const PACK_SEP = 6.5, PACK_COH = 0.6; // a hatched clutch swims as a school: how far apart its hatchlings keep, how hard they hold together
-  const SERP_AIM = 0.8, SERP_LOCK = 0.35, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 90, SERP_SPLIT = 0.5;
+  let SERP_AIM = 0.8, SERP_LOCK = 0.35, SERP_LUNGE = 0.55, SERP_DASH = 2.6, SERP_REACH = 90, SERP_SPLIT = 0.5;
   const SERP_STRIKES = 2, SERP_STRIKE_GAP = 1.5; // strikes a pass (at most), and the least time between them
   // Both serpents: the boss itself, and once it's split, its twin (which shares its health, phase and the rest)
   const serpents = B => B.twin ? [B, B.twin] : [B];
@@ -1856,7 +1858,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // between them (wider than a hot ball), the empty chamber in front of the throat, the clear stretch inside the doors.
   // In landscape the arena zooms out to MAW_ARENA for the fight so the bay fits.
   const MAW_SHIP_R = 4.2, MAW_BRICK_W = 8.4, MAW_BRICK_H = 8.4, MAW_GAP_X = 8, MAW_GAP_Y = 7.5, MAW_CHAMBER = 12, MAW_MOUTH = 11, MAW_ARENA = 172, MAW_STEEP = 0.35, MAW_ROWS = 6, MAW_JITTER = 2.5;
-  const MAW_GUN_WARN = 0.8, MAW_IN = 0.8; // it drops in over the first MAW_IN of its warning, solid from then on
+  let MAW_GUN_WARN = 0.8, MAW_IN = 0.8; // it drops in over the first MAW_IN of its warning, solid from then on
   // The hull: each side runs from the stern on the wall to a prong MAW_PRONG past the doors, with an angled bow and a gun
   // pod on it. Between hull and bay a pylon (MAW_PYLON wide) the ball bounces off. Each side's top is an open flight deck:
   // the ball flies in over its edge (the ship can't), and jets are parked there, MAW_DECK_GAP apart: the ball wrecks
@@ -1877,7 +1879,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // and parked ones too.
   const MAW_SCRAMBLES = [0.66, 0.33], MAW_SCR_TORP_FIRST = 2.2, MAW_SCR_TORP_GAP = 3.5, MAW_PURGE = 1.1, MAW_LIFT = 1.1, MAW_SQUADS = 6, MAW_SQUAD_N = 6, MAW_SQUAD_GAP = 1.1, MAW_SQUAD_FAST = { v: 44, hold: 0.3, peel: 0.18, spd: 1.5 }, MAW_SCRAMBLE_MAX = 35, MAW_RETURN = 1.8;
   const mawUp = B => (B.lift || 0) * (B.D + MAW_PRONG + 14); // how far it's lifted (its prongs and pods hang below the hull)
-  const TORP_WARN = 1.0, TORP_V = 46, TORP_R = 2.8, TORP_BLAST = 15, TORP_SPREAD = 9;
+  let TORP_WARN = 1.0, TORP_V = 46, TORP_R = 2.8, TORP_BLAST = 15, TORP_SPREAD = 9;
   const MAW_THROAT_D = 7, MAW_THROAT_HP = 189, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 2, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [3, 4, 4], MAW_DECK_LAUNCH = [1, 1, 2], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
 
   // The Hive (wave 50, the finale): Queen Vexa, in a loop. The dig: HIVE_RINGS rings of hexagonal wax cells round a
@@ -1902,7 +1904,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // queen), that flies and bounces off the walls COMB_BOUNCES times or for COMB_LIFE seconds, then crumbles. Its touch
   // hurts; each cell breaks in one hit and counts toward the chain, and breaking the core cell shatters the rest.
   // During the dig, worker bees fly to holes in the comb and rebuild them (kill them first).
-  const COMB_SPEED = 50, COMB_BOUNCES = 3, COMB_LIFE = 7, COMB_MAX = 2, COMB_WARN = 0.7, COMB_EVERY = [6, 5, 4], WAX_S = 3;
+  let COMB_SPEED = 50, COMB_BOUNCES = 3, COMB_LIFE = 7, COMB_MAX = 2, COMB_WARN = 0.7, COMB_EVERY = [6, 5, 4], WAX_S = 3;
   const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2;
   // What a boss pays (audited with bots that throw, pull and catch): each point of damage pays BOSS_DMG_PTS (× your
   // multiplier), set per boss so a fight pays about as well as the waves round it (Clanktank's and Gorp's fights have
@@ -1912,18 +1914,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Vexa's fight is all chains (walls of bees, her cages, her honeycomb), so everything in it pays HIVE_PAY of the usual (playtested: 2.3M in 2:17, more a minute than the finale)
   const HIVE_PAY = 1 / 3, hivePay = () => (G.boss && G.boss.kind === 'hive' ? HIVE_PAY : 1);
   const BOSS_BONUS = { core: 25000, tank: 150000, serpent: 250000, maw: 350000, geode: 500000, hive: 650000, mech: 1000000 }, FINALE_MULT_PTS = 50000; // (playtested: a kill's a payday, more than the waves round it; and it grows through the loop)
-  const HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [4.5, 3.8, 3], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
+  let HIVE_RINGS = 3, HIVE_CELL = 4.6, HIVE_HATCH = [4.5, 3.8, 3], HIVE_BEES = 5, HIVE_MAX_BEES = 40, HIVE_WARN = 0.8;
   const HIVE_LULL = 0.6, COMB_LULL = 1; // during the dig, once you've cleared every bee (or every chunk of honeycomb), the next comes this soon
   const VEXA_SC = 1.5, VEXA_CAGE_AT = 0.5, VEXA_BERSERK = 0.25, VEXA_RETREAT = 1.4, VEXA_FORM = [5, 4.3, 3.7, 3.2], VEXA_STING = [2.6, 2.2, 1.9, 1.5];
-  const VEXA_AIM = 1.05, VEXA_LOCK = 0.25, VEXA_NEEDLE = 160, VEXA_BEE_V = [38, 44, 50, 56], VEXA_COMB = [6.5, 5.5, 5, 4.5];
+  let VEXA_AIM = 1.05, VEXA_LOCK = 0.25, VEXA_NEEDLE = 160, VEXA_BEE_V = [38, 44, 50, 56], VEXA_COMB = [6.5, 5.5, 5, 4.5];
   // her body as circles along her length, in units of her r, with whether a hit there hurts her (the abdomen) or not
   const VEXA_BODY = [[0.82, 0.5, false], [0, 0.5, false], [-0.8, 0.55, true], [-1.3, 0.62, true], [-1.8, 0.5, true], [-2.22, 0.3, true]];
   const QUEEN_R = 9.5, QUEEN_HP = 550, QUEEN_EMERGE = 1.8, EGG_HATCH = 4.5;
-  const FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 }, FORM_LAYERS = [1, 3, 5, 7], FORM_LAYERS_COL = [1, 2, 3, 4], FORM_THICK = 2; // a formation's depth, by how tough she's got: the same line, more of it (a column, the arena's whole height, gets half as many: about as many bees)
-  const CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [7.5, 7, 6.5, 6.5];
+  let FORM_WARN = { column: 1.3, row: 1.6, v: 1.0 }, FORM_GAP = { column: 15, row: 17 }, FORM_LAYERS = [1, 3, 5, 7], FORM_LAYERS_COL = [1, 2, 3, 4], FORM_THICK = 2; // a formation's depth, by how tough she's got: the same line, more of it (a column, the arena's whole height, gets half as many: about as many bees)
+  let CAGE_WARN = 1.1, CAGE_R = 13.5, CAGE_CELL = 3.9, CAGE_TIME = [7.5, 7, 6.5, 6.5];
   const VEXA_CAGES = [0.75, 0.5, 0.25], CAGE_LAYERS = 3, CAGE_STEP = 6.8; // she cages you at these fractions of her health; its wax layers, and how far apart
   const VEXA_LULL = 0.6; // with nothing coming at you, her next wall (and sting) comes this soon
-  const VEXA_SWOOP = [16, 14, 12, 11], SWOOP_WARN = 0.9, SWOOP_HOLD = 0.65, SWOOP_DIVE = 0.63, SWOOP_PERCH = 2, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
+  let VEXA_SWOOP = [16, 14, 12, 11], SWOOP_WARN = 0.9, SWOOP_HOLD = 0.65, SWOOP_DIVE = 0.63, SWOOP_PERCH = 2, SWOOP_RISE = 0.9, SWOOP_K = 1.5;
   const GOLD = () => `rgb(${HEAT[1].join(',')})`;
   function setupHive(B, cycle) {
     const S = HIVE_CELL, cx = AW / 2, cy = clamp(AH * 0.36, S * 9, AH * 0.45), cells = [];
@@ -2687,7 +2689,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const p = G.player;
     B.cage = { st: 'warn', t: CAGE_WARN, x: clamp(p.x, CAGE_R + 4, AW - CAGE_R - 4), y: clamp(p.y, CAGE_R + 4, AH - CAGE_R - 4), R: CAGE_R + (CAGE_LAYERS - 1) * CAGE_STEP, cells: [] };
     B.mode = 'hang'; B.forms = []; B.taken = 0;
-    if (!B.cageShown) { B.cageShown = true; G.banner = { text: 'Caged!', sub: 'Break out before it hatches', t: 1.8, max: 1.8, at: 0.45 }; } // mid-screen (she fills the top); the first time only
     sfx.boss(); shake(1);
   }
   // The cage is over: she swoops back down, furious.
@@ -4096,7 +4097,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const ready = e.st === 'walk' ? clamp(1 - e.stT / 1.2, 0, 1) : 1, th = e.st === 'dash' ? 1 : e.st === 'wind' ? 0.6 + 0.4 * Math.random() : 0.15 + 0.25 * ready;
     const path = P => { ctx.beginPath(); P.forEach(([x, y], i) => i ? ctx.lineTo(x * r, y * r) : ctx.moveTo(x * r, y * r)); ctx.closePath(); };
     { // its engine: a flicker; winding up, it charges white-hot (a glowing ball of thrust at the nozzle, sparks); lunging, an afterburner and speed streaks
-      const wind = e.st === 'wind', dash = e.st === 'dash', k = wind ? clamp(1 - e.stT / 0.55, 0, 1) : 0;
+      const wind = e.st === 'wind', dash = e.st === 'dash', k = wind ? clamp(1 - e.stT / DASH_WIND, 0, 1) : 0;
       const L = r * (dash ? 2.6 + Math.random() * 0.8 : wind ? 0.5 + 0.4 * Math.random() : 0.4 + th * (1.3 + Math.random() * 0.5));
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
       ctx.globalAlpha = 0.7; ctx.strokeStyle = COL.threat; ctx.lineWidth = r * (dash ? 0.5 : 0.36); ctx.beginPath(); ctx.moveTo(-r * 0.78, 0); ctx.lineTo(-r * 0.78 - L, 0); ctx.stroke();
@@ -4398,7 +4399,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // doing TANK_DRUM_DMG to every part within TANK_DRUM_R, and to the reactor once it's open, and wrecking escorts there).
   // The bar is the treads and the reactor (TANK_TREAD × 2 ≈ a fifth of it): the pods are optional.
   const TANK_S = 1.45, TANK_TREAD = 45, TANK_REACTOR = 190, TANK_POD = 8, TANK_SPEED = 10, TANK_TURN = 0.45, TANK_LIMP = 0.45;
-  const TANK_FIRE = [3.2, 2.8, 2.4], TANK_BURST = [4, 3.5, 3], TANK_AIM = 0.9, TANK_SHELL = 52, TANK_SHELL_DUG = 40, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
+  let TANK_FIRE = [3.2, 2.8, 2.4], TANK_BURST = [4, 3.5, 3], TANK_AIM = 0.9, TANK_SHELL = 52, TANK_SHELL_DUG = 40, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
   const TANK_BLAST = 7, TANK_RAM_TURN = 2.6; // its shells' blast; how fast it swings round on you before a ram
   const TANK_DIG_M = 40, TANK_RAM = [6.5, 5.5, 4.5], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 3, TANK_TRICKLE = [10, 7];
   const TANK_SWEEP = [5.6, 4.8, 4], TANK_SIGHT = 1.1, TANK_SPRAY = 1, TANK_ARC = 0.95, TANK_MG = 40, TANK_MG_GAP = 0.13;
@@ -4912,7 +4913,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Wave 26: TITAN_COUNT titans arrive at once in a ring round the arena's edge and close in. Each stomps every few
   // seconds: it stops and a ring shows how far the shockwave reaches (TITAN_WARN), then the ground shakes and
   // anything of yours inside TITAN_STOMP_R is hurt. A titan cracks into two brutes; each of those into two splinters.
-  const TITAN_COUNT = 6, TITAN_WARN = 0.9, TITAN_STOMP_R = 25, TITAN_EVERY = [3, 4.5];
+  let TITAN_COUNT = 6, TITAN_WARN = 0.9, TITAN_STOMP_R = 25, TITAN_EVERY = [3, 4.5];
   function titanRing(n) {
     const p = G.player, a0 = rand(0, Math.PI * 2);
     for (let i = 0; i < n; i++) {
@@ -5163,22 +5164,22 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const MECH_W = { gun: 58, claw: 58, rack: 58, rail: 58 }, MECH_KNEE = 220, MECH_CORE = 1140, MECH_CRIT = 0.1;
   const MECH_ROCKET_V = 30, MECH_ROCKET_TURN = 1.1, MECH_ROCKET_HOME = 2.8, MECH_ROCKET_BACK = 75, MECH_ROCKET_DMG = 12, MECH_ROCKET_R = 2.4;
   const MECH_MICRO_N = 30, MECH_MICRO_AOE = 6.5, MECH_MICRO_ORBIT = 1.6, MECH_MICRO_OUT = 8, MECH_MICRO_CLOSE = 10, MECH_MICRO_FOLLOW = 13, MECH_MICRO_SPIN = 0.2, MECH_MICRO_BOOM = 9;
-  const MECH_STOMP_R = 16, MECH_STEP = [0.62, 2.1], MECH_STRIDE = [15, 5], MECH_STEP_WARN = 0.5, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
+  let MECH_STOMP_R = 16, MECH_STEP = [0.62, 2.1], MECH_STRIDE = [15, 5], MECH_STEP_WARN = 0.5, MECH_BEAM_CHARGE = 1.7, MECH_BEAM_SWEEP = 4.6, MECH_BEAM_ARC = Math.PI * 2 - 1.05; // the beam sweeps all but a 60° gap
   const MECH_BEAM_FIRST = 10, MECH_BEAM_EVERY = 16, MECH_BEAM_DESP = 1.3; // its first beam, then one every MECH_BEAM_EVERY (sooner as it grows desperate, but never more than MECH_BEAM_DESP times as often)
   const MECH_DEBRIS = 10;
   const MECH_CRAWL_T = 1.6, MECH_CRAWL_REACH = 0.6, MECH_CRAWL_DRAG = 0.5, MECH_CRAWL_STEP = 9, MECH_HAND = 14, MECH_SLAM_R = 12; // on its knees: an arm reaches out and slams down, then it drags itself after it
   const MECH_THROW_T = 6, MECH_THROW_FLY = 1.15, MECH_THROW_R = 7; // on its knees: wreckage hurled at you, lying where it lands
-  const MECH_PULSE_T = [5, 3.4], MECH_PULSE_WARN = 1, MECH_PULSE_V = 28, MECH_PULSE_GAP = 1.1, MECH_PULSE_W = 2.2, MECH_OVER = 0.66, MECH_MELT = 0.33; // its last stand: reactor pulses; overcharged, then meltdown
+  let MECH_PULSE_T = [5, 3.4], MECH_PULSE_WARN = 1, MECH_PULSE_V = 28, MECH_PULSE_GAP = 1.1, MECH_PULSE_W = 2.2, MECH_OVER = 0.66, MECH_MELT = 0.33; // its last stand: reactor pulses; overcharged, then meltdown
   // Its gatling (left arm): its barrel on you; winding up (MECH_GUN_WIND) it swings out to its own side of you and spins up,
   // then hoses a stream of tracers across you (MECH_GUN_ARC wide over MECH_GUN_FIRE): always from its side, across.
-  const MECH_GUN_WIND = 1.1, MECH_GUN_FIRE = 1, MECH_GUN_ARC = 1;
+  let MECH_GUN_WIND = 1.1, MECH_GUN_FIRE = 1, MECH_GUN_ARC = 1;
   const mechGunAt = B => { const [x, y] = mechAt(B, MECH_PARTS.gun[0], MECH_PARTS.gun[1]); return [x, y + mechArmOff(B, -1) * B.s]; };
   const mechMuzzle = B => { const [x, y] = mechGunAt(B), a = B.gunA ?? Math.PI / 2; return [x + Math.cos(a) * 22 * B.s, y + Math.sin(a) * 22 * B.s]; };
-  const MECH_LANCE_AIM = 1.1, MECH_LANCE_LOCK = 0.45, MECH_LANCE_FIRE = 0.3, MECH_LANCE_W = 3.2; // on its knees, its reactor's lance: tracking you, locked (sidestep now), fired down the line
+  let MECH_LANCE_AIM = 1.1, MECH_LANCE_LOCK = 0.45, MECH_LANCE_FIRE = 0.3, MECH_LANCE_W = 3.2; // on its knees, its reactor's lance: tracking you, locked (sidestep now), fired down the line
   const MECH_JETS = 85, MECH_JET_AT = [50, -22], MECH_JET_R = 8; // the thruster pods: either side of its shoulders, one health between them
-  const MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.4, MECH_FLY_UP = 1.0, MECH_FLY_DOWN = 1.9, MECH_FLY_DROP = 0.5;
-  const MECH_CANNON_HP = 6, MECH_CANNON_CHARGE = 0.7, MECH_CANNON_LOCK = 0.22, MECH_CANNON_GAP = 0.38, MECH_CANNON_REST = 1.1, MECH_CANNON_V = 44; // his battery, while he's up: wall cannons firing in a ripple
-  const MECH_RUNS = 6, MECH_RUN_GAP = 0.95, MECH_RUN_WARN = 1.3, MECH_RUN_V = 100, MECH_RUN_HALF = 11, MECH_BOMB_FALL = 0.5, MECH_BOMB_R = 7, MECH_BOMB_GAP = 6, MECH_LAND_R = 24; // (a carpet: three rows down its lane, MECH_BOMB_GAP apart)
+  let MECH_FLY_FIRST = 9, MECH_FLY_EVERY = 17, MECH_FLY_CROUCH = 1.4, MECH_FLY_UP = 1.0, MECH_FLY_DOWN = 1.9, MECH_FLY_DROP = 0.5;
+  let MECH_CANNON_HP = 6, MECH_CANNON_CHARGE = 0.7, MECH_CANNON_LOCK = 0.22, MECH_CANNON_GAP = 0.38, MECH_CANNON_REST = 1.1, MECH_CANNON_V = 44; // his battery, while he's up: wall cannons firing in a ripple
+  let MECH_RUNS = 6, MECH_RUN_GAP = 0.95, MECH_RUN_WARN = 1.3, MECH_RUN_V = 100, MECH_RUN_HALF = 11, MECH_BOMB_FALL = 0.5, MECH_BOMB_R = 7, MECH_BOMB_GAP = 6, MECH_LAND_R = 24; // (a carpet: three rows down its lane, MECH_BOMB_GAP apart)
   const MECH_RUN_REACH = MECH_RUN_HALF * 0.45 + MECH_BOMB_R + PLAYER_R * 0.5; // how far either side of a run's line its bombs reach you: its lane, shadowed, and its shadow, are exactly this wide
   const mechS = () => clamp(Math.min(AW / 120, AH / 200), 0.8, 1.5); // its size: it all but spans a portrait arena
   // Its parts, in its own units (x across, y down from the middle of its chest), standing.
@@ -5289,7 +5290,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Mortar barrage (Goliath's missile rack; in waves 58-59, from somewhere off the screen): a volley of shells goes up,
   // their landing circles appear round you (one right on you, landing first) and they come down one after another,
   // MORTAR_FALL after the launch; MORTAR_SECOND later a second volley goes up, aimed at wherever you've gone.
-  const MORTAR_N = 6, MORTAR_R = 7, MORTAR_FALL = 1.3, MORTAR_RIPPLE = 0.12, MORTAR_SPREAD = 30, MORTAR_SPACE = 15, MORTAR_SECOND = 1.5, MECH_MORTAR_EVERY = 10;
+  let MORTAR_N = 6, MORTAR_R = 7, MORTAR_FALL = 1.3, MORTAR_RIPPLE = 0.12, MORTAR_SPREAD = 30, MORTAR_SPACE = 15, MORTAR_SECOND = 1.5, MECH_MORTAR_EVERY = 10;
   const mortarBarrage = (src, volleys = 2) => G.barrage.push({ t: 0, left: volleys, src }); // src 'rack': from Goliath's rack (and none once it's broken)
   function mortarVolley(at) {
     const p = G.player, R = MORTAR_R, cx = clamp(p.x, R, AW - R), cy = clamp(p.y, R, AH - R), pts = [[cx, cy]];
@@ -5564,8 +5565,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Below MECH_OVER of its share it's overcharged (quicker); below MECH_MELT, meltdown: quicker still, two punches, two
   // volleys, alarms.
   const STORM_N = 40, STORM_MIN = 12, STORM_FORM = 1.8, STORM_V = 16, STORM_GAP = [1.9, 1.5, 1.1];
-  const PUNCH_GATHER = 0.5, PUNCH_WIND = [0.6, 0.5, 0.45], PUNCH_V = 120, WALL_FORM = 0.9, WALL_HOLD = 0.35, WALL_V = [42, 50, 58];
-  const FLING_WIND = 0.6, FLING_N = [5, 7, 9], FLING_V = 72, SCRAP_DMG = 2, SCRAP_CORE_CD = 0.2, REBUILD_T = [0.45, 0.35, 0.25];
+  let PUNCH_GATHER = 0.5, PUNCH_WIND = [0.6, 0.5, 0.45], PUNCH_V = 120, WALL_FORM = 0.9, WALL_HOLD = 0.35, WALL_V = [42, 50, 58];
+  let FLING_WIND = 0.6, FLING_N = [5, 7, 9], FLING_V = 72, SCRAP_DMG = 2, SCRAP_CORE_CD = 0.2, REBUILD_T = [0.45, 0.35, 0.25];
   const scrapLvl = B => B.melt ? 2 : B.over ? 1 : 0;
   // The belt: its big move. The magnet blasts every piece it holds, the wreckage off the floor and more besides out
   // into one wide ring round the reactor (BELT_N strong, so wide some of it swings off the arena's edges), turning
@@ -5577,7 +5578,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const BELT_N = 54, BELT_W = 0.55, BELT_V = 15, BELT_FORM = 1.4, BELT_FLY = 0.55, BELT_BREAK = 0.4, BELT_STUN = 3, BELT_AT = [1, 0.5];
   // ...and every BELT_FL (from BELT_FL_FIRST on) the pieces of it nearest you glow (BELT_FL_WIND) and are flung at you, landing as
   // wreckage. Only what you smash counts toward breaking it (what it flings comes off what it started with).
-  const BELT_FL_FIRST = 2.5, BELT_FL = [2.4, 2, 1.7], BELT_FL_N = [3, 3, 4], BELT_FL_WIND = 0.5;
+  let BELT_FL_FIRST = 2.5, BELT_FL = [2.4, 2, 1.7], BELT_FL_N = [3, 3, 4], BELT_FL_WIND = 0.5;
   const beltR = () => Math.min(AW, AH) * 0.46;
   // The trap (its second belt): it blasts the belt out off the screen (TRAP_OUT out there), then pulls it in round you
   // (TRAP_CLOSE), a cage TRAP_R across with you and it inside, and hunts you in it (TRAP_V) for TRAP_T: dodge it, or
@@ -5640,7 +5641,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         Bt.lost = (Bt.lost || 0) + go.length; Bt.fl = null; if (go.length) { sfx.obHurl(S.x); shake(0.8); } } }
     else if ((Bt.flT = (Bt.flT ?? BELT_FL_FIRST) - dt) <= 0) { Bt.flT = BELT_FL[scrapLvl(B)];
       const pcs = alive.filter(q => q.ft >= 1 && q.x > 2 && q.x < AW - 2 && q.y > 2 && q.y < AH - 2).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, BELT_FL_N[scrapLvl(B)]);
-      if (pcs.length) { for (const q of pcs) q.hot = 1; Bt.fl = { t: 0, pcs }; sfx.obWhirlUp(BELT_FL_WIND, S.x); } }
+      if (pcs.length) { for (const q of pcs) q.hot = 1; Bt.fl = { t: 0, pcs }; sfx.obWhirlUp(BELT_FL_WIND / tellK, S.x); } }
     }
     const frac = alive.length / Math.max(1, Bt.n0 - (Bt.lost || 0)); Bt.wob = frac < 0.65 ? (0.65 - frac) * 5 : 0;
     if (frac <= BELT_BREAK) { // the magnet loses its grip: the rest crashes down, and it's stunned
@@ -5881,9 +5882,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // And its wreck keeps spitting out scrap crawlers (CRAWL_*): little scuttling things, one hit each, that come at you.
   // Late: half its arms' health gone.
   const WALK_S = 0.85, ARM_HP = 270, ARM_T = { over: 1.1, rip: 2.1, blow: 2.25, arms: 2.55, plant: 3.85, end: 4.45 }, ARM_FORM = 1.1, ARM_STEP_T = 0.24, ARM_STEP_GAP = 0.02, ARM_STRIDE = 16, ARM_RANGE = 52, ARM_PLATES = 26, PLATE_SEG = 13, PLATE_T = Array.from({ length: 13 }, (_, k) => 0.06 + k * 0.88 / 12); // (13 bands down each half of an arm)
-  const ARM_ATK = [1.3, 1.0], ARM_WIND = [0.42, 0.34], ARM_SWING = 0.3, ARM_REC = 0.3, ARM_L1 = 21, ARM_L2 = 13;
-  const POUNCE_CROUCH = [0.6, 0.42], POUNCE_AGAIN = 0.32, POUNCE_H = 22, POUNCE_SKID = 0.22, POUNCE_REC = [0.55, 0.4];
-  const THROW_REACH = 0.22, THROW_DIG = 0.32, THROW_WIND = [0.5, 0.38], THROW_V = 85, THROW_REC = 0.25;
+  let ARM_ATK = [1.3, 1.0], ARM_WIND = [0.42, 0.34], ARM_SWING = 0.3, ARM_REC = 0.3, ARM_L1 = 21, ARM_L2 = 13;
+  let POUNCE_CROUCH = [0.6, 0.42], POUNCE_AGAIN = 0.32, POUNCE_H = 22, POUNCE_SKID = 0.22, POUNCE_REC = [0.55, 0.4];
+  let THROW_REACH = 0.22, THROW_DIG = 0.32, THROW_WIND = [0.5, 0.38], THROW_V = 85, THROW_REC = 0.25;
   const FLAIL_CALL = 0.75, FLAIL_SPIN = 2.2, FLAIL_HOT = 0.55, FLAIL_R = 34, FLAIL_W = [2.4, 5.5], FLAIL_N = 6, FLAIL_V = 62, FLAIL_STAG = 1.1;
   const flailPiece = (F, q) => { const c = Math.cos(F.rot), s = Math.sin(F.rot); return [F.x + q.dx * c - q.dy * s, F.y + q.dx * s + q.dy * c]; };
   const CRAWL_FIRST = 2.5, CRAWL_T = [3, 2.3], CRAWL_N = [2, 3], CRAWL_CAP = 7;
@@ -6039,7 +6040,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function armWalkThrow(B, W, dt, L) {
     const T = W.th, p = G.player, ws = B.s * WALK_S, sd = T.i ? 1 : -1, ease = k => k * k * (3 - 2 * k); T.t += dt;
-    const grab = (r, rot) => { T.held = { r: clamp(r, 2.2, 4), sh: Array.from({ length: 6 }, () => rand(0.7, 1.1)), rot }; T.ph = 'wind'; T.t = 0; T.from = [...T.pos]; sfx.obScrape(T.pos[0]); sfx.obStrain(THROW_WIND[L], T.pos[0]); };
+    const grab = (r, rot) => { T.held = { r: clamp(r, 2.2, 4), sh: Array.from({ length: 6 }, () => rand(0.7, 1.1)), rot }; T.ph = 'wind'; T.t = 0; T.from = [...T.pos]; sfx.obScrape(T.pos[0]); sfx.obStrain(THROW_WIND[L] / tellK, T.pos[0]); };
     if (T.ph === 'reach') { // its hand to the wreckage, and it picks it up
       const k = clamp(T.t / THROW_REACH, 0, 1), d = T.deb;
       T.pos = [T.home[0] + (d.x - T.home[0]) * ease(k), T.home[1] + (d.y - T.home[1]) * ease(k) - Math.sin(Math.PI * k) * 6 * ws];
@@ -6362,12 +6363,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const LEG_BUCKLE = 0.6, LEG_CRACK = 0.9;
   const LEG_HP = 260, LEG_SAG = 0.6, LEG_CALL = 0.55, LEG_FLING = 0.85, LEG_DOCK = 2.0, LEG_STAND = 1.1, LEG_ARRAY = 0.75, LEG_FORM = 4.4, LEG_V = 20, LEG_L1 = 22, LEG_L2 = 22, LEG_STEP_T = 0.3, LEG_STRIDE = 10, LEG_BAND = [0.07, 0.22];
   const EMIT_N = 7, EMIT_HITS = 3, EMIT_DMG = 10, EMIT_X = [-18, -12, -6, 0, 6, 12, 18], EMIT_Y = 13;
-  const LEG_ATK = [3, 2.4], LANE_WIND = 0.7, LANE_ON = 0.7, LANE_GAP = 0.25, LANE_N = [3, 4], LANE_W = 7, LANE_REACH = 26;
-  const SCIS_WIND = 0.6, SCIS_T = 1.65, SCIS_HOLD = 0.35, SCIS_GAP = [24, 19];
-  const GATE_N = [3, 4], GATE_EVERY = [1.5, 1.35], GATE_FLY = 0.3, GATE_WIND = 0.6, GATE_V = [32, 36], GATE_GAP = 22, GATE_W = 4, GATE_HITS = 2, GATE_X = 2.4;
+  let LEG_ATK = [3, 2.4], LANE_WIND = 0.7, LANE_ON = 0.7, LANE_GAP = 0.25, LANE_N = [3, 4], LANE_W = 7, LANE_REACH = 26;
+  let SCIS_WIND = 0.6, SCIS_T = 1.65, SCIS_HOLD = 0.35, SCIS_GAP = [24, 19];
+  let GATE_N = [3, 4], GATE_EVERY = [1.5, 1.35], GATE_FLY = 0.3, GATE_WIND = 0.6, GATE_V = [32, 36], GATE_GAP = 22, GATE_W = 4, GATE_HITS = 2, GATE_X = 2.4;
   const gateLive = g => g.st !== 'done' && g.st !== 'dead';
   const gatePylon = (g, sd) => { const wx = sd ? AW - GATE_X : GATE_X; if (g.st !== 'fly') return [wx, g.y]; const k = clamp(g.t / GATE_FLY, 0, 1); return [g.ox + (wx - g.ox) * k, g.oy + (g.y - g.oy) * k - Math.sin(Math.PI * k) * 12]; }; // (flying out to the wall in an arc)
-  const BOLT_T = [2.2, 1.7], BOLT_N = 3, BOLT_V = 75, BOLT_GAP = 0.14, BOLT_CHARGE = 0.35;
+  let BOLT_T = [2.2, 1.7], BOLT_N = 3, BOLT_V = 75, BOLT_GAP = 0.14, BOLT_CHARGE = 0.35;
   const legWalkLate = B => B.legs.legs[0].hp + B.legs.legs[1].hp <= LEG_HP / 2;
   const legEmit = (B, k) => { const ws = B.s * WALK_S, Lg = B.legs; return [B.x + ((Lg && Lg.sx) || 0) + EMIT_X[k] * ws, B.y + ((Lg && Lg.sy) || 0) + EMIT_Y * ws]; }; // (its pelvis sways with its steps)
   const laneEnd = k => [8 + k * (AW - 16) / (EMIT_N - 1), AH + 6]; // where emitter k's lane reaches: fanned evenly across the bottom
@@ -6467,7 +6468,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateGates(B, Lg, dt, L) {
     const p = G.player, fire = heat(MAX_CHARGE * 0.75); if (!Lg.gates) return;
     for (const g of Lg.gates) { if (!gateLive(g)) continue; g.t += dt; for (const P of g.pl) P.flash -= dt;
-      if (g.st === 'fly' && g.t >= GATE_FLY) { g.st = 'wind'; g.t = 0; for (const sd of [0, 1]) { const [x, y] = gatePylon(g, sd); burst(x, y, 10, COL.chalk, 35, 0.4, 0.3); ring(x, y, 0.5, 6, 0.2, COL.chalk, 0.8); } shake(1.2); sfx.clank(); sfx.laserCharge(GATE_WIND); } // clamped on: a clank, sparks
+      if (g.st === 'fly' && g.t >= GATE_FLY) { g.st = 'wind'; g.t = 0; for (const sd of [0, 1]) { const [x, y] = gatePylon(g, sd); burst(x, y, 10, COL.chalk, 35, 0.4, 0.3); ring(x, y, 0.5, 6, 0.2, COL.chalk, 0.8); } shake(1.2); sfx.clank(); sfx.laserCharge(GATE_WIND / tellK); } // clamped on: a clank, sparks
       else if (g.st === 'wind' && g.t >= GATE_WIND) { g.st = 'on'; g.t = 0; sfx.laserFire(0.35); shake(1); for (const sd of [0, 1]) { const [x, y] = gatePylon(g, sd); ring(x, y, 0.5, 9, 0.2, COL.chalk, 1); } }
       else if (g.st === 'on') { g.y += GATE_V[L] * dt; if (g.y > AH + 5) { g.st = 'done'; continue; }
         if (Math.random() < dt * 30) { const sd = Math.random() < 0.5 ? 0 : 1; burst(sd ? AW - 0.5 : 0.5, g.y + rand(-3, 3), 1, Math.random() < 0.5 ? COL.chalk : fire, 30, 0.3, 0.2); } // grinding down the walls: sparks
@@ -6493,7 +6494,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (A.k === 'lanes') {
       if (A.ph === 'wind' && !A.fire) { // the emitters over you (if any's left)
         A.fire = alive.filter(k => { const [x0, y0] = legEmit(B, k), [x1, y1] = laneEnd(k), u = clamp((p.y - y0) / (y1 - y0), 0, 1); return Math.abs(x0 + (x1 - x0) * u - p.x) < LANE_REACH; });
-        if (A.fire.length) sfx.laserCharge(LANE_WIND);
+        if (A.fire.length) sfx.laserCharge(LANE_WIND / tellK);
       }
       if (A.ph === 'wind' && A.t >= LANE_WIND) { A.ph = 'on'; A.t = 0; if (A.fire.length) { sfx.laserFire(LANE_ON); shake(1.2); for (const k of A.fire) { const [x1] = laneEnd(k); burst(clamp(x1, 2, AW - 2), AH - 2, 10, heat(MAX_CHARGE * 0.75), 40, 0.4, 0.3); } } }
       else if (A.ph === 'on' && A.t >= LANE_ON) { A.ph = 'gap'; A.t = 0; }
@@ -6612,7 +6613,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (Lg.gates) Lg.atkT = 0.3; // (its gates are still coming down: nothing else till they're past)
       else if (!alive.length || !Lg.lastK || (Lg.lastK !== 'gates' && Math.random() < 0.38)) { Lg.atk = { k: 'gates', t: 0, n: GATE_N[L], spawnT: 0, last: null }; Lg.lastK = 'gates'; } // (its first attack's always its gates; no emitters left: its gates, and its eye)
       else if (!alive.length) Lg.atkT = 1;
-      else if (alive.length >= 2 && Math.random() < 0.4) { const gap = SCIS_GAP[L], xg = clamp(B.x, gap / 2 + 8, AW - gap / 2 - 8); Lg.atk = { k: 'scissors', ph: 'wind', t: 0, l: alive[0], r: alive[alive.length - 1], gap, xg, D: Math.max(xg + 24, AW + 24 - xg) }; sfx.laserCharge(SCIS_WIND); } // (the gap: straight below it)
+      else if (alive.length >= 2 && Math.random() < 0.4) { const gap = SCIS_GAP[L], xg = clamp(B.x, gap / 2 + 8, AW - gap / 2 - 8); Lg.atk = { k: 'scissors', ph: 'wind', t: 0, l: alive[0], r: alive[alive.length - 1], gap, xg, D: Math.max(xg + 24, AW + 24 - xg) }; sfx.laserCharge(SCIS_WIND / tellK); } // (the gap: straight below it)
       else Lg.atk = { k: 'lanes', ph: 'wind', t: 0, v: 0, fire: null };
       if (Lg.atk) { still = true; shake(1); for (const F of Lg.feet) burst(F.x, F.y, 6, COL.dim, 20, 0.4, 0.3); if (Lg.atk.k !== 'gates') Lg.lastK = Lg.atk.k; } // bracing
     }
@@ -6706,7 +6707,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // its open chest spews crawlers, and they pour in from every edge too, till the arena's full of them (SWARM_CAP at
   // once, SWARM_N in all). They're one hit each and they come at you: your ball plows through them (a kill doesn't
   // bounce it), so one throw can chain dozens. Every one dead: a bonus, and its head tears free for its last stand.
-  const SWARM_N = 300, SWARM_CAP = 160, SWARM_RATE = 18, SWARM_FLOOD = 120, SWARM_FOUNT = 0.35, SWARM_BONUS = 100000, SWARM_V = 1.0, SWARM_LOB_T = 2.6, SWARM_LOB_FALL = 1.15, SWARM_HATCH = 4, SW_LUNGE = 82, SW_CROUCH = 0.3, SW_DASH = 0.28, SW_REACH = 26; // (LOB: its scrap volleys; a crawler near you crouches, then lunges) // (LOB: its scrap volleys) // (the first SWARM_FLOOD pour in at 2.5x the rate)
+  let SWARM_N = 300, SWARM_CAP = 160, SWARM_RATE = 18, SWARM_FLOOD = 120, SWARM_FOUNT = 0.35, SWARM_BONUS = 100000, SWARM_V = 1.0, SWARM_LOB_T = 2.6, SWARM_LOB_FALL = 1.15, SWARM_HATCH = 4, SW_LUNGE = 82, SW_CROUCH = 0.3, SW_DASH = 0.28, SW_REACH = 26; // (LOB: its scrap volleys; a crawler near you crouches, then lunges) // (LOB: its scrap volleys) // (the first SWARM_FLOOD pour in at 2.5x the rate)
   function swarmStart(B) {
     B.swarm = { n: SWARM_N + 60 * B.cycle, sent: 0, t: 0.9, killed: 0, end: 0 };
     B.beam = null; B.sweep = null; B.lockT = 0; B.fly = null; B.crawl = null; B.throws = [];
@@ -6857,7 +6858,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       B.gunA = B.gunA === undefined ? want : B.gunA + Math.atan2(Math.sin(want - B.gunA), Math.cos(want - B.gunA)) * Math.min(1, dt * (fire ? 30 : S ? 7 : 4));
       B.gunSpin = (B.gunSpin || 0) + (fire ? 28 : S ? 1.5 + 26 * (S.t / MECH_GUN_WIND) ** 2 : 1.5) * dt; B.gunFlash = Math.max(0, (B.gunFlash || 0) - dt);
     }
-    if (go('gun', 4.2)) { const [gx, gy] = mechGunAt(B), c = Math.atan2(p.y - gy, p.x - gx), sd = gx < B.x ? 1 : -1; B.sweep = { t: 0, a0: c + sd * MECH_GUN_ARC / 2, a1: c - sd * MECH_GUN_ARC / 2, a: c + sd * MECH_GUN_ARC / 2, shotT: 0 }; sfx.obGunSpin(MECH_GUN_WIND, gx); } // (from its own side, across you)
+    if (go('gun', 4.2)) { const [gx, gy] = mechGunAt(B), c = Math.atan2(p.y - gy, p.x - gx), sd = gx < B.x ? 1 : -1; B.sweep = { t: 0, a0: c + sd * MECH_GUN_ARC / 2, a1: c - sd * MECH_GUN_ARC / 2, a: c + sd * MECH_GUN_ARC / 2, shotT: 0 }; sfx.obGunSpin(MECH_GUN_WIND / tellK, gx); } // (from its own side, across you)
     if (B.sweep) {
       const S = B.sweep; S.t += dt; S.a = S.a0 + (S.a1 - S.a0) * clamp((S.t - MECH_GUN_WIND) / MECH_GUN_FIRE, 0, 1);
       if (S.t >= MECH_GUN_WIND) { S.shotT -= dt; if (S.shotT <= 0) { S.shotT = 0.13; const [mx, my] = mechMuzzle(B); G.bullets.push({ x: mx, y: my, vx: Math.cos(S.a) * 48, vy: Math.sin(S.a) * 48, r: 1.1, mg: true, tr: true }); B.gunFlash = 0.07; sfx.obGunShot(mx); } }
@@ -6901,7 +6902,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     // the reactor's beam: round nearly the whole circle; the gap (shown as it charges) somewhere below it, never where you are now. More often the more you've broken
     if (!B.beam && !B.lance && (T.beam -= dt * (B.down ? desp : Math.min(desp, MECH_BEAM_DESP))) <= 0 && B.down) { // on its knees: the lance, aimed at you
-      T.beam = B.st === 'core' ? 3.2 : 3.8; B.lance = { t: 0, a: 0, locked: false, fired: false }; sfx.laserCharge(MECH_LANCE_AIM);
+      T.beam = B.st === 'core' ? 3.2 : 3.8; B.lance = { t: 0, a: 0, locked: false, fired: false }; sfx.laserCharge(MECH_LANCE_AIM / tellK);
     }
     else if (!B.beam && !B.lance && T.beam <= 0 && (B.beamDue = true) && !B.sweep && !(B.lockT > 0) && !(B.walk && B.walk.land) && !G.barrage.length && !G.mortars.length) {
       // its beam is due: it starts nothing new and lets what's under way finish (a step, a gun sweep, a rocket lock, a barrage), then
@@ -6911,7 +6912,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       T.beam = MECH_BEAM_EVERY; const [cx, cy] = mechAt(B, ...MECH_CORE_AT), c = Math.atan2(p.y - cy, p.x - cx), dir = Math.random() < 0.5 ? -1 : 1, gap = Math.PI * 2 - MECH_BEAM_ARC;
       const opts = []; for (let a = 0.3; a < Math.PI - 0.3; a += 0.1) if (Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c))) > 1.2) opts.push(a);
       const g = opts.length ? opts[Math.floor(Math.random() * opts.length)] : c + Math.PI, a0 = g + dir * gap / 2;
-      B.beam = { t: 0, g, dir, a0, a1: a0 + dir * MECH_BEAM_ARC }; sfx.obBeamCharge(MECH_BEAM_CHARGE, B.x);
+      B.beam = { t: 0, g, dir, a0, a1: a0 + dir * MECH_BEAM_ARC }; sfx.obBeamCharge(MECH_BEAM_CHARGE / tellK, B.x);
     }
     if (B.beam) {
       const Bm = B.beam; Bm.t += dt; if (!Bm.lit && Bm.t >= MECH_BEAM_CHARGE) { Bm.lit = true; sfx.obBeamIgnite(B.x); } Bm.a = Bm.a0 + (Bm.a1 - Bm.a0) * clamp((Bm.t - MECH_BEAM_CHARGE) / MECH_BEAM_SWEEP, 0, 1); // (it ignites with a crack; the sweep's a held roar: audioUpdate)
@@ -6922,7 +6923,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const pw = B.pulseWarn;
       if (!pw && (T.pulse -= dt) <= 0 && !(B.lance && B.lance.t >= MECH_LANCE_AIM)) { // a gap always opens near you (a short dash away, never on you); its gaps are set now and don't turn
         T.pulse = MECH_PULSE_T[B.melt ? 1 : 0]; const [cx, cy] = mechAt(B, ...MECH_CORE_AT), toYou = Math.atan2(p.y - cy, p.x - cx);
-        B.pulseWarn = { t: 0, x: cx, y: cy, a: toYou + (Math.random() < 0.5 ? -1 : 1) * rand(0.75, 1.1), w: 0 }; sfx.obMagSwell(MECH_PULSE_WARN, cx); }
+        B.pulseWarn = { t: 0, x: cx, y: cy, a: toYou + (Math.random() < 0.5 ? -1 : 1) * rand(0.75, 1.1), w: 0 }; sfx.obMagSwell(MECH_PULSE_WARN / tellK, cx); }
       if (pw) { pw.t += dt; const [cx, cy] = mechAt(B, ...MECH_CORE_AT); pw.x = cx; pw.y = cy;
         if (pw.t >= MECH_PULSE_WARN) { (B.pulses || (B.pulses = [])).push({ x: pw.x, y: pw.y, r: 10 * B.s, a: pw.a, w: 0, hit: false }); B.pulseWarn = null; ring(pw.x, pw.y, 2, 18 * B.s, 0.3, COL.chalk, 1.2); shake(2); sfx.obImpact(2, pw.x); } }
     }
@@ -7715,11 +7716,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateWalker(e, dt) {
     if (e.wfire === undefined) e.wfire = rand(2, 3.5);
     e.wfire -= dt; e.step = (e.step || 0) + dt * 3;
-    if (e.wfire < 0.7) { const k = Math.exp(-8 * dt); e.vx *= k; e.vy *= k; e.x += e.vx * dt; e.y += e.vy * dt; if (e.wfire <= 0) { e.wfire = rand(3.5, 5); mechRocket(e.x, e.y - e.r, 0, e); } return true; }
+    if (e.wfire < WALK_AIM) { const k = Math.exp(-8 * dt); e.vx *= k; e.vy *= k; e.x += e.vx * dt; e.y += e.vy * dt; if (e.wfire <= 0) { e.wfire = rand(3.5, 5); mechRocket(e.x, e.y - e.r, 0, e); } return true; }
     return false;
   }
   function drawWalker(e, col) {
-    const r = e.r, fl = e.flash > 0, line = fl ? COL.chalk : col, aim = e.wfire !== undefined && e.wfire < 0.7, H3 = hex(COL.hull), sw = Math.sin(e.step || 0) * 0.5;
+    const r = e.r, fl = e.flash > 0, line = fl ? COL.chalk : col, aim = e.wfire !== undefined && e.wfire < WALK_AIM, H3 = hex(COL.hull), sw = Math.sin(e.step || 0) * 0.5;
     const f = () => { ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},0.25)`; ctx.fill(); };
     for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * r * 0.3, r * 0.3); ctx.lineTo(sd * r * 0.55, r * (0.85 + (sd > 0 ? sw : -sw) * 0.25)); ctx.strokeStyle = line; ctx.lineWidth = 0.6; ctx.stroke(); ctx.beginPath(); ctx.roundRect(sd * r * 0.55 - r * 0.25, r * (0.85 + (sd > 0 ? sw : -sw) * 0.25) - 0.3, r * 0.5, 0.7, 0.3); ctx.fillStyle = line; ctx.fill(); }
     ctx.beginPath(); ctx.roundRect(-r * 0.6, -r * 0.5, r * 1.2, r * 0.95, 0.6); f(); if (fl) { ctx.fillStyle = COL.chalk; ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 1; } ctx.strokeStyle = line; ctx.lineWidth = 0.4; ctx.stroke();
@@ -7764,7 +7765,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // you pop bursts the wall round it (GEO_ORB_BLAST), opening the room back up. Fuel drums are set in his walls too
   // (geoDrumBlow): hit one and it blows, breaking the wall round it and popping every orb in reach.
   const GEO_R = 9, GEO_CRY = 2.7, GEO_RINGS = [13.2, 18], GEO_HP = 800, GEO_ORB = 1.5, GEO_TRIP = 100, GEO_BARE = 50, GEO_STAGGER = 0.8, GEO_EXPOSED = 2.5, GEO_WALL = 40, GEO_FINAL = 200, GEO_LAST = 120, GEO_THIN = 0.3;
-  const GEO_PUSH = [2.3, 1.85, 1.4], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
+  let GEO_PUSH = [2.3, 1.85, 1.4], GEO_SHOT = [1.5, 1.15, 0.85], GEO_CHARGE = 0.75, GEO_LOCK = 0.25, GEO_SHOT_V = 42, GEO_RISE = 1.1, GEO_RETURN = 1.3;
   const GEO_ORBS = [4, 5, 6], GEO_CAGE_ORBS = [6, 8, 10], GEO_ORB_COL = '#ff4f9e', GEO_ESCORT = [5, 4.5, 4], GEO_NEAR = 10, GEO_DEPTH = 0.3;
   const GEO_BOLT_V = 300, GEO_CRASH = 1.6, GEO_HOP_EVERY = 2.2, GEO_HOP_T = 0.6, GEO_HOP_R = 14, GEO_SHRINK = 0.42, GEO_SAUCER_R = 6, GEO_SAUCER_V = [26, 30, 34];
   const GEO_ORB_BLAST = 16, GEO_DRUMS = [2, 2, 3], GEO_DRUM_BLAST = 20, GEO_DRUM_FUSE = 0.14; // fuel drums in his walls: how many at once, their reach, the ripple from one to the next
@@ -7772,8 +7773,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // spit (geoSpit): he leans your way, his antennae swell and glow (GEO_SPIT_WIND, locking on you for the last moment), then
   // spit a stream of his brood straight down that line (GEO_SPIT_N, GEO_SPIT_GAP apart): they land where you were and crawl
   // after you, one hit each (no more than GEO_SPIT_CAP about at once). Fodder for your chain while he's on foot.
-  const GEO_LAST_SLOW = 1.25, GEO_SPIT_WIND = 0.8, GEO_SPIT_LOCK = 0.2, GEO_SPIT_N = 6, GEO_SPIT_GAP = 0.15, GEO_SPIT_V = 50, GEO_SPIT_REST = 0.4, GEO_SPIT_CAP = 10, GEO_LEAN = 0.45;
-  const GEO_BAR_EVERY = [2.6, 2.2, 1.8], GEO_BAR_FIRST = 2.2, GEO_BAR_WARN = 1.3, GEO_BAR_LOCK = 0.3, GEO_BAR_FIRE = 0.45, GEO_BAR_W = 2.4, GEO_BAR_GAP = 15;
+  let GEO_LAST_SLOW = 1.25, GEO_SPIT_WIND = 0.8, GEO_SPIT_LOCK = 0.2, GEO_SPIT_N = 6, GEO_SPIT_GAP = 0.15, GEO_SPIT_V = 50, GEO_SPIT_REST = 0.4, GEO_SPIT_CAP = 10, GEO_LEAN = 0.45;
+  let GEO_BAR_EVERY = [2.6, 2.2, 1.8], GEO_BAR_FIRST = 2.2, GEO_BAR_WARN = 1.3, GEO_BAR_LOCK = 0.3, GEO_BAR_FIRE = 0.45, GEO_BAR_W = 2.4, GEO_BAR_GAP = 15;
   const geoEase = k => k * k * (3 - 2 * k);
   function setupGeode(B, cycle) {
     const slots = [];
@@ -11362,7 +11363,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Monolith: walks like anyone else, then (after a MONO_WARN flicker) turns to stone for MONO_STONE seconds: an
   // invulnerable block the ball bounces off (+1 charge, like any block) and that you can't fly through, but that can't
   // hurt you either. Then it walks again.
-  const MONO_WARN = 0.7, MONO_STONE = 3, isStone = e => e.type === 'monolith' && e.st === 'stone';
+  let DASH_WIND = 0.55, WALK_AIM = 0.7; // a dasher's wind-up before it lunges; a walker planting itself to fire a rocket
+  let MONO_WARN = 0.7, MONO_STONE = 3, isStone = e => e.type === 'monolith' && e.st === 'stone';
   const stoneRect = e => { const s = e.r * 1.25; return { x0: e.x - s, x1: e.x + s, y0: e.y - s, y1: e.y + s }; };
   const isImmune = e => (MAGNET_IMMUNE && fieldUp(e)) || e.wl > 0 || isStone(e);
 
@@ -11961,6 +11963,64 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (e.y <= R.y0 || e.y >= R.y1) e.detour = { x: clamp(p.x < (R.x0 + R.x1) / 2 ? R.x0 - m : R.x1 + m, e.r + 1, AW - e.r - 1), y: e.y, t: DETOUR_T }; // on top of it (or under): along to an end
     else e.detour = { x: e.x, y: clamp(p.y < (R.y0 + R.y1) / 2 ? R.y0 - m : R.y1 + m, e.r + 1, AH - e.r - 1), t: DETOUR_T }; // beside it: up or down to an end
   }
+  // Later loops (Overclock) run enemies and bosses faster: their clock is sped up (ws). Warnings don't shrink with it:
+  // every telegraph's length is stretched by the same factor its countdown speeds up by (tellK), so each one lasts as
+  // long in real seconds as in Loop 1 (and its drawing, a fraction of the same constant, fills in step). Sounds that
+  // play out a warning use its real length (÷ tellK).
+  function setTellK(k) {
+    if (k === tellK) return;
+    const r = k / tellK; tellK = k;
+    const sc = v => typeof v === 'number' ? v * r : Array.isArray(v) ? v.map(sc) : Object.fromEntries(Object.entries(v).map(([a, b]) => [a, sc(b)]));
+    ARM_WIND = sc(ARM_WIND);
+    BELT_FL_WIND = sc(BELT_FL_WIND);
+    BLINK_WARN = sc(BLINK_WARN);
+    BOLT_CHARGE = sc(BOLT_CHARGE);
+    CAGE_WARN = sc(CAGE_WARN);
+    COMB_WARN = sc(COMB_WARN);
+    FLING_WIND = sc(FLING_WIND);
+    GATE_WIND = sc(GATE_WIND);
+    GEO_BAR_LOCK = sc(GEO_BAR_LOCK);
+    GEO_BAR_WARN = sc(GEO_BAR_WARN);
+    GEO_CHARGE = sc(GEO_CHARGE);
+    GEO_LOCK = sc(GEO_LOCK);
+    GEO_SPIT_LOCK = sc(GEO_SPIT_LOCK);
+    GEO_SPIT_WIND = sc(GEO_SPIT_WIND);
+    HIVE_WARN = sc(HIVE_WARN);
+    LANE_WIND = sc(LANE_WIND);
+    MAW_GUN_WARN = sc(MAW_GUN_WARN);
+    MECH_BEAM_CHARGE = sc(MECH_BEAM_CHARGE);
+    MECH_BOMB_FALL = sc(MECH_BOMB_FALL);
+    MECH_CANNON_CHARGE = sc(MECH_CANNON_CHARGE);
+    MECH_CANNON_LOCK = sc(MECH_CANNON_LOCK);
+    MECH_FLY_CROUCH = sc(MECH_FLY_CROUCH);
+    MECH_GUN_WIND = sc(MECH_GUN_WIND);
+    MECH_LANCE_AIM = sc(MECH_LANCE_AIM);
+    MECH_LANCE_LOCK = sc(MECH_LANCE_LOCK);
+    MECH_PULSE_WARN = sc(MECH_PULSE_WARN);
+    MECH_RUN_WARN = sc(MECH_RUN_WARN);
+    MECH_STEP_WARN = sc(MECH_STEP_WARN);
+    MONO_WARN = sc(MONO_WARN);
+    MORTAR_FALL = sc(MORTAR_FALL);
+    POUNCE_CROUCH = sc(POUNCE_CROUCH);
+    PUNCH_WIND = sc(PUNCH_WIND);
+    RAM_AIM = sc(RAM_AIM);
+    RAM_LOCK = sc(RAM_LOCK);
+    SCIS_WIND = sc(SCIS_WIND);
+    SERP_AIM = sc(SERP_AIM);
+    SERP_LOCK = sc(SERP_LOCK);
+    SWARM_LOB_FALL = sc(SWARM_LOB_FALL);
+    SWOOP_WARN = sc(SWOOP_WARN);
+    SW_CROUCH = sc(SW_CROUCH);
+    TANK_AIM = sc(TANK_AIM);
+    THROW_WIND = sc(THROW_WIND);
+    TITAN_WARN = sc(TITAN_WARN);
+    TORP_WARN = sc(TORP_WARN);
+    VEXA_AIM = sc(VEXA_AIM);
+    VEXA_LOCK = sc(VEXA_LOCK);
+    FORM_WARN = sc(FORM_WARN);
+    DASH_WIND = sc(DASH_WIND);
+    WALK_AIM = sc(WALK_AIM);
+  }
   function updateEnemies(dt) {
     const p = G.player, steer = Math.min(1, dt * 3);
     const packs = new Map(); // a hatched clutch: where its school is, and who's in it
@@ -12104,7 +12164,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (e.lj && e.lj.t >= SW_CROUCH) { e.vx = e.lj.ux * SW_LUNGE; e.vy = e.lj.uy * SW_LUNGE; } // mid-lunge: straight at where you were
         if (e.type === 'dasher') {
           e.stT -= dt;
-          if (e.stT <= 0) { e.st = 'wind'; e.stT = 0.55; e.dx = ux; e.dy = uy; }
+          if (e.stT <= 0) { e.st = 'wind'; e.stT = DASH_WIND; e.dx = ux; e.dy = uy; }
         } else if (e.type === 'magnet') {
           e.stT -= dt;
           if (e.stT <= 0) { e.st = 'charge'; e.stT = MAGNET_CHARGE_TIME; }
@@ -12254,6 +12314,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     processBolts();
     processShocks();
     const ws = (G.powers.warp > 0 ? WARP_SCALE : 1) * overdrive(G.wave); // Time Warp slows them; Overdrive (later loops) speeds them up
+    setTellK(overdrive(G.wave)); // ...but not their warnings
     updateBonus(dt); updateCoins(dt); updateLucky(dt); updateTable(dt);
     if (G.inv) updateInvaders(dt * ws);
     if (G.bomb) updateBomb(dt * ws);
@@ -12317,7 +12378,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // A dasher (or a Carrier jet) winding up: it shudders harder and harder and eases back on its engine before it lunges
   function windUp(e) {
     if (e.type !== 'dasher' || e.st !== 'wind') return;
-    const k = clamp(1 - e.stT / 0.55, 0, 1), j = e.r * 0.12 * (0.3 + k), a = dasherAngle(e);
+    const k = clamp(1 - e.stT / DASH_WIND, 0, 1), j = e.r * 0.12 * (0.3 + k), a = dasherAngle(e);
     ctx.translate(rand(-j, j) - Math.cos(a) * e.r * 0.3 * k, rand(-j, j) - Math.sin(a) * e.r * 0.3 * k);
   }
   function squash(e) {
