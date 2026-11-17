@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 17 21:47 UTC · 8c2c779";</script>
+<script>window.RICOCHET_BUILD = "Nov 17 21:56 UTC · 5408ddf";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -370,7 +370,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   <div class="panel title">
     <h1 class="logo">RICOCHET</h1>
     <p class="buildTag" hidden></p>
-    <p class="tag">Start with one ball. Each bounce adds 1 damage, at 15 it becomes unstable. Kill enemies to delay overload. Catch it to throw it again.</p>
+    <p class="tag">Every bounce adds 1 Charge and increases its damage. At 15 Charge, the ball explodes on impact, destroying nearby enemies. Kills delay the blast. Catch it to throw it again.</p>
     <button class="btn launch" id="play" type="button">Launch</button>
     <p class="hint"><span class="hintKeys">WASD to fly · click or Space to throw · hold to pull</span><span class="hintTouch">Left thumb flies · right thumb holds to pull and swipes to throw</span></p>
     <div class="links"><button class="linkbtn big2 trainBtn" id="trainBtn" type="button">Training</button><button class="linkbtn big2" id="howBtn" type="button">How to play</button><button class="linkbtn big2 powersBtn" type="button">Power-ups</button><button class="linkbtn big2 setBtn" type="button" aria-label="Settings">⚙ Settings</button></div>
@@ -393,20 +393,19 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 <section class="ov page" id="ov-how" hidden>
   <div class="panel">
     <p class="big">How to play</p>
-    <p class="tag">Start with one ball. Each bounce adds 1 damage, at 15 it becomes unstable. Kill enemies to delay overload. Catch it to throw it again.</p>
+    <p class="tag">Bounce the ball off walls and obstacles to build Charge and deal more damage. Chain kills for bigger scores, and catch your ball to cool it down before it explodes.</p>
     <ul class="rules">
-      <li><b>+1</b><span>Each bounce off a wall or obstacle adds 1 damage to your ball. Enemy health is written at its center. Enemies with no number have 1 health.</span></li>
+      <li><b>+1</b><span>Each bounce off a wall or obstacle adds 1 Charge to your ball, increasing its damage. Enemy health is written at its center.</span></li>
       <li><b>↶</b><span>Hold pull to bend the ball toward you.</span></li>
-      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.<br>Getting hit resets your multiplier.<br>Bonus rounds (Pinball, Coin Rush, Lucky Blocks) pay at the multiplier you bring in.</span></li>
-      <li><b>◇</b><span>Pull the ball until it reaches your ship to catch it. A catch takes 5 off its charge and it keeps the rest; while you hold it, it cools a charge a second.</span></li>
-      <li><b>⁂</b><span>Bosses grant rewards: a points jackpot, and a wingman or extra Hull.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.</span></li>
-      <li><b>◆</b><span>Enemies may drop Capsules. Capsules are marked with different icons, each granting a unique power-up. Hit a Capsule with your ball to collect it. The more charge the ball has, the longer and/or stronger the power-up. <button class="linkbtn powersBtn" type="button">See the power-ups</button></span></li>
-      <li><b>♥</b><span>Score milestones repair one Hull point, up to your Hull's cap (3 to start). The next milestone is displayed under your Hull.</span></li>
-      <li><b>15</b><span>At 15 charge, your ball enters overload. After 2 seconds, the next bounce causes it to explode, killing enemies around the blast and resetting your multiplier. Each kill resets the 2-second timer. After overloading, the ball is out of play until it drifts back to you (hold pull to hurry it).</span></li>
+      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the Charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.<br>Getting hit resets your multiplier.<br>Bonus rounds (Pinpong, Coin Rush, Lucky Blocks) pay at the multiplier you bring in.</span></li>
+      <li><b>◇</b><span>Pull the ball until it reaches your ship to catch it. A catch removes 5 Charge and the ball keeps the rest; while you hold it, it loses 1 Charge per second.</span></li>
+      <li><b>⁂</b><span>Bosses grant rewards: a Wingman or extra Hull, and Capsules.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.<br><em>Capsules:</em> Capsules contain power-ups. Hit one with your ball to collect it. The more Charge your ball has, the longer and/or stronger the power-up. <button class="linkbtn powersBtn" type="button">See the power-ups section</button></span></li>
+      <li><b>♥</b><span>Score milestones repair one Hull point, up to your Hull's cap. The next milestone is displayed under your Hull.</span></li>
+      <li><b>15</b><span>At 15 Charge, your ball enters Overload and a 2-second countdown begins. Each enemy killed resets the timer. Once the timer runs out, the next bounce makes the ball explode, killing nearby enemies and resetting your multiplier. After the explosion, the ball drifts back to you (hold to pull it closer).</span></li>
     </ul>
     <div class="ctrl">
       <div><span>Keyboard</span> · WASD or arrows to fly. Mouse click or Space: press to throw, hold to pull</div>
-      <div><span>Mobile</span> · one thumb anywhere on the left half flies, the other on the right half holds to pull and swipes to throw. <button class="linkbtn swapBtn" type="button">Move on left</button></div>
+      <div><span>Mobile</span> · Touch and drag on the left half to fly. The right half controls the ball: hold to pull and tap/swipe to throw. <button class="linkbtn swapBtn" type="button">Move on left</button></div>
     </div>
     <div class="btnrow"><button class="btn" id="howBack" type="button">Back</button><button class="btn ghost trainBtn" type="button">Training</button></div>
   </div>
@@ -415,7 +414,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 <section class="ov page" id="ov-train" hidden>
   <div class="panel">
     <p class="big">Training</p>
-    <p class="tag">Seven short lessons, played in the arena. Read each one at your own pace. Nothing here counts toward your Best.</p>
+    <p class="tag">Seven short lessons, played in the arena. Read each one at your own pace.</p>
     <ol class="lessons" id="lessonList"></ol>
     <div class="btnrow"><button class="btn" id="trainGo" type="button">Start training</button><button class="btn ghost" id="trainBack" type="button">Back</button></div>
   </div>
@@ -423,7 +422,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 <section class="ov" id="ov-first" hidden>
   <div class="panel">
     <p class="big">First flight?</p>
-    <p class="tag">Training teaches the basics in seven short lessons, a few minutes in all. You can come back to it any time from the title screen.</p>
+    <p class="tag">Begin combat training. You can come back to it any time from the title screen.</p>
     <div class="btnrow"><button class="btn" id="firstTrain" type="button">Start training</button><button class="btn ghost" id="firstSkip" type="button">Skip to the game</button></div>
   </div>
 </section>
@@ -452,7 +451,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       <div class="stat"><span class="lbl">Kills</span><span class="val" id="w-kills">0</span></div>
       <div class="stat"><span class="lbl">Best chain</span><span class="val" id="w-chain">0</span></div>
     </div>
-    <p class="sub" id="w-next">Loop 2 is Overdrive: everything comes faster, and every point counts double.</p>
+    <p class="sub" id="w-next">Loop 2 is Overclock: everything comes faster, and every point counts double.</p>
     <div class="btnrow"><button class="btn" id="nextLoop" type="button">Continue to Loop 2</button><button class="btn ghost" id="endRun" type="button">End run</button></div>
     <p class="sub" id="w-note" hidden>Continued or skipped-ahead runs don't count toward Best.</p>
   </div>
@@ -461,7 +460,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 <section class="ov" id="ov-powers" hidden>
   <div class="panel">
     <p class="big">Power-ups</p>
-    <p class="tag">Hit a capsule with your ball to collect it. Every power lasts 3.3 seconds, plus half a second for each point of charge the ball had when it hit the capsule (10.8 seconds at full charge).</p>
+    <p class="tag">Hit a Capsule with your ball to collect it. Every power lasts 3.3 seconds, plus half a second for each point of Charge the ball had when it hit the Capsule (10.8 seconds at 15 Charge).</p>
     <ul class="powers" id="powersList"></ul>
     <div class="btnrow"><button class="btn" id="powersBack" type="button">Back</button></div>
   </div>
@@ -584,7 +583,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // HOLD_COOL seconds. (An overload still costs it all.)
   const CATCH_COST = 5, HOLD_COOL = 1;
   const BLAST_R = 26, MULT_MAX = 10, CHAIN_STEP = 0.1; // each kill adds CHAIN_STEP × its place in this throw's chain
-  const bonusMult = () => Math.max(1, G.mult); // the bonus rounds (Pinball, Coin Rush, Lucky Blocks) pay at the multiplier you bring in: there's nothing to chain in them
+  const bonusMult = () => Math.max(1, G.mult); // the bonus rounds (Pinpong, Coin Rush, Lucky Blocks) pay at the multiplier you bring in: there's nothing to chain in them
   // Power-up capsules: dropped by kills, collected only by the ball; charge sets duration (and shockwave size).
   const DROP_CHANCE = 0.1, CHAIN_DROP = 5, PICKUP_MAX = 3, PICKUP_R = 3.6; // capsules stay until the ball collects them
   const powerTime = b => 3.3 + 0.5 * b;
@@ -638,42 +637,42 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const INTRO = {
     2: 'Brutes take several hits',
     3: 'Dashers wind up, then lunge',
-    4: 'Blocks bounce the ball and add charge. Splitters break in two',
-    5: 'Pinball! Your ship is the flipper. Every bounce speeds the ball up and scores more: catch it to cool it down. Drain it and your bonus drops; play out the clock. It all pays at your multiplier',
-    6: 'Turrets fire slow shots. Hit them, or bank your ball off the wall right beside one',
+    4: 'Blocks bounce the ball and add Charge. Splitters break in two',
+    5: 'Pinpong! Your ship is the paddle. Keep the ball in play, smash all the targets and claim the jackpot!',
+    6: 'Turrets stick to the wall and fire shots in your direction',
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them. Fuel drums: hit one to blow up everything near it',
-    9: 'Bulwarks: the shield faces you and drains a charge. Hit them from behind. Tanks are rolling in: something big is coming',
+    9: 'Bulwarks: the shield faces you and drains 1 Charge. Hit them from behind. Tanks are rolling in: something big is coming',
     10: 'Clanktank: smash its treads to immobilize it, then every hit hurts it. Don\'t let the repair crew get it moving again',
-    11: 'Warden: gives nearby enemies a two-layer shield. Each pop charges your ball',
+    11: 'Warden: gives nearby enemies a two-layer shield',
     12: 'Blinkers teleport. The ghost shows where',
-    40: 'Gorp the Jailer: hit him through gaps in his crystal shell. When he walls you in, dodge the laser bars from his saucer and pop the pink orbs in his walls: pop them all and he\'s forced out. Hit a fuel drum in his walls to blow open everything round it',
-    46: 'Bees! Vexa\'s scouts are out. Something big is buzzing nearby',
+    40: 'Gorp the Jailer: Destroy his crystal shell to hit him. When he walls you in, hit the pink orbs. Destroy them all to force him out',
+    46: 'Are those... bees? Something big is buzzing nearby',
     39: 'Crusher II: the walls close in from all four sides now, and faster',
-    35: 'Lucky Blocks: every hit on a ! block pops coins, more the hotter your ball. Empty them all for the jackpot. It all pays at your multiplier',
-    13: 'Coin Rush: sweep up every coin for a jackpot. Smash the giant coins before they fall away: the more damage your ball carries, the bigger the payout. It all pays at your multiplier',
-    20: 'The Serpent: crack its armour plates, then hit the glowing cores inside. Only its head hurts, and it strikes. Break its eggs before they hatch',
-    16: 'Invasion: three formations, one after another. Break each before it lands. The top rows are tougher: charge your ball off the walls and bunkers',
-    27: 'Fighter squadrons: one hit each. Put your ball through the formation',
-    18: 'Serpent eggs: break a clutch before it hatches, or what hatches swarms you together. Hatchlings only bite with the head',
-    19: 'Something big is hatching. Vipers are tough: hit them with a charged ball. A Brute Wall marches in partway through',
+    35: 'Lucky Blocks: every hit on a ! block pops coins. The hotter your ball, the more you earn. Empty them all for the jackpot',
+    13: 'Coin Rush: hit every coin for a jackpot. Smash the giant coins before they disappear: the more Charge your ball carries, the bigger the payout',
+    20: 'The Serpent: crack its armor plates, then hit the glowing cores inside',
+    16: 'Invasion: three formations, one after another. Break each before it lands',
+    27: 'Fighter squadrons: one hit each',
+    18: 'Serpent eggs: break them before they hatch',
+    19: 'Something big is hatching. Vipers are tough: hit them with a charged ball',
     29: 'Fighters overhead: something big is coming',
-    30: 'The Carrier: break through its fighters and hit the glowing reactor at the back. The jets on its decks keep your chain going. Later it fires missiles that blow up where you were: get out of the ring, or set one off early with your ball. The blast takes its jets with it',
+    30: 'The Carrier: break through its fighters and hit the glowing reactor at the back',
     57: 'Walkers fire rockets at you. Hit a rocket with your ball to send it back',
     58: 'Mortars: circles show where the shells will land, one right on you. Keep moving',
     59: 'Something huge is coming. Feel that?',
-    60: '0B-L1-V10N: knees pin it down, weapons silence it, thrusters ground it. Break them all, then hit it anywhere. Hit its rockets back at it',
-    50: 'Vexa: dig through her hive to the royal cell to bring her out, then hit her glowing abdomen. When she cages you, break out before it hatches',
-    23: 'Swarm Storm: hold out for 25 seconds while swarm after swarm blows in. Chain them',
+    60: '0B-L1-V10N: Tear it apart piece by piece. Disable its weapons, bring it down, and finish it off',
+    50: 'Vexa: Break through her hive to draw her out, then hit her glowing abdomen',
+    23: 'Swarm Storm: hold out for 25 seconds and survive the swarm',
     26: 'Titans close in from every side. When one stomps, get clear. Each cracks into brutes, and each brute into splinters',
     38: 'Crusher: brick walls close in. Break them to push them back',
   };
   // Set pieces, at the same waves in every loop (bigger each time round).
   const SET_AT = { 5: 'bonus', 13: 'coins', 16: 'invaders', 23: 'storm', 26: 'titans', 35: 'lucky', 38: 'crusher', 39: 'crusher2' };
-  const SET_NAMES = { bonus: 'Pinball', coins: 'Coin Rush', invaders: 'Invasion', storm: 'Swarm Storm', titans: 'Titans', crusher: 'Crusher', crusher2: 'Crusher II', lucky: 'Lucky Blocks' };
+  const SET_NAMES = { bonus: 'Pinpong', coins: 'Coin Rush', invaders: 'Invasion', storm: 'Swarm Storm', titans: 'Titans', crusher: 'Crusher', crusher2: 'Crusher II', lucky: 'Lucky Blocks' };
   const setPiece = n => SET_AT[inLoop(n)] || null;
   const monolithIntro = () => 14; // the first normal wave with Monoliths
-  const introFor = n => n === monolithIntro() ? 'Monoliths turn to stone now and then: a wall to bounce off, not to hit'
+  const introFor = n => n === monolithIntro() ? 'Monoliths turn to stone now and then'
     : n > LOOP_LEN && !setPiece(n) && !bossFor(n) ? '' // later loops don't re-introduce enemies
     : INTRO[inLoop(n)] || (setPiece(n) ? SET_NAMES[setPiece(n)] : bossFor(n) ? BOSS_NAMES[bossFor(n)] : '');
 
@@ -2127,7 +2126,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     burst(front.x, front.y, 60, COL.threat, 70, 1, 0.7); burst(front.x, front.y, 24, COL.chalk, 50, 0.6, 0.4);
     gridImpulse(front.x, front.y, Math.max(AW, AH) * 0.5, 200); shake(4); G.freeze = Math.max(G.freeze, 0.1); sfx.overload(); sfx.boss();
     for (let i = 0; i < 3; i++) { const e = makeEnemy(i ? 'snake' : 'viper', clamp(front.x + rand(-6, 6), 6, AW - 6), clamp(front.y + rand(-6, 6), 6, AH - 6)); e.spawnT = 0.4; G.enemies.push(e); } // its brood bursts out of the cut
-    G.banner = { text: 'It splits!', sub: 'Two heads, fresh armour: both bite, both bleed', t: 2, max: 2, top: true };
+    G.banner = { text: 'It splits!', sub: 'Two heads, fresh armor: both bite, both bleed', t: 2, max: 2, top: true };
   }
   // One serpent: resting beyond the walls (its next way in glowing), or swimming a pass
   function serpentSwim(S, dt) {
@@ -2461,7 +2460,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (pickups) items.push({ icon: 'pow', text: `${pickups} power-ups` });
     // the headline: what you got, big, in gold, when it opens
     const head = balls ? { text: 'Extra ball!', sub: `Your ${G.balls.length === 1 ? 'second' : 'third'} ball: a wingman that flies out with every throw${loop2 ? '. Hull repaired' : ''}` }
-      : more ? { text: 'Hull +1!', sub: 'One more hull slot, and fully repaired' }
+      : more ? { text: 'Hull +1!', sub: 'One more Hull slot, and fully repaired' }
       : kind === 'slot' || kind === 'repair' || loop2 ? { text: 'Hull repaired!', sub: 'Back to full' } : null;
     G.chest = { x: clamp(x, 14, AW - 14), y: clamp(y, 18, AH * 0.62), t: 0, open: false, openT: 0, kind, pickups, items, head };
   }
@@ -7816,7 +7815,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.tele.length = 0; G.spawnQueue.length = 0;
     const m = Math.min(Math.round(AW / SIEGE_CELL), Math.round(AH / SIEGE_CELL));
     setupSiege('crystal', B.cycle, { depth: m * GEO_DEPTH, interval: GEO_PUSH[B.phase - 1], first: 0.35, layers: 1, orb: GEO_ORBS[B.phase - 1], quota: GEO_CAGE_ORBS[B.phase - 1], drum: GEO_DRUMS[B.phase - 1] });
-    if (!G.caged) { G.caged = true; G.banner = { text: 'Caged!', sub: 'Pop every pink orb in his walls to break out', t: 2.2, max: 2.2, at: 0.45 }; }
+    if (!G.caged) { G.caged = true; G.banner = { text: 'Caged!', sub: 'Destroy all the pink orbs to escape', t: 2.2, max: 2.2, at: 0.45 }; }
     sfx.crystalGrow(); sfx.boss(); shake(1.5);
   }
   // Forward again: the walls that are left fly in to the middle as his next shell, thinner the more of them you broke.
@@ -8036,7 +8035,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (S) { S.interval = GEO_PUSH[ph]; S.orb = GEO_ORBS[ph]; S.drum = GEO_DRUMS[ph]; if (S.timer < dt * 1.5) B.summon = 1; } // he shoves with both arms as each layer goes in
       const left = S ? geoOrbsLeft(S) : 0;
       if (S && left > 0 && S.sentOrbs < S.quota && left === S.quota - S.sentOrbs && (B.topT = (B.topT || 0) - dt) <= 0) { B.topT = 1.2; geoOrbTopUp(S); } // none showing but some still to come, and no room for a layer: set them in
-      if (S && !left && S.quota && B.hp > GEO_LAST) { if (B.hp <= GEO_FINAL) B.hp = Math.min(B.hp, GEO_LAST); else { G.banner = { text: 'Cage broken!', sub: 'Every orb popped', t: 1.4, max: 1.4, at: 0.45 }; sfx.repair(); } } // every orb gone: forced out (in his last cage, shot down: its own banner)
+      if (S && !left && S.quota && B.hp > GEO_LAST) { if (B.hp <= GEO_FINAL) B.hp = Math.min(B.hp, GEO_LAST); else { G.banner = { text: 'Cage broken!', sub: '', t: 1.4, max: 1.4, at: 0.45 }; sfx.repair(); } } // every orb gone: forced out (in his last cage, shot down: its own banner)
       if (B.hp <= GEO_LAST || (B.stT <= 0 && B.hp <= GEO_FINAL)) geoCrash(B); // low enough in his last cage (or it's run its time, or you've cleared it): shot down
       else if (!S || B.stT <= 0 || !left) geoRebuild(B); // out once every orb in here's gone (or after GEO_WALL); his last cage he stays in
     } else if (B.st === 'rebuild') {
@@ -9170,7 +9169,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.fillStyle = COL.dim; ctx.font = `600 ${lab}px ${FONT}`; ctx.fillText('TIME', lx, hh * 0.3); ctx.fillText('TARGETS', rx, hh * 0.3);
     ctx.fillStyle = COL.chalk; ctx.font = `700 ${val}px ${FONT}`; ctx.fillStyle = T.time < 10 && Math.floor(G.time * 4) % 2 ? ECOL.target : COL.chalk; ctx.fillText(`${Math.ceil(T.time)}s`, lx, hh * 0.66);
     ctx.fillText(`${down}/4`, rx, hh * 0.66);
-    ctx.fillStyle = c; ctx.font = `700 ${val * 0.9}px ${FONT}`; ctx.fillText('PINBALL', mx, hh * 0.32);
+    ctx.fillStyle = c; ctx.font = `700 ${val * 0.9}px ${FONT}`; ctx.fillText('PINPONG', mx, hh * 0.32);
     ctx.fillStyle = (T.multT || 0) > 0 && Math.floor(G.time * 10) % 2 ? c : COL.chalk; ctx.font = `600 ${lab}px ${FONT}`; ctx.fillText(`LANES ${T.lanes.filter(Boolean).length}/3  ·  BONUS ×${T.mult || 1}`, mx, hh * 0.72);
     ctx.strokeStyle = COL.wall; ctx.globalAlpha = 0.35; ctx.lineWidth = 0.25; ctx.beginPath(); ctx.moveTo(mx - R.w * 0.14, hh * 0.52); ctx.lineTo(mx + R.w * 0.14, hh * 0.52); ctx.stroke(); ctx.globalAlpha = 1;
   }
@@ -9994,7 +9993,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     $('w-time').textContent = fmtClock(G.clock || 0);
     $('w-kills').textContent = (G.kills || 0).toLocaleString();
     $('w-chain').textContent = G.bestChain || 0;
-    $('w-next').textContent = `Loop ${loop + 1} is Overdrive: everything comes ${Math.round((overdrive(G.wave + 1) - 1) * 100)}% faster, and every point counts ×${scoreK(G.wave + 1)}.`;
+    $('w-next').textContent = `Loop ${loop + 1} is Overclock: everything comes ${Math.round((overdrive(G.wave + 1) - 1) * 100)}% faster, and every point counts ×${scoreK(G.wave + 1)}.`;
     $('nextLoop').textContent = `Continue to Loop ${loop + 1}`;
     $('w-note').hidden = !G.continued;
     $('ov-win').hidden = false; ptrs.clear(); touchMove = touchAct = null;
@@ -10768,7 +10767,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ] },
     { id: 'throw', name: 'Throw and catch', blurb: 'Throw the ball, then pull it back', steps: [
       { setup: () => { trReset(0.5, 0.74); trDummy('drifter', 0.5, 0.34); },
-        pages: [{ h: 'Throw', t: c => c.touch ? `Tap the *${c.R} side* of the screen to throw the ball in the direction you're facing. Tip: swipe in the direction you want to throw the ball.` : '*Click* or press *Space* to throw the ball toward your cursor.' }],
+        pages: [{ h: 'Throw', t: c => c.touch ? `Tap the *${c.R} side* of the screen to throw the ball in the direction you're facing. Tip: swiping throws the ball in that direction.` : '*Click* or press *Space* to throw the ball toward your cursor.' }],
         task: { text: () => 'Throw the ball at the enemy', done: T => T.kills > T.kills0 || (T.thrownT !== undefined && T.st - T.thrownT > 2.5), hint: 'tap' } }, // (a miss moves on too: the next step brings the ball back)
       { pages: [
           { h: 'Pull', t: c => c.touch ? `Now *hold* the ${c.R} side of the screen. The ball bends toward you.` : 'Now *hold* the mouse button, or Space. The ball bends toward you.' },
@@ -10778,10 +10777,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         pages: [{ h: 'Caught!', t: () => 'Throw it again and destroy the rest. Catch it any time you want to aim a new throw.' }],
         task: { text: () => 'Destroy the enemies', prog: T => `${T.goal - trDummies()}/${T.goal}`, done: () => !trDummies() } },
     ] },
-    { id: 'charge', name: 'Charge', blurb: 'Every bounce adds damage', steps: [
+    { id: 'charge', name: 'Charge', blurb: 'Every bounce builds Charge', steps: [
       { setup: () => { trReset(0.5, 0.78); trDummy('brute', 0.5, 0.3, 10); },
         pages: [
-          { h: 'Charge', t: () => 'Every bounce adds *1 damage* to the ball and increases its speed. Keep an eye on the *charge bar*.', hi: 'charge' },
+          { h: 'Charge', t: () => 'Every bounce adds *1 Charge* to the ball, increasing its damage and speed. Keep an eye on the *Charge bar*.', hi: 'charge' },
           { h: 'Health', t: () => 'Enemy health is written at its center. Enemies with no number have 1 health.' },
           { t: () => 'If the ball does at least an enemy\'s health in damage, it kills it and *flies straight through*. If not, it knocks that much off and bounces away.' }],
         task: { text: () => 'Bounce the ball to charge it, then destroy the 10', done: () => !trDummies() } },
@@ -10789,21 +10788,21 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     { id: 'overload', name: 'Overload', blurb: 'What happens at 15', steps: [
       { setup: T => { trReset(0.5, 0.8, 13); T.cap = undefined; T.noCool = true; for (const [x, y] of [[0.15, 0.2], [0.85, 0.2], [0.5, 0.17], [0.12, 0.48], [0.88, 0.48], [0.5, 0.38]]) trDummy('drifter', x, y); },
         pages: [
-          { h: 'Overload', t: () => 'At *15 charges* your ball overheats. Two seconds later, its next bounce makes it explode, killing everything nearby. Every kill restarts the 2 seconds.', hi: 'charge' },
+          { h: 'Overload', t: () => 'At *15 Charge*, your ball enters Overload. A 2-second countdown begins. Each enemy you kill resets the timer. When the timer runs out, the next bounce makes the ball explode, killing everything nearby.', hi: 'charge' },
           { t: () => 'This ball is already at 13. Throw it, and let it blow.', hi: 'charge' }],
         task: { text: () => 'Throw the ball and let it overload', done: T => T.booms > T.booms0 } },
-      { pages: [{ h: 'After the blast', t: () => 'After it explodes, its charges reset to 0 and it drifts back to you.' }],
-        task: { text: () => 'Wait for the ball to drift back (hold to hurry it)', done: () => G.balls[0].state === 'held' } },
+      { pages: [{ h: 'After the blast', t: () => 'After it explodes, its Charge resets to 0 and it drifts back to you.' }],
+        task: { text: () => 'Wait for the ball to drift back (hold to pull it closer)', done: () => G.balls[0].state === 'held' } },
       { setup: T => { trReset(0.5, 0.8, 14); T.cap = undefined; T.noCool = true; },
-        pages: [{ h: 'Save it', t: () => 'You can stop an overload: catch the ball before it blows. A catch takes *5 off* the ball\'s charge. While you hold it, it loses 1 more charge per second.' }],
+        pages: [{ h: 'Save it', t: () => 'You can stop Overload: catch the ball before it blows. A catch removes *5 Charge* from the ball. While you hold it, it loses 1 more Charge per second.' }],
         task: { text: T => T.blew && G.balls[0].state !== 'live' ? 'It blew. Try again, and start pulling sooner' : trCircling(T) ? 'Circling you? Let go for a moment, then hold again' : 'Throw it, then catch it before it explodes', done: T => T.caught > T.caught0 && T.caughtB >= 14,
           tick: T => { if (T.booms > T.booms0) { T.blew = true; T.booms0 = T.booms; } const o = G.balls[0]; if (T.blew && o.state === 'held' && o.b < 14) o.b = 14; } } }, // (back in hand after a blast: hot again for another go)
     ] },
     { id: 'chains', name: 'Chains', blurb: 'Your multiplier, and a shield', steps: [
       { setup: () => { trReset(0.5, 0.84, 4); trChainField(); },
         pages: [
-          { h: 'Chains', t: () => 'A chain is every kill from one throw. Chain kills to increase your *score multiplier*. The higher the charge, the higher the score.', hi: 'mult' },
-          { t: () => 'Chain *10 kills* to shield your ship for 5 seconds. Getting hit, or an overload, resets your multiplier.', hi: 'mult' }],
+          { h: 'Chains', t: () => 'A chain is every kill from one throw. Chain kills to increase your *score multiplier*. The higher the Charge, the higher the score.', hi: 'mult' },
+          { t: () => 'Chain *10 kills* to shield your ship for 5 seconds. Getting hit or Overload resets your multiplier.', hi: 'mult' }],
         task: { text: () => 'Get a 5 chain in one throw', prog: () => `${Math.min(5, G.balls[0].kills || 0)}/5`, done: T => T.bestChain >= 5,
           tick: () => { if (trDummies() < 5 && G.balls[0].state === 'held') trChainField(); } } }, // (ran short: a fresh field)
     ] },
@@ -10811,14 +10810,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       { setup: () => { trReset(0.5, 0.82, 6); trDummy('drifter', 0.5, 0.36).drop = 'multi'; },
         pages: [
           { h: 'Capsules', t: () => 'Enemies may drop *Capsules*. Capsules are marked with different icons, each granting a unique power-up. Hit a Capsule with your ball to collect it.' },
-          { t: () => 'The more charge the ball has, the longer and/or stronger the power-up.', link: true }],
+          { t: () => 'The more Charge the ball has, the longer and/or stronger the power-up.', link: true }],
         task: { text: () => G.pickups.length ? 'Hit the Capsule with your ball' : 'Destroy the enemy: it drops a Capsule', done: T => T.collected, after: 3.2,
           onDone: () => { for (const [x, y] of [[0.15, 0.18], [0.38, 0.16], [0.62, 0.16], [0.85, 0.18], [0.2, 0.32], [0.8, 0.32]]) trDummy('drifter', x, y); } } }, // (something for the extra balls to hit)
     ] },
-    { id: 'live', name: 'Live fire', blurb: 'Your hull, and a real wave', steps: [
+    { id: 'live', name: 'Live fire', blurb: 'Your Hull, and a real wave', steps: [
       { setup: T => { trReset(0.5, 0.7); T.cap = undefined; },
         pages: [
-          { h: 'Hull', t: () => 'Enemies hurt your ship when they touch it. Your *Hull* is your ship\'s health. When it runs out, the run is over.', hi: 'hull' },
+          { h: 'Hull', t: () => 'Your *Hull* is your ship\'s health. When it runs out, the run is over.', hi: 'hull' },
           { t: () => 'Score milestones repair one Hull point, up to your Hull\'s cap (3 to start). The next milestone is displayed under your Hull.', hi: 'hull' },
           { h: 'Live fire', t: () => 'Last one: a real wave. In training your Hull can\'t run out, so take your time.' }],
         start: T => { T.queue = ['drifter', 'dasher', 'drifter', 'brute', 'drifter', 'dasher', 'drifter', 'drifter']; T.goal = T.queue.length; T.spawnT = 0.3; },
@@ -10920,7 +10919,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       text = `Next up: *${N.name}*. ${N.blurb}.`; next = 'Next lesson'; back = 'Training menu';
     } else {
       lbl = 'Training complete'; h = 'You\'re ready';
-      text = 'That\'s the basics. Bosses, wingmen and everything else are explained the first time you meet them.'; next = 'Launch'; back = 'Training menu';
+      text = 'That\'s the basics. Bosses, new enemies, and special waves are explained when you first encounter them. You can review the current wave\'s instructions in the pause menu.'; next = 'Launch'; back = 'Training menu';
     }
     $('tLbl').textContent = lbl; $('tTitle').textContent = h; $('tText').innerHTML = trHTML(text);
     $('tGoal').hidden = !goal; $('tGoalText').textContent = goal;
@@ -11108,7 +11107,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (G.ridersNext || G.mazeNext) { G.asteroidNext = false; G.layoutPending = null; }
         const loopStart = next > 1 && inLoop(next) === 1;
         if (loopStart) setLoopTint(loopOf(next)); // the arena runs hot from the Loop banner on
-        const sub = loopStart ? `Overdrive: everything comes ${Math.round((overdrive(next) - 1) * 100)}% faster, and every point counts ×${scoreK(next)}`
+        const sub = loopStart ? `Overclock: everything comes ${Math.round((overdrive(next) - 1) * 100)}% faster, and every point counts ×${scoreK(next)}`
           : newBall ? 'A wingman! Grab the new ball: from now on it flies out with every throw' : G.ridersNext ? 'Riders drag walls of light. Your ball bounces off them; your ship mustn\'t touch them. Your ship leaves a trail too: cut a rider off and it crashes' : G.mazeNext ? 'Stalkers hunt you through the maze. Its walls heat your ball only a little. Smash the crystals in the corridors for points: all of them, for a jackpot' : G.bombNext ? 'Missiles are falling on your bases. Hit one and it blows up, taking the missiles around it with it. The hotter your ball, the bigger the blast' : G.asteroidNext ? 'No walls: your ball flies through the edges, and every rock it hits charges it' : introFor(next);
         if (sub && G.wave > 0) G.between = clamp(1.8 + sub.length / 26, 3, 5.5); // time to read it, by its length
         G.banner = { text: loopStart ? `Loop ${loopOf(next) + 1}` : G.ridersNext ? 'Trail Riders' : G.mazeNext ? 'Labyrinth' : G.bombNext ? 'Bombardment' : G.asteroidNext ? 'Asteroid Field' : `Wave ${next}`, sub, t: G.between, max: G.between };
@@ -11258,7 +11257,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     gridImpulse(p.x, p.y, 18, 90);
     loseMult(p.x, p.y - 9);
     shake(2.4); sfx.hurt();
-    float(p.x, p.y + 9, last ? 'In a run, that ends it' : 'Hull −1', heat(MAX_CHARGE), 3.2);
+    float(p.x, p.y + 9, last ? 'In a run, you\'d lose 1 Hull' : 'Hull −1', heat(MAX_CHARGE), 3.2);
     if (p.hull <= 0) {
       G.dying = 1.3;
       burst(p.x, p.y, 60, COL.chalk, 70, 1, 1.1);
@@ -13431,8 +13430,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     });
     const safe = safeRound();
     $('pips').classList.toggle('warn', b >= WARN && !safe);
-    setText('note', st === 'ember' ? 'Overloaded. It drifts back to you' : st === 'held' ? (G && G.balls[0].state === 'held' && b > 0 ? `${1 + b} damage in hand${G.train && G.train.noCool ? '' : ' · cooling'}` : held > 1 ? `${held} in hand` : 'In hand')
-      : (safe || G.powers.over > 0) && b >= MAX_CHARGE ? 'Full speed' : b >= MAX_CHARGE ? 'Warning: overload' : b >= WARN && !safe ? 'Near overload' : `${1 + b} damage`);
+    setText('note', st === 'ember' ? 'Overloaded. It drifts back to you' : st === 'held' ? (G && G.balls[0].state === 'held' && b > 0 ? `${b} Charge in hand${G.train && G.train.noCool ? '' : ' · cooling'}` : held > 1 ? `${held} in hand` : 'In hand')
+      : (safe || G.powers.over > 0) && b >= MAX_CHARGE ? 'Full speed' : b >= MAX_CHARGE ? 'Warning: Overload' : b >= WARN && !safe ? 'Near Overload' : `${b} Charge`);
   }
 
   /* ---------- input ---------- */
@@ -13481,11 +13480,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The power-ups page: each capsule as it looks in play (drawn by the game's own icon code), its name and what it does.
   const POWER_TEXT = {
     multi: 'Grants two extra balls that never overload',
-    shock: 'Grants your ball AOE damage on hit',
+    shock: 'Each hit damages nearby enemies',
     bolt: 'Each kill arcs to a nearby enemy, up to 3 jumps',
-    over: '+2 charges per bounce, and the ball never overloads',
+    over: '+2 Charge per bounce, and the ball can\'t Overload',
     warp: 'Enemies and their projectiles move at 40% speed',
-    big: 'Your ball doubles in size and smashes through enemies instead of bouncing off them',
+    big: 'Your ball doubles in size and smashes directly through enemies',
   };
 
   function showPowers(on) {
