@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 17 19:40 UTC · a029ceb";</script>
+<script>window.RICOCHET_BUILD = "Nov 17 21:05 UTC · 33c62af";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -527,11 +527,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     bolt:  { letter: 'L', name: 'Lightning', tok: '--p-bolt' },
     over:  { letter: 'O', name: 'Overdrive', tok: '--p-over' },
     warp:  { letter: 'T', name: 'Time Warp', tok: '--p-warp' },
-    big:   { letter: 'B', name: 'Big Ball', tok: '--p-big' },
+    big:   { letter: 'W', name: 'Wrecking Ball', tok: '--p-big' },
   };
   const PICK_TYPES = Object.keys(PICK);
   // Each power's icon, centred on the origin in a box 2s across, in the current fill and stroke colours:
-  // three balls, a blast ring, a bolt, double chevrons, an hourglass, one big ball.
+  // three balls, a blast ring, a bolt, double chevrons, an hourglass, a ball on a chain.
   function drawPowerIcon(type, s, c = ctx) {
     c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath();
     if (type === 'multi') { for (const [x, y] of [[0, -0.48], [-0.52, 0.42], [0.52, 0.42]]) { c.moveTo(x * s + 0.36 * s, y * s); c.arc(x * s, y * s, 0.36 * s, 0, Math.PI * 2); } c.fill(); }
@@ -539,7 +539,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     else if (type === 'bolt') { [[0.3, -1], [-0.5, 0.12], [-0.02, 0.12], [-0.3, 1], [0.5, -0.12], [0.02, -0.12]].forEach(([x, y], i) => i ? c.lineTo(x * s, y * s) : c.moveTo(x * s, y * s)); c.closePath(); c.fill(); }
     else if (type === 'over') { c.lineWidth = 0.24 * s; for (const y of [-0.38, 0.32]) { c.moveTo(-0.62 * s, (y + 0.42) * s); c.lineTo(0, (y - 0.12) * s); c.lineTo(0.62 * s, (y + 0.42) * s); } c.stroke(); }
     else if (type === 'warp') { c.moveTo(-0.62 * s, -0.9 * s); c.lineTo(0.62 * s, -0.9 * s); c.lineTo(0, -0.04 * s); c.closePath(); c.moveTo(-0.62 * s, 0.9 * s); c.lineTo(0.62 * s, 0.9 * s); c.lineTo(0, 0.04 * s); c.closePath(); c.fill(); }
-    else { c.arc(0, 0, 0.88 * s, 0, Math.PI * 2); c.fill(); }
+    else { // Wrecking Ball: a ball on a chain
+      c.arc(0.14 * s, 0.3 * s, 0.6 * s, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.lineWidth = 0.16 * s; c.moveTo(-0.62 * s, -0.92 * s); c.lineTo(-0.1 * s, -0.24 * s); c.stroke();
+      c.beginPath(); c.lineWidth = 0.13 * s; c.arc(-0.62 * s, -0.92 * s, 0.16 * s, 0, Math.PI * 2); c.stroke();
+    }
   }
   readLook();
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -586,7 +590,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const powerTime = b => 3.3 + 0.5 * b;
   const WARD_LAYERS = 2, WARD_CD = 4, WARD_FORM = 1.2; // Warden shields: layers, seconds to reform after popping, blink-in time
   const SWARM_SIZE = 8, WARD_R = 16, BLINK_WARN = 0.6;
-  const BIG_SCALE = 2; // Big Ball: hit size only; the catch distance stays the same so catching feels unchanged
+  const BIG_SCALE = 2; // Wrecking Ball: twice the hit size (the catch distance stays the same so catching feels unchanged),
+  // and an enemy it can't kill doesn't stop it: it takes the hit and is knocked aside, and the ball smashes on through
+  // (a shield, a stone or a boss still turns it)
+  const WRECK_KNOCK = 45;
+  const wrecking = () => G.powers.big > 0;
+  // a smashed-through enemy can't be hit again until the ball's clear of it
+  const wreckCd = (o, rr, er) => Math.max(0.12, 2 * (rr + er) / Math.max(1, Math.hypot(o.vx, o.vy)) + 0.04);
+  function wreckHit(o, e, nx, ny) { // (nx, ny: from the enemy toward the ball)
+    e.vx -= nx * WRECK_KNOCK; e.vy -= ny * WRECK_KNOCK;
+    burst(e.x, e.y, 8, heat(o.b), 35, 0.5, 0.3); ring(e.x, e.y, e.r, e.r + 4, 0.2, heat(o.b), 0.6); shake(0.6); sfx.hit(e.x); sfx.clank();
+  }
   const bigK = () => G.powers.big > 0 ? BIG_SCALE : 1;
   const BOLT_RANGE = 30, BOLT_HOPS = 3, WARP_SCALE = 0.4;
   // Hull repairs at score milestones (up to the hull's cap; one earned at full hull is lost).
@@ -11526,6 +11540,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           if (!shielded) { e.hp -= hitFor(e, dmg); e.flash = 0.1; if (e.tankette) armourClank(e); } else if (e.wl > 0) popShield(e);
           e.hitCd = 0.12;
           const nx = d > 0 ? dx / d : 1, ny = d > 0 ? dy / d : 0, dot = x.vx * nx + x.vy * ny;
+          if (!shielded && wrecking()) { e.hitCd = wreckCd(x, r, turretReach(e)); wreckHit(x, e, nx, ny); continue; } // Wrecking Ball
           if (dot < 0) { x.vx -= 2 * dot * nx; x.vy -= 2 * dot * ny; }
           x.x = e.x + nx * (e.r + r + 0.05); x.y = e.y + ny * (e.r + r + 0.05);
           sfx.hit(e.x);
@@ -11725,6 +11740,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (!shielded) { e.hp -= hitFor(e, dmg); e.flash = 0.1; if (e.tankette) armourClank(e); }
         e.hitCd = 0.12;
         const nx = d > 0 ? dx / d : 1, ny = d > 0 ? dy / d : 0;
+        if (!shielded && wrecking()) { e.hitCd = wreckCd(ball, rr, er); wreckHit(ball, e, nx, ny); if (rock) { chargeBounce(ball); if (ball.state !== 'live') break; } continue; } // Wrecking Ball: straight on through
         const dot = ball.vx * nx + ball.vy * ny;
         if (dot < 0) { ball.vx -= 2 * dot * nx; ball.vy -= 2 * dot * ny; }
         ball.x = ex + nx * (er + rr + 0.05); ball.y = ey + ny * (er + rr + 0.05);
@@ -13294,7 +13310,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     bolt: 'Each kill arcs to a nearby enemy, up to 3 jumps',
     over: '+2 charges per bounce, and the ball never overloads',
     warp: 'Enemies and their projectiles move at 40% speed',
-    big: 'Your ball doubles in size',
+    big: 'Your ball doubles in size and smashes through enemies instead of bouncing off them',
   };
 
   function showPowers(on) {
