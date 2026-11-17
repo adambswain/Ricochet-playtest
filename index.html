@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 17 21:05 UTC · 33c62af";</script>
+<script>window.RICOCHET_BUILD = "Nov 17 21:47 UTC · 8c2c779";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -958,6 +958,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       voice({ type: 'triangle', f: note(13 + n * 2), dur: 0.3, vol: 0.09, wet: 0.25 });
     },
     // a drop target popping back up
+    spin(x) { if (!chatter()) return; voice({ type: 'triangle', f: 2300, f2: 1700, dur: 0.03, vol: 0.05, filter: 'highpass', ff: 900, pan: panOf(x) }); },
     rise(i) { voice({ type: 'square', f: note(12 + i * 2), f2: note(15 + i * 2), dur: 0.08, vol: 0.05, filter: 'lowpass', ff: 2500 }); },
     // the fuse on a topped-out ball: a dry tick that climbs as it burns down (k: 0 → 1)
     fuse(k, x) { voice({ type: 'square', f: 900 + 700 * k, dur: 0.045, vol: 0.05 + 0.03 * k, filter: 'lowpass', ff: 4000, pan: panOf(x) }); },
@@ -8700,17 +8701,32 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Ricochet's rules on the table too: every bounce heats the ball, and the hotter it is the faster the whole table plays
   // for it (gravity, kicks and launches, scaled so its arcs keep their shape) and the more it scores; catch it to cool it.
   const tableK = b => 0.74 + 0.02 * Math.min(b || 0, TABLE_MAX_B); // 0.74 cold to 1.04 at full charge (15, as everywhere; it can't overload here)
-  const TB = { bumpers: [[0.5, 0.3], [0.3, 0.41], [0.7, 0.41]], bumpR: 0.075, lanes: [0.35, 0.5, 0.65], laneY: 0.11,
-               targets: [0.46, 0.52, 0.58, 0.64], targetX: 0.93, rail: 0.95, top: 0.06, arch: 0.2 };
+  const TB = { bumpers: [[0.5, 0.3], [0.3, 0.41], [0.7, 0.41]], bumpR: 0.075, lanes: [0.35, 0.5, 0.65], laneY: 0.14,
+               posts: [0.275, 0.425, 0.575, 0.725], postTop: 0.112, postBot: 0.168,
+               targets: [0.46, 0.52, 0.58, 0.64], targetX: 0.93, rail: 0.95, top: 0.06, arch: 0.2,
+               orbW: 0.1, orbBot: 0.45, orbMouth: [0.2, 0.62], orbRBot: 0.25, spinY: 0.4, scoop: [0.24, 0.555] };
+  // TB.posts hang below a channel along the top wall: the orbit runs through it, over the lanes. The orbit: a lane
+  // orbW wide up each side wall (its inner rail from orbBot, on the right down to orbRBot, where a kicker at its foot
+  // throws the ball back out at the bumpers). The left lane's spinner (at spinY) spins for every ball through it, and
+  // fires one going up round the orbit: it runs the lane at TB_ORB_BOOST × a flipper shot's speed, round the corner,
+  // over the top and down the right lane (on rails: a fixed path, so rolling along the walls can't stall it), and
+  // drops onto the kicker, which throws it out at the bumpers.
+  // The scoop (TB.scoop): a ball that rolls into it is held (SCOOP_HOLD) while the table rolls a light show, then
+  // kicked back out at the bumpers with a mystery award: points, a ball save (MYST_SAVE), a bonus step, or Multiball.
+  const TB_ORB_BOOST = 1.05, SPIN_K = 0.032, SPIN_MAX = 14, SPIN_DRAG = 1.2;
+  const SCOOP_R = 3, SCOOP_HOLD = 1.4, SCOOP_KICK = 0.8, SCOOP_CD = 0.8, MYST_SAVE = 10;
+  const MYSTERY = [['pts', 35], ['save', 25], ['bonus', 25], ['multi', 15]];
   // TB.top: the playfield's top wall (the header panel sits above it); TB.arch: the radius of its rounded top corners
-  const TB_PTS = { bumper: 50, sling: 20, lane: 100, lanes: 1000, target: 150, jackpot: 2500 };
+  const TABLE_PAY = 0.32; // every table award × this × your multiplier (0.5 before the orbit and the scoop; trimmed so the round pays about the same)
+  const TB_PTS = { bumper: 50, sling: 20, lane: 100, lanes: 1000, target: 150, jackpot: 2500, spin: 15, orbit: 400, mystery: 1500 };
   function setupTable(cycle) {
     G.table = { time: TABLE_TIME, cycle, done: false, score: 0, drains: 0, mult: 1, flipT: 0, multiT: 0, saveT: 0, lanes: [false, false, false], lanesT: 0,
                 targets: [true, true, true, true], targetsT: 0, jackpots: 0, hits: [0, 0, 0], slingT: [0, 0],
-                dropT: [0, 0, 0, 0], popT: [0, 0, 0, 0], rise: null, showT: 0 };
+                dropT: [0, 0, 0, 0], popT: [0, 0, 0, 0], rise: null, showT: 0, ...TABLE_NEW() };
     const p = G.player, T = tableRect();
     p.x = T.x0 + T.w / 2; p.y = AH * TB.rail; p.fx = 0; p.fy = -1;
   }
+  const TABLE_NEW = () => ({ spinA: 0, spinV: 0, spinN: 0, boostT: 0, orbits: 0, orbT: 0, scoopBy: false, scoopT: 0, myst: null, mystT: 0, saveT: 0 }); // (the orbit and the scoop: also filled in for a table saved before them)
   function tableRect() { const w = Math.min(AW - 6, AH * 0.72); return { x0: (AW - w) / 2, w, h: AH }; }
   // static walls as segments: [x0, y0, x1, y1, kind, index]
   function tableSegs() {
@@ -8724,10 +8740,21 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         segs.push([cx + Math.cos(a) * cr, top + cr + Math.sin(a) * cr, cx + Math.cos(b) * cr, top + cr + Math.sin(b) * cr, 'arch']);
       }
     }
-    for (const f of [0.275, 0.425, 0.575, 0.725]) segs.push([X(f), top, X(f), Y(0.145), 'post']);      // lane dividers hang from the top
+    for (const f of TB.posts) segs.push([X(f), Y(TB.postTop), X(f), Y(TB.postBot), 'post']);          // lane dividers, under the orbit's channel
+    const ow = TB.orbW * w, ir = cr - ow;                                                               // the orbit: an inner rail up each side, round each corner
+    segs.push([X(TB.orbMouth[0]), Y(TB.orbMouth[1]), x0 + ow, Y(TB.orbBot), 'rail']);                // the left lane's mouth: a funnel in from the slingshot
+    segs.push([x0 + ow, Y(TB.orbBot), x0 + ow, top + cr, 'rail']);
+    for (const [cx, a0] of [[x0 + cr, Math.PI], [x0 + w - cr, -Math.PI / 2]]) {
+      for (let k = 0; k < 6; k++) {
+        const a = a0 + k / 6 * Math.PI / 2, b = a0 + (k + 1) / 6 * Math.PI / 2;
+        segs.push([cx + Math.cos(a) * ir, top + cr + Math.sin(a) * ir, cx + Math.cos(b) * ir, top + cr + Math.sin(b) * ir, 'rail']);
+      }
+    }
+    segs.push([x0 + w - ow, top + cr, x0 + w - ow, Y(TB.orbRBot), 'rail']);
+    segs.push([x0 + w, Y(TB.orbRBot + 0.012), x0 + w - ow - 1.5, Y(TB.orbRBot + 0.062), 'kicker']);   // at the right lane's foot: out at the bumpers
     return segs;
   }
-  const tableAward = (pts, x, y) => { const T = G.table, v = Math.round(pts * (T.cycle + 1) * (T.mult || 1) * (1 + 0.05 * (T.heatB || 0)) * bonusMult() * 0.5 / 10) * 10; /* (× half your multiplier: the table has its own, from its lanes) */ /* the hotter the ball, the more it scores */ T.score += v; G.score += v; float(x, y, `${v}`, ECOL.target, 2.4 + Math.min(2, v / 1500)); };
+  const tableAward = (pts, x, y) => { const T = G.table, v = Math.round(pts * (T.cycle + 1) * (T.mult || 1) * (1 + 0.05 * (T.heatB || 0)) * bonusMult() * TABLE_PAY / 10) * 10; /* (× a share of your multiplier: the table has its own, from its lanes) */ /* the hotter the ball, the more it scores */ T.score += v; G.score += v; if (x !== null) float(x, y, `${v}`, ECOL.target, 2.4 + Math.min(2, v / 1500)); return v; };
   // The table's walls and furniture, for a ball moving by the normal rules. Every bounce charges the ball (and may
   // overload it); lanes and targets score. Called from the ball's substep loop while a table is up.
   function tableCollide(ball, r) {
@@ -8752,7 +8779,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const qx = ax + ex * t, qy = ay + ey * t, dx = ball.x - qx, dy = ball.y - qy, d = Math.hypot(dx, dy);
       if (d >= r || d < 1e-6) continue;
       ball.x = qx + dx / d * r; ball.y = qy + dy / d * r;
-      if (kind === 'sling') ball.kick = TABLE_SLING;
+      if (kind === 'sling' || kind === 'kicker') ball.kick = TABLE_SLING;
       if (bounce(dx / d, dy / d, kind === 'sling' ? 1.4 : 0) && kind === 'sling') { Tb.slingT[idx] = 0.2; tableAward(TB_PTS.sling, qx, qy - 3); shake(0.6); burst(qx, qy, 10, ECOL.target, 40, 0.5, 0.25); sfx.clank(); }
       ball.kick = 0;
       if (ball.state !== 'live') return;
@@ -8774,6 +8801,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (Tb.lanes.every(Boolean)) { Tb.lanesT = 0.8; tableAward(TB_PTS.lanes, R.x0 + R.w / 2, cy + 10); ring(R.x0 + R.w / 2, cy, 2, R.w * 0.4, 0.4, ECOL.target, 1); sfx.repair();
         if ((Tb.mult || 1) < TABLE_MULT_MAX) { Tb.mult = (Tb.mult || 1) + 1; Tb.multT = 1.6; float(R.x0 + R.w / 2, cy + 18, `Bonus ×${Tb.mult}`, COL.chalk, 4.4); shake(1.2); } }
     });
+    if (tableOrbit(ball, r, R) || ball.state !== 'live') return;
     for (let i = 0; i < TB.targets.length; i++) { // drop targets on the right wall
       if (!Tb.targets[i]) continue;
       const cx = R.x0 + TB.targetX * R.w, cy = TB.targets[i] * R.h, h = 0.035 * R.h;
@@ -8796,6 +8824,77 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (ball.state !== 'live') return;
     }
   }
+  // The orbit and the scoop, for a ball on the table. True once the scoop has it (it's held: nothing else touches it).
+  function tableOrbit(ball, r, R) {
+    const T = G.table, ow = TB.orbW * R.w, spinY = TB.spinY * R.h, inL = ball.x < R.x0 + ow, inR = ball.x > R.x0 + R.w - ow;
+    if (inL && Math.abs(ball.y - spinY) < r + 0.8 && !(ball.spinCd > G.time)) { // through the spinner, either way
+      ball.spinCd = G.time + 0.3;
+      T.spinV = Math.min(SPIN_MAX, T.spinV + Math.abs(ball.vy) * SPIN_K); sfx.clank();
+      if (ball.vy < 0 && !ball.wing && !T.scoopBy) { // going up: it fires the ball on round the orbit
+        ball.orbRun = { s: 0, x0: ball.x }; ball.vx = 0; ball.vy = 0;
+        T.boostT = 0.7; burst(ball.x, ball.y, 12, PICK.multi.color, 40, 0.5, 0.3); sfx.launch(ball.x);
+        return true;
+      }
+    }
+    const [sx, sy] = scoopAt(R);
+    if (inR) return false;
+    if (!ball.wing && !T.scoopBy && ball.vy < 0 && !(ball.scoopCd > G.time) && Math.hypot(ball.x - sx, ball.y - sy) < SCOOP_R) { // into the scoop (its mouth faces the flipper: only a ball going up drops in)
+      ball.scoopT = SCOOP_HOLD; ball.x = sx; ball.y = sy; ball.vx = 0; ball.vy = 0;
+      T.scoopBy = true; T.scoopT = SCOOP_HOLD; T.myst = null;
+      ring(sx, sy, 1, 9, 0.3, PICK.warp.color, 1); burst(sx, sy, 14, PICK.warp.color, 35, 0.5, 0.3); shake(0.8); sfx.clank(); sfx.hiss();
+      return true;
+    }
+    return false;
+  }
+  const scoopAt = (R = tableRect()) => [R.x0 + TB.scoop[0] * R.w, TB.scoop[1] * R.h];
+  // The orbit's path: up the middle of the left lane from the spinner, round the corner, along the top, round the
+  // other corner and down the right lane, as points (x, y) every ~1 unit
+  function orbitPath(R = tableRect()) {
+    const ow = TB.orbW * R.w, top = TB.top * R.h, cr = TB.arch * R.w, ar = cr - ow / 2, pts = [];
+    const line = (ax, ay, bx, by) => { const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay))); for (let k = 0; k < n; k++) pts.push([ax + (bx - ax) * k / n, ay + (by - ay) * k / n]); };
+    const arc = (cx, cy, a0, a1) => { const n = Math.ceil(ar * Math.abs(a1 - a0)); for (let k = 0; k < n; k++) { const a = a0 + (a1 - a0) * k / n; pts.push([cx + Math.cos(a) * ar, cy + Math.sin(a) * ar]); } };
+    const xl = R.x0 + ow / 2, xr = R.x0 + R.w - ow / 2;
+    line(xl, TB.spinY * R.h, xl, top + cr); arc(R.x0 + cr, top + cr, Math.PI, Math.PI * 1.5);
+    line(R.x0 + cr, top + ow / 2, R.x0 + R.w - cr, top + ow / 2); arc(R.x0 + R.w - cr, top + cr, -Math.PI / 2, 0);
+    line(xr, top + cr, xr, (TB.orbRBot - 0.01) * R.h); pts.push([xr, (TB.orbRBot - 0.01) * R.h]);
+    return pts;
+  }
+  // A ball on the orbit: it runs the path, then drops out of the right lane onto the kicker
+  function tableOrbitRun(ball, dt) {
+    const T = G.table, R = tableRect(), P = orbitPath(R), O = ball.orbRun, sp = TABLE_LAUNCH * AH * tableK(ball.b) * TB_ORB_BOOST;
+    O.s += sp * dt;
+    const i = Math.min(P.length - 1, Math.floor(O.s)), [x, y] = P[i], k = Math.min(1, O.s / 10);
+    ball.x = O.x0 + (x - O.x0) * k; ball.y = y; ball.vx = 0; ball.vy = 0; trailAt(ball);
+    if (i < P.length - 1) return;
+    ball.orbRun = null; ball.x = x; ball.vx = 0; ball.vy = sp * 0.6; // out the bottom of the right lane
+    T.orbits++; T.orbT = 1.2;
+    tableAward(TB_PTS.orbit, x - 9, y);
+    float(R.x0 + R.w / 2, TB.top * R.h + 10, 'Orbit!', PICK.multi.color, 3.4); sfx.collect(); shake(0.6);
+  }
+  const trailAt = ball => { ball.trail.push({ x: ball.x, y: ball.y }); const n = Math.round(10 + ball.b * 1.4); while (ball.trail.length > n) ball.trail.shift(); }
+  // A ball in the scoop: held still while the lights roll, then kicked back out at the bumpers with its award
+  function tableScoopHold(ball, dt) {
+    const T = G.table, [sx, sy] = scoopAt();
+    ball.x = sx; ball.y = sy; ball.vx = 0; ball.vy = 0; ball.scoopT -= dt; trailAt(ball);
+    if (Math.floor(ball.scoopT * 12) !== Math.floor((ball.scoopT + dt) * 12)) sfx.rise(Math.floor(ball.scoopT * 12) % 4); // the roll
+    if (ball.scoopT > 0) return;
+    ball.scoopT = 0; ball.scoopCd = G.time + SCOOP_CD; T.scoopBy = false;
+    const a = -Math.PI / 2 + 0.47, sp = TABLE_LAUNCH * AH * tableK(ball.b) * SCOOP_KICK;
+    ball.vx = Math.cos(a) * sp; ball.vy = Math.sin(a) * sp; ball.kick = SCOOP_KICK;
+    ring(sx, sy, 1, 12, 0.35, PICK.warp.color, 1.1); burst(sx, sy, 18, PICK.warp.color, 50, 0.6, 0.35); gridImpulse(sx, sy, 18, 90); shake(1.2); sfx.launch(sx);
+    tableMystery(sx, sy);
+  }
+  function tableMystery(x, y) {
+    const T = G.table, multiOn = G.balls.some(o => o.tx && !o.dead);
+    const opts = MYSTERY.filter(([k]) => !(k === 'bonus' && (T.mult || 1) >= TABLE_MULT_MAX) && !(k === 'multi' && multiOn));
+    let roll = Math.random() * opts.reduce((a, [, w]) => a + w, 0), pick = opts[0][0];
+    for (const [k, w] of opts) { if ((roll -= w) <= 0) { pick = k; break; } }
+    T.myst = pick; T.mystT = 2; T.showT = Math.max(T.showT, 0.8);
+    if (pick === 'pts') tableAward(TB_PTS.mystery, x, y - 6);
+    else if (pick === 'save') { T.saveT = MYST_SAVE; float(x, y - 6, 'Ball save', COL.chalk, 3.6); sfx.repair(); }
+    else if (pick === 'bonus') { T.mult = (T.mult || 1) + 1; T.multT = 1.6; float(x, y - 6, `Bonus ×${T.mult}`, COL.chalk, 4); sfx.repair(); }
+    else tableMultiball();
+  }
   // Multiball: two more balls fired out of the top lanes, down onto the table. They play like yours (bumpers, flipper)
   // but can't be caught, and draining one costs nothing.
   function tableMultiball() {
@@ -8813,7 +8912,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const T = G.table, p = G.player;
     burst(ball.x, AH - 1, 22, COL.threat, 45, 0.7, 0.4); ring(ball.x, AH - 1, 1, 12, 0.35, COL.threat, 1.1); shake(1.6); gridImpulse(ball.x, AH, 30, 120); sfx.clank(); sfx.rockBoom(1);
     if (ball.tx) { ball.dead = true; ball.state = 'held'; return; } // a multiball ball: gone, free
-    if (G.time - (ball.thrownAt ?? -99) < TABLE_SAVE) { // ball save: straight back to you, no cost
+    if (G.time - (ball.thrownAt ?? -99) < TABLE_SAVE || T.saveT > 0) { // ball save (just thrown, or the scoop's): straight back to you, no cost
       docked(ball); ball.state = 'held'; ball.b = 0; ball.fuse = 0; ball.lit = false; ball.trail = [];
       float(p.x, p.y - 9, 'Ball saved!', COL.chalk, 3.4); sfx.repair(); return; }
     T.drains++; const lost = (T.mult || 1) > 1; if (lost) { T.mult--; T.multT = 1.2; }
@@ -8833,6 +8932,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function updateTable(dt) {
     const T = G.table; if (!T) return;
     if (!T.dropT) Object.assign(T, { dropT: [0, 0, 0, 0], popT: [0, 0, 0, 0], rise: null, showT: 0 }); // saved before the new targets
+    if (T.spinA === undefined) Object.assign(T, TABLE_NEW()); // saved before the orbit and the scoop
+    { const a0 = T.spinA; T.spinA += T.spinV * Math.PI * 2 * dt; T.spinV *= Math.exp(-SPIN_DRAG * dt); if (T.spinV < 0.15) T.spinV = 0; // the spinner: points for every half turn
+      const n = Math.floor(T.spinA / Math.PI) - Math.floor(a0 / Math.PI); if (n > 0) { const R = tableRect(); for (let k = 0; k < n; k++) tableAward(TB_PTS.spin, null); T.spinN += n; sfx.spin(R.x0); } }
+    T.boostT -= dt; T.orbT -= dt; T.mystT -= dt; if (T.saveT > 0) T.saveT -= dt; if (T.scoopBy && !G.balls.some(o => o.scoopT > 0)) T.scoopBy = false;
     T.slingT = T.slingT.map(v => v - dt); T.hits = T.hits.map(v => v - dt); T.flipT = (T.flipT || 0) - dt; T.multT = (T.multT || 0) - dt; T.lit = (T.lit || [0, 0, 0]).map(v => Math.max(0, v - dt));
     for (let i = G.balls.length - 1; i >= 0; i--) if (G.balls[i].dead) G.balls.splice(i, 1);
     if (T.lanesT > 0) { T.lanesT -= dt; if (T.lanesT <= 0) T.lanes = [false, false, false]; }
@@ -8850,6 +8953,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function finishTable() {
     const T = G.table; if (!T) return;
     for (let i = G.balls.length - 1; i >= 0; i--) if (G.balls[i].tx) G.balls.splice(i, 1); // multiball's balls go
+    for (const o of G.balls) if (o.scoopT > 0 || o.orbRun) { o.scoopT = 0; o.orbRun = null; o.vx = 0; o.vy = ballSpeed(o.b); } // (and one in the scoop or on the orbit comes out)
     G.result = { text: `${T.score.toLocaleString()} on the table`, sub: T.jackpots ? `Jackpot ×${T.jackpots}` : 'Drop all four targets for the jackpot', t: 2.6, max: 2.6 };
     for (const ball of liveBalls()) if (ball.b > WARN - 2) { ball.b = WARN - 2; const sp = ballSpeed(ball.b), l = Math.hypot(ball.vx, ball.vy) || 1; ball.vx = ball.vx / l * sp; ball.vy = ball.vy / l * sp; }
     sfx.repair();
@@ -8858,7 +8962,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function drawTable() {
     const T = G.table; if (!T) return;
     const R = tableRect(), c = ECOL.target, X = f => R.x0 + f * R.w, Y = f => f * R.h, top = Y(TB.top), cr = TB.arch * R.w, cw = 0.16 * R.w;
-    const down = T.targets.filter(v => !v).length, show = T.showT > 0;
+    const down = T.targets.filter(v => !v).length, show = T.showT > 0, ow = TB.orbW * R.w, oc = PICK.multi.color, sc = PICK.warp.color;
+    const blink = (hz, ph = 0) => flashK ? Math.floor(G.time * hz + ph) % 2 === 0 : true; // (Reduced flashes: lit steady, no strobing)
     const inner = () => { // the playfield's edge: straight sides and a rounded arch across the top
       ctx.beginPath(); ctx.moveTo(R.x0, AH); ctx.lineTo(R.x0, top + cr); ctx.arc(R.x0 + cr, top + cr, cr, Math.PI, Math.PI * 1.5);
       ctx.lineTo(R.x0 + R.w - cr, top); ctx.arc(R.x0 + R.w - cr, top + cr, cr, -Math.PI / 2, 0); ctx.lineTo(R.x0 + R.w, AH);
@@ -8871,30 +8976,70 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.globalAlpha = 0.25 * a; ctx.strokeStyle = col; ctx.lineWidth = w * 3.5; path(); ctx.stroke();
       ctx.globalAlpha = a; ctx.lineWidth = w; path(); ctx.stroke(); ctx.globalAlpha = 1;
     };
+    const pool = (x, y, rad, col, a) => { // light spilling onto the playfield
+      if (a <= 0.003) return;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rad); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = a; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    };
+    // A lamp insert set in the playfield: a dim lens when off; lit, a bright face with a halo (path: its shape)
+    const insert = (path, on, col, lvl = 1) => {
+      path(); ctx.fillStyle = col; ctx.globalAlpha = on ? 0.55 + 0.4 * lvl : 0.13; ctx.fill();
+      ctx.strokeStyle = on ? COL.chalk : col; ctx.lineWidth = 0.22; ctx.globalAlpha = on ? 0.8 * lvl : 0.35; ctx.stroke();
+      if (on) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3 * lvl; ctx.lineWidth = 1.6; ctx.strokeStyle = col; path(); ctx.stroke(); ctx.restore(); }
+      ctx.globalAlpha = 1;
+    };
+    const arrow = (x, y, a, sz) => () => { ctx.beginPath(); for (const [px, py] of [[1.1, 0], [-0.7, 0.85], [-0.35, 0], [-0.7, -0.85]]) ctx.lineTo(x + (px * Math.cos(a) - py * Math.sin(a)) * sz, y + (px * Math.sin(a) + py * Math.cos(a)) * sz); ctx.closePath(); };
+    const disc = (x, y, rr) => () => { ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); };
+    const label = (txt, x, y, sz, col, a = 1) => { ctx.globalAlpha = a; ctx.fillStyle = col; ctx.font = `700 ${sz}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, x, y); ctx.globalAlpha = 1; };
+    const shadowed = (fn, dx = 0.7, dy = 1.1) => { ctx.save(); ctx.translate(dx, dy); ctx.globalAlpha = 0.45; fn(COL.ink); ctx.restore(); ctx.globalAlpha = 1; fn(null); }; // a raised part: its shadow, then it
     // outside the table is cabinet: dark
     ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.85; ctx.fillRect(0, 0, R.x0 - o, AH); ctx.fillRect(R.x0 + R.w + o, 0, AW - R.x0 - R.w - o, AH); ctx.globalAlpha = 1;
     // playfield
     ctx.save(); inner(); ctx.closePath(); ctx.clip();
     ctx.fillStyle = COL.block; ctx.globalAlpha = 0.45; ctx.fillRect(R.x0, 0, R.w, AH); ctx.globalAlpha = 1;
-    ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.2; ctx.globalAlpha = 0.25; // decorative guides: an inner orbit, and the inlanes
-    const g = 0.065 * R.w;
-    ctx.beginPath(); ctx.moveTo(R.x0 + g, Y(0.6)); ctx.lineTo(R.x0 + g, top + cr); ctx.arc(R.x0 + cr, top + cr, cr - g, Math.PI, Math.PI * 1.5);
-    ctx.lineTo(R.x0 + R.w - cr, top + g); ctx.arc(R.x0 + R.w - cr, top + cr, cr - g, -Math.PI / 2, 0); ctx.lineTo(R.x0 + R.w - g, Y(0.6)); ctx.stroke();
-    for (const sd of [1, -1]) {
-      const fx = f => sd > 0 ? X(f) : X(1 - f);
-      ctx.beginPath(); ctx.moveTo(fx(0.13), Y(0.8)); ctx.lineTo(fx(0.13), Y(0.875)); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(fx(0.3), Y(0.62)); ctx.quadraticCurveTo(fx(0.36), Y(0.82), fx(0.42), Y(0.9)); ctx.stroke();
-    }
-    ctx.setLineDash([]); ctx.globalAlpha = 1;
-    for (const sd of [1, -1]) { // diamond markers at the inlanes' foot
-      const x = sd > 0 ? X(0.13) : X(0.87), y = Y(0.9);
-      ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.35; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.moveTo(x, y - 1.3); ctx.lineTo(x + 0.9, y); ctx.lineTo(x, y + 1.3); ctx.lineTo(x - 0.9, y); ctx.closePath(); ctx.stroke(); ctx.globalAlpha = 1;
-    }
+    { const g = ctx.createRadialGradient(X(0.5), Y(0.42), 0, X(0.5), Y(0.42), R.h * 0.62); g.addColorStop(0, 'rgba(255,255,255,0.07)'); g.addColorStop(0.6, 'rgba(255,255,255,0.015)'); g.addColorStop(1, 'rgba(0,0,0,0.28)');
+      ctx.fillStyle = g; ctx.fillRect(R.x0, 0, R.w, AH); } // a lit middle, dark edges
+    ctx.save(); ctx.strokeStyle = c; ctx.lineWidth = 0.25; ctx.globalAlpha = 0.07; // the art under the bumpers: a sunburst
+    for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2 + 0.13; ctx.beginPath(); ctx.moveTo(X(0.5) + Math.cos(a) * R.w * 0.12, Y(0.37) + Math.sin(a) * R.w * 0.12); ctx.lineTo(X(0.5) + Math.cos(a) * R.w * 0.42, Y(0.37) + Math.sin(a) * R.w * 0.42); ctx.stroke(); }
+    for (const rr of [0.2, 0.3, 0.4]) { ctx.beginPath(); ctx.arc(X(0.5), Y(0.37), R.w * rr, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+    // light pools: under the bumpers (brighter as they're hit), the slingshots, the scoop
+    TB.bumpers.forEach(([fx, fy], i) => pool(X(fx), Y(fy), R.w * 0.2, c, 0.13 + 0.35 * Math.min(1, (T.lit ? T.lit[i] : 0) / 1.2) + (show ? 0.15 : 0)));
+    for (const [fx, i] of [[0.2, 0], [0.8, 1]]) pool(X(fx), Y(0.74), R.w * 0.14, c, 0.08 + (T.slingT[i] > 0 ? 0.4 : 0));
+    { const [sx, sy] = scoopAt(R); pool(sx, sy, R.w * 0.12, sc, T.scoopBy ? 0.45 : 0.12); }
+    // the orbit lanes: darker floors, chevrons pointing the way round (chasing when a ball's on its way)
+    ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.3; ctx.fillRect(R.x0, top, ow, Y(TB.orbBot) - top); ctx.fillRect(R.x0 + R.w - ow, top, ow, Y(TB.orbRBot) - top); ctx.globalAlpha = 1;
+    const running = G.balls.some(q => q.orbRun), fast = running || T.boostT > 0 || T.orbT > 0;
+    const md = (a, n) => ((a % n) + n) % n;
+    const chev = (ys, dir, x) => ys.forEach((fy, q) => { const n = ys.length, j = dir < 0 ? n - q : q, on = show ? blink(10, q) : fast ? md(Math.floor(G.time * 14) - j, 3) === 0 : md(Math.floor(G.time * 3) - j, n) === 0;
+      insert(() => { ctx.beginPath(); const y = Y(fy), w2 = ow * 0.28; ctx.moveTo(x - w2, y - dir * 1.1); ctx.lineTo(x, y + dir * 0.6); ctx.lineTo(x + w2, y - dir * 1.1); ctx.lineTo(x + w2, y - dir * 0.1); ctx.lineTo(x, y + dir * 1.6); ctx.lineTo(x - w2, y - dir * 0.1); ctx.closePath(); }, on, oc, fast ? 1 : 0.6); });
+    chev([0.22, 0.27, 0.32, 0.36], -1, R.x0 + ow / 2); chev([0.175, 0.21], 1, R.x0 + R.w - ow / 2);
+    // the orbit's lamps: a chain all the way round, a pair chasing when it's idle, a streak behind a ball on it
+    { const P = orbitPath(R), ball = G.balls.find(q => q.orbRun), at = ball ? ball.orbRun.s : -1;
+      for (let i = 4, q = 0; i < P.length - 4; i += 7, q++) { const [x, y] = P[i], behind = at >= 0 && i < at && at - i < 60;
+        const on = show ? blink(10, q) : behind || (!fast && md(q - Math.floor(G.time * 7), 9) < 2);
+        const lit = behind ? 1 - (at - i) / 60 : 1;
+        insert(disc(x, y, 0.75), on, oc, on ? lit : 1); } }
+    // inserts: arrows at the shots, the bonus ladder, JACKPOT, SHOOT AGAIN
+    insert(arrow(X(0.16), Y(0.6), -Math.PI / 2 - 0.55, 2.1), fast ? blink(8) : 0.5 + 0.5 * Math.sin(G.time * 4) > 0.5, oc);  // the orbit's mouth
+    { const [sx, sy] = scoopAt(R); insert(arrow(sx, sy + 7.5, -Math.PI / 2, 1.9), T.scoopBy ? blink(10) : 0.5 + 0.5 * Math.sin(G.time * 4 + 2) > 0.5, sc);
+      for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, on = T.scoopBy ? md(Math.floor(G.time * 16) - k, 8) < 3 : T.mystT > 0 && blink(8, k);
+        insert(disc(sx + Math.cos(a) * (SCOOP_R + 3.2), sy + Math.sin(a) * (SCOOP_R + 3.2), 0.55), on, sc); } }
+    TB.lanes.forEach((fx, i) => insert(arrow(X(fx), Y(TB.laneY + 0.05), -Math.PI / 2, 1.3), T.lanes[i] || (show && blink(10, i)), c, 0.8)); // under each lane
+    [1, 2, 3].forEach((m, i) => { const x = X(0.4 + i * 0.1), y = Y(0.83), on = (T.mult || 1) >= m && ((T.multT || 0) <= 0 || m < (T.mult || 1) || blink(10)) || (show && blink(10, i));
+      insert(disc(x, y, 2.8), on, c, 0.85); label(`${m}×`, x, y + 0.15, 2.4, on ? COL.ink : c, on ? 0.95 : 0.55); });
+    { const x = X(0.5), y = Y(0.885), saving = T.saveT > 0 || G.balls.some(q => !q.tx && q.state === 'live' && G.time - (q.thrownAt ?? -99) < TABLE_SAVE), on = saving && (T.saveT > 3 || T.saveT <= 0 || blink(6));
+      insert(() => { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - 9.5, y - 2, 19, 4, 2) : ctx.rect(x - 9.5, y - 2, 19, 4); }, on, COL.chalk, 0.75); label('SHOOT AGAIN', x, y + 0.15, 2, on ? COL.ink : COL.chalk, on ? 0.95 : 0.45); }
+    { const x = X(0.77), y = Y(0.55), on = show ? blink(10) : down >= 3 ? blink(5) : false, d = () => { ctx.beginPath(); ctx.moveTo(x + 9, y); ctx.lineTo(x, y - 4); ctx.lineTo(x - 9, y); ctx.lineTo(x, y + 4); ctx.closePath(); };
+      insert(d, on, c, 1); label('JACKPOT', x, y + 0.15, 2, on ? COL.ink : c, on ? 0.95 : 0.5); }
     for (const sd of [1, -1]) { // arrow lamps on the upper walls, lit when all three lanes are made
-      const x = sd > 0 ? X(0.11) : X(0.89), y = Y(0.3), on = T.lanesT > 0 || show;
-      ctx.save(); ctx.translate(x, y); ctx.rotate(sd > 0 ? -0.5 : Math.PI + 0.5);
-      ctx.beginPath(); ctx.moveTo(1.4, 0); ctx.lineTo(-0.9, 0.95); ctx.lineTo(-0.9, -0.95); ctx.closePath();
-      ctx.strokeStyle = on ? c : COL.wall; ctx.lineWidth = 0.35; ctx.globalAlpha = on ? 1 : 0.6; ctx.stroke(); if (on) { ctx.fillStyle = c; ctx.fill(); } ctx.globalAlpha = 1; ctx.restore();
+      const x = sd > 0 ? X(0.15) : X(0.85), y = Y(0.3), on = T.lanesT > 0 || show;
+      insert(arrow(x, y, sd > 0 ? -0.5 : Math.PI + 0.5, 1.3), on, c);
+    }
+    // slingshots: lamp inserts on the playfield, lit when they kick
+    for (const [side, idx] of [[1, 0], [-1, 1]]) {
+      const fx = f => side > 0 ? X(f) : X(1 - f), lit = T.slingT[idx] > 0 || (show && blink(10, idx));
+      insert(() => { ctx.beginPath(); ctx.moveTo(fx(0.145), Y(0.685)); ctx.lineTo(fx(0.235), Y(0.775)); ctx.lineTo(fx(0.145), Y(0.775)); ctx.closePath(); }, lit, c, 0.8);
     }
     ctx.restore();
     // the frame: the cabinet's outer line, then the playfield's edge, both glowing
@@ -8902,35 +9047,61 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     glowLine(inner, 0.55, COL.wall);
     // wall lamps: the left wall answers the drop targets (lit for each one down; chasing in a light show)
     TB.targets.forEach((fy, i) => {
-      const lit = show ? Math.floor(G.time * 14 + i) % 2 : !T.targets[i];
+      const lit = show ? blink(14, i) : !T.targets[i];
       ctx.fillStyle = lit ? c : COL.line; ctx.globalAlpha = lit ? 1 : 0.6; ctx.fillRect(R.x0 + 0.9, Y(fy) - 1.6, 1.1, 3.2); ctx.globalAlpha = 1;
       if (lit) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35; ctx.fillStyle = c; ctx.fillRect(R.x0 + 0.4, Y(fy) - 2.4, 2.1, 4.8); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
     });
     for (const [x, fy] of [[R.x0 + 0.9, 0.22], [R.x0 + R.w - 2, 0.22], [R.x0 + 0.9, 0.78]]) { // and a few more along the walls, breathing
-      const lit = show ? Math.floor(G.time * 14) % 2 : 0.5 + 0.5 * Math.sin(G.time * 2 + fy * 9) > 0.7;
+      const lit = show ? blink(14) : 0.5 + 0.5 * Math.sin(G.time * 2 + fy * 9) > 0.7;
       ctx.fillStyle = lit ? c : COL.line; ctx.globalAlpha = lit ? 0.9 : 0.6; ctx.fillRect(x, Y(fy) - 1.6, 1.1, 3.2); ctx.globalAlpha = 1;
     }
-    // walls to the rail: rails drawn as double lines
-    for (const [ax, ay, bx, by, kind] of tableSegs()) {
-      if (kind === 'wall') glowLine(() => { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); }, 0.55, COL.wall);
-      else if (kind === 'post') { // lane posts hang from the top, each ending in a ring
-        ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.45; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by - 0.9); ctx.stroke();
-        ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(bx, by, 0.9, 0, Math.PI * 2); ctx.fill(); ctx.lineWidth = 0.4; ctx.stroke();
+    // walls to the rail; the orbit's metal rails (a shadow, the rail, a highlight); lane posts with rubber rings; the kicker
+    const segs = tableSegs();
+    for (const [ax, ay, bx, by, kind] of segs) {
+      const seg = () => { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); };
+      if (kind === 'wall') glowLine(seg, 0.55, COL.wall);
+      else if (kind === 'rail') { ctx.lineCap = 'round';
+        ctx.save(); ctx.translate(0.6, 1); ctx.strokeStyle = COL.ink; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.6; seg(); ctx.stroke(); ctx.restore();
+        ctx.strokeStyle = COL.wall; ctx.globalAlpha = 0.9; ctx.lineWidth = 1.2; seg(); ctx.stroke();
+        ctx.strokeStyle = COL.chalk; ctx.globalAlpha = 0.55; ctx.lineWidth = 0.3; seg(); ctx.stroke(); ctx.globalAlpha = 1; }
+      else if (kind === 'kicker') { ctx.lineCap = 'round'; ctx.strokeStyle = COL.wall; ctx.lineWidth = 2.4; seg(); ctx.stroke(); ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.6; seg(); ctx.stroke();
+        ctx.strokeStyle = fast ? COL.chalk : oc; ctx.lineWidth = 0.6; seg(); ctx.stroke(); }
+      else if (kind === 'post') { // lane posts under the orbit's channel, a rubber ring at each end
+        ctx.save(); ctx.translate(0.5, 0.8); ctx.strokeStyle = COL.ink; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.2; seg(); ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1;
+        ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.6; seg(); ctx.stroke();
+        for (const [qx, qy] of [[ax, ay], [bx, by]]) { ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(qx, qy, 1, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = c; ctx.globalAlpha = 0.7; ctx.lineWidth = 0.45; ctx.stroke(); ctx.globalAlpha = 1; }
       }
+    }
+    { // the spinner: a flap across the left lane, turning on its axle (seen from above, its face swings flat and edge-on)
+      const x = R.x0 + ow / 2, y = Y(TB.spinY), half = ow * 0.42, k = Math.abs(Math.cos(T.spinA || 0)), spinning = (T.spinV || 0) > 0.3;
+      ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.moveTo(R.x0 + 0.4, y); ctx.lineTo(R.x0 + ow - 0.4, y); ctx.stroke(); // the axle
+      for (const ex of [R.x0 + 0.8, R.x0 + ow - 0.8]) { ctx.fillStyle = COL.wall; ctx.fillRect(ex - 0.5, y - 1.2, 1, 2.4); } // its brackets
+      const hgt = 0.35 + 2.6 * k;
+      if (spinning) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35; ctx.fillStyle = oc; ctx.fillRect(x - half - 1, y - 3, half * 2 + 2, 6); ctx.restore(); }
+      ctx.fillStyle = spinning && Math.cos(T.spinA) > 0 ? COL.chalk : oc; ctx.globalAlpha = 0.9; ctx.fillRect(x - half, y - hgt / 2, half * 2, hgt); ctx.globalAlpha = 1;
+      ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.25; ctx.strokeRect(x - half, y - hgt / 2, half * 2, hgt);
+    }
+    { // the scoop: a hole in the playfield with a metal rim (its mouth faces the flipper), glowing while it holds a ball
+      const [sx, sy] = scoopAt(R), rr = SCOOP_R + 0.4, g = ctx.createRadialGradient(sx, sy - 0.8, 0, sx, sy, rr);
+      g.addColorStop(0, '#000'); g.addColorStop(0.75, COL.ink); g.addColorStop(1, COL.block);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.lineCap = 'round'; ctx.strokeStyle = COL.wall; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx, sy, rr + 0.3, Math.PI * 1.08, Math.PI * 1.92, true); ctx.stroke(); // the rim, open at the bottom
+      ctx.strokeStyle = T.scoopBy ? COL.chalk : sc; ctx.lineWidth = 0.4; ctx.globalAlpha = T.scoopBy ? 1 : 0.8; ctx.stroke(); ctx.globalAlpha = 1;
+      if (T.scoopBy) pool(sx, sy, rr * 2.2, sc, 0.25 + 0.2 * Math.sin(G.time * 30));
     }
     // rollover lamps between the posts
     TB.lanes.forEach((fx, i) => {
-      const on = (T.lanes[i] && (T.lanesT <= 0 || Math.floor(T.lanesT * 10) % 2)) || (show && Math.floor(G.time * 12 + i) % 2), x = X(fx), y = top + Y(0.03);
-      if (on) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.45; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
-      ctx.fillStyle = on ? c : COL.line; ctx.beginPath(); ctx.arc(x, y, 1.3, 0, Math.PI * 2); ctx.fill();
-      if (!on) { ctx.fillStyle = COL.dim; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.arc(x, y, 0.45, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+      const on = (T.lanes[i] && (T.lanesT <= 0 || blink(10))) || (show && blink(12, i)), x = X(fx), y = Y(TB.laneY);
+      if (on) pool(x, y, 6, c, 0.55);
+      insert(disc(x, y, 1.9), on, c); ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
     });
     // slingshots: a faint plastic body, with a rubber band along the face you hit
     for (const [side, idx] of [[1, 0], [-1, 1]]) {
       const fx = f => side > 0 ? X(f) : X(1 - f), ax = fx(0.13), ay = Y(0.65), bx = fx(0.27), by = Y(0.79), cx = fx(0.13), cy = Y(0.79), lit = T.slingT[idx] > 0;
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.closePath();
-      ctx.fillStyle = COL.block; ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 0.5; ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.3; ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.45; ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.3; ctx.stroke(); ctx.globalAlpha = 1;
       const band = () => { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); };
+      ctx.save(); ctx.translate(0.7, 1.1); ctx.lineCap = 'round'; ctx.strokeStyle = COL.ink; ctx.globalAlpha = 0.5; ctx.lineWidth = 2.8; band(); ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1; // its shadow
       ctx.lineCap = 'round'; ctx.strokeStyle = COL.wall; ctx.lineWidth = 2.6; band(); ctx.stroke(); // the rubber
       ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.8; band(); ctx.stroke();
       if (lit) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.5; ctx.strokeStyle = c; ctx.lineWidth = 4; band(); ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
@@ -8945,6 +9116,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (k > 0 || show) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = show ? 0.25 : 0.55 * k; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, bR * 1.75, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
       ctx.strokeStyle = c; ctx.lineWidth = k > 0 ? 0.6 : 0.35; ctx.globalAlpha = k > 0 ? 1 : 0.4;
       ctx.beginPath(); ctx.arc(x, y, bR * 1.55, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(x + 0.9, y + 1.4, bR * 1.12, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; // its shadow
+      ctx.fillStyle = COL.block; ctx.beginPath(); ctx.arc(x, y, bR * 1.12, 0, Math.PI * 2); ctx.fill(); // the skirt
+      ctx.strokeStyle = c; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.6; ctx.stroke(); ctx.globalAlpha = 1;
       ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(x, y, bR * sc, 0, Math.PI * 2); ctx.fill();
       glowLine(() => { ctx.beginPath(); ctx.arc(x, y, bR * sc, 0, Math.PI * 2); }, 0.9, k > 0 ? c : COL.chalk);
       ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.arc(x, y, bR * 0.66 * sc, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
@@ -8961,7 +9135,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const dropping = !T.targets[i] && T.dropT[i] > 0, pop = T.targets[i] && T.popT[i] > 0;
       if (T.targets[i] || dropping) {
         const kx = dropping ? T.dropT[i] / 0.22 : 1, ky = pop ? 1 + 0.25 * (T.popT[i] / 0.2) : 1, wv = fw * 2 * kx;
-        const flash = dropping || pop || (show && Math.floor(G.time * 14 + i) % 2);
+        const flash = dropping || pop || (show && blink(14, i));
         ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = flash ? 0.6 : 0.3; ctx.fillStyle = flash ? COL.chalk : c;
         ctx.fillRect(x + fw - wv - 1, y - h * ky / 2 - 1, wv + 2, h * ky + 2); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; // glow
         ctx.fillStyle = flash ? COL.chalk : c; ctx.fillRect(x + fw - wv, y - h * ky / 2, wv, h * ky);
@@ -8972,7 +9146,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         ctx.fillStyle = c; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(G.time * 8 + i); ctx.fill(); ctx.globalAlpha = 1; ctx.restore();
       }
     });
-    if (down >= 3 && !show) { ctx.globalAlpha = 0.6 + 0.4 * Math.sin(G.time * 12); ctx.fillStyle = c; ctx.font = `700 2.2px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('JACKPOT', X(0.86), Y(0.425)); ctx.globalAlpha = 1; }
     // the apron and the rail the ship rides
     ctx.fillStyle = COL.block; ctx.beginPath(); ctx.moveTo(R.x0, AH); ctx.lineTo(R.x0, Y(0.985)); ctx.lineTo(R.x0 + R.w, Y(0.985)); ctx.lineTo(R.x0 + R.w, AH); ctx.closePath(); ctx.fill();
     glowLine(() => { ctx.beginPath(); ctx.moveTo(R.x0, Y(0.985)); ctx.lineTo(R.x0 + R.w, Y(0.985)); }, 0.45, c, 0.8);
@@ -11630,6 +11803,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       return;
     }
+    if (G.table && ball.scoopT > 0) { tableScoopHold(ball, dt); return; } // in the pinball table's scoop: held, then kicked back out
+    if (G.table && ball.orbRun) { tableOrbitRun(ball, dt); return; } // on the table's orbit
     ball.noCatch -= dt;
     // topped out, a ball lights a FUSE_TIME countdown and keeps playing at full speed; once it runs out the ball is
     // primed and its next bounce overloads it (chargeBounce). Kills refill it. Overdrive and bonus rounds never overload.
@@ -11678,7 +11853,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (ball.state !== 'live') break;
       if (G.riders) { riderBounce(ball, r); if (ball.state !== 'live') break; } // Trail Riders: their trails are walls
 
-      if (G.table) { tableCollide(ball, r); if (ball.state !== 'live') break; if (!pulling && !ball.wing) tableFlip(ball, r); if (ball.state !== 'live') break; }
+      if (G.table) { tableCollide(ball, r); if (ball.state !== 'live' || ball.scoopT > 0 || ball.orbRun) break; if (!pulling && !ball.wing) tableFlip(ball, r); if (ball.state !== 'live') break; }
       if (G.crush && brickHit(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.siege && siegeHit(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.inv && bunkerHit(ball, r) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
