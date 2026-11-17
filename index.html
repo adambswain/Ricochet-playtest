@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 17 19:06 UTC · 39953d3";</script>
+<script>window.RICOCHET_BUILD = "Nov 17 19:40 UTC · a029ceb";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1850,19 +1850,21 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // but they count toward the chain). Each launch, MAW_DECK_LAUNCH of them take off from the decks too. Every MAW_DECK_LAND seconds a jet flies in from off the
   // arena and lands on an empty spot (MAW_LAND_T to land). The right deck has the island, a tower the ball bounces off.
   const MAW_PRONG = 9, MAW_PYLON = 1.6, MAW_DECK_GAP = 13.5, MAW_DECK_LAND = [2.4, 2, 1.6], MAW_LAND_T = 1.4;
-  // Halfway (MAW_SCRAMBLE of its health) it scrambles: a klaxon, its hull flashing, its doors blowing open with a blast
+  // Twice a fight (at MAW_SCRAMBLES of its health, the phase changes) it scrambles: a klaxon, its hull flashing, its doors blowing open with a blast
   // that throws your balls clear (MAW_PURGE); it lifts out of the top (MAW_LIFT), and every fighter it has comes in as
   // squadrons (MAW_SQUADS of MAW_SQUAD_N, a V every MAW_SQUAD_GAP, flying in and peeling off fast: MAW_SQUAD_FAST). Once
   // they're all down (or after MAW_SCRAMBLE_MAX), its shadow falls across the top and it drops back in (MAW_RETURN),
-  // rearmed, every rack and deck full, its doors opening at once. From then on, every other time its doors shut its gun
+  // rearmed, every rack and deck full, its doors opening at once. The second time, while its jets are out it fires
+  // missiles down at you from above, out of sight (one every MAW_SCR_TORP_GAP, the first MAW_SCR_TORP_FIRST in), each
+  // with its target ring, as below: lure them onto its jets. From the first scramble on, every other time its doors shut its gun
   // pods fire missiles instead of a fan (a nose pushing out of each pod for TORP_WARN first): each flies at the spot you
   // were on (TORP_SPREAD apart), a target ring there as wide as its blast closing as it comes, and blows up on arrival,
   // or early if your ball (or you) touch it: the blast (TORP_BLAST) hurts you, and wrecks any jet in reach, its racked
   // and parked ones too.
-  const MAW_SCRAMBLE = 0.5, MAW_PURGE = 1.1, MAW_LIFT = 1.1, MAW_SQUADS = 6, MAW_SQUAD_N = 6, MAW_SQUAD_GAP = 1.1, MAW_SQUAD_FAST = { v: 44, hold: 0.3, peel: 0.18, spd: 1.5 }, MAW_SCRAMBLE_MAX = 35, MAW_RETURN = 1.8;
+  const MAW_SCRAMBLES = [0.66, 0.33], MAW_SCR_TORP_FIRST = 2.2, MAW_SCR_TORP_GAP = 3.5, MAW_PURGE = 1.1, MAW_LIFT = 1.1, MAW_SQUADS = 6, MAW_SQUAD_N = 6, MAW_SQUAD_GAP = 1.1, MAW_SQUAD_FAST = { v: 44, hold: 0.3, peel: 0.18, spd: 1.5 }, MAW_SCRAMBLE_MAX = 35, MAW_RETURN = 1.8;
   const mawUp = B => (B.lift || 0) * (B.D + MAW_PRONG + 14); // how far it's lifted (its prongs and pods hang below the hull)
   const TORP_WARN = 1.0, TORP_V = 46, TORP_R = 2.8, TORP_BLAST = 15, TORP_SPREAD = 9;
-  const MAW_THROAT_D = 7, MAW_THROAT_HP = 208, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 2, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [3, 4, 4], MAW_DECK_LAUNCH = [1, 1, 2], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
+  const MAW_THROAT_D = 7, MAW_THROAT_HP = 189, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 2, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [3, 4, 4], MAW_DECK_LAUNCH = [1, 1, 2], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
 
   // The Hive (wave 50, the finale): Queen Vexa, in a loop. The dig: HIVE_RINGS rings of hexagonal wax cells round a
   // royal cell. The ball always bounces off a cell (1 damage, 2 when hot), so it digs tunnels; every few seconds an
@@ -2991,7 +2993,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     } else {
       if (B.scr) { mawScramble(B, dt); return; } // up and away, its squadrons out
-      if (!B.scrDone && !(B.launching || []).length && bossHp(B) <= B.maxHp * MAW_SCRAMBLE) { mawScrambleStart(B); return; }
+      const scrN = B.scrN ?? (B.scrDone ? 1 : 0); // (a run saved before there were two counts its one as done)
+      if (scrN < MAW_SCRAMBLES.length && !(B.launching || []).length && bossHp(B) <= B.maxHp * MAW_SCRAMBLES[scrN]) { B.scrN = scrN + 1; mawScrambleStart(B, B.scrN); return; }
       // slides along its wall to line up with you (crawls with the doors open, holds still while launching)
       const tgt = clamp(p.x, B.W / 2 + 1, AW - B.W / 2 - 1), slide = B.st === 'closed' ? MAW_SLIDE : B.st === 'charge' ? MAW_SLIDE * 0.25 : 0;
       B.bx += clamp(tgt - B.bx, -slide * dt, slide * dt); B.x = B.bx;
@@ -3579,10 +3582,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // arena, burning and trailing fire, while debris spins away; the reward lands with the blow.
   const MAW_DIE_HIT = 0.25, MAW_BLOW = 2.1, MAW_AFTER = 3.2;
   // The scramble (see MAW_SCRAMBLE)
-  function mawScrambleStart(B) {
-    B.scr = { ph: 'purge', t: 0, k: 0 }; B.st = 'closed'; B.landing = []; B.launching = []; B.gunT = 0; B.torpNext = false;
+  function mawScrambleStart(B, n = 1) {
+    B.scr = { ph: 'purge', t: 0, k: 0, n, mt: MAW_SCR_TORP_FIRST, side: 1 }; B.st = 'closed'; B.landing = []; B.launching = []; B.gunT = 0; B.torpNext = false;
     for (const br of B.bricks) br.pick = false; for (const d of B.decks) d.landing = false;
-    G.banner = { text: 'Scramble!', sub: 'It\'s pulling out. Everything it has is coming at you', t: 2.4, max: 2.4, at: 0.45 };
+    G.banner = { text: 'Scramble!', sub: n > 1 ? 'Again, with missiles. Their blasts take out jets' : 'It\'s pulling out. Everything it has is coming at you', t: 2.4, max: 2.4, at: 0.45 };
     sfx.klaxon(0, 2.4); shake(2);
   }
   function mawEject(B, blast) { // every ball in its bay, on its decks or under it is thrown clear, out below it
@@ -3617,8 +3620,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       return;
     }
-    if (S.ph === 'scramble') { // till they're all down
+    if (S.ph === 'scramble') { // till they're all down (the second time, with missiles coming down on you from above)
       const left = G.enemies.some(e => e.jet || e.fromMaw) || G.squadWarn.length || G.squads.length || (G.squadPlan && G.squadPlan.at.length);
+      if (S.n > 1 && left && (S.mt -= dt) <= 0) {
+        S.mt = MAW_SCR_TORP_GAP; S.side = -S.side;
+        const p = G.player, x = clamp(B.bx + S.side * B.W * 0.3, 6, AW - 6);
+        mawTorp(x, -2, clamp(p.x + rand(-2, 2), 4, AW - 4), clamp(p.y + rand(-3, 3), 4, AH - 4));
+        ring(x, 1, 1, 7, 0.3, COL.threat, 0.9); sfx.launch(x); sfx.hiss();
+      }
       if ((!left && S.t > 1.5) || S.t > MAW_SCRAMBLE_MAX) { S.ph = 'shadow'; S.t = 0; G.squadPlan = null; sfx.field(); }
       return;
     }
@@ -3635,14 +3644,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
   }
-  // Its missiles: one from each gun pod, each at the spot you're on (a little apart), to blow up there
+  // One missile, from x, y at the spot tx, ty, to blow up there
+  function mawTorp(x, y, tx, ty) {
+    const a = Math.atan2(ty - y, tx - x);
+    G.rockets.push({ x, y, vx: Math.cos(a) * TORP_V, vy: Math.sin(a) * TORP_V, t: 0, life: 9, friendly: false, torp: true, tx, ty, d0: Math.hypot(tx - x, ty - y) });
+    burst(x, y, 12, COL.threat, 30, 0.5, 0.3); ring(x, y, 1, 6, 0.25, COL.threat, 0.8);
+  }
+  // Its missiles: one from each gun pod, each at the spot you're on (a little apart)
   function mawTorpedoes(B) {
     const p = G.player;
     mawGuns(B).forEach(([gx, gy], i) => {
-      const tx = clamp(p.x + (i ? 1 : -1) * TORP_SPREAD / 2 + rand(-2, 2), 4, AW - 4), ty = clamp(p.y + rand(-3, 3), 4, AH - 4);
-      const a = Math.atan2(ty - gy, tx - gx), x = gx + Math.cos(a) * 4, y = gy + Math.sin(a) * 4;
-      G.rockets.push({ x, y, vx: Math.cos(a) * TORP_V, vy: Math.sin(a) * TORP_V, t: 0, life: 9, friendly: false, torp: true, tx, ty, d0: Math.hypot(tx - x, ty - y) });
-      burst(x, y, 12, COL.threat, 30, 0.5, 0.3); ring(x, y, 1, 6, 0.25, COL.threat, 0.8);
+      const tx = clamp(p.x + (i ? 1 : -1) * TORP_SPREAD / 2 + rand(-2, 2), 4, AW - 4), ty = clamp(p.y + rand(-3, 3), 4, AH - 4), a = Math.atan2(ty - gy, tx - gx);
+      mawTorp(gx + Math.cos(a) * 4, gy + Math.sin(a) * 4, tx, ty);
     });
     sfx.launch(B.bx); sfx.advance(); shake(1.2);
   }
