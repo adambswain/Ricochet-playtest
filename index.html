@@ -8,10 +8,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ricochet">
-<meta name="theme-color" content="#120d1c">
+<meta name="theme-color" content="#050f26">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon.png">
-<style>html, body { margin: 0; background: #120d1c; overscroll-behavior: none; overflow: hidden; }</style>
+<style>html, body { margin: 0; background: #050f26; overscroll-behavior: none; overflow: hidden; }</style>
 <script>
 // Updates: a home-screen app keeps its old copy of the page (and GitHub Pages lets it for 10 minutes), so reopening it
 // doesn't fetch a new build. Instead it checks for one itself, past every cache (a fresh query string): when it opens
@@ -32,7 +32,7 @@
         if (onTitle() && !justLoaded()) { load(); return; }
         offered = true;
         const b = document.createElement('button'); b.type = 'button'; b.textContent = 'New version: tap to update';
-        b.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 8px);transform:translateX(-50%);z-index:99;padding:10px 16px;border-radius:8px;border:2px solid #ffd400;background:#120d1c;color:#ffd400;font:700 14px system-ui,sans-serif';
+        b.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 8px);transform:translateX(-50%);z-index:99;padding:10px 16px;border-radius:8px;border:2px solid #ffd400;background:#050f26;color:#ffd400;font:700 14px system-ui,sans-serif';
         b.onclick = load; document.body.appendChild(b);
       }
     } catch (e) {} finally { busy = false; }
@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 18 15:41 UTC · 68ec851";</script>
+<script>window.RICOCHET_BUILD = "Nov 18 16:16 UTC · 039b113";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -98,37 +98,7 @@
 }
 /* Looks (picked on the title screen). Each one moves the ball's heat ramp and the enemy colours together:
    enemies stay clear of whatever hues the ball passes through as it charges. */
-:root[data-look="cabinet"] { /* loud arcade: true black, saturated primaries, a pixel font for everything */
-  --ink: #000000; --arena: #05050a; --line: #2b2b3a; --chalk: #ffffff; --dim: #a3a3b8; --lilac: #d0d0e0;
-  --e-drifter: #3d6bff; --e-brute: #a24bff; --e-dasher: #ff3df2; --e-splitter: #00d5ff; --e-swarm: #8fb0ff;
-  --e-bulwark: #9aa3b5; --e-blinker: #ff9ae8; --e-warden: #ffffff; --e-target: #ffd400;
-  --p-multi: #00d5ff; --p-shock: #ffd400; --p-bolt: #8fb0ff; --p-over: #ff3df2; --p-warp: #a24bff; --p-big: #ffffff;
-  --cool: #f4f4ff; --gold: #ffd400; --hot: #ff2626;
-  --block: #0d0d1f; --block-edge: #3d6bff; --brick-1: #2a3fa0; --brick-2: #3d6bff; --brick-3: #9db4ff;
-  --wall: #3d6bff; --grid: #0c0c18; --grid-major: #141428; --threat: #39ff6a; --hull: #3d6bff;
-  --display: "Pixelify Sans", ui-monospace, monospace; --mono: "Pixelify Sans", ui-monospace, monospace; --corners: 0;
-}
-:root[data-look="bone"] { /* restrained: warm monochrome, the ball is the only colour; danger is the one cold accent */
-  --ink: #0e0d0b; --arena: #151310; --line: #36312a; --chalk: #efe8da; --dim: #958c7c; --lilac: #c2b8a6;
-  --e-drifter: #cfc6b5; --e-brute: #e9e1d1; --e-dasher: #f6f1e8; --e-splitter: #b5ad9f; --e-swarm: #a39b8d;
-  --e-bulwark: #8a8274; --e-monolith: #a39b8d; --e-blinker: #dcd4c5; --e-warden: #fffaf0; --e-target: #efe8da;
-  --p-multi: #efe8da; --p-shock: #efe8da; --p-bolt: #efe8da; --p-over: #efe8da; --p-warp: #efe8da; --p-big: #efe8da;
-  --cool: #ffd98a; --gold: #ff8a1f; --hot: #ff2d2d;
-  --block: #1f1c18; --block-edge: #6f675a; --brick-1: #5a5348; --brick-2: #8a8274; --brick-3: #cfc6b5;
-  --wall: #6f675a; --grid: #1b1915; --grid-major: #24211c; --threat: #4da3ff; --hull: #8a8274;
-  --display: "Big Shoulders Display", "Arial Narrow", sans-serif; --mono: "Big Shoulders Text", "Arial Narrow", sans-serif; --corners: 0;
-}
-:root[data-look="blueprint"] { /* drafting table: ultramarine field, white linework, stencil numerals */
-  --ink: #081a42; --arena: #0c2560; --line: #3a62b8; --chalk: #ffffff; --dim: #9fb8ea; --lilac: #d2e0ff;
-  --e-drifter: #cfe0ff; --e-brute: #ffffff; --e-dasher: #e3d4ff; --e-splitter: #8fd8ff; --e-swarm: #e3ecff;
-  --e-bulwark: #9fb8ea; --e-blinker: #ffc7ef; --e-warden: #ffffff; --e-target: #ffd23f;
-  --p-multi: #8fd8ff; --p-shock: #ffd23f; --p-bolt: #cfe0ff; --p-over: #ff9ee6; --p-warp: #d2e0ff; --p-big: #ffffff;
-  --cool: #7dffd8; --gold: #ffd23f; --hot: #ff4040;
-  --block: #0f2d72; --block-edge: #cfe0ff; --brick-1: #3a62b8; --brick-2: #7d9fe6; --brick-3: #d2e0ff;
-  --wall: #cfe0ff; --grid: #12306f; --grid-major: #1b3f88; --threat: #ff7ad9; --hull: #5c82d6;
-  --display: "Saira Stencil One", "Arial Narrow", sans-serif; --mono: "Saira Condensed", "Arial Narrow", sans-serif; --corners: 0;
-}
-:root[data-look="blueprint2"] { /* drafting table, take two: deep navy, crisp lines (little glow), stencil for headings only,
+:root { /* the look (Blueprint 2, the only one; it overrides the base palette above): drafting table, take two: deep navy, crisp lines (little glow), stencil for headings only,
    enemy types told apart by line style (solid, double, dashed, phantom, hatched) more than by colour */
   --ink: #050f26; --arena: #0a1a3f; --line: #2c4a8c; --chalk: #ffffff; --dim: #8fa6d4; --lilac: #d2e0ff;
   --e-drifter: #e6eeff; --e-brute: #ffffff; --e-dasher: #e3d4ff; --e-splitter: #bfe6ff; --e-swarm: #e6eeff;
@@ -143,26 +113,15 @@
   --alert: 0.4; /* crisp lines, little glow: a boss alert is a frame and a few stripes, not a wash */
 }
 /* the new looks drop the tracked-out monospace micro-labels for labels in the look's own type */
-:root[data-look] .lbl { font-family: var(--display); font-size: 12px; letter-spacing: 0.03em; font-weight: 700; }
-:root[data-look] body { font-size: 15px; }
-:root[data-look] #mute, :root[data-look] #musicBtn, :root[data-look] .mode { letter-spacing: 0.03em; font-size: 12px; }
-:root[data-look="cabinet"] .val, :root[data-look="cabinet"] #mult { letter-spacing: 0; }
-:root[data-look="cabinet"] .btn { border-radius: 0; box-shadow: 4px 4px 0 var(--hot); }
-:root[data-look="cabinet"] .btn.ghost { background: var(--e-drifter); color: var(--chalk); box-shadow: 4px 4px 0 #000, inset 0 0 0 2px var(--chalk); }
-:root[data-look="cabinet"] #mute, :root[data-look="cabinet"] #musicBtn, :root[data-look="cabinet"] .mode, :root[data-look="cabinet"] .linkbtn { border-radius: 0; border-width: 2px; }
-:root[data-look="bone"] .val, :root[data-look="bone"] #mult { font-size: 30px; font-weight: 800; letter-spacing: 0; }
-:root[data-look="bone"] .lbl { text-transform: none; font-size: 14px; }
-:root[data-look="bone"] .logo { font-weight: 800; letter-spacing: -0.01em; font-size: clamp(64px, 22vw, 132px); }
-:root[data-look="bone"] .big { font-weight: 800; text-transform: uppercase; font-size: clamp(48px, 14vw, 76px); }
-:root[data-look="bone"] .btn { background: var(--chalk); border-radius: 0; font-weight: 800; font-size: 22px; letter-spacing: 0.04em; }
-:root[data-look="bone"] .btn.ghost { background: none; color: var(--chalk); box-shadow: inset 0 -2px 0 var(--chalk); padding-inline: 4px; }
-:root[data-look="bone"] .row .val { font-size: 40px; }
-:root[data-look^="blueprint"] .val, :root[data-look^="blueprint"] #mult { font-weight: 400; letter-spacing: 0.02em; }
-:root[data-look^="blueprint"] .logo, :root[data-look^="blueprint"] .big, :root[data-look^="blueprint"] .btn { font-weight: 400; }
-:root[data-look^="blueprint"] .logo { background: none; color: var(--chalk); }
-:root[data-look^="blueprint"] .btn { background: var(--chalk); border-radius: 0; }
-:root[data-look^="blueprint"] .btn.ghost { background: none; color: var(--chalk); box-shadow: inset 0 0 0 1.5px var(--chalk); }
-:root[data-look^="blueprint"] .panel { border: 1.5px solid var(--line); padding: 20px; box-sizing: border-box; background: color-mix(in srgb, var(--arena) 85%, transparent); }
+:root .lbl { font-family: var(--display); font-size: 12px; letter-spacing: 0.03em; font-weight: 700; }
+:root body { font-size: 15px; }
+:root #mute, :root #musicBtn, :root .mode { letter-spacing: 0.03em; font-size: 12px; }
+:root .val, :root #mult { font-weight: 400; letter-spacing: 0.02em; }
+:root .logo, :root .big, :root .btn { font-weight: 400; }
+:root .logo { background: none; color: var(--chalk); }
+:root .btn { background: var(--chalk); border-radius: 0; }
+:root .btn.ghost { background: none; color: var(--chalk); box-shadow: inset 0 0 0 1.5px var(--chalk); }
+:root .panel { border: 1.5px solid var(--line); padding: 20px; box-sizing: border-box; background: color-mix(in srgb, var(--arena) 85%, transparent); }
 .linkbtn.on { color: var(--ink); background: var(--chalk); border-color: var(--chalk); }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; overflow: hidden; background: var(--ink); color: var(--chalk); }
@@ -265,7 +224,6 @@ select.linkbtn option { background: var(--ink); color: var(--chalk); }
 .pauseBtn { pointer-events: auto; width: 44px; height: 44px; flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; background: none; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; padding: 0; }
 .pauseBtn i { width: 5px; height: 18px; background: var(--chalk); border-radius: 1px; }
 .pauseBtn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-:root[data-look="cabinet"] .pauseBtn, :root[data-look="bone"] .pauseBtn { border-radius: 0; border-width: 2px; }
 .sideTip { display: none; }
 /* Training's objective: one line at the top of the arena, out of the way of both thumbs, with a ? to read the lesson
    again. Only the ? takes a touch; the rest lets touches through to the game. */
@@ -386,7 +344,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <div class="ctrl"><div><span>Touch controls</span> <button class="linkbtn swapBtn" type="button">Move on left</button></div></div>
     <div class="ctrl"><div><span>Ball pull</span> <button class="linkbtn pullBtn" data-v="0" type="button">Classic</button><button class="linkbtn pullBtn" data-v="2" type="button">Medium</button><button class="linkbtn pullBtn" data-v="1" type="button">Tight</button> <span class="startNote">How tightly a fast ball curves home. Tight: as tightly as a slow one, so it can't loop round you; Medium: halfway</span></div></div>
     <div class="ctrl fsRow"><div><span>Screen</span> <button class="linkbtn fsBtn" type="button">Full screen</button> <span class="startNote fsHint" hidden>iPhone Safari can't go full screen from a page. Tap Share, then Add to Home Screen, and play from the home screen icon: it opens full screen.</span></div></div>
-    <div class="ctrl"><div><span>Look</span> <button class="linkbtn lookBtn" data-look="neon" type="button">Neon</button> <button class="linkbtn lookBtn" data-look="cabinet" type="button">Cabinet</button> <button class="linkbtn lookBtn" data-look="bone" type="button">Bone</button> <button class="linkbtn lookBtn" data-look="blueprint" type="button">Blueprint</button> <button class="linkbtn lookBtn" data-look="blueprint2" type="button">Blueprint 2</button></div></div>
     <div class="btnrow"><button class="btn" id="setBack" type="button">Back</button></div>
   </div>
 </section>
@@ -484,10 +441,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   'use strict';
   const $ = id => document.getElementById(id);
   const cvs = $('game'); let ctx = cvs.getContext('2d'); // let: a figure can be drawn to a buffer first (see faded)
-  const LOOKS = ['neon', 'cabinet', 'bone', 'blueprint', 'blueprint2'];
-  let look = 'blueprint2'; // (the default look, for anyone who hasn't picked one)
-  try { const l = localStorage.getItem('ricochet.look'); if (LOOKS.includes(l)) look = l; } catch (e) {}
-  if (look !== 'neon') document.documentElement.dataset.look = look;
   const css = getComputedStyle(document.documentElement);
   const tok = n => css.getPropertyValue(n).trim();
   const hex = h => { const v = parseInt(h.slice(1), 16); return [v >> 16 & 255, v >> 8 & 255, v & 255]; };
@@ -1792,19 +1745,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   /* ---------- bosses ---------- */
-  // Every tenth wave is a boss, alternating The Core and The Maw, harder each time round.
-  // The Core: a huge armoured hexagon that drifts around the arena (touching it hurts) and launches big, slow bombs
-  //   from a port that swings toward you. Bombs bounce around until their fuse runs out, then explode, hurting only
-  //   you. The ball can't hurt the Core directly (its shell charges the ball), but a ball that hits a bomb sends it
-  //   flying back into the Core, where it explodes for 2 + the ball's charge.
-  //   Every so often it stops, shakes and locks on (a line shows the path), then rams across the arena. When it hits
-  //   the wall it is stunned with its armour open, and for those seconds the ball damages it directly (1 + charge).
+  // Every tenth wave is a boss (BOSSES), harder each time round.
   // The Maw: a carrier docked on the top wall. It slides along the wall to line up with you, opens its hangar doors,
   //   launches fighters from its racks at you, then shuts and docks fresh ones. The fighters are its armour; only its
   //   throat, at the back of the bay, takes damage. Inside, Breakout rules: the ball bounces off everything it hits, and
   //   the doors open to a gap narrower than the bay, so a ball that gets in rattles around. A ball shut in stays
   //   trapped until the doors open again; inside the bay it heats only to just under the warning.
-  // Bosses: the Core at 10, the Serpent at 15, the Maw at 20; after that one every ten waves in turn, harder each lap.
   const BOSSES = ['tank', 'serpent', 'maw', 'geode', 'hive', 'mech']; // a boss every 10 waves: 10, 20, 30, 40, 50, and the finale at 60
   // The game runs in loops of LOOP_LEN waves. Each loop replays the first one's structure (the same set pieces and
   // bosses at the same waves) in Overdrive: everything that comes at you runs faster and every point counts more. The
@@ -1817,16 +1763,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const bossFor = n => { const k = inLoop(n); return k % 10 === 0 ? BOSSES[(k / 10 - 1) % BOSSES.length] : null; };
   // how many times this boss has come before, so each visit is harder than its last
   const bossCycle = n => loopOf(n);
-  const BOSS_NAMES = { core: 'The Core', tank: 'Clanktank', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'Vexa', mech: '0B-L1-V10N' };
+  const BOSS_NAMES = { tank: 'Clanktank', maw: 'The Carrier', serpent: 'The Serpent', geode: 'Gorp', hive: 'Vexa', mech: '0B-L1-V10N' };
   const BOSS_TITLES = { geode: 'the Jailer' }; // shown under the name as it lands
   let RAM_AIM = 1.2, RAM_LOCK = 0.35, RAM_SPEED = 110, RAM_STUN = 2.4;
-  const CORE_R = 16, CORE_SPEED = 9, BOMB_R = 3.6, BOMB_SPEED = 16, BOMB_RETURN = 90, BOMB_FUSE = 10, BOMB_FUSE_BLAST = 14, BOMB_MAX = 4;
   // Bosses announce themselves: for BOSS_ENTER seconds the arena goes to red alert (a klaxon, a red wash, the edges and
   // corner lights strobing, hazard bars along the top and bottom) while each boss makes its own entrance: searchlights
-  // hunt for the Core's landing spot, the Carrier's bay lights chase as it lowers in, the Hive builds itself cell by
-  // cell, the Serpent's cracks spread. In the last BOSS_DROP seconds the Core and the Carrier drop in. Nothing touches
+  // track the Clanktank in, the Carrier's bay lights chase as it lowers in, the Hive builds itself cell by
+  // cell, the Serpent's cracks spread. Nothing touches
   // them until they land; then a flash, a beat of slow motion and their name card. Anything in the way is shoved clear.
-  const BOSS_ENTER = 3, BOSS_DROP = 0.4;
+  const BOSS_ENTER = 3;
   // The Serpent: a huge armoured serpent that never stays in the arena. Each pass it bursts in through one wall
   // (glowing cracks mark the spot first), sweeps across in a wave and dives out through another, then a few small
   // enemies come while it's gone. Its body never hurts you: it's a solid obstacle the ball bounces off (+1 charge).
@@ -1879,6 +1824,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // and parked ones too.
   const MAW_SCRAMBLES = [0.66, 0.33], MAW_SCR_TORP_FIRST = 2.2, MAW_SCR_TORP_GAP = 3.5, MAW_PURGE = 1.1, MAW_LIFT = 1.1, MAW_SQUADS = 6, MAW_SQUAD_N = 6, MAW_SQUAD_GAP = 1.1, MAW_SQUAD_FAST = { v: 44, hold: 0.3, peel: 0.18, spd: 1.5 }, MAW_SCRAMBLE_MAX = 35, MAW_RETURN = 1.8;
   const mawUp = B => (B.lift || 0) * (B.D + MAW_PRONG + 14); // how far it's lifted (its prongs and pods hang below the hull)
+  const MAW_JET_LOOP = 1.25; // later loops speed everything up, but the Carrier's jets (its whole threat, by contact) cap at Loop 2's pace; its launches speed up only with the loop's clock
   let TORP_WARN = 1.0, TORP_V = 46, TORP_R = 2.8, TORP_BLAST = 15, TORP_SPREAD = 9;
   const MAW_THROAT_D = 7, MAW_THROAT_HP = 189, MAW_THROAT_CD = 0.6, MAW_SHIP_HP = 2, MAW_DOCK = [0.9, 0.7, 0.5], MAW_LAUNCH = [3, 4, 4], MAW_DECK_LAUNCH = [1, 1, 2], MAW_FIGHTERS = 10, MAW_LAUNCH_T = 1, MAW_LAUNCH_GAP = 0.18;
 
@@ -1993,14 +1939,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   function setupBoss(kind, cycle) {
     const B = { kind, cycle, x: AW / 2, y: AH * 0.42, t: 0, flash: 0, phase: 1, spin: 0, nextEscort: 6, enter: BOSS_ENTER };
-    if (kind === 'core') { // land as far from the ship as the arena allows
-      const p = G.player, m = CORE_R + 4;
-      let best = -1;
-      for (const [fx, fy] of [[0.5, 0.3], [0.5, 0.7], [0.3, 0.5], [0.7, 0.5], [0.28, 0.3], [0.72, 0.3], [0.28, 0.7], [0.72, 0.7]]) {
-        const x = clamp(AW * fx, m, AW - m), y = clamp(AH * fy, m, AH - m), d = Math.hypot(x - p.x, y - p.y);
-        if (d > best) { best = d; B.x = x; B.y = y; }
-      }
-    }
     if (kind === 'serpent') {
       Object.assign(B, { r: 20, hp: Math.round(SERP_HP * (1 + cycle * 0.6)), st: 'rest', stT: 0, segs: [], hx: -99, hy: -99, ha: 0, hitCd: 0, crowdT: 0 });
       for (let i = 0; i < SERP_N; i++) {
@@ -2013,8 +1951,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (kind === 'geode') setupGeode(B, cycle);
     if (kind === 'tank') setupTank(B, cycle);
     if (kind === 'mech') setupMech(B, cycle);
-    if (kind === 'core') Object.assign(B, { r: CORE_R, hp: Math.round(60 * (1 + cycle * 0.6)), fireT: 2.5, aim: Math.PI / 2, vx: 0, vy: 0, wx: AW / 2, wy: AH / 2, wT: 0, mode: 'drift', ramT: 7, modeT: 0, ramA: 0, hitCd: 0 });
-    else if (kind === 'maw') {
+    if (kind === 'maw') {
       // hull spans x = bx ± W/2 and y = 0..D from the top wall; the hangar bay is MW wide in the middle
       const py = MAW_BRICK_H + MAW_GAP_Y, deep = MAW_TOP + MAW_CHAMBER + MAW_ROWS * py - MAW_GAP_Y + MAW_MOUTH + MAW_JAW_T; // a full wall's depth
       const W = Math.min(AW * 0.92, Math.max(AW * 0.8, 120)), D = Math.min(deep, clamp(AH * 0.58, 62, 126)), MW = Math.min(W * 0.68, 140);
@@ -2034,7 +1971,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       B.decks = mawDeckSlots(B);
     }
     B.maxHp = B.hp;
-    G.boss = B; G.bombs = [];
+    G.boss = B;
     G.banner = { text: 'Warning', sub: `${BOSS_NAMES[kind]} incoming`, t: BOSS_ENTER, max: BOSS_ENTER, top: kind !== 'tank' && kind !== 'mech', low: kind === 'tank' || kind === 'mech' }; // Clanktank drives in from the top: its warning sits below it
     sfx.field();
   }
@@ -2050,9 +1987,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     } else if (B.kind === 'hive') {
       const dx = p.x - B.x, dy = p.y - B.y, d = Math.hypot(dx, dy);
       if (d < B.r + PLAYER_R + 2) { p.x = B.x; p.y = B.y + B.r + PLAYER_R + 4; keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); }
-    } else if (B.kind === 'core') {
-      const dx = p.x - B.x, dy = p.y - B.y, d = Math.hypot(dx, dy);
-      if (d < B.r + PLAYER_R + 2) { const nx = d > 0.01 ? dx / d : 0, ny = d > 0.01 ? dy / d : 1; p.x = B.x + nx * (B.r + PLAYER_R + 3); p.y = B.y + ny * (B.r + PLAYER_R + 3); keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); }
     } else if (B.kind === 'tank') { if (pushOutTank(B, p, PLAYER_R + 3)) { keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); } }
     else if (B.kind === 'mech') { const px = p.x, py = p.y; pushOutMech(B, p, PLAYER_R + 3); if (p.x !== px || p.y !== py) { keepIn(p, PLAYER_R); p.inv = Math.max(p.inv, 1); } }
     else if (p.y < B.D + PLAYER_R && Math.abs(p.x - B.bx) < B.W / 2 + PLAYER_R) { p.y = B.D + PLAYER_R + 3; p.inv = Math.max(p.inv, 1); }
@@ -2408,7 +2342,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     float(x, y - 4, `−${dmg}`, ECOL.warden, 3.4);
     if (B.hp <= 0) defeatBoss();
   }
-  // A blast from the player's side (bomb, overload, shockwave) hurts the Core if it reaches the shell.
+  // A blast from the player's side (bomb, overload, shockwave) against the boss.
   function blastBoss(x, y, rad, dmg, src) {
     const B = G.boss; if (!B) return;
     if (B.kind === 'serpent') { // a blast cracks every plate it reaches, and hurts if it reaches an open core
@@ -2445,8 +2379,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (Math.hypot(clamp(x, T.x0, T.x1) - x, clamp(y, T.y0, T.y1) - y) < rad) damageBoss(dmg, clamp(x, T.x0, T.x1), MAW_THROAT_D + 3);
       return;
     }
-    if (B.kind !== 'core') return;
-    if (Math.hypot(B.x - x, B.y - y) - B.r < rad) damageBoss(dmg, B.x + (x - B.x) * 0.5, B.y + (y - B.y) * 0.5);
   }
   // A boss's reward comes in a chest: it drops in where the boss fell, glowing gold; fly over it (or put the ball into it)
   // to open it, or it opens by itself after CHEST_AUTO. Open, it bursts with light and what's inside comes out: the
@@ -2523,7 +2455,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const p = G.player, more = (G.hullMax || HULL_MAX) < HULL_MAX + 2; G.hullMax = Math.min(HULL_MAX + 2, (G.hullMax || HULL_MAX) + 1); p.hull = G.hullMax;
     float(p.x, p.y - 8, more ? 'Hull +1 slot · repaired' : 'Hull repaired', COL.chalk, 3.6); ring(p.x, p.y, PLAYER_R, PLAYER_R + 14, 0.5, COL.chalk, 1); sfx.repair();
   }
-  // A machine's reward (the Core's, the Carrier's): its wreck drops another ball (a wingman) to fly over and grab; in later
+  // A machine's reward (the Carrier's): its wreck drops another ball (a wingman) to fly over and grab; in later
   // loops it also repairs you to full (the others already do).
   function wreckReward(x, y) {
     if (G.balls.length < BALLS_MAX) {
@@ -2556,48 +2488,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (B.twin && B.twin.st === 'pass') { const T = B.twin; for (const q of [[T.hx, T.hy], ...T.segs.map(s2 => [s2.x, s2.y])]) burst(q[0], q[1], 14, COL.threat, 50, 0.7, 0.5); ring(T.hx, T.hy, 2, 40, 0.6, COL.threat, 1.2); }
       // the Serpent's reward (Gorp's too, when he pops): one more hull slot, and the hull repaired to full, in a chest
       bossChest(B.x, B.y, 'slot');
-    } else bossChest(B.x, B.y, 'ball'); // the Core's
+    }
     if (B.kind === 'geode') geoDie(B);
     if (B.kind === 'maw') mawDie(B);
     if (B.kind === 'tank') tankDie(B);
     if (B.kind === 'mech') mechDie(B);
     if (B.kind === 'hive') vexaDie(B);
-    for (const bm of G.bombs) burst(bm.x, bm.y, 8, COL.threat, 20, 0.5, 0.3);
-    G.bombs = []; G.boss = null;
+    G.boss = null;
   }
 
-  // A returned bomb reaching the Core: damage the Core, and the blast clears escorts around it.
-  function detonateBomb(i, b) {
-    const bm = G.bombs[i], rad = 8 + 1.2 * b, dmg = 2 + b;
-    G.bombs.splice(i, 1);
-    ring(bm.x, bm.y, 1, rad, 0.4, heat(b), 1.0); ring(bm.x, bm.y, 1, rad * 0.6, 0.3, COL.chalk, 0.5);
-    burst(bm.x, bm.y, 24 + b * 2, heat(b), 50 + b * 4, 0.8, 0.5);
-    gridImpulse(bm.x, bm.y, rad * 1.4, 110 + b * 8);
-    shake(1.2 + b * 0.1); sfx.shock();
-    for (let k = G.enemies.length - 1; k >= 0; k--) {
-      const e = G.enemies[k];
-      if (Math.hypot(e.x - bm.x, e.y - bm.y) >= rad + e.r || isImmune(e)) continue;
-      if (e.hp <= hitFor(e, dmg)) kill(k, b); else { e.hp -= hitFor(e, dmg); e.flash = 0.1; }
-    }
-    if (G.boss && G.boss.kind === 'core') damageBoss(dmg, bm.x, bm.y);
-  }
-  function fuseBomb(i) {
-    const bm = G.bombs[i], p = G.player;
-    G.bombs.splice(i, 1);
-    ring(bm.x, bm.y, 1, BOMB_FUSE_BLAST, 0.4, COL.threat, 1.0);
-    burst(bm.x, bm.y, 26, COL.threat, 55, 0.8, 0.5);
-    gridImpulse(bm.x, bm.y, BOMB_FUSE_BLAST * 1.4, 120); shake(1.5); sfx.shock();
-    if (p.inv <= 0 && Math.hypot(p.x - bm.x, p.y - bm.y) < BOMB_FUSE_BLAST + PLAYER_R * 0.5) damagePlayer();
-  }
-  // Ball (main or multiball extra) against bombs: a touch sends the bomb back at the Core, carrying that ball's charge.
-  function ballBombs(o, r, b) {
-    for (const bm of G.bombs) {
-      if (bm.ret || Math.hypot(bm.x - o.x, bm.y - o.y) >= BOMB_R + r) continue;
-      bm.ret = true; bm.b = b;
-      ring(bm.x, bm.y, 1, 7, 0.3, heat(b), 0.7); burst(bm.x, bm.y, 8, heat(b), 30, 0.5, 0.3);
-      shake(0.5); sfx.clank();
-    }
-  }
   function hiveCellHit(B, c, dmg, b) {
     c.hp -= dmg; c.flash = 0.15; B.flash = 0.06;
     if (c.hp > 0) { G.score += Math.round(15 * (1 + b) * G.mult * HIVE_PAY); sfx.clank(); return; }
@@ -2907,32 +2806,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   function updateBoss(dt) {
     const B = G.boss, p = G.player;
-    // bombs: live ones bounce around the arena (walls and the Core's shell); returned ones home in on the Core
-    for (let i = G.bombs.length - 1; i >= 0; i--) {
-      const bm = G.bombs[i];
-      bm.t += dt;
-      if (bm.ret) {
-        if (!B || B.kind !== 'core') { G.bombs.splice(i, 1); continue; }
-        const dx = B.x - bm.x, dy = B.y - bm.y, d = Math.hypot(dx, dy) || 1;
-        bm.vx = dx / d * BOMB_RETURN; bm.vy = dy / d * BOMB_RETURN;
-        bm.x += bm.vx * dt; bm.y += bm.vy * dt;
-        if (d < B.r + BOMB_R + 1) detonateBomb(i, bm.b);
-        continue;
-      }
-      bm.x += bm.vx * dt; bm.y += bm.vy * dt;
-      if (bm.x < BOMB_R) { bm.x = BOMB_R; bm.vx = Math.abs(bm.vx); } else if (bm.x > AW - BOMB_R) { bm.x = AW - BOMB_R; bm.vx = -Math.abs(bm.vx); }
-      if (bm.y < BOMB_R) { bm.y = BOMB_R; bm.vy = Math.abs(bm.vy); } else if (bm.y > AH - BOMB_R) { bm.y = AH - BOMB_R; bm.vy = -Math.abs(bm.vy); }
-      if (B && B.kind === 'core' && bm.t > 0.4) {
-        const dx = bm.x - B.x, dy = bm.y - B.y, d = Math.hypot(dx, dy) || 1;
-        if (d < B.r + BOMB_R) {
-          const nx = dx / d, ny = dy / d, dot = bm.vx * nx + bm.vy * ny;
-          bm.x = B.x + nx * (B.r + BOMB_R); bm.y = B.y + ny * (B.r + BOMB_R);
-          if (dot < 0) { bm.vx -= 2 * dot * nx; bm.vy -= 2 * dot * ny; }
-        }
-      }
-      if (bm.t >= BOMB_FUSE) { fuseBomb(i); continue; }
-      if (p.inv <= 0 && Math.hypot(p.x - bm.x, p.y - bm.y) < PLAYER_R + BOMB_R) { fuseBomb(i); }
-    }
     if (!B) return;
     if (B.enter > 0) {
       B.enter -= dt; B.alarmT = (B.alarmT || 0) - dt;
@@ -2959,54 +2832,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'geode') { updateGeode(B, dt); return; }
     if (B.kind === 'tank') { updateTank(B, dt); return; }
     if (B.kind === 'mech') { updateMech(B, dt); return; }
-    if (B.phase >= 2 && B.kind !== 'maw' && B.kind !== 'hive') { B.nextEscort -= dt; if (B.nextEscort <= 0) { B.nextEscort = B.phase === 3 ? 7 : 11; for (let i = 0; i < (B.phase === 3 ? 4 : 2); i++) G.spawnQueue.push(B.phase === 3 && i % 2 ? 'dasher' : 'drifter'); } }
-    if (B.kind === 'core') {
-      B.hitCd -= dt;
-      B.spin += dt * (B.mode === 'stun' ? 0 : B.mode === 'aim' ? 2.5 : B.phase === 3 ? 0.6 : 0.2);
-      if (B.mode === 'aim') { // stop, shake, track the ship, then lock the line for the last moment
-        B.vx = B.vy = 0; B.modeT -= dt;
-        if (B.modeT > RAM_LOCK) B.ramA = Math.atan2(p.y - B.y, p.x - B.x);
-        if (B.modeT <= 0) { B.mode = 'ram'; B.vx = Math.cos(B.ramA) * RAM_SPEED; B.vy = Math.sin(B.ramA) * RAM_SPEED; sfx.boss(); }
-      } else if (B.mode === 'ram') {
-        B.x += B.vx * dt; B.y += B.vy * dt;
-        burst(B.x - B.vx * 0.12, B.y - B.vy * 0.12, 3, COL.threat, 15, 0.8, 0.3);
-        gridImpulse(B.x, B.y, B.r * 1.6, 30);
-        if (B.x < B.r || B.x > AW - B.r || B.y < B.r || B.y > AH - B.r) {
-          B.x = clamp(B.x, B.r, AW - B.r); B.y = clamp(B.y, B.r, AH - B.r); B.vx = B.vy = 0;
-          B.mode = 'stun'; B.modeT = RAM_STUN;
-          shake(3.5); gridImpulse(B.x, B.y, B.r * 3.5, 220); burst(B.x, B.y, 40, ECOL.warden, 60, 1, 0.6); sfx.overload();
-          float(B.x, B.y - B.r - 4, 'Stunned! Hit it!', COL.chalk, 3.6);
-        }
-      } else if (B.mode === 'stun') {
-        B.modeT -= dt;
-        if (B.modeT <= 0) { B.mode = 'drift'; B.ramT = [9, 7, 5.5][B.phase - 1]; B.fireT = Math.max(B.fireT, 1); }
-      }
-      if (p.inv <= 0 && Math.hypot(p.x - B.x, p.y - B.y) < B.r + PLAYER_R + 0.5) damagePlayer();
-      if (B.mode !== 'drift') return;
-      B.ramT -= dt;
-      if (B.ramT <= 0) { B.mode = 'aim'; B.modeT = RAM_AIM; sfx.field(); return; }
-      // drift between random waypoints, bouncing off the walls
-      B.wT -= dt;
-      if (B.wT <= 0 || Math.hypot(B.wx - B.x, B.wy - B.y) < 6) { B.wT = rand(3, 5); B.wx = rand(B.r + 4, AW - B.r - 4); B.wy = rand(B.r + 4, AH - B.r - 4); }
-      const sp = CORE_SPEED * (B.phase === 3 ? 1.5 : 1) * (1 + B.cycle * 0.15), wd = Math.hypot(B.wx - B.x, B.wy - B.y) || 1;
-      B.vx += ((B.wx - B.x) / wd * sp - B.vx) * Math.min(1, dt * 0.8); B.vy += ((B.wy - B.y) / wd * sp - B.vy) * Math.min(1, dt * 0.8);
-      B.x += B.vx * dt; B.y += B.vy * dt;
-      if (B.x < B.r) { B.x = B.r; B.vx = Math.abs(B.vx); } else if (B.x > AW - B.r) { B.x = AW - B.r; B.vx = -Math.abs(B.vx); }
-      if (B.y < B.r) { B.y = B.r; B.vy = Math.abs(B.vy); } else if (B.y > AH - B.r) { B.y = AH - B.r; B.vy = -Math.abs(B.vy); }
-      // the launch port swings toward you and glows before each shot
-      let da = Math.atan2(p.y - B.y, p.x - B.x) - B.aim; da = Math.atan2(Math.sin(da), Math.cos(da));
-      B.aim += clamp(da, -1.6 * dt, 1.6 * dt);
-      B.fireT -= dt;
-      if (B.fireT <= 0) {
-        B.fireT = [3.6, 3.0, 2.5][B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1);
-        const n = Math.min(B.phase, BOMB_MAX - G.bombs.filter(bm => !bm.ret).length);
-        for (let i = 0; i < n; i++) {
-          const a = B.aim + (n > 1 ? (i / (n - 1) - 0.5) * 0.9 : 0), bs = BOMB_SPEED * (1 + B.cycle * 0.15);
-          G.bombs.push({ x: B.x + Math.cos(a) * (B.r + BOMB_R + 0.5), y: B.y + Math.sin(a) * (B.r + BOMB_R + 0.5), vx: Math.cos(a) * bs, vy: Math.sin(a) * bs, t: 0, ret: false, b: 0 });
-        }
-        if (n > 0) { sfx.advance(); shake(0.8); }
-      }
-    } else {
+    {
       if (B.scr) { mawScramble(B, dt); return; } // up and away, its squadrons out
       const scrN = B.scrN ?? (B.scrDone ? 1 : 0); // (a run saved before there were two counts its one as done)
       if (scrN < MAW_SCRAMBLES.length && !(B.launching || []).length && bossHp(B) <= B.maxHp * MAW_SCRAMBLES[scrN]) { B.scrN = scrN + 1; mawScrambleStart(B, B.scrN); return; }
@@ -3038,7 +2864,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           G.enemies.push(e); burst(x, y, 10, ECOL.dasher, 30, 0.5, 0.3); sfx.launch(x);
         });
         B.st = 'hold'; B.stT = Math.max(0.7, go.length * MAW_LAUNCH_GAP + MAW_LAUNCH_T + 0.2); // the doors stay open until the last one is out
-      } else if (B.st === 'hold' && B.stT <= 0) { B.st = 'closed'; B.stT = [3, 2.5, 2][B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1); B.gunT = Math.max(B.stT * 0.5, B.scrDone ? TORP_WARN + 0.1 : 0); B.torpNext = !!B.scrDone && (B.shutN = (B.shutN || 0) + 1) % 2 === 1; } // (after the scramble, every other shut: missiles)
+      } else if (B.st === 'hold' && B.stT <= 0) { B.st = 'closed'; B.stT = [3, 2.5, 2][B.phase - 1]; B.gunT = Math.max(B.stT * 0.5, B.scrDone ? TORP_WARN + 0.1 : 0); B.torpNext = !!B.scrDone && (B.shutN = (B.shutN || 0) + 1) % 2 === 1; } // (after the scramble, every other shut: missiles)
       // with the doors shut, the wing turrets charge (MAW_GUN_WARN) and fire a fan at you, once per shut: the fight
       // alternates guns (doors shut) and fighters (doors open)
       if (B.st === 'closed' && B.gunT > 0) {
@@ -3070,7 +2896,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (const d of B.decks) { d.flash -= dt; d.born = Math.max(0, d.born - dt); }
       B.landT -= dt; // a jet flies in from off the arena and lands on an empty deck spot (never on top of a ball)
       if (B.landT <= 0) {
-        B.landT = MAW_DECK_LAND[B.phase - 1] * Math.max(0.7, 1 - B.cycle * 0.1);
+        B.landT = MAW_DECK_LAND[B.phase - 1];
         const free = B.decks.filter(d => !d.alive && !d.landing && G.balls.every(o => o.state !== 'live' || Math.hypot(o.x - B.bx - d.rx, o.y - d.y) > MAW_SHIP_R + ballR(o.b) + 6));
         const d = B.landing.length < 2 ? free[Math.floor(Math.random() * free.length)] : null;
         if (d) { d.landing = true; B.landing.push({ d, t: 0, fx: d.side < 0 ? -14 : AW + 14, fy: d.y + rand(30, 55) }); }
@@ -3133,18 +2959,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       drawGeodeFg(B);
       return;
     }
-    if (B.kind === 'core') { // searchlights from the corners hunt for the landing spot, then lock on it
-      const lock = Math.max(0, (k - 0.7) / 0.3);
-      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = COL.threat;
-      [[0, 0], [AW, 0], [0, AH], [AW, AH]].forEach(([sx, sy], i) => {
-        const dx = B.x - sx, dy = B.y - sy, dist = Math.hypot(dx, dy), a = Math.atan2(dy, dx) + (1 - lock) * 0.5 * Math.sin(G.time * (1.6 + i * 0.3) + i * 1.9);
-        const w = 0.05 + 0.04 * (1 - lock), L = dist * 1.08;
-        ctx.globalAlpha = (0.07 + 0.1 * k) * (lock >= 1 && Math.floor(G.time * 12) % 2 ? 1.8 : 1) * (0.5 + 0.5 * ALERT);
-        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(a - w) * L, sy + Math.sin(a - w) * L); ctx.lineTo(sx + Math.cos(a + w) * L, sy + Math.sin(a + w) * L); ctx.closePath(); ctx.fill();
-        ctx.globalAlpha = (0.08 + 0.12 * k) * (0.5 + 0.5 * ALERT); ctx.beginPath(); ctx.arc(sx + Math.cos(a) * dist, sy + Math.sin(a) * dist, B.r * 0.2 * (1 + (1 - lock)), 0, Math.PI * 2); ctx.fill();
-      });
-      ctx.restore();
-    }
     if (B.kind === 'hive') { // the comb builds itself, outside in, the royal cell last
       const gold = GOLD(), reveal = k * (HIVE_RINGS + 1.3);
       for (const c of B.cells) {
@@ -3182,12 +2996,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
       ctx.globalAlpha = 1;
       return;
-    }
-    if (B.kind === 'core') { // its shadow on the landing spot, darkening and tightening as it falls
-      const sr = B.r * (2.2 - 1.2 * k);
-      ctx.fillStyle = '#000';
-      for (const [f, al] of [[1.25, 0.25], [1, 0.45], [0.7, 0.6]]) { ctx.globalAlpha = al * (0.2 + 0.8 * k); ctx.beginPath(); ctx.arc(B.x, B.y, sr * f, 0, Math.PI * 2); ctx.fill(); }
-      ctx.globalAlpha = 1;
     }
   }
   // Glowing cracks on the wall where the Serpent is about to burst through.
@@ -3924,35 +3732,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       drawRedAlert(k);
       if (B.kind === 'serpent') { drawSerpentCracks(B, k); return; }
       drawBossWarning(B);
-      if (B.kind === 'hive' || B.kind === 'geode' || (B.kind === 'core' && B.enter > BOSS_DROP)) return;
+      if (B.kind === 'hive' || B.kind === 'geode') return;
       const e0 = B.enter;
       ctx.save();
-      if (B.kind === 'core') { const d = B.enter / BOSS_DROP, sc = 1 + 1.8 * d * d; ctx.translate(B.x, B.y); ctx.scale(sc, sc); ctx.translate(-B.x, -B.y); } // falls in toward you
-      else if (B.kind === 'mech') { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); } // Goliath walks itself in (mechIntro): draw it where it is
+      if (B.kind === 'mech') { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); } // Goliath walks itself in (mechIntro): draw it where it is
       else if (B.kind === 'tank') { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.y + 32) * Math.pow(1 - k, 1.6)); } // the Tank rolls in from the top over the whole warning
       else { ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -(B.D + 8) * Math.pow(Math.max(0, 1 - k * BOSS_ENTER / MAW_IN), 2.2)); } // the Carrier drops down out of the top, then hangs there through the warning, solid
       B.enter = 0; drawBoss(); B.enter = e0; // the boss as it will look, just not solid yet
       ctx.restore();
       return;
-    }
-    for (const bm of G.bombs) { // bombs, with the fuse blast zone growing over the last stretch
-      if (bm.ret) {
-        const c = heat(bm.b), sp = Math.hypot(bm.vx, bm.vy) || 1;
-        ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = c; ctx.lineWidth = BOMB_R * 1.2; ctx.lineCap = 'round'; ctx.globalAlpha = 0.5;
-        ctx.beginPath(); ctx.moveTo(bm.x, bm.y); ctx.lineTo(bm.x - bm.vx / sp * 8, bm.y - bm.vy / sp * 8); ctx.stroke();
-        ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-        ctx.fillStyle = c; ctx.beginPath(); ctx.arc(bm.x, bm.y, BOMB_R * 1.15, 0, Math.PI * 2); ctx.fill();
-        continue;
-      }
-      const left = BOMB_FUSE - bm.t;
-      if (left < 1.6) {
-        const k = 1 - left / 1.6;
-        fieldRing(bm.x, bm.y, BOMB_FUSE_BLAST * k, COL.threat, 0.25 + k * 0.5);
-      }
-      ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(bm.x, bm.y, BOMB_R, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = COL.threat; ctx.lineWidth = 0.45; ctx.stroke();
-      const blink = Math.floor(bm.t * (4 + bm.t * 6)) % 2;
-      ctx.fillStyle = blink ? COL.chalk : COL.threat; ctx.beginPath(); ctx.arc(bm.x, bm.y, BOMB_R * 0.45, 0, Math.PI * 2); ctx.fill();
     }
     if (!B) return;
     if (B.kind === 'maw') { const oy = mawUp(B); if (oy > 0) { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); ctx.translate(0, -oy); drawMaw(B); ctx.restore(); } else drawMaw(B); drawMawExtras(B); return; }
@@ -3961,54 +3749,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (B.kind === 'tank') { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); drawTank(B); ctx.restore(); return; } // never over the HUD
     if (B.kind === 'mech') { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); drawMech(B); ctx.restore(); return; } // up in the air, it's out of the top
     if (B.kind === 'serpent') { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); drawSerpent(B); ctx.restore(); return; } // it lives beyond the walls too: only show what's inside
-    const col = B.flash > 0 ? COL.chalk : ECOL.warden;
-    ctx.save(); ctx.translate(B.x, B.y);
-    if (B.kind === 'core') {
-      if (B.mode === 'aim') { // shake, and show the charge path to the wall
-        const k = 1 - B.modeT / RAM_AIM, locked = B.modeT <= RAM_LOCK;
-        ctx.translate(rand(-0.5, 0.5) * k, rand(-0.5, 0.5) * k);
-        const cx = Math.cos(B.ramA), cy = Math.sin(B.ramA);
-        const L = Math.min(cx > 0 ? (AW - B.x) / cx : cx < 0 ? -B.x / cx : 1e9, cy > 0 ? (AH - B.y) / cy : cy < 0 ? -B.y / cy : 1e9);
-        if (locked) { ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.threat; ctx.lineWidth = B.r * 0.5; ctx.beginPath(); ctx.moveTo(cx * B.r, cy * B.r); ctx.lineTo(cx * L, cy * L); ctx.stroke(); }
-        else pulseLine(cx * B.r, cy * B.r, cx * L, cy * L, COL.threat, 0.4 + 0.4 * k, 0.5, 70);
-        if (locked) { ctx.globalAlpha = 0.15; ctx.lineWidth = B.r * 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(cx * L, cy * L); ctx.stroke(); }
-        ctx.globalAlpha = 1;
-      }
-      if (B.mode === 'stun') { // armour plates pried open around an exposed core
-        const k = Math.min(1, (RAM_STUN - B.modeT) / 0.2) * Math.min(1, B.modeT / 0.3);
-        ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.35 + 0.25 * Math.sin(B.t * 20);
-        ctx.beginPath(); ctx.arc(0, 0, B.r * 0.75, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-        ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(0, 0, B.r * 0.32, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = col; ctx.lineWidth = 1.1;
-        for (let i = 0; i < 6; i++) {
-          const q0 = B.spin + i * Math.PI / 3, q1 = q0 + Math.PI / 3, qm = q0 + Math.PI / 6, push = 4 * k;
-          ctx.beginPath();
-          ctx.moveTo(Math.cos(q0) * B.r + Math.cos(qm) * push, Math.sin(q0) * B.r + Math.sin(qm) * push);
-          ctx.lineTo(Math.cos(q1) * B.r + Math.cos(qm) * push, Math.sin(q1) * B.r + Math.sin(qm) * push);
-          ctx.stroke();
-        }
-        for (let i = 0; i < 3; i++) { const a = B.t * 5 + i * 2.1; ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(Math.cos(a) * (B.r + 3), Math.sin(a) * (B.r + 3) - B.r * 0.4, 0.7, 0, Math.PI * 2); ctx.fill(); }
-        ctx.restore();
-        return;
-      }
-      const hex = (k, rot) => { ctx.beginPath(); for (let i = 0; i < 6; i++) { const q = rot + i * Math.PI / 3; ctx.lineTo(Math.cos(q) * B.r * k, Math.sin(q) * B.r * k); } ctx.closePath(); };
-      hex(1, B.spin); ctx.fillStyle = COL.ink; ctx.fill(); ctx.globalAlpha = 0.14; ctx.fillStyle = COL.threat; ctx.fill(); ctx.globalAlpha = 1;
-      // armour plates: one per edge, with a seam between them
-      ctx.strokeStyle = col; ctx.lineWidth = 1.1; hex(1, B.spin); ctx.stroke();
-      ctx.lineWidth = 0.35; ctx.globalAlpha = 0.7;
-      for (let i = 0; i < 6; i++) { const q = B.spin + i * Math.PI / 3; ctx.beginPath(); ctx.moveTo(Math.cos(q) * B.r, Math.sin(q) * B.r); ctx.lineTo(Math.cos(q) * B.r * 0.62, Math.sin(q) * B.r * 0.62); ctx.stroke(); }
-      hex(0.62, B.spin); ctx.stroke();
-      hex(0.4, -B.spin * 2); ctx.globalAlpha = 0.5; ctx.stroke(); ctx.globalAlpha = 1;
-      const pulse = 0.5 + 0.5 * Math.sin(B.t * (3 + B.phase * 2));
-      ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.55 + pulse * 0.45;
-      ctx.beginPath(); ctx.arc(0, 0, B.r * (0.2 + pulse * 0.05), 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-      // launch port on the rim, glowing as the next shot charges
-      const charge = clamp(1 - B.fireT / 0.8, 0, 1), px = Math.cos(B.aim) * B.r, py = Math.sin(B.aim) * B.r;
-      ctx.strokeStyle = charge > 0 && Math.floor(B.t * 16) % 2 ? COL.chalk : COL.threat; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(px * 0.8, py * 0.8); ctx.lineTo(px * 1.12, py * 1.12); ctx.stroke();
-      if (charge > 0) { ctx.globalAlpha = charge; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(px * 1.12, py * 1.12, BOMB_R * charge, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
-    }
-    ctx.restore();
   }
   // A Carrier fighter, top-down, nose along +x: a slim fuselage, swept delta wings with a faction stripe, twin tail fins,
   // a lit canopy, and its health as lights along the wings' trailing edges (lit = left; in the ball's colour once the
@@ -8589,99 +8329,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     seg(x2, w2, re / reMax, B.dug, 'REACTOR');
   }
 
-  /* ---------- bonus round ---------- */
-  // Pinball: a dense cluster of pop bumpers and a clock. Every bumper hit bounces the ball off, adds charge (so it speeds up;
-  // overload is off for the round), scores BUMP_PTS and lights that bumper for LIT_TIME (a hit relights it). Have all of
-  // them lit at once for a jackpot, then they reset. Rattling keeps the middle lit for free; the outer ones take aiming.
-  // The table tilts the ball back toward the cluster when it strays, turning harder the faster it goes so it always curves
-  // back within BUMP_TILT_R cluster-widths. Nothing can hurt you.
-  const BONUS_TIME = 20, BUMP_R = 5.5, BUMP_WINDOW = 2, BUMP_TILT_R = 1.6, BUMP_PTS = 50, JACKPOT = 2500, LIT_TIME = 5;
-  // offsets from the cluster centre, in units of BUMP_S (a fraction of the arena's short side)
-  const BUMP_LAYOUT = [[0, 0], [-1, -0.9], [1, -0.9], [0, -1.8], [-1, 0.9], [1, 0.9], [0, 1.8], [-2, 0], [2, 0]];
-  function setupBonus(cycle) {
-    G.bonus = { time: BONUS_TIME, cycle, hits: 0, combo: 0, since: 99, done: false, jackpots: 0, jackT: 0,
-                bumpers: BUMP_LAYOUT.map(([ox, oy]) => ({ ox, oy, flash: 0, cd: 0, litT: 0 })) };
-  }
-  const bumpCentre = () => [AW * 0.5, AH * 0.45];
-  const bumpScale = () => Math.min(AW, AH) * 0.16;
-  const bumperPos = bm => { const [cx, cy] = bumpCentre(), S = bumpScale(); return [cx + bm.ox * S, cy + bm.oy * S]; };
-  // Ball (or extra) against the bumpers: bounce off and kick. Returns true on a hit.
-  function bumperHit(o, r) {
-    const B = G.bonus; if (!B || B.done) return false;
-    for (const bm of B.bumpers) {
-      if (bm.cd > 0) continue;
-      const [x, y] = bumperPos(bm), dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy) || 1e-6;
-      if (d >= BUMP_R + r) continue;
-      const nx = dx / d, ny = dy / d, dot = o.vx * nx + o.vy * ny;
-      o.x = x + nx * (BUMP_R + r + 0.05); o.y = y + ny * (BUMP_R + r + 0.05);
-      if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
-      bm.flash = 0.18; bm.cd = 0.06;
-      B.combo = B.since < BUMP_WINDOW ? B.combo + 1 : 1; B.since = 0; B.hits++; // the combo only climbs the pitch now
-      const pts = BUMP_PTS * (B.cycle + 1), fresh = bm.litT <= 0 && B.jackT <= 0;
-      G.score += pts;
-      float(x, y - BUMP_R - 2, `${pts}`, ECOL.target, 2.6);
-      ring(x, y, BUMP_R, BUMP_R + (fresh ? 8 : 5), 0.3, ECOL.target, fresh ? 1 : 0.7);
-      gridImpulse(x, y, 14, 50); shake(0.4);
-      sfx.chain(Math.min(B.combo, 14));
-      if (B.jackT <= 0) {
-        bm.litT = LIT_TIME;
-        if (fresh && B.bumpers.every(q => q.litT > 0)) bonusJackpot();
-      }
-      return true;
-    }
-    return false;
-  }
-  // Every bumper lit: pay out, flash the whole set for a moment, then clear them for the next set.
-  function bonusJackpot() {
-    const B = G.bonus, [cx, cy] = bumpCentre(), pts = JACKPOT * (B.cycle + 1);
-    B.jackpots++; B.jackT = 0.6; G.score += pts;
-    for (let i = 0; i < 3; i++) ring(cx, cy, 2, bumpScale() * (2.4 + i * 0.6), 0.5 + i * 0.12, i % 2 ? COL.chalk : ECOL.target, 1.2);
-    burst(cx, cy, 60, ECOL.target, 70, 1, 0.8);
-    gridImpulse(cx, cy, Math.max(AW, AH) * 0.6, 160);
-    float(cx, cy - bumpScale() * 2.6, `Jackpot +${pts.toLocaleString()}`, ECOL.target, 5);
-    G.freeze = Math.max(G.freeze, 0.08); shake(2.5); sfx.repair(); sfx.collect();
-  }
-  function updateBonus(dt) {
-    const B = G.bonus; if (!B || B.done) return;
-    B.time -= dt; B.since += dt;
-    if (B.since > BUMP_WINDOW) B.combo = 0;
-    if (B.jackT > 0) { B.jackT -= dt; if (B.jackT <= 0) for (const bm of B.bumpers) bm.litT = 0; }
-    for (const bm of B.bumpers) { bm.flash -= dt; bm.cd -= dt; if (B.jackT <= 0) bm.litT = Math.max(0, bm.litT - dt); }
-    if (B.time <= 0) { B.time = 0; B.done = true; }
-  }
-  function finishBonus() {
-    const B = G.bonus; if (!B) return;
-    G.result = { text: `${B.hits} hits`, sub: B.jackpots ? `Jackpot ×${B.jackpots}` : 'No jackpot', t: 2.6, max: 2.6 };
-    // overload comes back on now, so cool a red-hot ball down rather than let it blow on the next wall
-    for (const ball of liveBalls()) if (ball.b > WARN - 2) { ball.b = WARN - 2; const sp = ballSpeed(ball.b), l = Math.hypot(ball.vx, ball.vy) || 1; ball.vx = ball.vx / l * sp; ball.vy = ball.vy / l * sp; }
-    sfx.repair();
-    G.bonus = null;
-  }
-  function drawBumpers() {
-    const B = G.bonus; if (!B) return;
-    for (const bm of B.bumpers) {
-      const [x, y] = bumperPos(bm), hit = bm.flash > 0, c = ECOL.target;
-      const on = bm.litT > 0 && (B.jackT <= 0 || Math.floor(B.jackT * 12) % 2); // lit ones blink together during a jackpot
-      ctx.fillStyle = hit ? COL.chalk : COL.ink; ctx.beginPath(); ctx.arc(x, y, BUMP_R, 0, Math.PI * 2); ctx.fill();
-      if (!on && !hit) { // unlit: a dark socket with a dashed rim, so the ones still needed stand out as gaps
-        ctx.globalAlpha = 0.3; ctx.strokeStyle = c; ctx.lineWidth = 0.35; ctx.stroke(); tickRing(x, y, BUMP_R, 8, 0.9, c, 0.6, 0.35);
-        ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(x, y, BUMP_R * 0.18, 0, Math.PI * 2); ctx.fillStyle = c; ctx.fill(); ctx.globalAlpha = 1;
-        continue;
-      }
-      ctx.globalAlpha = hit ? 0.7 : 0.5; ctx.fillStyle = c; ctx.fill(); ctx.globalAlpha = 1;
-      ctx.strokeStyle = hit ? COL.chalk : c; ctx.lineWidth = 1.1; ctx.stroke();
-      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35; ctx.lineWidth = 2.2; ctx.stroke(); // halo
-      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-      ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.3; ctx.beginPath(); ctx.arc(x, y, BUMP_R * 0.62, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = COL.chalk;
-      if (on && B.jackT <= 0) { // the lit time drains around the inner ring
-        ctx.lineWidth = 0.9; ctx.beginPath(); ctx.arc(x, y, BUMP_R * 0.62, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * bm.litT / LIT_TIME); ctx.stroke();
-      }
-      ctx.beginPath(); ctx.arc(x, y, BUMP_R * (on ? 0.32 : 0.2), 0, Math.PI * 2); ctx.fillStyle = on ? COL.chalk : c; ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-  }
-
   /* ---------- pinball table ---------- */
   // Wave 5 is a pinball table played by Ricochet's own rules, with gravity: the ball always falls back toward the
   // bottom (TABLE_GRAV). The ship rides a rail across the bottom and slides left and right: it's the flipper. A falling
@@ -8696,6 +8343,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // they don't cost a ball when they drain). Every wall, bumper and slingshot hit charges the ball, but it
   // never overloads here: it tops out at full speed and keeps playing. On the table: three pop bumpers, two slingshots, three rollover lanes at the top (light all three
   // for a bonus) and a bank of four drop targets (knock all four down for the jackpot).
+  const TABLE_FLIP_UP = 8, TABLE_FLIP_CD = 0.3; // the flipper takes a ball no higher than this over the paddle, and not twice within TABLE_FLIP_CD
   const TABLE_TIME = 60, TABLE_FLIP = 1.05, TABLE_FLIP_PAD = 12, TABLE_MAX_B = MAX_CHARGE, TABLE_SAVE = 3.5, TABLE_MULT_MAX = 3;
   const TABLE_G = 1, TABLE_LAUNCH = 1.3, TABLE_REST = 0.9, TABLE_BUMP = 0.95, TABLE_SLING = 0.85, TABLE_VMAX = 1.6, TABLE_RAIL = 2; // × the table's height (per s, per s²); TABLE_RAIL: the ship's speed on the rail
   // Ricochet's rules on the table too: every bounce heats the ball, and the hotter it is the faster the whole table plays
@@ -8740,8 +8388,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         segs.push([cx + Math.cos(a) * cr, top + cr + Math.sin(a) * cr, cx + Math.cos(b) * cr, top + cr + Math.sin(b) * cr, 'arch']);
       }
     }
-    for (const f of TB.posts) segs.push([X(f), Y(TB.postTop), X(f), Y(TB.postBot), 'post']);          // lane dividers, under the orbit's channel
-    const ow = TB.orbW * w, ir = cr - ow;                                                               // the orbit: an inner rail up each side, round each corner
+    const g = tbGeo(), ow = g.ow, ir = cr - ow;
+    for (const f of TB.posts) segs.push([X(f), g.postTop, X(f), g.postBot, 'post']);                  // lane dividers, under the orbit's channel                                                               // the orbit: an inner rail up each side, round each corner
     segs.push([X(TB.orbMouth[0]), Y(TB.orbMouth[1]), x0 + ow, Y(TB.orbBot), 'rail']);                // the left lane's mouth: a funnel in from the slingshot
     segs.push([x0 + ow, Y(TB.orbBot), x0 + ow, top + cr, 'rail']);
     for (const [cx, a0] of [[x0 + cr, Math.PI], [x0 + w - cr, -Math.PI / 2]]) {
@@ -8750,9 +8398,19 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         segs.push([cx + Math.cos(a) * ir, top + cr + Math.sin(a) * ir, cx + Math.cos(b) * ir, top + cr + Math.sin(b) * ir, 'rail']);
       }
     }
-    segs.push([x0 + w - ow, top + cr, x0 + w - ow, Y(TB.orbRBot), 'rail']);
-    segs.push([x0 + w, Y(TB.orbRBot + 0.012), x0 + w - ow - 1.5, Y(TB.orbRBot + 0.062), 'kicker']);   // at the right lane's foot: out at the bumpers
+    segs.push([x0 + w - ow, top + cr, x0 + w - ow, g.rBot, 'rail']);
+    segs.push([x0 + w, g.kick0, x0 + w - ow - 1.5, g.kick1, 'kicker']);   // at the right lane's foot: out at the bumpers
     return segs;
+  }
+  // The table's layout in arena units, from TB's fractions, but no gap a ball must pass (the orbit's channel over the
+  // lane posts, its lanes, the right lane's way out over the kicker) is ever narrower than the hottest ball: on a short
+  // screen (landscape) fractions of the height come out too small.
+  const TB_BALL = 2 * ballR(MAX_CHARGE) + 2;
+  function tbGeo(R = tableRect()) {
+    const top = TB.top * R.h, cr = TB.arch * R.w, ow = Math.max(TB.orbW * R.w, TB_BALL);
+    const postTop = Math.max(TB.postTop * R.h, top + TB_BALL + 0.5), postBot = Math.max(TB.postBot * R.h, postTop + 5), laneY = (postTop + postBot) / 2;
+    const rBot = TB.orbRBot * R.h, kick0 = rBot + 0.012 * R.h, kick1 = Math.max((TB.orbRBot + 0.062) * R.h, rBot + TB_BALL + 3);
+    return { top, cr, ow, postTop, postBot, laneY, rBot, kick0, kick1 };
   }
   const tableAward = (pts, x, y) => { const T = G.table, v = Math.round(pts * (T.cycle + 1) * (T.mult || 1) * (1 + 0.05 * (T.heatB || 0)) * bonusMult() * TABLE_PAY / 10) * 10; /* (× a share of your multiplier: the table has its own, from its lanes) */ /* the hotter the ball, the more it scores */ T.score += v; G.score += v; if (x !== null) float(x, y, `${v}`, ECOL.target, 2.4 + Math.min(2, v / 1500)); return v; };
   // The table's walls and furniture, for a ball moving by the normal rules. Every bounce charges the ball (and may
@@ -8795,7 +8453,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (ball.state !== 'live') return;
     }
     TB.lanes.forEach((fx, i) => { // rollover lanes at the top
-      const cx = R.x0 + fx * R.w, cy = TB.laneY * R.h;
+      const cx = R.x0 + fx * R.w, cy = tbGeo(R).laneY;
       if (Tb.lanes[i] || Tb.lanesT > 0 || Math.hypot(ball.x - cx, ball.y - cy) > 3.2) return;
       Tb.lanes[i] = true; tableAward(TB_PTS.lane, cx, cy + 5); sfx.collect();
       if (Tb.lanes.every(Boolean)) { Tb.lanesT = 0.8; tableAward(TB_PTS.lanes, R.x0 + R.w / 2, cy + 10); ring(R.x0 + R.w / 2, cy, 2, R.w * 0.4, 0.4, ECOL.target, 1); sfx.repair();
@@ -8826,7 +8484,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // The orbit and the scoop, for a ball on the table. True once the scoop has it (it's held: nothing else touches it).
   function tableOrbit(ball, r, R) {
-    const T = G.table, ow = TB.orbW * R.w, spinY = TB.spinY * R.h, inL = ball.x < R.x0 + ow, inR = ball.x > R.x0 + R.w - ow;
+    const T = G.table, ow = tbGeo(R).ow, spinY = TB.spinY * R.h, inL = ball.x < R.x0 + ow, inR = ball.x > R.x0 + R.w - ow;
     if (inL && Math.abs(ball.y - spinY) < r + 0.8 && !(ball.spinCd > G.time)) { // through the spinner, either way
       ball.spinCd = G.time + 0.3;
       T.spinV = Math.min(SPIN_MAX, T.spinV + Math.abs(ball.vy) * SPIN_K); sfx.clank();
@@ -8850,13 +8508,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The orbit's path: up the middle of the left lane from the spinner, round the corner, along the top, round the
   // other corner and down the right lane, as points (x, y) every ~1 unit
   function orbitPath(R = tableRect()) {
-    const ow = TB.orbW * R.w, top = TB.top * R.h, cr = TB.arch * R.w, ar = cr - ow / 2, pts = [];
+    const g = tbGeo(R), ow = g.ow, top = g.top, cr = g.cr, ar = cr - ow / 2, pts = [];
     const line = (ax, ay, bx, by) => { const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay))); for (let k = 0; k < n; k++) pts.push([ax + (bx - ax) * k / n, ay + (by - ay) * k / n]); };
     const arc = (cx, cy, a0, a1) => { const n = Math.ceil(ar * Math.abs(a1 - a0)); for (let k = 0; k < n; k++) { const a = a0 + (a1 - a0) * k / n; pts.push([cx + Math.cos(a) * ar, cy + Math.sin(a) * ar]); } };
     const xl = R.x0 + ow / 2, xr = R.x0 + R.w - ow / 2;
     line(xl, TB.spinY * R.h, xl, top + cr); arc(R.x0 + cr, top + cr, Math.PI, Math.PI * 1.5);
     line(R.x0 + cr, top + ow / 2, R.x0 + R.w - cr, top + ow / 2); arc(R.x0 + R.w - cr, top + cr, -Math.PI / 2, 0);
-    line(xr, top + cr, xr, (TB.orbRBot - 0.01) * R.h); pts.push([xr, (TB.orbRBot - 0.01) * R.h]);
+    line(xr, top + cr, xr, g.rBot - 0.01 * R.h); pts.push([xr, g.rBot - 0.01 * R.h]);
     return pts;
   }
   // A ball on the orbit: it runs the path, then drops out of the right lane onto the kicker
@@ -8922,7 +8580,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // The ship as the flipper: a falling ball that meets it goes back up the table, angled by where it hit
   function tableFlip(ball, r) {
     const p = G.player, reach = PLAYER_R + r + TABLE_FLIP_PAD, dx = ball.x - p.x, dy = ball.y - p.y;
-    if (ball.vy <= 0 || dy > 1.5 || Math.hypot(dx, dy) > reach) return false;
+    if (ball.vy <= 0 || dy > 1.5 || dy < -(PLAYER_R + r + TABLE_FLIP_UP) || Math.hypot(dx, dy) > reach || ball.flipCd > G.time) return false;
+    ball.flipCd = G.time + TABLE_FLIP_CD;
     const a = -Math.PI / 2 + clamp(dx / reach, -1, 1) * TABLE_FLIP, sp = TABLE_LAUNCH * AH * tableK(ball.b);
     ball.vx = Math.cos(a) * sp; ball.vy = Math.sin(a) * sp; ball.y = Math.min(ball.y, p.y - PLAYER_R - r * 0.5); ball.kick = TABLE_LAUNCH;
     G.table.flipT = 0.18; G.table.flipX = dx / reach;
@@ -8962,7 +8621,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function drawTable() {
     const T = G.table; if (!T) return;
     const R = tableRect(), c = ECOL.target, X = f => R.x0 + f * R.w, Y = f => f * R.h, top = Y(TB.top), cr = TB.arch * R.w, cw = 0.16 * R.w;
-    const down = T.targets.filter(v => !v).length, show = T.showT > 0, ow = TB.orbW * R.w, oc = PICK.multi.color, sc = PICK.warp.color;
+    const geo = tbGeo(R), down = T.targets.filter(v => !v).length, show = T.showT > 0, ow = geo.ow, oc = PICK.multi.color, sc = PICK.warp.color;
     const blink = (hz, ph = 0) => flashK ? Math.floor(G.time * hz + ph) % 2 === 0 : true; // (Reduced flashes: lit steady, no strobing)
     const inner = () => { // the playfield's edge: straight sides and a rounded arch across the top
       ctx.beginPath(); ctx.moveTo(R.x0, AH); ctx.lineTo(R.x0, top + cr); ctx.arc(R.x0 + cr, top + cr, cr, Math.PI, Math.PI * 1.5);
@@ -9008,7 +8667,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (const [fx, i] of [[0.2, 0], [0.8, 1]]) pool(X(fx), Y(0.74), R.w * 0.14, c, 0.08 + (T.slingT[i] > 0 ? 0.4 : 0));
     { const [sx, sy] = scoopAt(R); pool(sx, sy, R.w * 0.12, sc, T.scoopBy ? 0.45 : 0.12); }
     // the orbit lanes: darker floors, chevrons pointing the way round (chasing when a ball's on its way)
-    ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.3; ctx.fillRect(R.x0, top, ow, Y(TB.orbBot) - top); ctx.fillRect(R.x0 + R.w - ow, top, ow, Y(TB.orbRBot) - top); ctx.globalAlpha = 1;
+    ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.3; ctx.fillRect(R.x0, top, ow, Y(TB.orbBot) - top); ctx.fillRect(R.x0 + R.w - ow, top, ow, geo.rBot - top); ctx.globalAlpha = 1;
     const running = G.balls.some(q => q.orbRun), fast = running || T.boostT > 0 || T.orbT > 0;
     const md = (a, n) => ((a % n) + n) % n;
     const chev = (ys, dir, x) => ys.forEach((fy, q) => { const n = ys.length, j = dir < 0 ? n - q : q, on = show ? blink(10, q) : fast ? md(Math.floor(G.time * 14) - j, 3) === 0 : md(Math.floor(G.time * 3) - j, n) === 0;
@@ -9025,7 +8684,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     { const [sx, sy] = scoopAt(R); insert(arrow(sx, sy + 7.5, -Math.PI / 2, 1.9), T.scoopBy ? blink(10) : 0.5 + 0.5 * Math.sin(G.time * 4 + 2) > 0.5, sc);
       for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, on = T.scoopBy ? md(Math.floor(G.time * 16) - k, 8) < 3 : T.mystT > 0 && blink(8, k);
         insert(disc(sx + Math.cos(a) * (SCOOP_R + 3.2), sy + Math.sin(a) * (SCOOP_R + 3.2), 0.55), on, sc); } }
-    TB.lanes.forEach((fx, i) => insert(arrow(X(fx), Y(TB.laneY + 0.05), -Math.PI / 2, 1.3), T.lanes[i] || (show && blink(10, i)), c, 0.8)); // under each lane
+    TB.lanes.forEach((fx, i) => insert(arrow(X(fx), geo.laneY + Math.max(0.05 * R.h, 7), -Math.PI / 2, 1.3), T.lanes[i] || (show && blink(10, i)), c, 0.8)); // under each lane
     [1, 2, 3].forEach((m, i) => { const x = X(0.4 + i * 0.1), y = Y(0.83), on = (T.mult || 1) >= m && ((T.multT || 0) <= 0 || m < (T.mult || 1) || blink(10)) || (show && blink(10, i));
       insert(disc(x, y, 2.8), on, c, 0.85); label(`${m}×`, x, y + 0.15, 2.4, on ? COL.ink : c, on ? 0.95 : 0.55); });
     { const x = X(0.5), y = Y(0.885), saving = T.saveT > 0 || G.balls.some(q => !q.tx && q.state === 'live' && G.time - (q.thrownAt ?? -99) < TABLE_SAVE), on = saving && (T.saveT > 3 || T.saveT <= 0 || blink(6));
@@ -9091,7 +8750,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     }
     // rollover lamps between the posts
     TB.lanes.forEach((fx, i) => {
-      const on = (T.lanes[i] && (T.lanesT <= 0 || blink(10))) || (show && blink(12, i)), x = X(fx), y = Y(TB.laneY);
+      const on = (T.lanes[i] && (T.lanesT <= 0 || blink(10))) || (show && blink(12, i)), x = X(fx), y = geo.laneY;
       if (on) pool(x, y, 6, c, 0.55);
       insert(disc(x, y, 1.9), on, c); ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.3; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
     });
@@ -9883,10 +9542,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.siege) pushOutSiege(o, r);
     if (G.lucky) for (const k of G.lucky.blocks) { const h = hitRect(o.x, o.y, r, luckyRect(k)); if (h) { o.x += h.nx * h.depth; o.y += h.ny * h.depth; } }
     for (const e of G.enemies) if (e !== o && isStone(e)) pushOutStone(o, r, e);
-    if (G.bonus) for (const bm of G.bonus.bumpers) {
-      const [x, y] = bumperPos(bm), dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy) || 1e-6;
-      if (d < BUMP_R + r) { o.x = x + dx / d * (BUMP_R + r); o.y = y + dy / d * (BUMP_R + r); }
-    }
     if (G.boss && G.boss.enter > 0) { /* still arriving: not solid yet */ }
     else if (G.boss && G.boss.kind === 'serpent') { // the body is a solid obstacle while it's passing through
       const B = G.boss;
@@ -9947,7 +9602,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       player: { x: AW / 2, y: AH * 0.6, hull: 3, inv: 0, fx: 0, fy: -1, shield: 0, mvx: 0, mvy: 0 },
       balls: [Object.assign(makeBall(), { x: AW / 2, y: AH * 0.6 })],
       enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null, storm: null, rockets: [], debris: [], microQueue: [], mechSetup: null, mechDeath: null, squads: [], squadWarn: [], squadPlan: null, shadow: null,
-      shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, bonus: null, coins: null, lucky: null, table: null, siege: null, tbPlan: {}, inv: null, result: null, boss: null, bombs: [],
+      shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, coins: null, lucky: null, table: null, siege: null, tbPlan: {}, inv: null, result: null, boss: null, bombs: [],
       pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [], mortars: [], barrage: [], mortarUp: [],
       arenaTarget: ARENA_START, layoutPending: null, lastLayout: null,
       shake: 0, freeze: 0, dying: 0, banner: null, time: 0, pulling: false,
@@ -10371,7 +10026,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (e.x < -14 || e.x > AW + 14) e.gone = true; // it's away
   }
   function bombTally() {
-    const B = G.bomb; B.done = true; const n = B.bases.filter(b => b.alive).length, each = BOMB_BASE_PTS * (1 + B.cycle); tbClear('', B.cycle, n / BOMB_BASES);
+    const B = G.bomb; B.done = true; const n = B.bases.filter(b => b.alive).length, each = BOMB_BASE_PTS * (1 + B.cycle); tbClear(B.cycle, n / BOMB_BASES);
     B.bases.forEach((b, i) => { if (!b.alive) return; b.flash = 0.6; const pts = Math.round(each * G.mult); G.score += pts; float(b.x, b.y - 14 - (i % 2) * 5, `+${pts * scoreK(G.wave)}`, COL.chalk, 3); });
     G.result = { text: `Bases saved ${n}/${BOMB_BASES}`, sub: n === BOMB_BASES ? 'Not a scratch!' : 'A bonus for every one still standing', t: 2.6, max: 2.6 }; sfx.repair();
   }
@@ -10448,7 +10103,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // How late in the loop a throwback lands (they come between waves 15 and 56): 0 at 15 (and in the tests, earlier), 1 at 56.
   // Each grows with it, so a late one meets you and your wingmen with more: more of them, more at once, a little faster.
   const tbK = n => clamp((inLoop(n) - 15) / 41, 0, 1);
-  function tbClear(text, cycle, part = 1) { G.tbBonus = Math.round(TB_CLEAR * G.wave * (1 + cycle) * part); } // (part: Bombardment's, by the bases you saved) // a throwback done: its share of points goes into the usual "Wave clear" (it's a wave like any other)
+  function tbClear(cycle, part = 1) { G.tbBonus = Math.round(TB_CLEAR * G.wave * (1 + cycle) * part); } // (part: Bombardment's, by the bases you saved) // a throwback done: its share of points goes into the usual "Wave clear" (it's a wave like any other)
   function finishRiders() { if (G.riders) { for (const e of G.enemies) if (e.rider) e.gone = true; G.riders = null; } }
   // what's at (x, y): the edge, a rider's trail (not a rider's own newest two stretches), or your trail
   function riderBlocked(x, y, rad, self, ship = true) {
@@ -10523,7 +10178,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     for (let i = R.ghosts.length - 1; i >= 0; i--) if ((R.ghosts[i].t += dt) > 0.6) R.ghosts.splice(i, 1);
     if (p.inv <= 0 && G.dying <= 0) for (const e of G.enemies) if (e.rider && riderSegs(e).some(([a, b]) => segDist(p.x, p.y, a[0], a[1], b[0], b[1]) < PLAYER_R * 0.8 + RD_W)) { damagePlayer(); break; } // touching a trail
     if (R.sent < R.n && R.live.length < (R.live0 || RD_LIVE)) { R.t -= dt; if (R.t <= 0) { riderLaunch(); R.t = 1.0 - 0.3 * (R.k || 0); } }
-    if (R.sent >= R.n && !R.live.length && !R.done) { R.done = true; tbClear('All riders down', R.cycle); }
+    if (R.sent >= R.n && !R.live.length && !R.done) { R.done = true; tbClear(R.cycle); }
   }
   function riderBounce(ball, r) { // off a rider's trail, like off any wall
     for (const e of G.enemies) if (e.rider) for (const [a, b] of riderSegs(e)) {
@@ -10641,7 +10296,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (!M.dots.some(q => q.on)) { const jp = MZ_JACK * (1 + M.cycle); G.score += jp; float(AW / 2, AH / 2, `Every crystal! +${(jp * scoreK(G.wave)).toLocaleString()}`, GOLD(), 4); sfx.repair(); }
     }
     if (M.sent < M.n && G.enemies.reduce((k, e) => k + (e.hunter ? 1 : 0), 0) < (M.live0 || MZ_LIVE)) { M.t -= dt; if (M.t <= 0) { mazeLaunch(); M.t = 1.6 - 0.6 * (M.k || 0); } } // (a few at a time, out of the den)
-    if (M.sent >= M.n && !G.enemies.some(e => e.hunter) && !M.done) { M.done = true; tbClear('Maze cleared', M.cycle); }
+    if (M.sent >= M.n && !G.enemies.some(e => e.hunter) && !M.done) { M.done = true; tbClear(M.cycle); }
   }
   function drawMaze() {
     const M = G.maze; if (!M) return;
@@ -10785,7 +10440,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           { h: 'Health', t: () => 'Enemy health is written at its center. Enemies with no number have 1 health.' },
           { t: () => 'If the ball does at least an enemy\'s health in damage, it kills it and *flies straight through*. If not, it knocks that much off and bounces away.' }],
         task: { text: () => 'Bounce the ball to charge it, then destroy the 10', done: () => !trDummies() } },
-      { pages: [{ h: 'Catch and throw', t: () => 'A catch removes *5 Charge*, but the ball keeps the rest. Catch it, then throw it straight back out: it\'s still charged, so it flies faster than a fresh throw.', hi: 'charge' }],
+      { pages: [{ h: 'Catch and throw', t: () => 'A catch removes *5 Charge*, but the ball keeps the rest. Catch it, then throw it straight back out: it flies faster and hits harder than a fresh throw.', hi: 'charge' }],
         start: T => { T.heldAt = undefined; },
         task: { text: T => T.heldAt !== undefined ? 'Now throw it again' : trCircling(T) ? 'Circling you? Let go for a moment, then hold again' : 'Catch the ball', done: T => T.heldAt !== undefined && T.throws > T.heldAt, after: 1.6, hint: 'hold',
           tick: T => { if (T.heldAt === undefined && G.balls[0].state === 'held') T.heldAt = T.throws; } } }, // (in hand, however it got there: the next throw shows it off)
@@ -11084,12 +10739,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.between === null) {
-      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.bonus && !G.bonus.done) && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !(G.clutchWave && G.clutchWave.n > 0) && !G.chest && !(G.inv && !G.inv.landed && (G.inv.round || 1) < INV_ROUNDS) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm && !G.mechDeath && !(G.bomb && !G.bomb.done) && !(G.riders && !G.riders.done) && !(G.maze && !G.maze.done)) {
+      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !(G.clutchWave && G.clutchWave.n > 0) && !G.chest && !(G.inv && !G.inv.landed && (G.inv.round || 1) < INV_ROUNDS) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm && !G.mechDeath && !(G.bomb && !G.bomb.done) && !(G.riders && !G.riders.done) && !(G.maze && !G.maze.done)) {
         if (inLoop(G.wave) === LOOP_LEN && G.winShown !== G.wave && !G.attract) { // the loop's finale is down
           if (!G.result) showWin(); // once its banner has had its moment
           return;
         }
-        finishBonus(); finishCoins(); finishLucky(); finishTable();
+        finishCoins(); finishLucky(); finishTable();
         const next = G.wave + 1;
         G.between = G.wave === 0 ? 0.9 : 1.8; // waves with something to read wait long enough to read it (set with the banner below)
         G.arenaTarget = arenaFor(next);
@@ -11098,7 +10753,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.squadPlan = null; G.squadWarn = []; G.shadow = null; G.mechSetup = null; G.rockets = []; G.debris = []; G.mortars = []; G.barrage = []; G.mortarUp = [];
         if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
         if (G.wave > 0 && !G.skipBonus) {
-          if (G.lastAsteroids === G.wave && !G.tbBonus) tbClear('', loopOf(G.wave)); // the Asteroid Field cleared: a throwback's clear bonus, like the others
+          if (G.lastAsteroids === G.wave && !G.tbBonus) tbClear(loopOf(G.wave)); // the Asteroid Field cleared: a throwback's clear bonus, like the others
           const bonus = 100 * G.wave + (G.tbBonus || 0); G.tbBonus = 0;
           G.score += bonus;
           float(AW / 2, AH / 2 + 9, `Wave clear +${bonus}`, COL.chalk, 3.4);
@@ -11308,7 +10963,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   // overload is off during the bonus rounds and pinball: the ball tops out at full speed, with no overload warnings
-  const safeRound = () => !!(G && (G.bonus || G.coins || G.table || G.lucky));
+  const safeRound = () => !!(G && (G.coins || G.table || G.lucky));
   // wall: 'L' | 'R' | 'T' | 'B' for arena walls (lights the wall at the impact), omitted for blocks
   // Turrets are easy to miss on the wall: the ball's reach on one is TURRET_REACH of its size, and a bounce off the
   // wall within TURRET_BANK of one hits it too (full damage, on the chain).
@@ -11686,10 +11341,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (G.crush && brickHit(x, r, x.b) === 'bounce') bounced = true;
         if (G.siege && siegeHit(x, r, x.b) === 'bounce') bounced = true;
         if (G.inv && bunkerHit(x, r) === 'bounce') bounced = true;
-        if (G.bonus && bumperHit(x, r)) bounced = true;
         if (G.coins) { coinHit(x, r); if (giantHit(x, r)) bounced = true; }
         if (G.lucky && luckyHit(x, r)) bounced = true;
-        if (G.bombs.length) ballBombs(x, r, x.b);
         if (G.boss && ballBoss(x, r, x.b) === 'bounce') bounced = true;
         if (G.drums.length && drumHit(x, r, x.b)) bounced = true;
         if (bounced) {
@@ -11827,7 +11480,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const r = ballR(ball.b) * bigK() * (ball.wing ? WING_SCALE : 1);
       if (pulling && !ball.noPull) { const [tx, ty] = fieldOpen() ? wrapTarget(ball, p.x, p.y) : [p.x, p.y]; turnBall(ball, tx, ty, pullRate(ball, Math.hypot(tx - ball.x, ty - ball.y)) * sub); }
       else if (G.table && !ball.wing) ball.vy += TABLE_G * AH * tableK(ball.b) ** 2 * sub; // the table's gravity: it speeds up as it falls (and plays faster the hotter it is)
-      if (G.bonus && !G.bonus.done && !pulling) { const [cx, cy] = bumpCentre(); if (Math.hypot(ball.x - cx, ball.y - cy) > bumpScale() * 2) turnBall(ball, cx, cy, Math.hypot(ball.vx, ball.vy) / (bumpScale() * BUMP_TILT_R) * sub); }
       for (const e of G.enemies) {
         if (fieldUp(e) && (e.x - ball.x) ** 2 + (e.y - ball.y) ** 2 < MAGNET_FIELD_R ** 2) turnBall(ball, e.x, e.y, MAGNET_TURN * sub);
       }
@@ -11863,10 +11515,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (G.crush && brickHit(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.siege && siegeHit(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.inv && bunkerHit(ball, r) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
-      if (G.bonus && bumperHit(ball, r)) chargeBounce(ball);
       if (G.coins) { coinHit(ball, r); if (giantHit(ball, r)) { chargeBounce(ball); if (ball.state !== 'live') break; } }
       if (G.lucky && luckyHit(ball, r)) { chargeBounce(ball); if (ball.state !== 'live') break; }
-      if (G.bombs.length) ballBombs(ball, r, ball.b);
       if (G.boss && ballBoss(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.drums.length && drumHit(ball, r, ball.b)) { chargeBounce(ball); if (ball.state !== 'live') break; }
 
@@ -12033,7 +11683,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const packs = new Map(); // a hatched clutch: where its school is, and who's in it
     for (const e of G.enemies) if (e.pack && (e.type === 'snake' || e.type === 'viper')) { let q = packs.get(e.pack); if (!q) packs.set(e.pack, q = { x: 0, y: 0, m: [] }); q.x += e.x; q.y += e.y; q.m.push(e); }
     for (const q of packs.values()) { q.x /= q.m.length; q.y /= q.m.length; }
+    const dt0 = dt, jetDt = G.boss && G.boss.kind === 'maw' && tellK > MAW_JET_LOOP ? dt * MAW_JET_LOOP / tellK : dt; // the Carrier's jets fly no faster than in Loop 2
     for (const e of G.enemies) {
+      const dt = e.fromMaw || e.jet ? jetDt : dt0;
       e.hitCd -= dt; e.flash -= dt; e.rot += dt * 0.8; if (e.spawnT > 0) e.spawnT -= dt;
       if (e.detour && ((e.detour.t -= dt) <= 0 || Math.hypot(e.detour.x - e.x, e.detour.y - e.y) < 2)) { e.detour = null; e.pinT = 0; } // round the block: on at you again
       const gx = e.detour ? e.detour.x : p.x, gy = e.detour ? e.detour.y : p.y, dx = gx - e.x, dy = gy - e.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d; // (heading for you, or round a block it's stuck on)
@@ -12322,7 +11974,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     processShocks();
     const ws = (G.powers.warp > 0 ? WARP_SCALE : 1) * overdrive(G.wave); // Time Warp slows them; Overdrive (later loops) speeds them up
     setTellK(overdrive(G.wave)); // ...but not their warnings
-    updateBonus(dt); updateCoins(dt); updateLucky(dt); updateTable(dt);
+    updateCoins(dt); updateLucky(dt); updateTable(dt);
     if (G.inv) updateInvaders(dt * ws);
     if (G.bomb) updateBomb(dt * ws);
     if (G.riders) updateRiders(dt * ws);
@@ -12719,7 +12371,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     drawBricks();
     drawSiege();
     drawInvasion(); drawBomb(); drawRiders(); drawMaze();
-    drawBumpers();
     drawCoins();
     drawLucky();
     drawTable();
@@ -13344,11 +12995,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = ECOL.target;
       ctx.fillText(`LUCKY BLOCKS  ${Math.ceil(G.lucky.time)}s   ${G.lucky.coins} coins   ${G.lucky.spent}/${G.lucky.lucky} emptied`, AW / 2, 5);
     }
-    if (G.bonus && !G.attract) {
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = ECOL.target;
-      const B = G.bonus;
-      ctx.fillText(`BONUS  ${Math.ceil(B.time)}s   LIT ${B.bumpers.filter(q => q.litT > 0).length}/${B.bumpers.length}${B.jackpots ? `   JACKPOT ×${B.jackpots}` : ''}`, AW / 2, 5);
-    }
     drawSwarmChain(); drawObLog();
     if (G.chainPop && !G.attract) { // pops in big, settles, fades
       const C = G.chainPop, k = C.t / C.max, pop = 1 + Math.max(0, (k - 0.85) / 0.15) * 0.5, sz = Math.min(9, AW / 11) * C.size * pop;
@@ -13597,18 +13243,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   $('powersBack').addEventListener('click', () => showPowers(false));
   document.addEventListener('fullscreenchange', syncFs); document.addEventListener('webkitfullscreenchange', syncFs);
   let laidOut = false; // set once start() has fitted the arena
-  function setLook(l) {
-    look = l;
-    if (l === 'neon') delete document.documentElement.dataset.look; else document.documentElement.dataset.look = l;
-    try { localStorage.setItem('ricochet.look', l); } catch (e) {}
-    readLook();
-    document.querySelectorAll('.lookBtn').forEach(b => b.classList.toggle('on', b.dataset.look === l));
-    if (laidOut) layout(); // the HUD's type changes size with the look
-  }
   // web fonts arriving late also change the HUD's height, so fit the arena again once they land
   if (document.fonts) { document.fonts.addEventListener('loadingdone', () => { if (laidOut) layout(); }); document.fonts.ready.then(() => { if (laidOut) layout(); }); }
-  document.querySelectorAll('.lookBtn').forEach(b => b.addEventListener('click', () => { setLook(b.dataset.look); b.blur(); }));
-  setLook(look);
+  readLook();
   setSwap(swapSides);
   addEventListener('keydown', e => {
     if (KEYMAP[e.code]) { keys[KEYMAP[e.code]] = true; e.preventDefault(); }
@@ -13788,10 +13425,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
                : B.kind === 'serpent' ? Array.isArray(B.segs) && B.segs.length > 0 && B.segs.length <= SERP_N && B.next && Array.isArray(B.next.n)
                : B.kind === 'mech' ? !!B.parts && !!B.parts.kneeL && !!B.parts.jets && Array.isArray(B.bombs) && typeof B.st === 'string' && Number.isFinite(B.core) && !!B.timers
                : B.kind === 'tank' ? !!B.parts && Array.isArray(B.tiles) && Array.isArray(B.drums) && Number.isFinite(B.th) && Number.isFinite(B.crewT)
-               : B.kind === 'core' && B.r === CORE_R && typeof B.mode === 'string';
-      if (!ok) setupBoss(['core', 'tank', 'maw', 'serpent', 'geode', 'hive', 'mech'].includes(B.kind) ? B.kind : 'tank', B.cycle || 0);
+               : false; // (The Core, long gone from the rotation, or anything else unknown: rebuilt as the Clanktank)
+      if (!ok) setupBoss(['tank', 'maw', 'serpent', 'geode', 'hive', 'mech'].includes(B.kind) ? B.kind : 'tank', B.cycle || 0);
     }
-    G.bombs = (G.bombs || []).filter(bm => Number.isFinite(bm.vx) && Number.isFinite(bm.vy));
+    delete G.bombs; // (The Core's, from a very old save)
     G.ghosts = G.ghosts || []; G.mortars = G.mortars || []; G.barrage = G.barrage || []; G.mortarUp = G.mortarUp || [];
     G.drums = G.drums || []; G.drumWave = G.drumWave || null; // saved before the fuel drums
     if (G.boss && G.boss.kind === 'serpent' && G.boss.twin) Object.setPrototypeOf(G.boss.twin, G.boss); // its twin shares the boss's health and the rest
@@ -13804,10 +13441,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (G.player.hull > (G.hullMax || HULL_MAX)) G.player.hull = G.hullMax || HULL_MAX; // saved when the cap was 5
     if (!Array.isArray(G.balls) || !G.balls.length) G.balls = [makeBall()];
     G.balls.forEach((o, i) => { o.wing = i > 0; if (!o.wing && (o.state === 'queued' || o.state === 'return')) o.state = 'held'; }); // saved before wingmen
-    if (G.bonus && !Array.isArray(G.bonus.bumpers)) setupBonus(G.bonus.cycle || 0);
-    if (G.bonus && !Number.isFinite(G.bonus.jackpots)) { // saved before jackpots existed
-      Object.assign(G.bonus, { jackpots: 0, jackT: 0 }); for (const bm of G.bonus.bumpers) bm.litT = 0;
-    }
+    if (G.bonus) G.bonus = null; // saved mid-way through the old bumper round, long since replaced by the pinball table: the wave just carries on
   }
   function restoreRun(run) {
     try {
