@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 17 22:26 UTC · 28b9dbd";</script>
+<script>window.RICOCHET_BUILD = "Nov 18 15:36 UTC · ccbd232";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10750,7 +10750,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     Object.assign(G, { enemies: [], tele: [], bullets: [], pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], mult: 1, slowT: 0, chainPop: null, banner: null, hullMax: HULL_MAX });
     Object.assign(p, { x: AW * px, y: AH * py, fx: 0, fy: -1, inv: 0, shield: 0, hull: HULL_MAX }); p.px = undefined;
     G.balls = [Object.assign(makeBall(), { x: p.x, y: p.y, b })];
-    Object.assign(T, { cap: TR_CAP, noCool: false, rings: null, ringN: 0, collected: false, queue: null, px: undefined });
+    Object.assign(T, { cap: TR_CAP, noCool: false, noThrow: false, rings: null, ringN: 0, collected: false, queue: null, px: undefined });
   }
   function trChainField() { // four rows of six across the top half, close enough that one throw can thread several
     G.enemies = G.enemies.filter(e => !e.dummy);
@@ -10762,7 +10762,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // tick (each frame while it's on), hint (the gesture to show on a touch screen), after (how long its tick shows).
   const TR = [
     { id: 'fly', name: 'Fly', blurb: 'Move your ship', steps: [
-      { setup: T => { trReset(0.5, 0.72); T.rings = [[0.27, 0.42], [0.74, 0.25], [0.5, 0.86]].map(([x, y]) => ({ x: AW * x, y: AH * y })); },
+      { setup: T => { trReset(0.5, 0.72); T.noThrow = true; T.rings = [[0.27, 0.42], [0.74, 0.25], [0.5, 0.86]].map(([fx, fy]) => ({ fx, fy })); }, // (rings are where they are in the arena, wherever its edges move to; no throwing yet: this one's just flying)
         pages: [{ h: 'Fly', t: c => c.touch ? `Drag on the *${c.L} side* of the screen to fly.` : 'Fly with *WASD* or the *arrow keys*.' }],
         task: { text: () => 'Fly through the rings', prog: T => `${T.ringN}/3`, done: T => T.ringN >= 3, hint: 'fly' } },
     ] },
@@ -10886,7 +10886,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     T.hintA += ((hk ? 1 : 0) - T.hintA) * Math.min(1, dt * 5);
     T.st += dt; T.bestChain = Math.max(T.bestChain, G.balls[0].kills || 0);
     if (T.rings && T.ringN < T.rings.length) { // flown through the next ring
-      const R = T.rings[T.ringN];
+      const R = ringAt(T.rings[T.ringN]);
       if (Math.hypot(p.x - R.x, p.y - R.y) < TR_RING) { T.ringN++; ring(R.x, R.y, TR_RING, TR_RING + 9, 0.4, GOLD(), 0.8); burst(R.x, R.y, 14, GOLD(), 35, 0.6, 0.4); sfx.coin(T.ringN * 3); }
     }
     if (T.queue) { // the live wave, warping in one by one
@@ -10974,6 +10974,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const pos = `${Math.round(AX + BW / 2)}|${Math.round(AY + 8)}|${Math.round(BW)}`;
     if (trUI.pos !== pos) { trUI.pos = pos; el.style.left = `${Math.round(AX + BW / 2)}px`; el.style.top = `${Math.round(AY + 8)}px`; el.style.width = `min(24rem, ${Math.round(BW - 16)}px)`; }
   }
+  const ringAt = R => ({ x: AW * R.fx, y: AH * R.fy }); // a ring's place in the arena as it is now (a screen can change size mid-lesson)
   // The Fly lesson's rings: the next one bright and pulsing, the rest faint, each numbered
   function drawTrainWorld() {
     const T = G && G.train;
@@ -10981,7 +10982,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const g = GOLD(), pulse = 0.5 + 0.5 * Math.sin(G.time * 4);
     ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 4px ${FONT}`;
     for (let i = T.rings.length - 1; i >= T.ringN; i--) {
-      const R = T.rings[i], cur = i === T.ringN;
+      const R = ringAt(T.rings[i]), cur = i === T.ringN;
       ctx.strokeStyle = g; ctx.fillStyle = g;
       ctx.globalAlpha = cur ? 0.9 : 0.3; ctx.lineWidth = cur ? 0.8 : 0.5; ctx.beginPath(); ctx.arc(R.x, R.y, TR_RING, 0, Math.PI * 2); ctx.stroke();
       if (cur) { ctx.globalAlpha = 0.35 * (1 - pulse); ctx.lineWidth = 0.5; ctx.beginPath(); ctx.arc(R.x, R.y, TR_RING + 1 + 3 * pulse, 0, Math.PI * 2); ctx.stroke(); }
@@ -11270,7 +11271,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   /* ---------- ball ---------- */
   function throwAt(tx, ty) {
     const ball = G && G.balls[0].state === 'held' ? G.balls[0] : null;
-    if (!G || G.attract || mode !== 'play' || G.dying > 0 || !ball) return;
+    if (!G || G.attract || mode !== 'play' || G.dying > 0 || !ball || (G.train && G.train.noThrow)) return;
     const p = G.player;
     let dx = tx - p.x, dy = ty - p.y, l = Math.hypot(dx, dy);
     if (l < 0.5) { dx = p.fx; dy = p.fy; l = 1; }
@@ -11363,7 +11364,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Monolith: walks like anyone else, then (after a MONO_WARN flicker) turns to stone for MONO_STONE seconds: an
   // invulnerable block the ball bounces off (+1 charge, like any block) and that you can't fly through, but that can't
   // hurt you either. Then it walks again.
-  let DASH_WIND = 0.55, WALK_AIM = 0.7; // a dasher's wind-up before it lunges; a walker planting itself to fire a rocket
+  let DASH_WIND = 0.55, WALK_AIM = 0.7, TURRET_CHARGE = 0.6, TURRET_SOON = 0.25; // a dasher's wind-up before it lunges; a walker planting itself to fire a rocket; a turret's charge glow, and its last flicker before it fires
   let MONO_WARN = 0.7, MONO_STONE = 3, isStone = e => e.type === 'monolith' && e.st === 'stone';
   const stoneRect = e => { const s = e.r * 1.25; return { x0: e.x - s, x1: e.x + s, y0: e.y - s, y1: e.y + s }; };
   const isImmune = e => (MAGNET_IMMUNE && fieldUp(e)) || e.wl > 0 || isStone(e);
@@ -12020,6 +12021,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     FORM_WARN = sc(FORM_WARN);
     DASH_WIND = sc(DASH_WIND);
     WALK_AIM = sc(WALK_AIM);
+    TURRET_CHARGE = sc(TURRET_CHARGE);
+    TURRET_SOON = sc(TURRET_SOON);
   }
   function updateEnemies(dt) {
     const p = G.player, steer = Math.min(1, dt * 3);
@@ -12343,7 +12346,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // white just before the shot, and its muzzle heating up as it charges.
   function drawTurret(e, col, pierce, liveB = 0) { // (liveB: the hottest live ball's charge, for its pierce colour)
     const n = wallNormal(e), r = e.r, fl = e.flash > 0, line = fl ? COL.chalk : col, H3 = hex(COL.hull), t = G.time;
-    const charge = e.gol ? (e.gol.chg > 0 ? clamp(1 - e.gol.chg / MECH_CANNON_CHARGE, 0, 1) : 0) : clamp(1 - e.fire / 0.6, 0, 1), soon = e.gol ? e.gol.chg > 0 && e.gol.chg <= MECH_CANNON_LOCK && Math.floor(t * 20) % 2 : e.fire < 0.25 && Math.floor(t * 16) % 2;
+    const charge = e.gol ? (e.gol.chg > 0 ? clamp(1 - e.gol.chg / MECH_CANNON_CHARGE, 0, 1) : 0) : clamp(1 - e.fire / TURRET_CHARGE, 0, 1), soon = e.gol ? e.gol.chg > 0 && e.gol.chg <= MECH_CANNON_LOCK && Math.floor(t * 20) % 2 : e.fire < TURRET_SOON && Math.floor(t * 16) % 2;
     const fill = (a = 0.22) => { ctx.fillStyle = COL.ink; ctx.fill(); ctx.fillStyle = `rgba(${H3.join(',')},${a})`; ctx.fill(); };
     if (charge > 0) { // its muzzle, heating as it charges
       ctx.save(); ctx.globalAlpha = 0.25 + 0.6 * charge; ctx.fillStyle = COL.threat; ctx.beginPath(); ctx.arc(Math.cos(e.aim) * r * 1.6, Math.sin(e.aim) * r * 1.6, 0.6 + charge * 1.1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); // its muzzle, heating
