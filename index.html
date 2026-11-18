@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 18 16:37 UTC · ec3528f";</script>
+<script>window.RICOCHET_BUILD = "Nov 18 16:49 UTC · d267e4f";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -330,7 +330,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <p class="buildTag" hidden></p>
     <p class="tag">Every bounce adds 1 Charge and increases its damage. At 15 Charge, the ball explodes on impact, destroying nearby enemies. Kills delay the blast. Catch it to throw it again.</p>
     <button class="btn launch" id="play" type="button">Launch</button>
-    <p class="hint"><span class="hintKeys">WASD to fly · click or Space to throw · hold to pull</span><span class="hintTouch">Left thumb flies · right thumb holds to pull and swipes to throw</span></p>
+    <p class="hint"><span class="hintKeys">WASD to fly · click or Space to throw · hold to pull</span><span class="hintTouch">Left side flies · right side: tap or swipe to throw, hold to pull</span></p>
     <p class="sideTip">Tip: turn your phone sideways so your fingers don't block the arena.</p>
     <div class="links"><button class="linkbtn big2 trainBtn" id="trainBtn" type="button">Training</button><button class="linkbtn big2" id="howBtn" type="button">How to play</button><button class="linkbtn big2 powersBtn" type="button">Power-ups</button><button class="linkbtn big2 setBtn" type="button" aria-label="Settings">⚙ Settings</button></div>
   </div>
@@ -10434,7 +10434,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ] },
     { id: 'throw', name: 'Throw and catch', blurb: 'Throw the ball, then pull it back', steps: [
       { setup: () => { trReset(0.5, 0.74); trDummy('drifter', 0.5, 0.34); },
-        pages: [{ h: 'Throw', t: c => c.touch ? `Tap the *${c.R} side* of the screen to throw the ball in the direction you're facing. Tip: swiping throws the ball in that direction.` : '*Click* or press *Space* to throw the ball toward your cursor.' }],
+        pages: [{ h: 'Throw', t: c => c.touch ? `Tap the *${c.R} side* of the screen to throw the ball the way your ship is facing, or swipe to throw it the way you swipe.` : '*Click* or press *Space* to throw the ball toward your cursor.' }],
         task: { text: () => 'Throw the ball at the enemy', done: T => T.kills > T.kills0 || (T.thrownT !== undefined && T.st - T.thrownT > 2.5), hint: 'tap' } }, // (a miss moves on too: the next step brings the ball back)
       { pages: [
           { h: 'Pull', t: c => c.touch ? `Now *hold* the ${c.R} side of the screen. The ball bends toward you.` : 'Now *hold* the mouse button, or Space. The ball bends toward you.' },
@@ -13185,6 +13185,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function setSwap(v) {
     swapSides = v;
     document.querySelectorAll('.swapBtn').forEach(b => { b.textContent = swapSides ? 'Move on right' : 'Move on left'; });
+    const [mv, act] = swapSides ? ['Right', 'left'] : ['Left', 'right'];
+    document.querySelectorAll('.hintTouch').forEach(h => { h.textContent = `${mv} side flies · ${act} side: tap or swipe to throw, hold to pull`; }); // (follows Move on left / right)
     try { localStorage.setItem('ricochet.swap', swapSides ? '1' : '0'); } catch (e) {}
   }
   document.querySelectorAll('.swapBtn').forEach(b => b.addEventListener('click', () => { setSwap(!swapSides); b.blur(); }));
