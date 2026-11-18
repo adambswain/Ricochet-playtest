@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 18 15:36 UTC · ccbd232";</script>
+<script>window.RICOCHET_BUILD = "Nov 18 15:41 UTC · 68ec851";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -401,7 +401,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       <li><b>◇</b><span>Pull the ball until it reaches your ship to catch it. A catch removes 5 Charge and the ball keeps the rest; while you hold it, it loses 1 Charge per second.</span></li>
       <li><b>⁂</b><span>Bosses grant rewards: a Wingman or extra Hull, and Capsules.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.<br><em>Capsules:</em> Capsules contain power-ups. Sometimes dropped by enemies, too. Hit one with your ball to collect it. The more Charge your ball has, the longer and/or stronger the power-up. <button class="linkbtn powersBtn" type="button">See the power-ups section</button></span></li>
       <li><b>♥</b><span>Score milestones repair one Hull point, up to your Hull's cap. The next milestone is displayed under your Hull.</span></li>
-      <li><b>15</b><span>At 15 Charge, your ball enters Overload and a 2-second countdown begins. Each enemy killed resets the timer. Once the timer runs out, the next bounce makes the ball explode, killing nearby enemies and resetting your multiplier. After the explosion, the ball drifts back to you (hold to pull it closer).</span></li>
+      <li><b>15</b><span>At 15 Charge, your ball enters Overload and a 2-second countdown begins. Each enemy killed resets the timer. Once the timer runs out, the next bounce makes the ball explode, killing nearby enemies and resetting your multiplier. After the explosion, the ball drifts back to you (hold to pull it faster).</span></li>
     </ul>
     <div class="ctrl">
       <div><span>Keyboard</span> · WASD or arrows to fly. Mouse click or Space: press to throw, hold to pull</div>
@@ -10752,9 +10752,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.balls = [Object.assign(makeBall(), { x: p.x, y: p.y, b })];
     Object.assign(T, { cap: TR_CAP, noCool: false, noThrow: false, rings: null, ringN: 0, collected: false, queue: null, px: undefined });
   }
-  function trChainField() { // four rows of six across the top half, close enough that one throw can thread several
+  function trChainField() { // five rows of six across the top half, close enough that one throw can thread ten (most throws do)
     G.enemies = G.enemies.filter(e => !e.dummy);
-    for (const fy of [0.17, 0.27, 0.37, 0.47]) for (let k = 0; k < 6; k++) trDummy('drifter', 0.12 + k * 0.152 + (fy * 10 % 2 > 1 ? 0.04 : -0.04), fy);
+    for (const fy of [0.15, 0.24, 0.33, 0.42, 0.51]) for (let k = 0; k < 6; k++) trDummy('drifter', 0.12 + k * 0.152 + (fy * 10 % 2 > 1 ? 0.04 : -0.04), fy);
   }
 
   // The lessons. A page's text can mark words *like this* to pick them out. A step: setup (the arena, before its text),
@@ -10785,6 +10785,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           { h: 'Health', t: () => 'Enemy health is written at its center. Enemies with no number have 1 health.' },
           { t: () => 'If the ball does at least an enemy\'s health in damage, it kills it and *flies straight through*. If not, it knocks that much off and bounces away.' }],
         task: { text: () => 'Bounce the ball to charge it, then destroy the 10', done: () => !trDummies() } },
+      { pages: [{ h: 'Catch and throw', t: () => 'A catch removes *5 Charge*, but the ball keeps the rest. Catch it, then throw it straight back out: it\'s still charged, so it flies faster than a fresh throw.', hi: 'charge' }],
+        start: T => { T.heldAt = undefined; },
+        task: { text: T => T.heldAt !== undefined ? 'Now throw it again' : trCircling(T) ? 'Circling you? Let go for a moment, then hold again' : 'Catch the ball', done: T => T.heldAt !== undefined && T.throws > T.heldAt, after: 1.6, hint: 'hold',
+          tick: T => { if (T.heldAt === undefined && G.balls[0].state === 'held') T.heldAt = T.throws; } } }, // (in hand, however it got there: the next throw shows it off)
     ] },
     { id: 'overload', name: 'Overload', blurb: 'What happens at 15', steps: [
       { setup: T => { trReset(0.5, 0.8, 13); T.cap = undefined; T.noCool = true; for (const [x, y] of [[0.15, 0.2], [0.85, 0.2], [0.5, 0.17], [0.12, 0.48], [0.88, 0.48], [0.5, 0.38]]) trDummy('drifter', x, y); },
@@ -10793,7 +10797,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           { t: () => 'This ball is already at 13. Throw it, and let it blow.', hi: 'charge' }],
         task: { text: () => 'Throw the ball and let it overload', done: T => T.booms > T.booms0 } },
       { pages: [{ h: 'After the blast', t: () => 'After it explodes, its Charge resets to 0 and it drifts back to you.' }],
-        task: { text: () => 'Wait for the ball to drift back (hold to pull it closer)', done: () => G.balls[0].state === 'held' } },
+        task: { text: () => 'Wait for the ball to drift back (hold to pull it faster)', done: () => G.balls[0].state === 'held' } },
       { setup: T => { trReset(0.5, 0.8, 14); T.cap = undefined; T.noCool = true; },
         pages: [{ h: 'Save it', t: () => 'You can stop Overload: catch the ball before it blows. A catch removes *5 Charge* from the ball. While you hold it, it loses 1 more Charge per second.' }],
         task: { text: T => T.blew && G.balls[0].state !== 'live' ? 'It blew. Try again, and start pulling sooner' : trCircling(T) ? 'Circling you? Let go for a moment, then hold again' : 'Throw it, then catch it before it explodes', done: T => T.caught > T.caught0 && T.caughtB >= 14,
@@ -10804,8 +10808,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         pages: [
           { h: 'Chains', t: () => 'A chain is every kill from one throw. Chain kills to increase your *score multiplier*. The higher the Charge, the higher the score.', hi: 'mult' },
           { t: () => 'Chain *10 kills* to shield your ship for 5 seconds. Getting hit or Overload resets your multiplier.', hi: 'mult' }],
-        task: { text: () => 'Get a 5 chain in one throw', prog: () => `${Math.min(5, G.balls[0].kills || 0)}/5`, done: T => T.bestChain >= 5,
-          tick: () => { if (trDummies() < 5 && G.balls[0].state === 'held') trChainField(); } } }, // (ran short: a fresh field)
+        task: { text: () => 'Get a 10 chain in one throw', prog: () => `${Math.min(10, G.balls[0].kills || 0)}/10`, done: T => T.bestChain >= 10,
+          tick: () => { if (trDummies() < 10 && G.balls[0].state === 'held') trChainField(); } } }, // (ran short: a fresh field)
     ] },
     { id: 'capsules', name: 'Capsules', blurb: 'Power-ups', steps: [
       { setup: () => { trReset(0.5, 0.82, 6); trDummy('drifter', 0.5, 0.36).drop = 'multi'; },
