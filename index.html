@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 18 16:49 UTC · d267e4f";</script>
+<script>window.RICOCHET_BUILD = "Nov 20 14:15 UTC · 9808f14";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -355,10 +355,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <ul class="rules">
       <li><b>+1</b><span>Each bounce off a wall or obstacle adds 1 Charge to your ball, increasing its damage. Enemy health is written at its center.</span></li>
       <li><b>↶</b><span>Hold pull to bend the ball toward you.</span></li>
-      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the Charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.<br>Getting hit resets your multiplier.<br>Bonus rounds (Pinpong, Coin Rush, Lucky Blocks) pay at the multiplier you bring in.</span></li>
+      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the Charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.<br>Getting hit resets your multiplier.<br>Bonus rounds (Pinpong, Coin Rush, Lucky Blocks, Target Gallery) pay at the multiplier you bring in.</span></li>
       <li><b>◇</b><span>Pull the ball until it reaches your ship to catch it. A catch removes 5 Charge and the ball keeps the rest; while you hold it, it loses 1 Charge per second.</span></li>
       <li><b>⁂</b><span>Bosses grant rewards: a Wingman or extra Hull, and Capsules.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.<br><em>Capsules:</em> Capsules contain power-ups. Sometimes dropped by enemies, too. Hit one with your ball to collect it. The more Charge your ball has, the longer and/or stronger the power-up. <button class="linkbtn powersBtn" type="button">See the power-ups section</button></span></li>
-      <li><b>♥</b><span>Score milestones repair one Hull point, up to your Hull's cap. The next milestone is displayed under your Hull.</span></li>
+      <li><b>♥</b><span>Score milestones repair one Hull point, up to your Hull's cap. The next milestone is displayed under your Hull.<br>Beating a boss sets a checkpoint. If your Hull breaks later, you can retry from the wave after that boss with a full Hull and the score you had there.</span></li>
       <li><b>15</b><span>At 15 Charge, your ball enters Overload and a 2-second countdown begins. Each enemy killed resets the timer. Once the timer runs out, the next bounce makes the ball explode, killing nearby enemies and resetting your multiplier. After the explosion, the ball drifts back to you (hold to pull it faster).</span></li>
     </ul>
     <div class="ctrl">
@@ -394,7 +394,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       <div class="stat"><span class="lbl">Time</span><span class="val" id="o-time">0:00</span></div>
       <div class="stat"><span class="lbl">Best</span><span class="val" id="o-best">0</span></div>
     </div>
-    <div class="btnrow"><button class="btn" id="again" type="button">Play again</button><button class="btn ghost" id="continue" type="button">Continue</button><button class="btn ghost menuBtn" type="button">Main menu</button></div>
+    <div class="btnrow"><button class="btn" id="retry" type="button" hidden>Retry</button><button class="btn" id="again" type="button">Play again</button><button class="btn ghost" id="continue" type="button">Continue</button><button class="btn ghost menuBtn" type="button">Main menu</button></div>
     <p class="sub" id="o-note" hidden>Continued or skipped-ahead runs don't count toward Best.</p>
   </div>
 </section>
@@ -538,7 +538,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // HOLD_COOL seconds. (An overload still costs it all.)
   const CATCH_COST = 5, HOLD_COOL = 1;
   const BLAST_R = 26, MULT_MAX = 10, CHAIN_STEP = 0.1; // each kill adds CHAIN_STEP × its place in this throw's chain
-  const bonusMult = () => Math.max(1, G.mult); // the bonus rounds (Pinpong, Coin Rush, Lucky Blocks) pay at the multiplier you bring in: there's nothing to chain in them
+  const bonusMult = () => Math.max(1, G.mult); // the bonus rounds (Pinpong, Coin Rush, Lucky Blocks, Target Gallery) pay at the multiplier you bring in: there's nothing to chain in them
   // Power-up capsules: dropped by kills, collected only by the ball; charge sets duration (and shockwave size).
   const DROP_CHANCE = 0.1, CHAIN_DROP = 5, PICKUP_MAX = 3, PICKUP_R = 3.6; // capsules stay until the ball collects them
   const powerTime = b => 3.3 + 0.5 * b;
@@ -605,6 +605,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     40: 'Gorp the Jailer: Destroy his crystal shell to hit him. When he walls you in, hit the pink orbs. Destroy them all to force him out',
     46: 'Are those... bees? Something big is buzzing nearby',
     39: 'Crusher II: the walls close in from all four sides now, and faster',
+    44: 'Target Gallery: knock the targets flat. The hotter your ball, the more each one pays. Clear a row for a bonus, and catch the golden duck if you can',
     35: 'Lucky Blocks: every hit on a ! block pops coins. The hotter your ball, the more you earn. Empty them all for the jackpot',
     13: 'Coin Rush: hit every coin for a jackpot. Smash the giant coins before they disappear: the more Charge your ball carries, the bigger the payout',
     20: 'The Serpent: crack its armor plates, then hit the glowing cores inside',
@@ -624,8 +625,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     38: 'Crusher: brick walls close in. Break them to push them back',
   };
   // Set pieces, at the same waves in every loop (bigger each time round).
-  const SET_AT = { 5: 'bonus', 13: 'coins', 16: 'invaders', 23: 'storm', 26: 'titans', 35: 'lucky', 38: 'crusher', 39: 'crusher2' };
-  const SET_NAMES = { bonus: 'Pinpong', coins: 'Coin Rush', invaders: 'Invasion', storm: 'Swarm Storm', titans: 'Titans', crusher: 'Crusher', crusher2: 'Crusher II', lucky: 'Lucky Blocks' };
+  const SET_AT = { 5: 'bonus', 13: 'coins', 16: 'invaders', 23: 'storm', 26: 'titans', 35: 'lucky', 38: 'crusher', 39: 'crusher2', 44: 'gallery' };
+  const SET_NAMES = { bonus: 'Pinpong', coins: 'Coin Rush', invaders: 'Invasion', storm: 'Swarm Storm', titans: 'Titans', crusher: 'Crusher', crusher2: 'Crusher II', lucky: 'Lucky Blocks', gallery: 'Target Gallery' };
   const setPiece = n => SET_AT[inLoop(n)] || null;
   const monolithIntro = () => 14; // the first normal wave with Monoliths
   const introFor = n => n === monolithIntro() ? 'Monoliths turn to stone now and then'
@@ -1642,9 +1643,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const x0 = Math.max(0, side ? $('hud').getBoundingClientRect().right + 4 : s.left + 10), x1 = Math.min(scr.w - 4, side ? $('meter').getBoundingClientRect().left - 4 : s.right - 10);
     const w = Math.max(120, Math.min(x1 - x0, 1400)), h = Math.max(120, Math.min(y1 - y0, 900));
     AX = (x0 + x1) / 2 - w / 2; AY = (y0 + y1) / 2 - h / 2; BW = w; BH = h;
+    if (G && !G.attract && tableWave()) G.arenaTarget = arenaFor(tableWave()); // (turned or resized before the table's under way: fit it again)
     computeArena();
     buildGrid(); sizeBloom();
-    if (G) { clampAll(); snapWall(); }
+    if (G) { if (!tableHeld()) clampAll(); snapWall(); } // (not while a sideways phone holds the table: its balls wait where they were)
   }
   function computeArena() { U = Math.min(BW, BH) / arenaShort; AW = BW / U; AH = BH / U; }
   // Zoom the arena out (or in) around its centre, keeping everything where it was relative to the middle.
@@ -1658,7 +1660,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     [G.enemies, G.tele, G.parts, G.rings, G.floats, G.bullets, G.shards, G.flashes, G.wallHits, G.pickups, G.extras, G.ghosts, G.coins ? G.coins.coins : [], G.lucky ? G.lucky.blocks : [], G.lucky ? G.lucky.pops : []].forEach(list => list.forEach(mv));
     snapWall();
   }
-  const arenaFor = n => bossFor(n) === 'maw' && BW > BH * 1.15 && BH > 480 ? MAW_ARENA : Math.min(ARENA_MAX, ARENA_START + ARENA_GROW * (n - 1));
+  // Pinpong's table needs height: on a wide screen the arena zooms out until it's TABLE_MIN_H tall, about what a phone
+  // held upright gives it (sideways, the table comes out short and balls hang about up top), as long as that keeps a unit
+  // TABLE_MIN_U pixels or more. (A phone held sideways is asked to turn upright instead: see tableHeld.)
+  const TABLE_MIN_H = 220, TABLE_MIN_U = 2.2;
+  const arenaFor = n => { const base = Math.min(ARENA_MAX, ARENA_START + ARENA_GROW * (n - 1));
+    return bossFor(n) === 'maw' && BW > BH * 1.15 && BH > 480 ? MAW_ARENA : setPiece(n) === 'bonus' && BW > BH ? Math.max(base, Math.min(TABLE_MIN_H, BH / TABLE_MIN_U)) : base; };
+  const tableWave = () => { const n = G.between !== null ? G.wave + 1 : G.wave; return setPiece(n) === 'bonus' && !(G.table && (G.table.started || G.table.done)) ? n : 0; }; // Pinpong's up (or next) and not yet under way
   const wallPos = (side, t) => side === 0 ? { x: t * AW, y: 0 } : side === 1 ? { x: AW, y: t * AH } : side === 2 ? { x: t * AW, y: AH } : { x: 0, y: t * AH };
   function snapWall() {
     for (const o of G.enemies.concat(G.tele)) if (o.side !== undefined) Object.assign(o, wallPos(o.side, o.wt));
@@ -1855,10 +1863,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   let COMB_SPEED = 50, COMB_BOUNCES = 3, COMB_LIFE = 7, COMB_MAX = 2, COMB_WARN = 0.7, COMB_EVERY = [6, 5, 4], WAX_S = 3;
   const HIVE_MEND = [4, 3.5, 3], HIVE_MENDERS = 2;
   // What a boss pays (audited with bots that throw, pull and catch): each point of damage pays BOSS_DMG_PTS (× your
-  // multiplier), set per boss so a fight pays about as well as the waves round it (Clanktank's and Gorp's fights have
-  // little to chain, so their damage pays more); and the kill pays a jackpot that grows through the loop, the finale's
+  // multiplier), set per boss so a fight pays about as well as the waves round it (Gorp's fight has little to chain, so his
+  // damage pays more; Clanktank's sits between: its drifters build the multiplier); and the kill pays a jackpot that grows through the loop, the finale's
   // a million plus a share by your multiplier (so a hit just before he falls doesn't wipe it out). × the loop.
-  const BOSS_DMG_PTS = { core: 50, tank: 200, serpent: 50, maw: 50, geode: 200, hive: 17, mech: 100 };
+  const BOSS_DMG_PTS = { core: 50, tank: 100, serpent: 50, maw: 50, geode: 200, hive: 17, mech: 100 };
   // Vexa's fight is all chains (walls of bees, her cages, her honeycomb), so everything in it pays HIVE_PAY of the usual (playtested: 2.3M in 2:17, more a minute than the finale)
   const HIVE_PAY = 1 / 3, hivePay = () => (G.boss && G.boss.kind === 'hive' ? HIVE_PAY : 1);
   const BOSS_BONUS = { core: 25000, tank: 150000, serpent: 250000, maw: 350000, geode: 500000, hive: 650000, mech: 1000000 }, FINALE_MULT_PTS = 50000; // (playtested: a kill's a payday, more than the waves round it; and it grows through the loop)
@@ -3071,11 +3079,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   // A shot coming down on you (a shell, a missile): a reticle closing on where you are (k: 0 to 1). No line from the gun:
   // a line means a laser.
-  function shotWarn(tx, ty, k) {
-    ctx.save(); ctx.lineCap = 'round'; const rr = 8 - 4 * k, fl = k > 0.7 && Math.floor(G.time * 16) % 2; ctx.strokeStyle = fl ? COL.chalk : COL.threat; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.7 + 0.3 * k; // (the same weight as the claw's lock-on)
-    for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + G.time * 2.5 + Math.PI / 4; ctx.beginPath(); ctx.arc(tx, ty, rr, a - 0.5, a + 0.5); ctx.stroke(); }
-    ctx.restore(); ctx.globalAlpha = 1;
-  }
   function pulseLine(x0, y0, x1, y1, col, a = 0.5, w = 0.3, ups = 30) {
     const L = Math.hypot(x1 - x0, y1 - y0);
     ctx.strokeStyle = col; ctx.lineWidth = w; ctx.globalAlpha = a * 0.45;
@@ -4144,6 +4147,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   let TANK_FIRE = [3.2, 2.8, 2.4], TANK_BURST = [4, 3.5, 3], TANK_AIM = 0.9, TANK_SHELL = 52, TANK_SHELL_DUG = 40, TANK_DRUM_R = 18, TANK_DRUM_DMG = 8;
   const TANK_BLAST = 7, TANK_RAM_TURN = 2.6; // its shells' blast; how fast it swings round on you before a ram
   const TANK_DIG_M = 40, TANK_RAM = [6.5, 5.5, 4.5], TANK_BARREL = 17, TANK_BARREL_R = 1.9, TANK_DIG = 1.6, TANK_ESCORTS = 3, TANK_TRICKLE = [10, 7];
+  // Fodder: drifters (wave 1's enemy) come in packs of TANK_FODDER_N every TANK_FODDER[phase] seconds from the start of the fight, and with every
+  // call for backup, up to TANK_FODDER_MAX on the field: always something to chain while you work on the tank.
+  const TANK_FODDER = [3.5, 3, 2.5], TANK_FODDER_N = 3, TANK_FODDER_MAX = 9;
   const TANK_SWEEP = [5.6, 4.8, 4], TANK_SIGHT = 1.1, TANK_SPRAY = 1, TANK_ARC = 0.95, TANK_MG = 40, TANK_MG_GAP = 0.13;
   // its parts, in its own units before TANK_S: x across (the left tread at -x), y forward (the way it drives)
   const TANK_TILES = [-6, -2, 2, 6].map(x => ({ x0: x - 1.8, x1: x + 1.8, y0: 12.2, y1: 14.8 }));
@@ -4208,7 +4214,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.banner = { text: 'Immobilized!', sub: 'Hit it anywhere now. Break its guns to make it safer', t: 2.6, max: 2.6, top: true };
   }
   // Call in tankettes from the edges (never more than TANK_ESCORTS on the field).
+  function tankFodder(n) { // a pack of drifters, in from one point on the edge
+    const have = G.enemies.filter(e => e.type === 'drifter' && !e.tankette).length + G.tele.filter(t => t.type === 'drifter').length, k = Math.min(n, TANK_FODDER_MAX - have);
+    if (k <= 0) return; const q = spawnPoint();
+    for (let i = 0; i < k; i++) G.tele.push({ x: clamp(q.x + rand(-6, 6), 4, AW - 4), y: clamp(q.y + rand(-6, 6), 4, AH - 4), type: 'drifter', fodder: true, t: 0.7 + i * 0.15 });
+  }
   function tankBackup(B, n) {
+    tankFodder(2);
     const have = G.enemies.filter(e => e.tankette).length + G.tele.filter(t => t.type === 'tankette').length;
     for (let i = 0; i < Math.min(n, TANK_ESCORTS - have); i++) G.tele.push({ ...spawnPoint(), type: 'tankette', t: 0.8 + i * 0.25 });
     if (n > 0 && have < TANK_ESCORTS) float(B.x, B.y - 30, 'Backup!', COL.threat, 3.2);
@@ -4274,6 +4286,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     const da = wrapA(Math.atan2(p.y - B.y, p.x - B.x) - B.aim); B.aim += clamp(da, -(B.dug ? 2.4 : 1.5) * dt, (B.dug ? 2.4 : 1.5) * dt); // the turret tracks you
     if (p.inv <= 0) { const [lx, ly] = tankLocal(B, p.x, p.y); if (hitRect(lx, ly, (PLAYER_R + 0.3) / TANK_S, TANK_BOX)) damagePlayer(); } // touching it hurts (it's solid: pushOut holds you at arm's length, so touching is that close)
     tankCrewCall(B, dt);
+    B.fodderT = (B.fodderT ?? 1.5) - dt; if (B.fodderT <= 0) { B.fodderT = TANK_FODDER[B.phase - 1]; tankFodder(TANK_FODDER_N); }
     if (B.dug) { // the gun emplacement
       if (B.digT > 0) { B.digT -= dt; if (B.digFrom) { const k = clamp(1 - B.digT / TANK_DIG, 0, 1), e = k * k * (3 - 2 * k); B.x = B.digFrom[0] + (B.digTo[0] - B.digFrom[0]) * e; B.y = B.digFrom[1] + (B.digTo[1] - B.digFrom[1]) * e; } return; }
       B.fireT -= dt; // the cannon: a 3-shell burst, telegraphed
@@ -4500,7 +4513,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     // the cannon's shot, before it fires
     if ((B.fireT < TANK_AIM || B.burst > 0) && B.mode !== 'ram' && !(B.digT > 0) && !die && !B.noTurret) {
       const k = B.burst > 0 ? 1 : 1 - B.fireT / TANK_AIM, [mx, my] = tankMuzzle(B), L = Math.hypot(AW, AH);
-      shotWarn(p.x, p.y, k); // a reticle closing on you (a shell's coming down on you; no line: lines are lasers)
       glow(() => { ctx.beginPath(); ctx.arc(mx, my, 1.5 + 2.5 * k, 0, Math.PI * 2); ctx.fill(); }, COL.threat, 0.3 + 0.6 * k);
     }
     const shakeK = B.mode === 'aim' ? 0.5 * (1 - B.modeT / RAM_AIM) : B.mode === 'stun' ? 0.25 : die * 0.8;
@@ -4546,16 +4558,14 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); ctx.rect(T.x0, T.y0, T.x1 - T.x0, T.y1 - T.y0); fill(0.32); stroke(W2 * 1.3);
       ctx.fillStyle = col; ctx.globalAlpha = 0.6; for (const [bx, by] of [[T.x0 + 0.6, T.y0 + 0.6], [T.x1 - 0.6, T.y0 + 0.6]]) ctx.fillRect(bx - 0.2, by - 0.2, 0.4, 0.4); ctx.globalAlpha = 1;
     });
-    TANK_DRUMS.forEach(([dx, dy], i) => { // fuel drums strapped on the back, a hazard band round each
+    TANK_DRUMS.forEach(([dx, dy], i) => { // fuel drums on its back: the very drum from waves 8-9 (it's the same thing), drawn at the same size
       if (!B.drums[i]) { flame(dx, dy, 1.8, i + 7); return; }
-      const R = TANK_DRUM_RR, L = R * 1.15, Hh = R * 0.82; // barrels lying on its deck, strapped down: the same orange drums as waves 8-9 (it's the same thing)
-      glow(() => { ctx.beginPath(); ctx.arc(dx, dy, R * 1.9, 0, Math.PI * 2); ctx.fill(); }, fire, 0.16 + 0.1 * Math.sin(t * 4 + i));
-      const drum = () => { ctx.beginPath(); ctx.roundRect(dx - L, dy - Hh, L * 2, Hh * 2, Hh * 0.55); };
-      drum(); ctx.fillStyle = COL.ink; ctx.fill(); ctx.globalAlpha = B.flash > 0 ? 0.9 : 0.82; ctx.fillStyle = B.flash > 0 ? COL.chalk : fire; ctx.fill(); ctx.globalAlpha = 1;
-      const g = ctx.createLinearGradient(dx, dy - Hh, dx, dy + Hh); g.addColorStop(0, 'rgba(0,0,0,0.4)'); g.addColorStop(0.35, 'rgba(255,255,255,0.22)'); g.addColorStop(0.6, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.45)'); ctx.fillStyle = g; ctx.fill();
-      ctx.beginPath(); for (const fx of [-0.55, 0.55]) { ctx.moveTo(dx + fx * L, dy - Hh); ctx.lineTo(dx + fx * L, dy + Hh); } stroke(W2 * 1.4, 1, COL.ink); // its ribs
-      drum(); stroke(W1 * 0.8, 1, B.flash > 0 ? COL.chalk : ECOL.warden);
-      flameIcon(dx, dy, R * 0.42); ctx.fillStyle = COL.ink; ctx.fill(); stroke(W3, 1, COL.chalk); flameIcon(dx, dy + R * 0.1, R * 0.2); ctx.fillStyle = `rgb(${HEAT[1].join(',')})`; ctx.fill(); // fuel
+      ctx.save(); ctx.translate(dx, dy); ctx.scale(1 / TANK_S, 1 / TANK_S); const R = TANK_DRUM_RR * TANK_S;
+      ctx.save(); ctx.rotate(t * 0.6 + i); ctx.setLineDash([0.9, 0.9]); ctx.lineCap = 'butt'; // its ring of hazard dashes, turning
+      ctx.globalAlpha = 0.3 + 0.12 * Math.sin(t * 4 + i); ctx.strokeStyle = fire; ctx.lineWidth = 0.45; ctx.beginPath(); ctx.arc(0, 0, R * 1.45, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore(); ctx.globalAlpha = 1;
+      drawBarrel(R, false, t + i);
+      ctx.restore();
     });
     const pk = B.dug ? clamp((1 - B.digT / TANK_DIG) * 2 - 0.6, 0, 1) : 0; // the gun pods rise as it digs in
     if (pk > 0) for (const key of ['podL', 'podR']) {
@@ -4584,6 +4594,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const L = TANK_BARREL;
       ctx.beginPath(); ctx.roundRect(-1.4, 3, 2.8, L - 3, 0.6); fill(0.3); stroke(W2 * 1.5, 1, gc); // the barrel
       ctx.beginPath(); ctx.roundRect(-2.1, L - 2.6, 4.2, 2.9, 0.6); fill(0.3); stroke(W2 * 1.5, 1, gc); // muzzle brake
+      const aimK = (B.fireT < TANK_AIM || B.burst > 0) && B.mode !== 'ram' && !(B.digT > 0) && !die ? (B.burst > 0 ? 1 : 1 - B.fireT / TANK_AIM) : 0;
+      if (aimK > 0) { // the gun's warning (barrel = bullets): heat fills the barrel from the breech as the shot charges, and the muzzle flickers white just before it fires
+        const hot = aimK > 0.7 && (flashK ? Math.floor(t * 16) % 2 : 1);
+        glow(() => { ctx.beginPath(); ctx.roundRect(-1.4, 3, 2.8, (L - 3) * aimK, 0.6); ctx.fill(); }, COL.threat, 0.35 + 0.55 * aimK);
+        ctx.beginPath(); ctx.roundRect(-1.4, 3, 2.8, (L - 3) * aimK, 0.6); ctx.fillStyle = COL.threat; ctx.globalAlpha = 0.5 + 0.4 * aimK; ctx.fill(); ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.roundRect(-2.1, L - 2.6, 4.2, 2.9, 0.6); stroke(W2 * 1.8, 1, hot ? COL.chalk : COL.threat);
+      }
       const tur = () => poly([[-5, -5], [5, -5], [6.5, -1], [6, 3.5], [3, 5.5], [-3, 5.5], [-6, 3.5], [-6.5, -1]]);
       tur(); fill(0.32); shade(tur, 0, 0, 7); tur(); stroke(W1, 1, gc);
       ctx.beginPath(); ctx.arc(-2.4, -1.2, 1.6, 0, Math.PI * 2); fill(0.3); stroke(W2); // the commander's hatch
@@ -4602,7 +4619,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function tankDie(B) {
     G.tankDeath = { B: { ...B, parts: JSON.parse(JSON.stringify(B.parts)), tiles: [...B.tiles], drums: [...B.drums], fires: [...B.fires], bits: [], mode: 'drive', fireT: 9, burst: 0, sweep: null, digT: 0, flash: 0.2, open: true }, t: 0, blown: false, result: G.result, turret: null };
     G.result = null; G.bullets = G.bullets.filter(q => !q.shell && !q.mg);
-    for (const e of G.enemies) if (e.tankette || e.crew) e.boomAt = rand(0.3, TANK_BLOW - 0.1); // its escorts go up with it
+    for (const e of G.enemies) if (e.tankette || e.crew || e.fodder) e.boomAt = rand(0.3, TANK_BLOW - 0.1); // its escorts go up with it
+    for (let i = G.tele.length - 1; i >= 0; i--) if (G.tele[i].fodder || G.tele[i].type === 'tankette') G.tele.splice(i, 1); // and nothing more comes
     G.freeze = Math.max(G.freeze, 0.18); shake(3); sfx.overload();
   }
   function updateTankDeath(dt) {
@@ -4612,7 +4630,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!D.blown) {
       shake(0.3 + 1.4 * k);
       if (D.t > TANK_DIE_HIT && Math.random() < dt * (6 + 22 * k)) { const [x, y] = tankWorld(B, rand(-12, 12), rand(-14, 14)); burst(x, y, 14, fire, 45, 0.6, 0.45); ring(x, y, 1, 8, 0.3, fire, 0.8); if (Math.random() < 0.4) sfx.brick(6); }
-      for (let i = G.enemies.length - 1; i >= 0; i--) { const e = G.enemies[i]; if ((e.tankette || e.crew) && e.boomAt !== undefined && D.t >= e.boomAt) { burst(e.x, e.y, 16, fire, 40, 0.5, 0.4); G.enemies.splice(i, 1); sfx.brick(5); } }
+      for (let i = G.enemies.length - 1; i >= 0; i--) { const e = G.enemies[i]; if ((e.tankette || e.crew || e.fodder) && e.boomAt !== undefined && D.t >= e.boomAt) { burst(e.x, e.y, 16, fire, 40, 0.5, 0.4); G.enemies.splice(i, 1); sfx.brick(5); } }
       if (D.t >= TANK_BLOW) {
         D.blown = true; const x = B.x, y = B.y;
         for (let i = 0; i < 5; i++) ring(x, y, 2, 16 + i * 12, 0.5 + i * 0.14, i % 2 ? COL.chalk : i % 3 ? fire : COL.threat, 1.5);
@@ -8377,6 +8395,21 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     p.x = T.x0 + T.w / 2; p.y = AH * TB.rail; p.fx = 0; p.fy = -1;
   }
   const phoneWay = () => matchMedia('(pointer: coarse)').matches ? (screenSize().w > screenSize().h ? 'side' : 'up') : null; // a touch screen held sideways or upright
+  // A phone held sideways can't play Pinpong: the table comes out short that way, and balls get stuck. Until it's
+  // turned upright the world holds (the clock too) under a card; layout() leaves the balls where they were, so turning
+  // it back picks up exactly where it stopped.
+  const tableHeld = () => !!(G && G.table && !G.table.done && phoneWay() === 'side');
+  function drawTableHold() {
+    if (!tableHeld() || mode !== 'play') return;
+    const R = tableRect(), c = ECOL.target, cx = R.x0 + R.w / 2, cy = AH * 0.5, w2 = Math.min(R.w * 0.46, 40), pulse = 0.6 + 0.4 * Math.sin(performance.now() / 250) ** 2;
+    ctx.save(); ctx.setTransform(DPR * U, 0, 0, DPR * U, DPR * AX, DPR * AY); // (drawn last, over the touch controls: in arena units)
+    ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.6; ctx.fillRect(0, 0, AW, AH); ctx.globalAlpha = 0.95; ctx.fillRect(cx - w2, cy - 10, w2 * 2, 20); ctx.globalAlpha = 1;
+    ctx.strokeStyle = c; ctx.lineWidth = 0.35; ctx.strokeRect(cx - w2, cy - 10, w2 * 2, 20);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `700 4.4px ${FONT}`; ctx.fillStyle = c; ctx.globalAlpha = pulse; ctx.fillText('Pinpong plays upright', cx, cy - 3.6); ctx.globalAlpha = 1;
+    ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = COL.chalk; ctx.fillText('Turn your phone to play', cx, cy + 4);
+    ctx.restore();
+  }
   const TABLE_NEW = () => ({ started: false, wasSide: phoneWay() === 'side', spinA: 0, spinV: 0, spinN: 0, boostT: 0, orbits: 0, orbT: 0, scoopBy: false, scoopT: 0, myst: null, mystT: 0, saveT: 0 }); // (the orbit and the scoop: also filled in for a table saved before them)
   function tableRect() { const w = Math.min(AW - 6, AH * 0.72); return { x0: (AW - w) / 2, w, h: AH }; }
   // static walls as segments: [x0, y0, x1, y1, kind, index]
@@ -8824,13 +8857,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (const [qx, qy] of [[ax, ay], [bx, by]]) { ctx.fillStyle = k > 0 ? COL.chalk : c; ctx.beginPath(); ctx.arc(qx, qy, 0.9, 0, Math.PI * 2); ctx.fill(); }
       ctx.lineCap = 'butt';
     }
-    if (!T.started && phoneWay() === 'side') { // a phone held sideways: the table's short that way
-      const y = Y(0.6), w2 = Math.min(R.w * 0.46, 40);
-      ctx.fillStyle = COL.ink; ctx.globalAlpha = 0.85; ctx.fillRect(R.x0 + R.w / 2 - w2, y - 6, w2 * 2, 12); ctx.globalAlpha = 1;
-      ctx.strokeStyle = c; ctx.lineWidth = 0.3; ctx.strokeRect(R.x0 + R.w / 2 - w2, y - 6, w2 * 2, 12);
-      label('Pinpong plays best upright', R.x0 + R.w / 2, y - 2, 3, c, 0.6 + 0.4 * Math.sin(G.time * 4) ** 2);
-      label('Turn your phone', R.x0 + R.w / 2, y + 2.8, 2.6, COL.chalk);
-    }
     // the header panel, built into the top of the cabinet: time, the title and the lanes, targets
     const hh = top, x0 = R.x0 + cw * 0.75, x1 = R.x0 + R.w - cw * 0.75, x2 = R.x0 + cw * 1.15, x3 = R.x0 + R.w - cw * 1.15;
     const panel = () => { ctx.beginPath(); ctx.moveTo(x0, 0.4); ctx.lineTo(x1, 0.4); ctx.lineTo(x3, hh - 0.6); ctx.lineTo(x2, hh - 0.6); ctx.closePath(); };
@@ -8851,7 +8877,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // jackpot. As the field thins, the stragglers swell and glow so they can be found. Overload is off; nothing can hurt you.
   // Three times a round a giant coin drifts down from the top. The ball bounces off it (and charges) and deals its
   // damage (1 + charge) to it; it takes GIANT_FALL seconds to cross the arena, whatever its height; every hit knocks loose a spray of coins, more for a harder hit. Break it before it falls
-  // out the bottom for GIANT_PTS × the breaking hit's damage, and a fountain of coins.
+  // out the bottom for GIANT_PTS × the breaking hit's damage, and a shower of coins. The giant's coins are yours at once:
+  // they burst out, hang a beat, then stream into the score (COIN_PTS each). Only the layout's coins count for the jackpot.
   // The coins come in a designed layout, picked at random each visit: target rings, curving lanes, a spiral or
   // clusters - shapes to sweep with a curved pull. Big coins, a wide pick-up reach, each worth 25.
   const COIN_TIME = 30, COIN_R = 2.2, COIN_PICK = 3.6, COIN_STEP = 6, COIN_PTS = 20, COIN_JACKPOT = 3000; // (× your multiplier: a full sweep at ×10 pays about as well as the waves round it)
@@ -8860,6 +8887,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // with a ping that climbs the scale as the streak goes on and a pop at the ball.
   const COIN_PULL = 13, COIN_FLY = 0.16;
   const GIANT_R = 6.5, GIANT_HP = 24, GIANT_FALL = 11, GIANT_AT = [3, 11, 19], GIANT_PTS = 150, GIANT_HIT_PTS = 10;
+  const SHOWER_HANG = 0.35, SHOWER_GAP = 0.02, SHOWER_SPEED = 230; // the giant's coins: how long they hang, one after another, then how fast they fly to the score
   // Coin positions for a layout, kept inside the arena (clear of the round's header) and never closer than 4.5 units.
   function coinLayout(kind) {
     const top = 9, m = 5, W = AW, H = AH, cx = W / 2, cy = (top + H - m) / 2, wide = W >= H, pts = [];
@@ -8921,14 +8949,21 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       G.freeze = Math.max(G.freeze, 0.1); shake(2.5); sfx.repair(); sfx.collect();
     }
   }
-  // Coins knocked loose from a giant fly out and slow to a stop where they land.
+  // Coins knocked loose from a giant burst out, slow, then fly one after another into the score: no picking up.
   function sprayCoins(x, y, n, sp) {
-    const C = G.coins;
+    const C = G.coins, sh = C.shower || (C.shower = []), last = sh.reduce((m, q) => Math.max(m, q.hang - q.t), 0);
     for (let k = 0; k < n; k++) {
       const a = rand(0, Math.PI * 2), v = sp * rand(0.5, 1.1);
-      C.coins.push({ x: x + Math.cos(a) * GIANT_R * 0.6, y: y + Math.sin(a) * GIANT_R * 0.6, spin: rand(0, 6), vx: Math.cos(a) * v, vy: Math.sin(a) * v });
+      sh.push({ x: x + Math.cos(a) * GIANT_R * 0.6, y: y + Math.sin(a) * GIANT_R * 0.6, spin: rand(0, 6), vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, hang: Math.max(SHOWER_HANG, last) + k * SHOWER_GAP });
     }
-    C.total += n;
+  }
+  function showerPay(C, q) { // a shower coin reaches the score
+    G.score += Math.round(COIN_PTS * (C.cycle + 1) * bonusMult()); C.showered = (C.showered || 0) + 1;
+    if (C.chimeT <= 0) { sfx.coin(Math.min(30, C.showered % 30 + 1)); C.chimeT = 0.035; }
+  }
+  function scoreSpot() { // the score readout, in arena units (the HUD sits outside the arena, so it can be off the board)
+    const r = $('score').getBoundingClientRect();
+    return r.width ? [(r.left + r.width / 2 - AX) / U, (r.top + r.height / 2 - AY) / U] : [AW * 0.15, -6];
   }
   // Ball (or extra) against the giant coin: bounce off and hit it. Returns true on a hit (the caller adds the charge).
   function giantHit(o, r) {
@@ -8972,11 +9007,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (f.t >= COIN_FLY) C.flying.splice(i, 1);
     }
     C.pop = Math.max(0, C.pop - dt);
-    for (const c of C.coins) if (c.vx !== undefined) { // loose coins slow to a stop
-      const k = Math.exp(-3 * dt); c.vx *= k; c.vy *= k; c.x += c.vx * dt; c.y += c.vy * dt;
-      if (c.x < 3 || c.x > AW - 3) { c.x = clamp(c.x, 3, AW - 3); c.vx = -c.vx; }
-      if (c.y < 3 || c.y > AH - 3) { c.y = clamp(c.y, 3, AH - 3); c.vy = -c.vy; }
-    }
     const g = C.giant;
     if (g && !C.done) { // the giant drifts down with a slow sway, and is gone if it reaches the bottom
       g.t += dt; g.cd -= dt; g.flash -= dt;
@@ -8988,12 +9018,26 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       C.giants++; sfx.collect();
     }
     if (C.streakT <= 0 && C.streak) { float(C.sx, C.sy - 6, `+${C.streak}`, ECOL.target, 3.2); C.streak = 0; } // the run's total, once it ends
+    if (C.shower && C.shower.length) { // the giant's coins: out, a beat, then into the score
+      const [tx, ty] = scoreSpot();
+      for (let i = C.shower.length - 1; i >= 0; i--) {
+        const q = C.shower[i]; q.t += dt;
+        if (q.t < q.hang) { const k = Math.exp(-4.5 * dt); q.vx *= k; q.vy *= k; }
+        else {
+          const dx = tx - q.x, dy = ty - q.y, d = Math.hypot(dx, dy) || 1e-6, sp = Math.min(SHOWER_SPEED, 50 + (q.t - q.hang) * 600), k = 1 - Math.exp(-12 * dt);
+          q.vx += (dx / d * sp - q.vx) * k; q.vy += (dy / d * sp - q.vy) * k;
+          if (d < 4 || q.t > q.hang + 2) { showerPay(C, q); C.shower.splice(i, 1); continue; }
+        }
+        q.x += q.vx * dt; q.y += q.vy * dt;
+      }
+    }
     if (C.done) return;
     C.time -= dt;
     if (C.time <= 0) { C.time = 0; C.done = true; }
   }
   function finishCoins() {
     const C = G.coins; if (!C) return;
+    for (const q of C.shower || []) showerPay(C, q); // (any still in the air are paid)
     const giants = C.broke ? ` · Giant coins ${C.broke}/${C.giants}` : '';
     G.result = { text: `${C.got}/${C.total} coins`, sub: (C.jackpot ? 'Jackpot!' : 'Get them all for the jackpot') + giants, t: 2.6, max: 2.6 };
     for (const ball of liveBalls()) if (ball.b > WARN - 2) { ball.b = WARN - 2; const sp = ballSpeed(ball.b), l = Math.hypot(ball.vx, ball.vy) || 1; ball.vx = ball.vx / l * sp; ball.vy = ball.vy / l * sp; }
@@ -9021,6 +9065,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       const k = f.t / COIN_FLY, r = COIN_R * (1 - k * 0.8);
       ctx.globalAlpha = 1 - k * 0.4; ctx.fillStyle = k > 0.5 ? COL.chalk : ECOL.target;
       ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    for (const q of C.shower || []) { // the giant's coins, spinning, then a bright streak on the way to the score
+      const go = q.t >= q.hang, w = COIN_R * (go ? 0.8 : Math.max(0.2, Math.abs(Math.cos(t + q.spin))));
+      if (go) { const l = Math.hypot(q.vx, q.vy) || 1; ctx.globalAlpha = 0.45; ctx.strokeStyle = ECOL.target; ctx.lineWidth = COIN_R * 0.9; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x - q.vx / l * Math.min(8, l * 0.03), q.y - q.vy / l * Math.min(8, l * 0.03)); ctx.stroke(); ctx.lineCap = 'butt'; }
+      ctx.globalAlpha = 1; ctx.fillStyle = go ? COL.chalk : ECOL.target;
+      ctx.beginPath(); ctx.ellipse(q.x, q.y, w, COIN_R * (go ? 0.8 : 1), 0, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
     const g = C.giant;
@@ -9192,6 +9243,159 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.beginPath(); ctx.ellipse(c.x, c.y, w, 1.25, 0, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
+  }
+
+  /* ---------- target gallery ---------- */
+  // A carnival shooting gallery. Targets ride three rails across the arena, each row running the other way from the one
+  // above and wrapping round past the walls: small bullseye plates, quick, up top; tin ducks below, the bottom row's
+  // the biggest and slowest. A hit knocks a target flat and
+  // pays its row's GAL_ROWS points × (1 + the ball's Charge); the ball bounces off it and charges, as off any obstacle,
+  // so a hot ball rattling through the rows is the play. A flat target lets the ball through. Knock a whole row flat for
+  // GAL_ROW, and it springs back up GAL_UP later, GAL_FASTER quicker. Three times a round (GAL_GOLD_AT) a golden duck
+  // flies across on its own, GAL_GOLD_K × a top-row target if you catch it. Overload is off; nothing can hurt you.
+  const GAL_TIME = 35, GAL_ROW = 1000, GAL_UP = 0.9, GAL_FASTER = 1.15, GAL_GOLD_AT = [7, 16, 25], GAL_GOLD_T = 5, GAL_GOLD_R = 4, GAL_GOLD_K = 5;
+  const GAL_ROWS = [{ y: 0.17, r: 3.2, n: 6, sp: 20, pts: 50 }, { y: 0.34, r: 4, n: 5, sp: 14, pts: 30 }, { y: 0.51, r: 4.8, n: 4, sp: 9, pts: 20 }];
+  const galCount = d => Math.round(d.n * clamp(AW / 120, 1, 1.6)); // a wide arena gets more targets a row (as many as half again), so it isn't sparse
+  function setupGallery(cycle) {
+    const rows = GAL_ROWS.map((d, j) => ({ j, pos: rand(0, 100), dir: j % 2 ? -1 : 1, sp: d.sp * (1 + 0.1 * cycle), clearT: 0, cleared: 0,
+      targets: Array.from({ length: galCount(d) }, () => ({ up: true, k: 1, flash: 0 })) }));
+    const P = G.player; if (P.y < AH * 0.62) { P.y = AH * 0.85; P.x = clamp(P.x, 8, AW - 8); } // you start below the rails
+    G.gallery = { time: GAL_TIME, cycle, rows, gold: null, golds: 0, goldHit: 0, down: 0, rowsCleared: 0, done: false, streak: 0, streakT: 0, sx: 0, sy: 0, streakN: 0 };
+  }
+  // Where a row's targets are: spaced evenly round a loop a little longer than the arena is wide, so each slides out of
+  // sight past one wall before it comes back in at the other.
+  function galSpots(row) {
+    const d = GAL_ROWS[row.j], m = d.r + 3, L = AW + 2 * m, y = AH * d.y;
+    const n = row.targets.length; return row.targets.map((t, i) => { let x = (row.pos * row.dir + i * L / n) % L; if (x < 0) x += L; return { t, x: x - m, y, r: d.r }; });
+  }
+  // Ball (or extra) against the targets standing up, and the gold one. True on a hit (the caller adds the charge).
+  function galleryHit(o, r) {
+    const Gl = G.gallery; if (!Gl || Gl.done) return false;
+    const b = o.b || 0, mul = (Gl.cycle + 1) * bonusMult();
+    const g = Gl.gold;
+    if (g) { const dx = o.x - g.x, dy = o.y - g.y, d = Math.hypot(dx, dy);
+      if (d < GAL_GOLD_R + r) { // caught: it bursts, and pays big
+        const pts = Math.round(GAL_ROWS[0].pts * GAL_GOLD_K * (1 + b) * mul); G.score += pts; Gl.goldHit++; Gl.gold = null;
+        const nx = dx / (d || 1), ny = dy / (d || 1), dot = o.vx * nx + o.vy * ny; if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
+        for (let k = 0; k < 3; k++) ring(g.x, g.y, 2, 14 + k * 9, 0.4 + k * 0.1, k % 2 ? COL.chalk : ECOL.target, 1.1);
+        burst(g.x, g.y, 40, ECOL.target, 60, 0.9, 0.6); gridImpulse(g.x, g.y, 30, 90); shake(1.5); G.freeze = Math.max(G.freeze, 0.06);
+        float(g.x, g.y - 7, `Golden duck! +${(pts * scoreK(G.wave)).toLocaleString()}`, ECOL.target, 4.4); sfx.collect(); sfx.repair();
+        return true;
+      } }
+    for (const row of Gl.rows) {
+      const d = GAL_ROWS[row.j]; if (Math.abs(o.y - AH * d.y) > d.r + r) continue;
+      for (const q of galSpots(row)) {
+        if (!q.t.up) continue;
+        const dx = o.x - q.x, dy = o.y - q.y, dd = Math.hypot(dx, dy);
+        if (dd >= q.r + r) continue;
+        const nx = dd > 1e-6 ? dx / dd : 0, ny = dd > 1e-6 ? dy / dd : 1, dot = o.vx * nx + o.vy * ny;
+        o.x = q.x + nx * (q.r + r + 0.05); o.y = q.y + ny * (q.r + r + 0.05);
+        if (dot < 0) { o.vx -= 2 * dot * nx; o.vy -= 2 * dot * ny; }
+        q.t.up = false; q.t.flash = 0.12; Gl.down++; // down it goes
+        const pts = Math.round(d.pts * d.n / row.targets.length * (1 + b) * mul); G.score += pts; // (a wide arena's extra targets share the row's worth)
+        if (Gl.streakT <= 0) Gl.streakN = 0;
+        Gl.streak += pts; Gl.streakT = 0.7; Gl.streakN++; Gl.sx = q.x; Gl.sy = q.y - q.r;
+        burst(q.x, q.y, 10, COL.threat, 30, 0.5, 0.3); burst(q.x, q.y, 6, COL.chalk, 24, 0.4, 0.25); gridImpulse(q.x, q.y, 10, 30);
+        sfx.target(Math.min(4, Gl.streakN)); if (Gl.streakN > 1) sfx.coin(Math.min(16, Gl.streakN));
+        if (row.targets.every(t => !t.up)) { // the whole row's down
+          const v = Math.round(GAL_ROW * mul); G.score += v; Gl.rowsCleared++; row.cleared++; row.clearT = GAL_UP;
+          float(AW / 2, AH * d.y - 6, `Row cleared +${(v * scoreK(G.wave)).toLocaleString()}`, COL.chalk, 3.6);
+          for (const s2 of galSpots(row)) burst(s2.x, s2.y, 8, ECOL.target, 30, 0.6, 0.35);
+          shake(1); sfx.chain(Math.min(14, 4 + Gl.rowsCleared)); sfx.collect();
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+  function updateGallery(dt) {
+    const Gl = G.gallery; if (!Gl) return;
+    Gl.streakT -= dt;
+    if (Gl.streakT <= 0 && Gl.streak) { float(Gl.sx, Gl.sy - 4, `+${(Gl.streak * scoreK(G.wave)).toLocaleString()}`, COL.threat, 3.2); Gl.streak = 0; } // the run's total, once it ends
+    for (const row of Gl.rows) {
+      row.pos += row.sp * dt;
+      for (const t of row.targets) { t.flash -= dt; t.k += ((t.up ? 1 : 0) - t.k) * Math.min(1, dt * (t.up ? 9 : 22)); } // flips down fast, springs up with a little overshoot below
+      if (row.clearT > 0) { row.clearT -= dt; if (row.clearT <= 0) { for (const t of row.targets) t.up = true; row.sp *= GAL_FASTER; sfx.rise(row.j); } } // back up, and quicker
+    }
+    if (Gl.done) return;
+    const g = Gl.gold;
+    if (g) { g.t += dt; g.x += g.vx * dt; g.y = g.y0 + Math.sin(g.t * 2.4) * g.amp; if (g.t > GAL_GOLD_T + 0.5) Gl.gold = null; } // it sails across, bobbing, and is gone
+    else if (Gl.golds < GAL_GOLD_AT.length && GAL_TIME - Gl.time >= GAL_GOLD_AT[Gl.golds]) {
+      const side = Math.random() < 0.5 ? -1 : 1, x0 = side < 0 ? -GAL_GOLD_R - 2 : AW + GAL_GOLD_R + 2;
+      Gl.gold = { x: x0, y0: AH * (Math.random() < 0.5 ? 0.255 : 0.425), y: 0, amp: AH * 0.03, // (it flies in the gap between two rows)
+                  t: 0, vx: -side * (AW + 2 * GAL_GOLD_R + 4) / GAL_GOLD_T };
+      Gl.gold.y = Gl.gold.y0; Gl.golds++; sfx.spin(Gl.gold.x);
+    }
+    Gl.time -= dt;
+    if (Gl.time <= 0) { Gl.time = 0; Gl.done = true; Gl.gold = null; }
+  }
+  function finishGallery() {
+    const Gl = G.gallery; if (!Gl) return;
+    G.result = { text: `${Gl.down} targets down`, sub: `Rows cleared ${Gl.rowsCleared} · Golden ducks ${Gl.goldHit}/${Gl.golds}`, t: 2.6, max: 2.6 };
+    for (const ball of liveBalls()) if (ball.b > WARN - 2) { ball.b = WARN - 2; const sp = ballSpeed(ball.b), l = Math.hypot(ball.vx, ball.vy) || 1; ball.vx = ball.vx / l * sp; ball.vy = ball.vy / l * sp; }
+    for (const row of Gl.rows) for (const q of galSpots(row)) if (q.t.up && q.x > -2 && q.x < AW + 2) burst(q.x, q.y, 6, COL.threat, 20, 0.5, 0.3);
+    sfx.repair();
+    G.gallery = null;
+  }
+  // A tin duck in profile, in its own units (R: the target's radius), facing +x; flip the canvas to face it the other way.
+  // flap: undefined for a duck sitting on its rail (its wing a painted line), else -1..1 for a flying one's wingbeat.
+  function drawDuck(R, body, flap) {
+    const shape = () => {
+      ctx.beginPath(); ctx.ellipse(-0.12 * R, 0.22 * R, 0.9 * R, 0.5 * R, 0, 0, Math.PI * 2); // body
+      ctx.moveTo(-0.62 * R, 0.02 * R); ctx.lineTo(-1.12 * R, -0.4 * R); ctx.lineTo(-0.9 * R, 0.32 * R); ctx.closePath(); // its tail, cocked up
+      ctx.moveTo(0.84 * R, -0.38 * R); ctx.arc(0.48 * R, -0.38 * R, 0.36 * R, 0, Math.PI * 2); // head
+    };
+    shape(); ctx.fillStyle = body; ctx.fill(); ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.22; ctx.stroke();
+    ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.moveTo(0.76 * R, -0.47 * R); ctx.lineTo(1.16 * R, -0.36 * R); ctx.lineTo(0.76 * R, -0.25 * R); ctx.closePath(); ctx.fill(); // beak
+    ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(0.56 * R, -0.46 * R, 0.08 * R, 0, Math.PI * 2); ctx.fill(); // eye
+    ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.18; ctx.globalAlpha *= 0.8; ctx.beginPath(); ctx.ellipse(-0.12 * R, 0.22 * R, 0.72 * R, 0.34 * R, 0, Math.PI * 1.1, Math.PI * 1.55); ctx.stroke(); ctx.globalAlpha /= 0.8; // the tin's shine along its back
+    if (flap === undefined) { ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.22; ctx.beginPath(); ctx.moveTo(-0.55 * R, 0.08 * R); ctx.quadraticCurveTo(-0.15 * R, 0.6 * R, 0.28 * R, 0.1 * R); ctx.stroke(); } // a painted wing
+    else { ctx.fillStyle = body; ctx.beginPath(); ctx.moveTo(-0.55 * R, 0.05 * R); ctx.lineTo(0.25 * R, 0.05 * R); ctx.lineTo(-0.5 * R, (0.05 - 1.3 * flap) * R); ctx.closePath(); ctx.fill(); ctx.strokeStyle = COL.chalk; ctx.lineWidth = 0.25; ctx.stroke(); } // a beating wing
+  }
+  function drawGallery() {
+    const Gl = G.gallery; if (!Gl) return;
+    const t0 = G.time;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, AW, AH); ctx.clip(); // (they slide out of sight past the walls)
+    for (const row of Gl.rows) {
+      const d = GAL_ROWS[row.j], y = AH * d.y, base = y + d.r + 2.2;
+      // the rail: a track under the row with ticks running the way it moves
+      ctx.globalAlpha = 0.5; ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.moveTo(0, base); ctx.lineTo(AW, base); ctx.stroke();
+      ctx.globalAlpha = 0.3; ctx.lineWidth = 0.25; ctx.beginPath();
+      const step = 6, off = ((row.pos * row.dir) % step + step) % step;
+      for (let x = off; x < AW; x += step) { ctx.moveTo(x, base + 0.4); ctx.lineTo(x - row.dir * 1.2, base + 1.4); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+      const lit = row.clearT > 0 && Math.floor(t0 * 12) % 2;
+      for (const q of galSpots(row)) {
+        if (q.x < -q.r - 1 || q.x > AW + q.r + 1) continue;
+        const k = Math.max(0.12, q.t.k), R = q.r, duck = row.j > 0, live = q.t.up || q.t.k > 0.3;
+        const bob = duck && q.t.up ? Math.sin(t0 * 7 + q.x * 0.3) * 0.35 : 0; // ducks bob as they ride
+        ctx.strokeStyle = COL.wall; ctx.lineWidth = 0.4; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.moveTo(q.x, base); ctx.lineTo(q.x, q.y + bob + R * (duck ? 0.7 : 1) * k); ctx.stroke(); ctx.globalAlpha = 1; // its post
+        ctx.save(); ctx.translate(q.x, q.y + bob + R * (1 - k)); ctx.scale(1, k); // it tips back flat on its post
+        if (duck) { ctx.translate(0, -R * 0.08); if (row.dir < 0) ctx.scale(-1, 1); drawDuck(R, live ? (lit ? ECOL.target : COL.threat) : COL.dim); } // a tin duck, swimming the way its row runs
+        else { // the top row: small bullseye plates
+          const rings = [[1, lit ? ECOL.target : COL.threat], [0.7, COL.chalk], [0.42, lit ? ECOL.target : COL.threat], [0.16, COL.chalk]];
+          for (const [f, c] of rings) { ctx.fillStyle = live ? c : COL.dim; ctx.beginPath(); ctx.arc(0, 0, R * f, 0, Math.PI * 2); ctx.fill(); }
+          ctx.strokeStyle = COL.ink; ctx.lineWidth = 0.25; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+        }
+        if (q.t.flash > 0) { ctx.globalAlpha = Math.min(1, q.t.flash * 8); ctx.fillStyle = COL.chalk; ctx.beginPath(); ctx.arc(0, 0, R * 1.1, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+        ctx.restore();
+      }
+    }
+    const g = Gl.gold;
+    if (g) { // the golden duck: flying across, wings beating, in a glow with a sparkle trail
+      const c = ECOL.target;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(g.x, g.y, GAL_GOLD_R * 2, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.translate(g.x, g.y); if (g.vx < 0) ctx.scale(-1, 1); ctx.rotate(-0.12 + 0.08 * Math.sin(g.t * 2.4)); // nose up a touch as it climbs
+      drawDuck(GAL_GOLD_R, c, Math.sin(g.t * 16));
+      ctx.restore();
+      if (Math.random() < 0.5) burst(g.x - Math.sign(g.vx) * GAL_GOLD_R, g.y, 1, c, 8, 0.4, 0.3);
+    }
+    ctx.restore();
+    if (Gl.streak && Gl.streakT > 0) { // the running total rides with the hits
+      const sz = 3 + Math.min(1.6, Gl.streakN * 0.15);
+      ctx.fillStyle = COL.threat; ctx.font = `700 ${sz}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(`+${(Gl.streak * scoreK(G.wave)).toLocaleString()}`, Gl.sx, Gl.sy - 5 - sz * 0.3);
+    }
   }
 
   /* ---------- crusher ---------- */
@@ -9613,7 +9817,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       player: { x: AW / 2, y: AH * 0.6, hull: 3, inv: 0, fx: 0, fy: -1, shield: 0, mvx: 0, mvy: 0 },
       balls: [Object.assign(makeBall(), { x: AW / 2, y: AH * 0.6 })],
       enemies: [], tele: [], parts: [], rings: [], floats: [], obstacles: [], bullets: [], drums: [], drumWave: null, storm: null, rockets: [], debris: [], microQueue: [], mechSetup: null, mechDeath: null, squads: [], squadWarn: [], squadPlan: null, shadow: null,
-      shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, coins: null, lucky: null, table: null, siege: null, tbPlan: {}, inv: null, result: null, boss: null, bombs: [],
+      shards: [], flashes: [], wallHits: [], hurtFlash: 0, sparkAcc: 0, multBreak: null, lifeIdx: 0, coins: null, lucky: null, table: null, gallery: null, siege: null, tbPlan: {}, inv: null, result: null, boss: null, bombs: [],
       pickups: [], extras: [], powers: {}, boltQueue: [], bolts: [], shockQueue: [], crush: null, ghosts: [], mortars: [], barrage: [], mortarUp: [],
       arenaTarget: ARENA_START, layoutPending: null, lastLayout: null,
       shake: 0, freeze: 0, dying: 0, banner: null, time: 0, pulling: false,
@@ -9622,6 +9826,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   // startAt: wave to begin on (test buttons); otherwise a link ending in #wave20 (any number) starts there
   function startGame(startAt) {
+    checkpoint = null;
     audioInit();
     if (typeof startAt !== 'number') {
       if (location.hash === '#asteroids') { startAt = 8; forceAsteroids = true; }
@@ -9673,6 +9878,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     mode = 'over'; $('ov-win').hidden = true;
     $('ov-over').querySelector('.big').textContent = done ? 'Run complete' : 'Hull breached';
     $('continue').hidden = !!done; // nothing to continue from a finished run
+    const cp = !done && checkpoint; $('retry').hidden = !cp; $('again').className = cp ? 'btn ghost' : 'btn';
+    if (cp) $('retry').textContent = `Retry from wave ${cp.wave}`;
     if (!G.continued && G.score > best) { best = G.score; try { localStorage.setItem('ricochet.best', best); } catch (e) {} }
     $('o-score').textContent = G.score.toLocaleString();
     $('o-wave').textContent = G.wave;
@@ -9681,11 +9888,32 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     $('continue').textContent = `Continue (wave ${Math.max(1, G.wave)})`;
     $('o-note').hidden = !G.continued;
     $('ov-over').hidden = false;
-    $('again').focus({ preventScroll: true });
+    (cp ? $('retry') : $('again')).focus({ preventScroll: true });
   }
 
+  // Checkpoints: the wave after each boss (11, 21, ... 51, then 61 into the next loop) saves the run as it stands. When
+  // the hull breaks you can retry from there: the score, power-ups and wingmen you had then, the hull refilled. As
+  // often as you like, and it still counts toward Best (the score goes back to what it was, so a retry earns nothing
+  // it didn't). The run's clock keeps counting.
+  let checkpoint = null; // { wave, data }: the run, as JSON, at the start of its last checkpoint wave
+  const isCheckpoint = n => n > 1 && inLoop(n) % 10 === 1;
+  function saveCheckpoint() {
+    if (!G || G.attract || G.train || !isCheckpoint(G.wave)) return;
+    try { checkpoint = { wave: G.wave, data: JSON.stringify({ G, arenaShort }) }; } catch (e) { return; }
+    float(AW / 2, AH * 0.36, 'Checkpoint', COL.chalk, 3.4);
+  }
+  function retryCheckpoint() {
+    if (!checkpoint) return;
+    const clock = G.clock || 0, run = JSON.parse(checkpoint.data);
+    arenaShort = run.arenaShort; computeArena();
+    G = Object.assign(newGame(), run.G); migrateRun(); clampAll(); snapWall();
+    G.player.hull = G.hullMax || HULL_MAX; G.clock = clock; G.retries = (G.retries || 0) + 1;
+    G.banner = { text: `Wave ${G.wave}`, sub: 'Back to the checkpoint', t: 1.8, max: 1.8 };
+    setLoopTint(loopOf(G.wave)); mode = 'play';
+    $('ov-over').hidden = true; $('ov-pause').hidden = true; ptrs.clear(); touchMove = touchAct = null;
+  }
   // Continue: restart the wave you died on with a fresh hull, keeping the score and the milestones already paid out.
-  // Continued runs never set a best.
+  // Continued runs never set a best. (A practice option beside the checkpoint: it starts a new run, so the checkpoint goes.)
   function continueGame() {
     const { wave, score, lifeIdx, continued = 0 } = G;
     startGame(Math.max(1, wave));
@@ -9731,6 +9959,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       setupCoins(cycle);
     } else if (sp === 'lucky') {
       setupLucky(cycle);
+    } else if (sp === 'gallery') {
+      setupGallery(cycle);
     } else if (sp === 'invaders') {
       setupInvaders(cycle);
     } else if (sp === 'titans') {
@@ -10332,11 +10562,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   const ROCK_R = [0, 2.8, 4.8, 7.5], ROCK_PTS = [0, 100, 50, 20];
   let forceAsteroids = false; // the title-screen test button and the #asteroids link
-  // The throwbacks (the Asteroid Field, Bombardment, more to come) only come round by chance: each loop rolls its own
-  // plan, each throwback turning up with TB_CHANCE, on a normal wave in a stretch between two bosses (never a set
-  // piece's, a boss's or one bringing in a new enemy: TB_WAVES), no two in the same stretch. Bombardment only once
-  // you've a second ball. The start menu's tests force them.
-  const TB_WAVES = [[15, 17], [21, 22, 24, 25, 28], [31, 32, 33, 34, 36, 37], [41, 42, 43, 44, 45, 47, 48, 49], [51, 52, 53, 54, 55, 56]], TB_KINDS = ['ast', 'bomb', 'trail', 'maze'], TB_CHANCE = 0.7;
+  // The throwbacks (Asteroid Field, Bombardment, Trail Riders, Labyrinth) only come round by chance: each loop rolls its own
+  // plan, each throwback turning up with TB_CHANCE, on a normal wave in a stretch between two bosses, no two in the same
+  // stretch. TB_WAVES: never a set piece's wave, a boss's or one bringing in a new enemy, and never next to a set piece
+  // (two special waves never run back to back), so none between waves 10 and 20: its only free waves flank Invasion.
+  // Bombardment only once you've a second ball. The start menu's tests force them.
+  const TB_WAVES = [[21, 28], [31, 32, 33], [41, 42, 47, 48, 49], [51, 52, 53, 54, 55, 56]], TB_KINDS = ['ast', 'bomb', 'trail', 'maze'], TB_CHANCE = 0.7;
   function planThrowbacks() {
     const plan = {}, stretches = TB_WAVES.map((w, i) => i).sort(() => Math.random() - 0.5);
     for (const k of TB_KINDS) { if (Math.random() >= TB_CHANCE || !stretches.length) continue; const w = TB_WAVES[stretches.pop()]; plan[w[Math.floor(Math.random() * w.length)]] = k; }
@@ -10742,6 +10973,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           if (t.type === 'tankette') { const d = ENEMY.tankette, hp = d.hp; /* its armour doesn't scale: it's hits, not damage */ Object.assign(e, { tankette: true, r: d.r, hp, maxHp: hp, pts: d.pts, spd: e.spd * d.spd / ENEMY.drifter.spd }); }
           if (t.side !== undefined) { e.side = t.side; e.wt = t.wt; }
           if (t.march) e.march = t.march;
+          if (t.fodder) e.fodder = true;
           if (G.crush && e.type !== 'turret') pushOut(e, e.r);
           if (e.type === 'warden') { G.banner = { text: 'Warden', sub: 'Kill it to drop the shields', t: 1.6, max: 1.6, top: true }; sfx.boss(); }
           G.enemies.push(e);
@@ -10750,19 +10982,19 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     }
     if (G.between === null) {
-      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.table && !G.table.done) && !(G.clutchWave && G.clutchWave.n > 0) && !G.chest && !(G.inv && !G.inv.landed && (G.inv.round || 1) < INV_ROUNDS) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm && !G.mechDeath && !(G.bomb && !G.bomb.done) && !(G.riders && !G.riders.done) && !(G.maze && !G.maze.done)) {
+      if (!G.spawnQueue.length && !G.tele.length && !G.enemies.length && !(G.coins && !G.coins.done) && !(G.lucky && !G.lucky.done) && !(G.gallery && !G.gallery.done) && !(G.table && !G.table.done) && !(G.clutchWave && G.clutchWave.n > 0) && !G.chest && !(G.inv && !G.inv.landed && (G.inv.round || 1) < INV_ROUNDS) && !G.boss && !G.geoDeath && !G.vexaDeath && !G.mawDeath && !G.tankDeath && !G.storm && !G.mechDeath && !(G.bomb && !G.bomb.done) && !(G.riders && !G.riders.done) && !(G.maze && !G.maze.done)) {
         if (inLoop(G.wave) === LOOP_LEN && G.winShown !== G.wave && !G.attract) { // the loop's finale is down
           if (!G.result) showWin(); // once its banner has had its moment
           return;
         }
-        finishCoins(); finishLucky(); finishTable();
+        finishCoins(); finishLucky(); finishTable(); finishGallery();
         const next = G.wave + 1;
         G.between = G.wave === 0 ? 0.9 : 1.8; // waves with something to read wait long enough to read it (set with the banner below)
         G.arenaTarget = arenaFor(next);
         crumbleBricks(); crumbleSiege(); finishInvaders(); finishBomb(); finishRiders(); finishMaze();
         G.drumWave = null; G.clutchWave = null; for (const d of G.drums) d.gone = true; // the fuel drums fade away
         G.squadPlan = null; G.squadWarn = []; G.shadow = null; G.mechSetup = null; G.rockets = []; G.debris = []; G.mortars = []; G.barrage = []; G.mortarUp = [];
-        if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
+        if (next >= OBSTACLES_FROM) { G.obstacles.forEach(o => { o.dying = true; }); G.layoutPending = ['crusher', 'crusher2', 'bonus', 'coins', 'invaders', 'lucky', 'gallery'].includes(setPiece(next)) || bossFor(next) ? null : layoutFor(next); }
         if (G.wave > 0 && !G.skipBonus) {
           if (G.lastAsteroids === G.wave && !G.tbBonus) tbClear(loopOf(G.wave)); // the Asteroid Field cleared: a throwback's clear bonus, like the others
           const bonus = 100 * G.wave + (G.tbBonus || 0); G.tbBonus = 0;
@@ -10792,7 +11024,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         G.obstacles.push(...LAYOUTS[G.layoutPending].map(([fx, fy, w, h, round]) => ({ fx, fy, w, h, round: !!round, a: 0, dying: false, flash: 0 })));
         G.lastLayout = G.layoutPending; G.layoutPending = null;
       }
-      if (G.between <= 0) { G.between = null; startWave(G.wave + 1); }
+      if (G.between <= 0) { G.between = null; startWave(G.wave + 1); saveCheckpoint(); }
     }
   }
 
@@ -10974,7 +11206,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   // overload is off during the bonus rounds and pinball: the ball tops out at full speed, with no overload warnings
-  const safeRound = () => !!(G && (G.coins || G.table || G.lucky));
+  const safeRound = () => !!(G && (G.coins || G.table || G.lucky || G.gallery));
   // wall: 'L' | 'R' | 'T' | 'B' for arena walls (lights the wall at the impact), omitted for blocks
   // Turrets are easy to miss on the wall: the ball's reach on one is TURRET_REACH of its size, and a bounce off the
   // wall within TURRET_BANK of one hits it too (full damage, on the chain).
@@ -11354,6 +11586,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (G.inv && bunkerHit(x, r) === 'bounce') bounced = true;
         if (G.coins) { coinHit(x, r); if (giantHit(x, r)) bounced = true; }
         if (G.lucky && luckyHit(x, r)) bounced = true;
+        if (G.gallery && galleryHit(x, r)) bounced = true;
         if (G.boss && ballBoss(x, r, x.b) === 'bounce') bounced = true;
         if (G.drums.length && drumHit(x, r, x.b)) bounced = true;
         if (bounced) {
@@ -11528,6 +11761,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (G.inv && bunkerHit(ball, r) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.coins) { coinHit(ball, r); if (giantHit(ball, r)) { chargeBounce(ball); if (ball.state !== 'live') break; } }
       if (G.lucky && luckyHit(ball, r)) { chargeBounce(ball); if (ball.state !== 'live') break; }
+      if (G.gallery && galleryHit(ball, r)) { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.boss && ballBoss(ball, r, ball.b) === 'bounce') { chargeBounce(ball); if (ball.state !== 'live') break; }
       if (G.drums.length && drumHit(ball, r, ball.b)) { chargeBounce(ball); if (ball.state !== 'live') break; }
 
@@ -11985,7 +12219,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     processShocks();
     const ws = (G.powers.warp > 0 ? WARP_SCALE : 1) * overdrive(G.wave); // Time Warp slows them; Overdrive (later loops) speeds them up
     setTellK(overdrive(G.wave)); // ...but not their warnings
-    updateCoins(dt); updateLucky(dt); updateTable(dt);
+    updateCoins(dt); updateLucky(dt); updateTable(dt); updateGallery(dt);
     if (G.inv) updateInvaders(dt * ws);
     if (G.bomb) updateBomb(dt * ws);
     if (G.riders) updateRiders(dt * ws);
@@ -12340,6 +12574,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     drawHurt();
     drawTouch();
     drawTrainHints();
+    drawTableHold();
   }
 
   function drawScene() {
@@ -12384,6 +12619,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     drawInvasion(); drawBomb(); drawRiders(); drawMaze();
     drawCoins();
     drawLucky();
+    drawGallery();
     drawTable();
 
     // obstacles
@@ -13002,6 +13238,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = ECOL.swarm;
       ctx.fillText(`SWARM STORM  ${Math.ceil(G.storm.t)}s`, AW / 2, 5);
     }
+    if (G.gallery && !G.attract) {
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = COL.threat;
+      ctx.fillText(`TARGET GALLERY  ${Math.ceil(G.gallery.time)}s   ${G.gallery.down} down   rows ${G.gallery.rowsCleared}`, AW / 2, 5);
+    }
     if (G.lucky && !G.attract) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = ECOL.target;
       ctx.fillText(`LUCKY BLOCKS  ${Math.ceil(G.lucky.time)}s   ${G.lucky.coins} coins   ${G.lucky.spent}/${G.lucky.lucky} emptied`, AW / 2, 5);
@@ -13373,6 +13613,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   $('play').addEventListener('click', startChosen);
   $('again').addEventListener('click', startChosen);
   $('continue').addEventListener('click', continueGame);
+  $('retry').addEventListener('click', retryCheckpoint);
   $('nextLoop').addEventListener('click', () => { audioInit(); nextLoop(); });
   $('endRun').addEventListener('click', () => gameOver(true));
   $('resume').addEventListener('click', () => { audioInit(); setPaused(false); });
@@ -13410,8 +13651,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       slowFrames = frameEma > 24 ? slowFrames + raw : 0; // (how long, in ms, it's been running slow)
       if (slowFrames > 1500 && quality > 0) { quality--; slowFrames = 0; frameEma = 16; buildGrid(); sizeBloom(); } // (a slow phone steps its glow down after a second and a half of it, however few frames that is)
     }
-    if (G && mode === 'play' && !G.attract && !G.train && !document.hidden) G.clock = (G.clock || 0) + Math.min(raw, 250) / 1000; // the run's clock: time played (not paused, not training)
-    if (G && (mode === 'play' || G.attract) && !(G.train && G.train.box)) step(dt); // (training's text box stops the world)
+    const held = tableHeld();
+    if (G && mode === 'play' && !G.attract && !G.train && !document.hidden && !held) G.clock = (G.clock || 0) + Math.min(raw, 250) / 1000; // the run's clock: time played (not paused, not training)
+    if (G && (mode === 'play' || G.attract) && !(G.train && G.train.box) && !held) step(dt); // (training's text box stops the world, and so does a sideways phone at Pinpong)
     else if (G && (mode === 'over' || mode === 'win')) { G.time += dt; G.shake *= Math.exp(-9 * dt); stepFx(dt); }
     render();
     updateHud(); showTrainUI();
@@ -13421,7 +13663,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   function start(data) {
     if (data && data.best) best = Math.max(best, data.best);
     layout(); laidOut = true;
-    if (!(data && data.run && restoreRun(data.run))) {
+    if (data && data.run && restoreRun(data.run)) checkpoint = data.checkpoint || null;
+    else {
       startAttract();
       $('play').focus({ preventScroll: true });
     }
@@ -13474,6 +13717,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   window.claude?.hot?.snapshot?.(() => ({
     best,
     run: G && !G.attract && !G.train && G.dying <= 0 && (mode === 'play' || mode === 'paused' || mode === 'win') ? { G, arenaShort } : null,
+    checkpoint: G && !G.attract && !G.train && G.dying <= 0 && (mode === 'play' || mode === 'paused' || mode === 'win') ? checkpoint : null,
   }));
   window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
 
