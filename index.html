@@ -44,7 +44,7 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 20 14:15 UTC · 9808f14";</script>
+<script>window.RICOCHET_BUILD = "Nov 23 16:11 UTC · 74e8846";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -164,6 +164,10 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; t
 #mult.drop { animation: drop 0.5s ease-out; }
 @keyframes drop { 0%, 40% { color: var(--hot); } 10% { transform: translateX(-4px); } 20% { transform: translateX(4px); } 30% { transform: translateX(-2px); } 100% { transform: none; } }
 @keyframes bump { 0% { transform: scale(1.7); color: var(--gold); } 100% { transform: scale(1); } }
+.hull i.up { animation: hullUp 1.3s ease-out; } /* a milestone's repair: the slot that fills pops gold, big, and settles */
+@keyframes hullUp { 0%, 25% { transform: scale(1.7); border-color: var(--gold); background: var(--gold); box-shadow: 0 0 12px var(--gold); } 100% { transform: scale(1); } }
+#nextLife.up { animation: lifeUp 1.3s ease-out; } /* ...and the next milestone's line flashes gold as it moves on */
+@keyframes lifeUp { 0%, 45% { color: var(--gold); } }
 .hull.gain i { animation: hullGain 1.4s ease-out; } /* a chest's hull reward: every slot flashes gold, big, and settles */
 @keyframes hullGain { 0%, 20% { transform: scale(1.6); border-color: var(--gold); background: var(--gold); box-shadow: 0 0 10px var(--gold); } 100% { transform: scale(1); } }
 
@@ -355,7 +359,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <ul class="rules">
       <li><b>+1</b><span>Each bounce off a wall or obstacle adds 1 Charge to your ball, increasing its damage. Enemy health is written at its center.</span></li>
       <li><b>↶</b><span>Hold pull to bend the ball toward you.</span></li>
-      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the Charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.<br>Getting hit resets your multiplier.<br>Bonus rounds (Pinpong, Coin Rush, Lucky Blocks, Target Gallery) pay at the multiplier you bring in.</span></li>
+      <li><b>×</b><span>Chain kills to increase your score multiplier. The higher the Charge, the higher the score.<br>Chain 10 kills to shield your ship for 5 seconds.<br>Getting hit resets your multiplier.<br>Bonus rounds (Coin Rush, Pinpong, Lucky Blocks, Target Gallery) pay at the multiplier you bring in.</span></li>
       <li><b>◇</b><span>Pull the ball until it reaches your ship to catch it. A catch removes 5 Charge and the ball keeps the rest; while you hold it, it loses 1 Charge per second.</span></li>
       <li><b>⁂</b><span>Bosses grant rewards: a Wingman or extra Hull, and Capsules.<br><em>Wingman:</em> a smaller ball that follows every throw. You can bend it, but you can’t catch it. It comes home when you catch your main ball. It only overloads when your main ball overloads.<br><em>Hull:</em> your ship’s health.<br><em>Capsules:</em> Capsules contain power-ups. Sometimes dropped by enemies, too. Hit one with your ball to collect it. The more Charge your ball has, the longer and/or stronger the power-up. <button class="linkbtn powersBtn" type="button">See the power-ups section</button></span></li>
       <li><b>♥</b><span>Score milestones repair one Hull point, up to your Hull's cap. The next milestone is displayed under your Hull.<br>Beating a boss sets a checkpoint. If your Hull breaks later, you can retry from the wave after that boss with a full Hull and the score you had there.</span></li>
@@ -538,7 +542,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // HOLD_COOL seconds. (An overload still costs it all.)
   const CATCH_COST = 5, HOLD_COOL = 1;
   const BLAST_R = 26, MULT_MAX = 10, CHAIN_STEP = 0.1; // each kill adds CHAIN_STEP × its place in this throw's chain
-  const bonusMult = () => Math.max(1, G.mult); // the bonus rounds (Pinpong, Coin Rush, Lucky Blocks, Target Gallery) pay at the multiplier you bring in: there's nothing to chain in them
+  const bonusMult = () => Math.max(1, G.mult); // the bonus rounds (Coin Rush, Pinpong, Lucky Blocks, Target Gallery) pay at the multiplier you bring in: there's nothing to chain in them
   // Power-up capsules: dropped by kills, collected only by the ball; charge sets duration (and shockwave size).
   const DROP_CHANCE = 0.1, CHAIN_DROP = 5, PICKUP_MAX = 3, PICKUP_R = 3.6; // capsules stay until the ball collects them
   const powerTime = b => 3.3 + 0.5 * b;
@@ -547,12 +551,20 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   const BIG_SCALE = 2; // Wrecking Ball: twice the hit size (the catch distance stays the same so catching feels unchanged),
   // and an enemy it can't kill doesn't stop it: it takes the hit and is knocked aside, and the ball smashes on through
   // (a shield, a stone or a boss still turns it)
-  const WRECK_KNOCK = 45;
+  const WRECK_KNOCK = 45, WRECK_SHOVE = 0.25;
   const wrecking = () => G.powers.big > 0;
-  // a smashed-through enemy can't be hit again until the ball's clear of it
-  const wreckCd = (o, rr, er) => Math.max(0.12, 2 * (rr + er) / Math.max(1, Math.hypot(o.vx, o.vy)) + 0.04);
+  // One hit per pass: a smashed-through enemy can't be hit again by that ball until the ball is clear of it, however long
+  // that takes (a slow ball, or one bent by the pull, can take a while). It's knocked aside, out of the ball's path, with
+  // a little shove the way the ball's going.
+  const wreckIn = new WeakMap(); // enemy -> the balls passing through it right now
+  const wreckInside = (e, o) => { const s = wreckIn.get(e); return !!(s && s.has(o)); };
+  const wreckOut = (e, o) => { const s = wreckIn.get(e); if (s) s.delete(o); };
   function wreckHit(o, e, nx, ny) { // (nx, ny: from the enemy toward the ball)
-    e.vx -= nx * WRECK_KNOCK; e.vy -= ny * WRECK_KNOCK;
+    let s = wreckIn.get(e); if (!s) wreckIn.set(e, s = new Set()); s.add(o);
+    const l = Math.hypot(o.vx, o.vy) || 1, ux = o.vx / l, uy = o.vy / l, along = -nx * ux - ny * uy; // the ball's heading; how far ahead of it the enemy sits
+    let sx = -nx - along * ux, sy = -ny - along * uy, sl = Math.hypot(sx, sy); // the enemy's side of the path...
+    if (sl < 0.2) { const side = Math.random() < 0.5 ? 1 : -1; sx = -uy * side; sy = ux * side; sl = 1; } // (dead centre: either side)
+    e.vx += (sx / sl + ux * WRECK_SHOVE) * WRECK_KNOCK; e.vy += (sy / sl + uy * WRECK_SHOVE) * WRECK_KNOCK; // ...is where it goes
     burst(e.x, e.y, 8, heat(o.b), 35, 0.5, 0.3); ring(e.x, e.y, e.r, e.r + 4, 0.2, heat(o.b), 0.6); shake(0.6); sfx.hit(e.x); sfx.clank();
   }
   const bigK = () => G.powers.big > 0 ? BIG_SCALE : 1;
@@ -594,7 +606,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     2: 'Brutes take several hits',
     3: 'Dashers wind up, then lunge',
     4: 'Blocks bounce the ball and add Charge. Splitters break in two',
-    5: 'Pinpong! Your ship is the paddle. Keep the ball in play, smash all the targets and claim the jackpot!',
+    13: 'Pinpong! Your ship is the paddle. Keep the ball in play, smash all the targets and claim the jackpot!',
     6: 'Turrets stick to the wall and fire shots in your direction',
     7: 'Swarms: small and fast. Chain them for a big multiplier',
     8: 'Magnets pull your ball toward them. Fuel drums: hit one to blow up everything near it',
@@ -607,7 +619,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     39: 'Crusher II: the walls close in from all four sides now, and faster',
     44: 'Target Gallery: knock the targets flat. The hotter your ball, the more each one pays. Clear a row for a bonus, and catch the golden duck if you can',
     35: 'Lucky Blocks: every hit on a ! block pops coins. The hotter your ball, the more you earn. Empty them all for the jackpot',
-    13: 'Coin Rush: hit every coin for a jackpot. Smash the giant coins before they disappear: the more Charge your ball carries, the bigger the payout',
+    5: 'Coin Rush: hit every coin for a jackpot. The more Charge your ball carries, the more every coin pays. Smash the giant coins before they disappear',
     20: 'The Serpent: crack its armor plates, then hit the glowing cores inside',
     16: 'Invasion: three formations, one after another. Break each before it lands',
     27: 'Fighter squadrons: one hit each',
@@ -625,7 +637,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     38: 'Crusher: brick walls close in. Break them to push them back',
   };
   // Set pieces, at the same waves in every loop (bigger each time round).
-  const SET_AT = { 5: 'bonus', 13: 'coins', 16: 'invaders', 23: 'storm', 26: 'titans', 35: 'lucky', 38: 'crusher', 39: 'crusher2', 44: 'gallery' };
+  const SET_AT = { 5: 'coins', 13: 'bonus', 16: 'invaders', 23: 'storm', 26: 'titans', 35: 'lucky', 38: 'crusher', 39: 'crusher2', 44: 'gallery' };
   const SET_NAMES = { bonus: 'Pinpong', coins: 'Coin Rush', invaders: 'Invasion', storm: 'Swarm Storm', titans: 'Titans', crusher: 'Crusher', crusher2: 'Crusher II', lucky: 'Lucky Blocks', gallery: 'Target Gallery' };
   const setPiece = n => SET_AT[inLoop(n)] || null;
   const monolithIntro = () => 14; // the first normal wave with Monoliths
@@ -8350,7 +8362,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
 
   /* ---------- pinball table ---------- */
-  // Wave 5 is a pinball table played by Ricochet's own rules, with gravity: the ball always falls back toward the
+  // Wave 13 is a pinball table played by Ricochet's own rules, with gravity: the ball always falls back toward the
   // bottom (TABLE_GRAV). The ship rides a rail across the bottom and slides left and right: it's the flipper. A falling
   // ball that meets it bounces back up the table, angled by where it hits (TABLE_FLIP; off its nose it goes straight
   // up, off its edges out to the sides); hold the pull to catch it instead, and aim and throw as usual. Miss it and the
@@ -8873,7 +8885,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   /* ---------- coin rush ---------- */
   // The arena is laid out with coins and a clock. Only balls collect them (Multiball ghosts too), vacuuming up a lane
-  // COIN_PICK wide as they pass; steering with the pull is the whole skill. Every coin scores; collect them all for a
+  // COIN_PICK wide as they pass; steering with the pull is the whole skill. Every coin scores, more the hotter the ball
+  // (overload's off, so heat it up on the walls first); collect them all for a
   // jackpot. As the field thins, the stragglers swell and glow so they can be found. Overload is off; nothing can hurt you.
   // Three times a round a giant coin drifts down from the top. The ball bounces off it (and charges) and deals its
   // damage (1 + charge) to it; it takes GIANT_FALL seconds to cross the arena, whatever its height; every hit knocks loose a spray of coins, more for a harder hit. Break it before it falls
@@ -8881,7 +8894,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // they burst out, hang a beat, then stream into the score (COIN_PTS each). Only the layout's coins count for the jackpot.
   // The coins come in a designed layout, picked at random each visit: target rings, curving lanes, a spiral or
   // clusters - shapes to sweep with a curved pull. Big coins, a wide pick-up reach, each worth 25.
-  const COIN_TIME = 30, COIN_R = 2.2, COIN_PICK = 3.6, COIN_STEP = 6, COIN_PTS = 20, COIN_JACKPOT = 3000; // (× your multiplier: a full sweep at ×10 pays about as well as the waves round it)
+  const COIN_TIME = 30, COIN_R = 2.2, COIN_PICK = 3.6, COIN_STEP = 6, COIN_PTS = 12, COIN_JACKPOT = 6000; // (a coin × (1 + the ball's Charge) × your multiplier: a full sweep with a hot ball pays a couple of waves' worth)
   const COIN_LAYOUTS = ['rings', 'lanes', 'spiral', 'clusters'];
   // The collect: coins within COIN_PULL of a ball slide toward it (a magnet); the ones it reaches fly into it, shrinking,
   // with a ping that climbs the scale as the streak goes on and a pop at the ball.
@@ -8934,7 +8947,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       C.flying.push({ x: c.x, y: c.y, spin: c.spin, o, t: 0 }); // it flies into the ball (drawn by drawCoins)
     }
     if (!n) return;
-    const pts = Math.round(COIN_PTS * (C.cycle + 1) * n * bonusMult());
+    const pts = Math.round(COIN_PTS * (1 + (o.b || 0)) * (C.cycle + 1) * n * bonusMult()); // (× 1 + Charge, like a kill: a hot ball sweeping pays)
     if (C.streakT <= 0) C.streakN = 0;
     C.got += n; G.score += pts; C.streak += pts; C.streakT = 0.6; C.sx = o.x; C.sy = o.y; C.streakN += n; C.pop = 0.12;
     sfx.coin(C.streakN);
@@ -9100,12 +9113,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 
   /* ---------- lucky blocks ---------- */
   // Rows of blocks float over the top of the arena. Plain bricks break in one hit. "!" blocks never break: every hit
-  // bumps the block and pops coins out of its top, one plus one per point of the ball's charge, scored on the spot,
-  // and the hit spends one of that charge. After LUCKY_HITS hits a "!" block is emptied and shatters in a shower of
-  // coins, opening the way to the ones behind. The ball always bounces off a block; walls and bricks charge it as
-  // usual, so the play is heating the ball up and cashing it in. The rows fill most of the arena, down to LUCKY_FILL. LUCKY_POWER of the "!" blocks hide a power-up in their first hit. Empty every "!" block for
+  // bumps the block and pops coins out of its top, one plus one per point of the ball's charge, scored on the spot.
+  // After LUCKY_HITS hits a "!" block is emptied and shatters in a shower of coins, opening the way to the ones behind.
+  // The ball always bounces off a block, and every bounce charges it as usual (an earlier version had each "!" hit
+  // spend a charge; with the bricks gone that held the ball stuck at one charge, which read as a bug), so a hot ball
+  // rattling through the blocks is the play. The rows fill most of the arena, down to LUCKY_FILL. LUCKY_POWER of the "!" blocks hide a power-up in their first hit. Empty every "!" block for
   // the jackpot. Overload is off; nothing can hurt you.
-  const LUCKY_TIME = 40, LUCKY_BS = 6.4, LUCKY_HITS = 2, LUCKY_COIN = 25, LUCKY_JACKPOT = 5000, LUCKY_POWER = 2, LUCKY_POP_MAX = 220;
+  const LUCKY_TIME = 40, LUCKY_BS = 6.4, LUCKY_HITS = 2, LUCKY_COIN = 12, LUCKY_JACKPOT = 5000, LUCKY_POWER = 2, LUCKY_POP_MAX = 220;
   const LUCKY_RUNS = ['BB!BB', '!', 'B!B!B', '!!!', 'B!!B', '!B!', 'B!B', '!!', '!B!B!'], LUCKY_FILL = 0.74, LUCKY_ROW = 2.6; // runs of blocks laid along each row
   const luckyRect = k => ({ x0: k.x - LUCKY_BS / 2, x1: k.x + LUCKY_BS / 2, y0: k.y - LUCKY_BS / 2, y1: k.y + LUCKY_BS / 2 });
   function setupLucky(cycle) {
@@ -9130,8 +9144,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.lucky = { time: LUCKY_TIME, cycle, blocks, pops: [], coins: 0, lucky: blocks.filter(k => k.kind === 'lucky').length, spent: 0, done: false,
                 streak: 0, streakT: 0, streakN: 0, sx: 0, sy: 0 };
   }
-  // Ball (or extra) against the blocks: bounce off the one it's deepest into, and hit it. True when the hit charges
-  // the ball (the caller adds it); a "!" block's hit spends a charge instead.
+  // Ball (or extra) against the blocks: bounce off the one it's deepest into, and hit it. True on a hit (the caller adds
+  // the charge).
   function luckyHit(o, r) {
     const L = G.lucky; if (!L || L.done) return false;
     let k = null, h = null;
@@ -9162,7 +9176,6 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         for (let i = 0; i < Math.min(n, 18) && L.pops.length < LUCKY_POP_MAX; i++)
           L.pops.push({ x: k.x + rand(-1.4, 1.4), y: k.y - LUCKY_BS / 2, vx: rand(-12, 12) * (1 + n * 0.04), vy: -rand(34, 48) - n * 1.2, t: 0, spin: rand(0, 6) });
         G.score += pts; L.coins += n;
-        if (o.b > 0) { o.b--; const sp = ballSpeed(o.b), l = Math.hypot(o.vx, o.vy) || 1; o.vx = o.vx / l * sp; o.vy = o.vy / l * sp; } // cashing in cools the ball
         if (L.streakT <= 0) L.streakN = 0;
         L.streak += pts; L.streakT = 0.6; L.streakN++; L.sx = k.x; L.sy = k.y - LUCKY_BS;
         sfx.coin(Math.min(16, L.streakN + Math.floor(n / 3)));
@@ -9184,7 +9197,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       }
     } else sfx.bump(); // a spent block: just a thud
     gridImpulse(k.x, k.y, 8, 20);
-    return kind !== 'lucky';
+    return true;
   }
   function updateLucky(dt) {
     const L = G.lucky; if (!L) return;
@@ -9401,8 +9414,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   /* ---------- crusher ---------- */
   // Brick walls grow from the two long walls, squeezing the short side. Each wall is a row of columns; each column is
   // a stack of bricks from the wall inward. A new layer slides in at the wall every few seconds and pushes the stack in;
-  // breaking a brick lets everything behind it slide back. The ball smashes through when its damage covers the brick's
-  // HP, otherwise it chips it and bounces off (+1 charge, like a wall). Bricks score but never touch the multiplier.
+  // breaking a brick lets everything behind it slide back. The ball breaks a brick when its damage covers the brick's
+  // HP, otherwise it chips it; either way it bounces off (+1 charge, like a wall): it used to smash on through a brick it
+  // broke, and with loop-one bricks at 1-3 HP that let any warm ball fly straight through the walls. Bricks score but
+  // never touch the multiplier.
   // The walls aren't there when the wave starts: the first layer slides in CRUSH_GO after your first throw (or after
   // CRUSH_WAIT of play if you hold on to the ball), then one every interval.
   const BRICK_T = 3.6, BRICK_W = 8.5, BRICK_GAP = 0.35, CRUSH_MIN_GAP = 3, CRUSH_WAIT = 4, CRUSH_GO = 0.8;
@@ -9454,11 +9469,11 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     nearBricks(o.x, o.y, (side, c, k, br) => {
       const h = hitRect(o.x, o.y, r, brickRect(side, c, k));
       if (!h) return false;
-      if (1 + b >= br.hp) { breakBrick(side, c, k, b, true); res = 'break'; return true; }
-      br.hp -= 1 + b; br.flash = 0.15;
       o.x += h.nx * h.depth; o.y += h.ny * h.depth;
       const dot = o.vx * h.nx + o.vy * h.ny;
       if (dot < 0) { o.vx -= 2 * dot * h.nx; o.vy -= 2 * dot * h.ny; res = 'bounce'; }
+      if (1 + b >= br.hp) breakBrick(side, c, k, b, true); // it breaks, and the ball still bounces off it (a wall's a wall)
+      else { br.hp -= 1 + b; br.flash = 0.15; }
       return true;
     });
     return res;
@@ -9560,6 +9575,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       for (let k = have; k < S.drum && fresh.length; k++) fresh.splice(Math.floor(Math.random() * fresh.length), 1)[0].drum = true;
     }
     S.ref = null;
+    if (n) for (const o of G.balls.filter(q => q.state === 'live').concat(G.extras)) pushOutSiege(o, ballR(o.b)); // a ball the new layer lands on is pushed out the inner face, not left inside the wall
     if (n && !quiet) { if (S.skin === 'brick') { sfx.advance(); shake(0.5); } else { sfx.crystalGrow(); shake(0.35); } }
     return n;
   }
@@ -9597,11 +9613,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     siegeNear(S, o.x, o.y, r, (side, c, k, cell, R0) => { const hq = hitRect(o.x, o.y, r, R0); if (hq && (!h || hq.depth > h.depth)) { hit = [side, c, k, cell, R0]; h = hq; } return false; });
     if (!hit) return '';
     const [side, c, k, cell, R0] = hit, dot = o.vx * h.nx + o.vy * h.ny;
-    if (S.skin === 'brick' && 1 + b >= cell.hp) { siegeBreak(side, c, k, b, true); return 'break'; }
     o.x += h.nx * h.depth; o.y += h.ny * h.depth;
     if (dot >= 0) return '';
     o.vx -= 2 * dot * h.nx; o.vy -= 2 * dot * h.ny;
-    if (S.skin === 'brick') { cell.hp -= 1 + b; cell.flash = 0.15; return 'bounce'; }
+    if (S.skin === 'brick') { if (1 + b >= cell.hp) siegeBreak(side, c, k, b, true); else { cell.hp -= 1 + b; cell.flash = 0.15; } return 'bounce'; } // breaks or chips, and bounces either way
     if (o.lit) o.fuse = FUSE_TIME; // crystals keep a hot ball from overloading
     if (cell.drum) { siegeBreak(side, c, k, b, false); geoDrumBlow((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2, b); return 'bounce'; }
     if (cell.orb) { siegeBreak(side, c, k, b, false); geoOrbHit((R0.x0 + R0.x1) / 2, (R0.y0 + R0.y1) / 2, 1 + b); return 'bounce'; }
@@ -11127,14 +11142,17 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     while (G.score >= milestone(G.lifeIdx)) {
       G.lifeIdx++;
       const p = G.player;
+      const pop = el => { if (!el) return; el.classList.remove('up'); void el.offsetWidth; el.classList.add('up'); setTimeout(() => el.classList.remove('up'), 1400); }; // (restarts the HUD's animation)
+      pop($('nextLife'));
       if (p.hull < (G.hullMax || HULL_MAX)) {
         p.hull++;
-        float(p.x, p.y + 9, 'Hull +1', COL.chalk, 3.2);
-        ring(p.x, p.y, PLAYER_R, PLAYER_R + 10, 0.5, COL.chalk, 0.7);
+        pop($('hull').children[p.hull - 1]); // the slot that just filled
+        float(p.x, p.y - 10, 'Hull +1', GOLD(), 4.2); // (above the ship, clear of a thumb)
+        ring(p.x, p.y, PLAYER_R, PLAYER_R + 12, 0.55, GOLD(), 1); ring(p.x, p.y, PLAYER_R, PLAYER_R + 7, 0.4, COL.chalk, 0.8);
         gridImpulse(p.x, p.y, 16, 60);
         sfx.repair();
       } else {
-        float(p.x, p.y + 9, 'Hull full', COL.dim, 2.8);
+        float(p.x, p.y - 10, 'Hull full', COL.dim, 2.8);
       }
     }
   }
@@ -11607,16 +11625,16 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
             if (h) { x.x += h.nx * h.depth; x.y += h.ny * h.depth; const dot = x.vx * h.nx + x.vy * h.ny; if (dot < 0) { x.vx -= 2 * dot * h.nx; x.vy -= 2 * dot * h.ny; } }
             continue;
           }
-          if (e.hitCd > 0) continue;
           const dx = x.x - e.x, dy = x.y - e.y, d = Math.hypot(dx, dy);
-          if (d >= r + turretReach(e)) continue;
+          if (d >= r + turretReach(e)) { wreckOut(e, x); continue; }
+          if (e.hitCd > 0 || wreckInside(e, x)) continue;
           const dmg = 1 + x.b, shielded = isImmune(e);
           if (!shielded) queueShock(e.x, e.y, x.b);
           if (!shielded && e.hp <= hitFor(e, dmg)) { kill(i, x.b); continue; }
           if (!shielded) { e.hp -= hitFor(e, dmg); e.flash = 0.1; if (e.tankette) armourClank(e); } else if (e.wl > 0) popShield(e);
           e.hitCd = 0.12;
           const nx = d > 0 ? dx / d : 1, ny = d > 0 ? dy / d : 0, dot = x.vx * nx + x.vy * ny;
-          if (!shielded && wrecking()) { e.hitCd = wreckCd(x, r, turretReach(e)); wreckHit(x, e, nx, ny); continue; } // Wrecking Ball
+          if (!shielded && wrecking()) { wreckHit(x, e, nx, ny); continue; } // Wrecking Ball
           if (dot < 0) { x.vx -= 2 * dot * nx; x.vy -= 2 * dot * ny; }
           x.x = e.x + nx * (e.r + r + 0.05); x.y = e.y + ny * (e.r + r + 0.05);
           sfx.hit(e.x);
@@ -11799,12 +11817,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
           if (dot < 0) { ball.vx -= 2 * dot * h.nx; ball.vy -= 2 * dot * h.ny; e.flash = 0.12; chargeBounce(ball); if (ball.state !== 'live') break; }
           continue;
         }
-        if (e.hitCd > 0) continue;
         let ex = e.x, ey = e.y, er = turretReach(e);
         if (e.segs) for (const [sx, sy, sr] of e.segs) if (Math.hypot(ball.x - sx, ball.y - sy) - sr < Math.hypot(ball.x - ex, ball.y - ey) - er) { ex = sx; ey = sy; er = sr; } // a snake: its tail's a target too
         const dx = ball.x - ex, dy = ball.y - ey, d = Math.hypot(dx, dy);
         const rr = ballR(ball.b) * bigK();
-        if (d >= rr + er) continue;
+        if (d >= rr + er) { wreckOut(e, ball); continue; }
+        if (e.hitCd > 0 || wreckInside(e, ball)) continue; // (a Wrecking Ball hits each enemy once per pass through it)
         const dmg = 1 + ball.b, shielded = isImmune(e);
         if (!shielded) queueShock(e.x, e.y, ball.b);
         const rock = e.type === 'rock';
@@ -11816,7 +11834,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
         if (!shielded) { e.hp -= hitFor(e, dmg); e.flash = 0.1; if (e.tankette) armourClank(e); }
         e.hitCd = 0.12;
         const nx = d > 0 ? dx / d : 1, ny = d > 0 ? dy / d : 0;
-        if (!shielded && wrecking()) { e.hitCd = wreckCd(ball, rr, er); wreckHit(ball, e, nx, ny); if (rock) { chargeBounce(ball); if (ball.state !== 'live') break; } continue; } // Wrecking Ball: straight on through
+        if (!shielded && wrecking()) { wreckHit(ball, e, nx, ny); if (rock) { chargeBounce(ball); if (ball.state !== 'live') break; } continue; } // Wrecking Ball: straight on through
         const dot = ball.vx * nx + ball.vy * ny;
         if (dot < 0) { ball.vx -= 2 * dot * nx; ball.vy -= 2 * dot * ny; }
         ball.x = ex + nx * (er + rr + 0.05); ball.y = ey + ny * (er + rr + 0.05);
