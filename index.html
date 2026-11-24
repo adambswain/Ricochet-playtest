@@ -44,11 +44,11 @@
 </script>
 </head>
 <body>
-<script>window.RICOCHET_BUILD = "Nov 24 16:25 UTC · 575c2ed";</script>
+<script>window.RICOCHET_BUILD = "Nov 24 18:09 UTC · 20a7da6";</script>
 <title>Ricochet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=Pixelify+Sans:wght@400;700&family=Big+Shoulders+Display:wght@700;800&family=Big+Shoulders+Text:wght@500;700&family=Saira+Stencil+One&family=Saira+Condensed:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Saira+Condensed:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: one full-bleed canvas arena; HUD rides the top safe edge, charge meter the bottom; overlays sit centered over the arena. */
 :root {
@@ -342,7 +342,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
 <section class="ov page" id="ov-settings" hidden>
   <div class="panel">
     <p class="big">Settings</p>
-    <div class="ctrl" id="startRow"><div><span>Start at</span> <select class="linkbtn" id="startWave" aria-label="Start at wave"></select> <span class="startNote" id="startNote" hidden>Practice run: doesn't count toward Best</span></div></div>
+    <!--DEV--><div class="ctrl" id="startRow"><div><span>Start at</span> <select class="linkbtn" id="startWave" aria-label="Start at wave"></select> <span class="startNote" id="startNote" hidden>Practice run: doesn't count toward Best</span></div></div><!--/DEV-->
     <div class="ctrl" id="titleSound"><div><span>Sound</span> </div></div>
     <div class="ctrl"><div><span>Screen shake</span> <button class="linkbtn shakeBtn" data-v="1" type="button">Full</button><button class="linkbtn shakeBtn" data-v="0.4" type="button">Reduced</button><button class="linkbtn shakeBtn" data-v="0" type="button">Off</button></div></div>
     <div class="ctrl"><div><span>Flashes</span> <button class="linkbtn flashBtn" data-v="1" type="button">Full</button><button class="linkbtn flashBtn" data-v="0" type="button">Reduced</button> <span class="startNote">Reduced: no full-screen flashes and no strobing lights</span></div></div>
@@ -398,8 +398,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       <div class="stat"><span class="lbl">Time</span><span class="val" id="o-time">0:00</span></div>
       <div class="stat"><span class="lbl">Best</span><span class="val" id="o-best">0</span></div>
     </div>
-    <div class="btnrow"><button class="btn" id="retry" type="button" hidden>Retry</button><button class="btn" id="again" type="button">Play again</button><button class="btn ghost" id="continue" type="button">Continue</button><button class="btn ghost menuBtn" type="button">Main menu</button></div>
-    <p class="sub" id="o-note" hidden>Continued or skipped-ahead runs don't count toward Best.</p>
+    <div class="btnrow"><button class="btn" id="retry" type="button" hidden>Retry</button><button class="btn" id="again" type="button">Play again</button><!--DEV--><button class="btn ghost" id="continue" type="button">Continue</button><!--/DEV--><button class="btn ghost menuBtn" type="button">Main menu</button></div>
+    <!--DEV--><p class="sub" id="o-note" hidden>Continued or skipped-ahead runs don't count toward Best.</p><!--/DEV-->
   </div>
 </section>
 
@@ -438,7 +438,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     <div class="btnrow"><button class="btn" id="resume" type="button">Resume</button><button class="btn ghost menuBtn" type="button">Main menu</button><button class="btn ghost" id="leaveTrain" type="button" hidden>Training menu</button></div>
     <div class="links left"><button class="linkbtn big2" id="restartLesson" type="button" hidden>Restart lesson</button><button class="linkbtn big2 setBtn" type="button">⚙ Settings</button><button class="linkbtn big2 powersBtn" type="button">Power-ups</button></div>
     <div class="ctrl" id="pauseSound"><div><span>Sound</span> </div></div>
-    <p class="startNote" id="dbg" hidden></p>
+    <!--DEV--><p class="startNote" id="dbg" hidden></p><!--/DEV-->
   </div>
 </section>
 
@@ -1672,12 +1672,12 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     [G.enemies, G.tele, G.parts, G.rings, G.floats, G.bullets, G.shards, G.flashes, G.wallHits, G.pickups, G.extras, G.ghosts, G.coins ? G.coins.coins : [], G.lucky ? G.lucky.blocks : [], G.lucky ? G.lucky.pops : []].forEach(list => list.forEach(mv));
     snapWall();
   }
-  // Pinpong's table needs height: on a wide screen the arena zooms out until it's TABLE_MIN_H tall, about what a phone
-  // held upright gives it (sideways, the table comes out short and balls hang about up top), as long as that keeps a unit
-  // TABLE_MIN_U pixels or more. (A phone held sideways is asked to turn upright instead: see tableHeld.)
+  // Pinpong's table needs height: wherever the screen won't give it TABLE_MIN_H (a wide screen, an iPad upright, a short
+  // phone) the arena zooms out until it does, about what a phone held upright gives it (short, the table traps balls),
+  // as long as that keeps a unit TABLE_MIN_U pixels or more. (A phone held sideways is asked to turn upright: tableHeld.)
   const TABLE_MIN_H = 220, TABLE_MIN_U = 2.2;
   const arenaFor = n => { const base = Math.min(ARENA_MAX, ARENA_START + ARENA_GROW * (n - 1));
-    return bossFor(n) === 'maw' && BW > BH * 1.15 && BH > 480 ? MAW_ARENA : setPiece(n) === 'bonus' && BW > BH ? Math.max(base, Math.min(TABLE_MIN_H, BH / TABLE_MIN_U)) : base; };
+    return bossFor(n) === 'maw' && BW > BH * 1.15 && BH > 480 ? MAW_ARENA : setPiece(n) === 'bonus' ? Math.max(base, Math.min(TABLE_MIN_H * Math.min(BW, BH) / BH, Math.min(BW, BH) / TABLE_MIN_U)) : base; }; // (the table: zoomed out till it's TABLE_MIN_H tall, upright or sideways: an iPad upright is near square)
   const tableWave = () => { const n = G.between !== null ? G.wave + 1 : G.wave; return setPiece(n) === 'bonus' && !(G.table && (G.table.started || G.table.done)) ? n : 0; }; // Pinpong's up (or next) and not yet under way
   const wallPos = (side, t) => side === 0 ? { x: t * AW, y: 0 } : side === 1 ? { x: AW, y: t * AH } : side === 2 ? { x: t * AW, y: AH } : { x: 0, y: t * AH };
   function snapWall() {
@@ -8412,10 +8412,13 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     p.x = T.x0 + T.w / 2; p.y = AH * TB.rail; p.fx = 0; p.fy = -1;
   }
   const phoneWay = () => matchMedia('(pointer: coarse)').matches ? (screenSize().w > screenSize().h ? 'side' : 'up') : null; // a touch screen held sideways or upright
-  // A phone held sideways can't play Pinpong: the table comes out short that way, and balls get stuck. Until it's
-  // turned upright the world holds (the clock too) under a card; layout() leaves the balls where they were, so turning
+  // A phone held sideways can't play Pinpong: the table comes out short that way, and balls get stuck (an iPad sideways
+  // is tall enough to zoom out to a tall table instead, like a computer). Until it's turned upright the world holds
+  // (the clock too) under a card; layout() leaves the balls where they were, so turning
   // it back picks up exactly where it stopped.
-  const tableHeld = () => !!(G && G.table && !G.table.done && phoneWay() === 'side');
+  const TABLE_HOLD_H = 175; // a table shorter than this holds, whatever the screen (an iPad turned mid-table, a short window)
+  const tableShort = () => phoneWay() === 'side' && BH < TABLE_MIN_H * TABLE_MIN_U; // a phone held sideways (an iPad sideways is tall enough to zoom out to a tall table, like a computer)
+  const tableHeld = () => !!(G && G.table && !G.table.done && !G.attract && (tableShort() || AH < TABLE_HOLD_H));
   function drawTableHold() {
     if (!tableHeld() || mode !== 'play') return;
     const R = tableRect(), c = ECOL.target, cx = R.x0 + R.w / 2, cy = AH * 0.5, w2 = Math.min(R.w * 0.46, 40), pulse = 0.6 + 0.4 * Math.sin(performance.now() / 250) ** 2;
@@ -8424,10 +8427,10 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     ctx.strokeStyle = c; ctx.lineWidth = 0.35; ctx.strokeRect(cx - w2, cy - 10, w2 * 2, 20);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `700 4.4px ${FONT}`; ctx.fillStyle = c; ctx.globalAlpha = pulse; ctx.fillText('Pinpong plays upright', cx, cy - 3.6); ctx.globalAlpha = 1;
-    ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = COL.chalk; ctx.fillText('Turn your phone to play', cx, cy + 4);
+    ctx.font = `700 3.2px ${FONT}`; ctx.fillStyle = COL.chalk; ctx.fillText(tableShort() ? 'Turn your phone to play' : phoneWay() ? 'Turn your iPad upright to play' : 'Make the window taller to play', cx, cy + 4);
     ctx.restore();
   }
-  const TABLE_NEW = () => ({ started: false, wasSide: phoneWay() === 'side', spinA: 0, spinV: 0, spinN: 0, boostT: 0, orbits: 0, orbT: 0, scoopBy: false, scoopT: 0, myst: null, mystT: 0, saveT: 0 }); // (the orbit and the scoop: also filled in for a table saved before them)
+  const TABLE_NEW = () => ({ started: false, wasSide: tableShort(), spinA: 0, spinV: 0, spinN: 0, boostT: 0, orbits: 0, orbT: 0, scoopBy: false, scoopT: 0, myst: null, mystT: 0, saveT: 0 }); // (the orbit and the scoop: also filled in for a table saved before them)
   function tableRect() { const w = Math.min(AW - 6, AH * 0.72); return { x0: (AW - w) / 2, w, h: AH }; }
   // static walls as segments: [x0, y0, x1, y1, kind, index]
   function tableSegs() {
@@ -8659,7 +8662,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       if (T.targets.every(Boolean)) T.rise = null;
     }
     if (T.done) return;
-    if (!T.started && G.balls.some(o => o.state === 'live')) T.started = true; // the clock starts with your first launch (time to turn the phone first)
+    if (!T.started && G.balls.some(o => o.state === 'live')) { T.started = true; G.arenaTarget = arenaShort; } // the clock starts with your first launch (time to turn the phone first); the table's size is set from here (no zoom still going on under a ball in play)
     if (T.started) T.time -= dt;
     if (T.time <= 0) { T.time = 0; T.done = true; }
   }
@@ -9850,14 +9853,15 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     };
   }
 
-  // startAt: wave to begin on (test buttons); otherwise a link ending in #wave20 (any number) starts there
+  // startAt: the wave to begin on (playtest builds: the Start-at menu, or a link ending in #wave20; the App Store build always starts at 1)
   function startGame(startAt) {
     checkpoint = null; clearRun();
     layout(); // measure the screen afresh (a phone's sizes can be stale behind the game-over screen)
     audioInit();
     if (typeof startAt !== 'number') {
-      if (location.hash === '#asteroids') { startAt = 8; forceAsteroids = true; }
-      else { const jump = /^#wave(\d{1,2})$/.exec(location.hash); startAt = jump ? clamp(+jump[1], 1, 60) : 1; }
+      startAt = 1;
+      /*DEV*/ if (location.hash === '#asteroids') { startAt = 8; forceAsteroids = true; }
+      else { const jump = /^#wave(\d{1,2})$/.exec(location.hash); if (jump) startAt = clamp(+jump[1], 1, 60); } /*/DEV*/
     }
     arenaShort = arenaFor(startAt); computeArena(); setLoopTint(loopOf(startAt));
     G = newGame();
@@ -9905,7 +9909,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (!done) playSting('over');
     mode = 'over'; $('ov-win').hidden = true;
     $('ov-over').querySelector('.big').textContent = done ? 'Run complete' : 'Hull breached';
-    $('continue').hidden = !!done; // nothing to continue from a finished run
+    /*DEV*/ $('continue').hidden = !!done; /*/DEV*/ // nothing to continue from a finished run
     const cp = !done && checkpoint; $('retry').hidden = !cp; $('again').className = cp ? 'btn ghost' : 'btn';
     if (cp) $('retry').textContent = `Retry from wave ${cp.wave}`;
     if (!G.continued && G.score > best) { best = G.score; try { localStorage.setItem('ricochet.best', best); } catch (e) {} }
@@ -9913,8 +9917,8 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     $('o-wave').textContent = G.wave;
     $('o-time').textContent = fmtClock(G.clock || 0);
     $('o-best').textContent = best.toLocaleString();
-    $('continue').textContent = `Continue (wave ${Math.max(1, G.wave)})`;
-    $('o-note').hidden = !G.continued;
+    /*DEV*/ $('continue').textContent = `Continue (wave ${Math.max(1, G.wave)})`;
+    $('o-note').hidden = !G.continued; /*/DEV*/
     $('ov-over').hidden = false;
     (cp ? $('retry') : $('again')).focus({ preventScroll: true });
   }
@@ -9959,6 +9963,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     setLoopTint(loopOf(G.wave)); mode = 'play';
     $('ov-over').hidden = true; $('ov-pause').hidden = true; ptrs.clear(); touchMove = touchAct = null;
   }
+  /*DEV*/
   // Continue: restart the wave you died on with a fresh hull, keeping the score and the milestones already paid out.
   // Continued runs never set a best. (A practice option beside the checkpoint: it starts a new run, so the checkpoint goes.)
   function continueGame() {
@@ -9967,6 +9972,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     Object.assign(G, { score, lifeIdx, continued: continued + 1 });
   }
 
+  /*/DEV*/
   // The pause screen repeats the wave's message (what's new, how a set piece or boss works), or the last one there was.
   function showIntel() {
     let li = G && G.lastIntro;
@@ -9976,6 +9982,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     $('pauseIntelWave').textContent = li.wave === G.wave ? `Wave ${li.wave}` : `From wave ${li.wave}`;
     $('pauseIntelText').textContent = li.text;
   }
+  /*DEV*/
   // Playtest builds: the screen measurements on the pause screen, to diagnose layout trouble on a real phone.
   function showDebug() {
     if (!window.RICOCHET_DEBUG) return;
@@ -9985,8 +9992,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
       `safe ${r(s.left)},${r(s.top)}–${r(s.right)},${r(s.bottom)} · canvas ${cvs.clientWidth}×${cvs.clientHeight} · arena ${r(AX)},${r(AY)} ${r(BW)}×${r(BH)} · side ${document.body.classList.contains('side')} · ` +
       `landscape ${matchMedia('(orientation: landscape)').matches} · scroll ${r(scrollX)},${r(scrollY)} · standalone ${!!navigator.standalone}`;
   }
+  /*/DEV*/
   function setPaused(p) {
-    if (p && mode === 'play') { mode = 'paused'; const tr = G.train; $('pauseTime').textContent = tr ? `Training · Lesson ${tr.L + 1} of ${TR.length}: ${TR[tr.L].name}` : `Time ${fmtClock(G.clock || 0)} · wave ${G.wave}`; if (tr) $('pauseIntel').hidden = true; else showIntel(); $('ov-pause').querySelector('.menuBtn').hidden = !!tr; $('leaveTrain').hidden = $('restartLesson').hidden = !tr; $('ov-pause').hidden = false; ptrs.clear(); touchMove = touchAct = null; showDebug(); saveRun(); }
+    if (p && mode === 'play') { mode = 'paused'; const tr = G.train; $('pauseTime').textContent = tr ? `Training · Lesson ${tr.L + 1} of ${TR.length}: ${TR[tr.L].name}` : `Time ${fmtClock(G.clock || 0)} · wave ${G.wave}`; if (tr) $('pauseIntel').hidden = true; else showIntel(); $('ov-pause').querySelector('.menuBtn').hidden = !!tr; $('leaveTrain').hidden = $('restartLesson').hidden = !tr; $('ov-pause').hidden = false; ptrs.clear(); touchMove = touchAct = null; /*DEV*/ showDebug(); /*/DEV*/ saveRun(); }
     else if (!p && mode === 'paused') { mode = 'play'; $('ov-pause').hidden = true; }
   }
 
@@ -13541,7 +13549,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Settings: a page from the title's gear button or the pause screen. Start at only makes sense before a run.
   const showSettings = on => {
     $('ov-settings').hidden = !on;
-    if (on) { $('startRow').hidden = mode === 'paused'; $('ov-settings').scrollTop = 0; updateHud(); $('setBack').focus({ preventScroll: true }); }
+    if (on) { /*DEV*/ $('startRow').hidden = mode === 'paused'; /*/DEV*/ $('ov-settings').scrollTop = 0; updateHud(); $('setBack').focus({ preventScroll: true }); }
     else { updateHud(); (mode === 'paused' ? $('resume') : $('play')).focus({ preventScroll: true }); }
   };
   document.querySelectorAll('.setBtn').forEach(b => b.addEventListener('click', () => { b.blur(); showSettings(true); }));
@@ -13652,6 +13660,7 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   // Start at: any wave from 1 to 40 (bosses and set pieces named), or the Asteroid Field. A run that skips ahead is
   // practice and doesn't count toward Best. Play again restarts at the same place.
   if (window.RICOCHET_BUILD) for (const el of document.querySelectorAll('.buildTag')) { el.textContent = 'Build ' + window.RICOCHET_BUILD; el.hidden = false; } // which version this is
+  /*DEV*/
   const startSel = $('startWave');
   startSel.add(new Option('Wave 1', '1'));
   startSel.add(new Option('Asteroid Field', 'ast'));
@@ -13667,15 +13676,18 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
   }
   startSel.add(new Option(`Loop 2 · Wave ${LOOP_LEN + 1}`, String(LOOP_LEN + 1)));
   startSel.addEventListener('change', () => { $('startNote').hidden = startSel.value === '1'; startSel.blur(); });
+  /*/DEV*/
   function startChosen() {
-    const v = startSel.value;
+    let v = '1';
+    /*DEV*/ v = startSel.value; /*/DEV*/
     if (!trainAsked && v === '1' && !location.hash) { $('ov-first').hidden = false; $('firstTrain').focus({ preventScroll: true }); return; } // the first Launch asks about training, once
-    // (Bombardment from 11: with the wingman Clanktank gives you)
-    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'bomb') { forceBomb = true; startGame(11); } else if (v === 'trail') { forceRiders = true; startGame(11); } else if (v === 'maze') { forceMaze = true; startGame(11); } else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v === 'legs') { startGame(60); G.lastStandTest = true; G.legTest = true; } else if (v === 'swarm') { startGame(60); G.lastStandTest = true; G.swarmTest = true; } else if (v !== '1') startGame(+v); else startGame();
+    /*DEV*/ // (Bombardment from 11: with the wingman Clanktank gives you)
+    if (v === 'ast') { forceAsteroids = true; startGame(8); } else if (v === 'bomb') { forceBomb = true; startGame(11); } else if (v === 'trail') { forceRiders = true; startGame(11); } else if (v === 'maze') { forceMaze = true; startGame(11); } else if (v === 'last') { startGame(60); G.lastStandTest = true; } else if (v === 'legs') { startGame(60); G.lastStandTest = true; G.legTest = true; } else if (v === 'swarm') { startGame(60); G.lastStandTest = true; G.swarmTest = true; } else if (v !== '1') startGame(+v); /*/DEV*/
+    if (v === '1') startGame();
   }
   $('play').addEventListener('click', startChosen);
   $('again').addEventListener('click', startChosen);
-  $('continue').addEventListener('click', continueGame);
+  /*DEV*/ $('continue').addEventListener('click', continueGame); /*/DEV*/
   $('retry').addEventListener('click', retryCheckpoint);
   $('nextLoop').addEventListener('click', () => { audioInit(); nextLoop(); });
   $('endRun').addEventListener('click', () => gameOver(true));
@@ -13732,8 +13744,9 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     if (data && data.best) best = Math.max(best, data.best);
     layout(); laidOut = true;
     const saved = data && data.run ? null : loadRun(); // (a page update brings its own copy of the run; otherwise the one kept on the device)
-    if (data && data.run && restoreRun(data.run)) checkpoint = data.checkpoint || null;
-    else if (saved && restoreRun(saved.run)) checkpoint = saved.checkpoint || null;
+    if (data && data.run && restoreRun(data.run)) checkpoint = validCheckpoint(data.checkpoint) ? data.checkpoint : null;
+    else if (saved && restoreRun(saved.run)) checkpoint = validCheckpoint(saved.checkpoint) ? saved.checkpoint : null;
+    else if (saved) clearRun(); // (a save it can't use: gone, so it isn't tried again)
     else {
       startAttract();
       $('play').focus({ preventScroll: true });
@@ -13770,7 +13783,19 @@ body.side .tail { flex-direction: column; align-items: flex-end; gap: 6px; }
     G.balls.forEach((o, i) => { o.wing = i > 0; if (!o.wing && (o.state === 'queued' || o.state === 'return')) o.state = 'held'; }); // saved before wingmen
     if (G.bonus) G.bonus = null; // saved mid-way through the old bumper round, long since replaced by the pinball table: the wave just carries on
   }
+  // Is this a run the game can carry on (a save, a page update's copy, a checkpoint)? Saves come from this game, but an
+  // update can meet one from an older version, or one cut off as it was written: anything that isn't sound is turned
+  // away (and the game opens at the title), never resumed into a broken or unplayable run.
+  function validRun(run) {
+    const ok = v => typeof v === 'number' && Number.isFinite(v), g = run && run.G, p = g && g.player;
+    return !!(run && ok(run.arenaShort) && run.arenaShort > 0 && g && typeof g === 'object'
+      && Number.isInteger(g.wave) && g.wave >= 0 && ok(g.score) && g.score >= 0
+      && p && ok(p.x) && ok(p.y) && ok(p.hull) && Array.isArray(g.balls) && g.balls.length > 0 && g.balls.every(o => o && ok(o.x) && ok(o.y))
+      && Array.isArray(g.enemies));
+  }
+  function validCheckpoint(cp) { try { return !!(cp && Number.isInteger(cp.wave) && validRun(JSON.parse(cp.data))); } catch (e) { return false; } }
   function restoreRun(run) {
+    if (!validRun(run)) return false;
     try {
       arenaShort = run.arenaShort; computeArena();
       G = Object.assign(newGame(), run.G);
